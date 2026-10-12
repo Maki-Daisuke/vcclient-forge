@@ -1,0 +1,848 @@
+{
+  "Apache Software License": [
+    {
+      "name": "Cython",
+      "version": "3.0.10",
+      "licenseURL": "https://github.com/cython/cython/blob/master/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "fire",
+      "version": "0.6.0",
+      "licenseURL": "https://github.com/google/python-fire/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "flatbuffers",
+      "version": "24.3.25",
+      "licenseURL": "https://github.com/google/flatbuffers/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "onnxsim",
+      "version": "0.4.36",
+      "licenseURL": "https://github.com/daquexian/onnx-simplifier/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "portpicker",
+      "version": "1.6.0",
+      "licenseURL": "https://github.com/google/python_portpicker/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pyOpenSSL",
+      "version": "24.1.0",
+      "licenseURL": "https://github.com/pyca/pyopenssl/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "python-multipart",
+      "version": "0.0.9",
+      "licenseURL": "https://github.com/Kludex/python-multipart/blob/master/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "regex",
+      "version": "2023.12.25",
+      "licenseURL": "https://github.com/mrabarnett/mrab-regex/blob/hg/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "requests",
+      "version": "2.31.0",
+      "licenseURL": "https://github.com/psf/requests/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "sacrebleu",
+      "version": "2.4.2",
+      "licenseURL": "https://github.com/mjpost/sacrebleu/blob/master/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "types-cffi",
+      "version": "1.16.0.20240331",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "types-pyOpenSSL",
+      "version": "24.0.0.20240417",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "types-pycurl",
+      "version": "7.45.3.20240421",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "types-requests",
+      "version": "2.31.0.20240406",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "types-setuptools",
+      "version": "69.5.0.20240423",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "types-toml",
+      "version": "0.10.8.20240310",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "types-tqdm",
+      "version": "4.66.0.20240417",
+      "licenseURL": "https://github.com/python/typeshed/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "watchdog",
+      "version": "4.0.1",
+      "licenseURL": "https://github.com/gorakhargosh/watchdog/blob/master/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "MIT License": [
+    {
+      "name": "Hypercorn",
+      "version": "0.16.0",
+      "licenseURL": "https://github.com/pgjones/hypercorn/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.1",
+      "licenseURL": "https://github.com/yaml/pyyaml/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "altgraph",
+      "version": "0.17.4",
+      "licenseURL": "https://github.com/ronaldoussoren/altgraph/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.6.0",
+      "licenseURL": "https://github.com/annotated-types/annotated-types/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "anyio",
+      "version": "4.3.0",
+      "licenseURL": "https://github.com/agronholm/anyio/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "attrs",
+      "version": "23.2.0",
+      "licenseURL": "https://github.com/python-attrs/attrs/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "cffi",
+      "version": "1.16.0",
+      "licenseURL": "https://github.com/python-cffi/cffi/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.3.2",
+      "licenseURL": "https://github.com/jawah/charset_normalizer/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "clr-loader",
+      "version": "0.2.6",
+      "licenseURL": "https://github.com/pythonnet/clr-loader/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "coloredlogs",
+      "version": "15.0.1",
+      "licenseURL": "https://coloredlogs.readthedocs.io/en/latest/readme.html#license",
+      "repositry": ""
+    },
+    {
+      "name": "einops",
+      "version": "0.7.0",
+      "licenseURL": "https://github.com/arogozhnikov/einops/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "environs",
+      "version": "11.0.0",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "exceptiongroup",
+      "version": "1.2.0",
+      "licenseURL": "https://github.com/agronholm/exceptiongroup/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "fairseq",
+      "version": "0.12.2",
+      "licenseURL": "https://github.com/facebookresearch/fairseq/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "faiss-cpu",
+      "version": "1.7.3",
+      "licenseURL": "https://github.com/kyamagu/faiss-wheels/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "fastapi",
+      "version": "0.110.1",
+      "licenseURL": "https://github.com/tiangolo/fastapi/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "fastapi_cors",
+      "version": "0.0.6",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "flake8",
+      "version": "7.0.0",
+      "licenseURL": "https://github.com/PyCQA/flake8/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "h11",
+      "version": "0.14.0",
+      "licenseURL": "https://github.com/python-hyper/h11/blob/master/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "h2",
+      "version": "4.1.0",
+      "licenseURL": "https://github.com/python-hyper/h2/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "hpack",
+      "version": "4.0.0",
+      "licenseURL": "https://github.com/python-hyper/hpack/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "humanfriendly",
+      "version": "10.0",
+      "licenseURL": "https://humanfriendly.readthedocs.io/en/latest/readme.html#license",
+      "repositry": ""
+    },
+    {
+      "name": "hydra-core",
+      "version": "1.0.7",
+      "licenseURL": "https://github.com/facebookresearch/hydra/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "hyperframe",
+      "version": "6.0.1",
+      "licenseURL": "https://github.com/python-hyper/hyperframe/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.0.0",
+      "licenseURL": "https://github.com/pytest-dev/iniconfig/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "linkify-it-py",
+      "version": "2.0.3",
+      "licenseURL": "https://github.com/tsutsu3/linkify-it-py/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "local-attention",
+      "version": "1.9.0",
+      "licenseURL": "https://github.com/lucidrains/local-attention/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "3.0.0",
+      "licenseURL": "https://github.com/executablebooks/markdown-it-py/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "marshmallow",
+      "version": "3.21.3",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "mccabe",
+      "version": "0.7.0",
+      "licenseURL": "https://github.com/PyCQA/mccabe/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "mdit-py-plugins",
+      "version": "0.4.0",
+      "licenseURL": "https://github.com/executablebooks/mdit-py-plugins/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "licenseURL": "https://github.com/executablebooks/mdurl/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "ngrok",
+      "version": "1.4.0",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "onnxruntime",
+      "version": "1.17.3",
+      "licenseURL": "https://github.com/microsoft/onnxruntime/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "onnxruntime-directml",
+      "version": "1.17.3",
+      "licenseURL": "https://github.com/microsoft/onnxruntime/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "onnxruntime-gpu",
+      "version": "1.17.3",
+      "licenseURL": "https://github.com/microsoft/onnxruntime/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pep8-naming",
+      "version": "0.13.3",
+      "licenseURL": "https://github.com/PyCQA/pep8-naming/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pluggy",
+      "version": "1.5.0",
+      "licenseURL": "https://github.com/pytest-dev/pluggy/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "priority",
+      "version": "2.0.0",
+      "licenseURL": "https://github.com/python-hyper/priority/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pycodestyle",
+      "version": "2.11.1",
+      "licenseURL": "https://github.com/PyCQA/pycodestyle/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pydantic",
+      "version": "2.7.0",
+      "licenseURL": "https://github.com/pydantic/pydantic/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.18.1",
+      "licenseURL": "https://github.com/pydantic/pydantic-core/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pyflakes",
+      "version": "3.2.0",
+      "licenseURL": "https://github.com/PyCQA/pyflakes/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pytest",
+      "version": "8.1.1",
+      "licenseURL": "https://github.com/pytest-dev/pytest/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "python-engineio",
+      "version": "4.9.0",
+      "licenseURL": "https://github.com/miguelgrinberg/python-engineio/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "python-socketio",
+      "version": "5.11.2",
+      "licenseURL": "https://github.com/miguelgrinberg/python-socketio/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pythonnet",
+      "version": "3.0.3",
+      "licenseURL": "https://github.com/pythonnet/pythonnet/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "rich",
+      "version": "13.7.1",
+      "licenseURL": "https://github.com/Textualize/rich/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "samplerate",
+      "version": "0.2.1",
+      "licenseURL": "https://pypi.org/project/samplerate/",
+      "repositry": ""
+    },
+    {
+      "name": "service-identity",
+      "version": "24.1.0",
+      "licenseURL": "https://github.com/pyca/service-identity/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "simple-websocket",
+      "version": "1.0.0",
+      "licenseURL": "https://github.com/miguelgrinberg/simple-websocket/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "six",
+      "version": "1.16.0",
+      "licenseURL": "https://github.com/benjaminp/six/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "sounddevice",
+      "version": "0.4.6",
+      "licenseURL": "https://github.com/spatialaudio/python-sounddevice/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "tabulate",
+      "version": "0.9.0",
+      "licenseURL": "https://github.com/astanin/python-tabulate/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "taskgroup",
+      "version": "0.0.0a4",
+      "licenseURL": "https://github.com/graingert/taskgroup/blob/default/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "termcolor",
+      "version": "2.4.0",
+      "licenseURL": "https://github.com/termcolor/termcolor/blob/main/COPYING.txt",
+      "repositry": ""
+    },
+    {
+      "name": "textual",
+      "version": "0.54.0",
+      "licenseURL": "https://github.com/Textualize/textual/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "toml",
+      "version": "0.10.2",
+      "licenseURL": "https://github.com/uiri/toml/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "tomli",
+      "version": "2.0.1",
+      "licenseURL": "https://github.com/hukkin/tomli/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "torch-directml",
+      "version": "0.2.3.dev240715",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "torchfcpe",
+      "version": "0.0.4",
+      "licenseURL": "https://github.com/CNChTu/FCPE/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "uc-micro-py",
+      "version": "1.0.3",
+      "licenseURL": "https://github.com/tsutsu3/uc.micro-py/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "urllib3",
+      "version": "2.2.1",
+      "licenseURL": "https://github.com/urllib3/urllib3/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "wsproto",
+      "version": "1.2.0",
+      "licenseURL": "https://github.com/python-hyper/wsproto/blob/main/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "BSD License": [
+    {
+      "name": "Jinja2",
+      "version": "3.1.3",
+      "licenseURL": "https://github.com/pallets/jinja/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "2.1.5",
+      "licenseURL": "https://github.com/pallets/markupsafe/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "Pygments",
+      "version": "2.17.2",
+      "licenseURL": "https://github.com/pygments/pygments/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "aioquic",
+      "version": "1.0.0",
+      "licenseURL": "https://github.com/aiortc/aioquic/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "click",
+      "version": "8.1.7",
+      "licenseURL": "https://github.com/pallets/click/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "licenseURL": "https://github.com/tartley/colorama/blob/master/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "fsspec",
+      "version": "2024.3.1",
+      "licenseURL": "https://github.com/fsspec/filesystem_spec/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "idna",
+      "version": "3.7",
+      "licenseURL": "https://github.com/kjd/idna/blob/master/LICENSE.md",
+      "repositry": ""
+    },
+    {
+      "name": "lxml",
+      "version": "5.2.1",
+      "licenseURL": "https://github.com/lxml/lxml/blob/master/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0",
+      "licenseURL": "https://github.com/mpmath/mpmath/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "networkx",
+      "version": "3.3",
+      "licenseURL": "https://github.com/networkx/networkx/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "numpy",
+      "version": "1.26.4",
+      "licenseURL": "https://github.com/numpy/numpy/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "omegaconf",
+      "version": "2.0.6",
+      "licenseURL": "https://github.com/omry/omegaconf/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "portalocker",
+      "version": "2.8.2",
+      "licenseURL": "https://github.com/wolph/portalocker/blob/develop/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "psutil",
+      "version": "5.9.8",
+      "licenseURL": "https://github.com/giampaolo/psutil/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.0",
+      "licenseURL": "https://github.com/pyasn1/pyasn1/blob/main/LICENSE.rst",
+      "repositry": ""
+    },
+    {
+      "name": "pyasn1_modules",
+      "version": "0.4.0",
+      "licenseURL": "https://github.com/pyasn1/pyasn1-modules/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "pycparser",
+      "version": "2.22",
+      "licenseURL": "https://github.com/eliben/pycparser/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pylsqpack",
+      "version": "0.3.18",
+      "licenseURL": "https://github.com/aiortc/pylsqpack/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pyreadline3",
+      "version": "3.4.1",
+      "licenseURL": "https://github.com/pyreadline3/pyreadline3/blob/master/LICENSE.md",
+      "repositry": ""
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.0.1",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "scipy",
+      "version": "1.13.0",
+      "licenseURL": "https://github.com/scipy/scipy/blob/main/LICENSE.txt",
+      "repositry": ""
+    },
+    {
+      "name": "starlette",
+      "version": "0.37.2",
+      "licenseURL": "https://github.com/encode/starlette/blob/master/LICENSE.md",
+      "repositry": ""
+    },
+    {
+      "name": "sympy",
+      "version": "1.12",
+      "licenseURL": "https://github.com/sympy/sympy/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "torch",
+      "version": "2.2.2",
+      "licenseURL": "https://github.com/pytorch/pytorch/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "torchaudio",
+      "version": "2.2.2",
+      "licenseURL": "https://github.com/pytorch/audio/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.29.0",
+      "licenseURL": "https://github.com/encode/uvicorn/blob/master/LICENSE.md",
+      "repositry": ""
+    },
+    {
+      "name": "wavio",
+      "version": "0.0.9",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    }
+  ],
+  "BSD": [
+    {
+      "name": "antlr4-python3-runtime",
+      "version": "4.8",
+      "licenseURL": "https://www.antlr.org/license.html",
+      "repositry": ""
+    },
+    {
+      "name": "torchvision",
+      "version": "0.18.1",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    }
+  ],
+  "UNKNOWN": [
+    {
+      "name": "beatrice-python",
+      "version": "0.1.0",
+      "licenseURL": "https://huggingface.co/wok000/vcclient_model/blob/main/beatrice_v2_alpha/readme.md",
+      "repositry": ""
+    },
+    {
+      "name": "simple_performance_timer",
+      "version": "0.1.3",
+      "licenseURL": "",
+      "repositry": ""
+    },
+    {
+      "name": "vcclient-dev",
+      "version": "0.0.1",
+      "licenseURL": "",
+      "repositry": ""
+    }
+  ],
+  "Mozilla Public License 2.0 (MPL 2.0)": [
+    {
+      "name": "bidict",
+      "version": "0.23.1",
+      "licenseURL": "https://github.com/jab/bidict/blob/main/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "certifi",
+      "version": "2024.2.2",
+      "licenseURL": "https://github.com/certifi/python-certifi/blob/master/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "Python Software Foundation License": [
+    {
+      "name": "bitarray",
+      "version": "2.9.2",
+      "licenseURL": "https://github.com/ilanschnell/bitarray/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pywin32",
+      "version": "306",
+      "licenseURL": "https://github.com/mhammond/pywin32/blob/main/Pythonwin/License.txt",
+      "repositry": ""
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.11.0",
+      "licenseURL": "https://github.com/python/typing_extensions/blob/main/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "Apache Software License; BSD License": [
+    {
+      "name": "cryptography",
+      "version": "42.0.5",
+      "licenseURL": "https://github.com/pyca/cryptography/blob/main/LICENSE.APACHE",
+      "repositry": ""
+    },
+    {
+      "name": "packaging",
+      "version": "24.0",
+      "licenseURL": "https://github.com/pypa/packaging/blob/main/LICENSE.APACHE",
+      "repositry": ""
+    }
+  ],
+  "The Unlicense (Unlicense)": [
+    {
+      "name": "filelock",
+      "version": "3.13.4",
+      "licenseURL": "https://github.com/tox-dev/filelock/blob/main/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "Other/Proprietary License": [
+    {
+      "name": "intel-openmp",
+      "version": "2021.4.0",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "mkl",
+      "version": "2021.4.0",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    },
+    {
+      "name": "tbb",
+      "version": "2021.12.0",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    }
+  ],
+  "Apache License v2.0": [
+    {
+      "name": "onnx",
+      "version": "1.16.0",
+      "licenseURL": "https://github.com/onnx/onnx/blob/main/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "MIT": [
+    {
+      "name": "pefile",
+      "version": "2023.2.7",
+      "licenseURL": "https://github.com/erocarrera/pefile/blob/master/LICENSE",
+      "repositry": ""
+    },
+    {
+      "name": "pyworld",
+      "version": "0.3.4",
+      "licenseURL": "https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder/blob/master/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "Historical Permission Notice and Disclaimer (HPND)": [
+    {
+      "name": "pillow",
+      "version": "10.4.0",
+      "licenseURL": "http://SHOULD_BE_WRITTEN",
+      "repositry": ""
+    }
+  ],
+  "3-Clause BSD License": [
+    {
+      "name": "protobuf",
+      "version": "5.26.1",
+      "licenseURL": "https://github.com/protocolbuffers/protobuf/blob/main/LICENSE",
+      "repositry": ""
+    }
+  ],
+  "GNU Library or Lesser General Public License (LGPL); MIT License": [
+    {
+      "name": "pycurl",
+      "version": "7.45.3",
+      "licenseURL": "http://pycurl.io/",
+      "repositry": ""
+    }
+  ],
+  "BSD-3-Clause": [
+    {
+      "name": "pywin32-ctypes",
+      "version": "0.2.2",
+      "licenseURL": "https://github.com/enthought/pywin32-ctypes/blob/main/LICENSE.txt",
+      "repositry": ""
+    }
+  ],
+  "Apache Software License; MIT License": [
+    {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "licenseURL": "https://github.com/python-trio/sniffio/blob/master/LICENSE.APACHE2",
+      "repositry": ""
+    }
+  ],
+  "MIT License; Mozilla Public License 2.0 (MPL 2.0)": [
+    {
+      "name": "tqdm",
+      "version": "4.66.2",
+      "licenseURL": "https://github.com/tqdm/tqdm/blob/master/LICENCE",
+      "repositry": ""
+    }
+  ]
+}

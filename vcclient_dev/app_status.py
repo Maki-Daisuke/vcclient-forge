@@ -1,0 +1,21 @@
+class AppStatus:
+    _instance = None
+
+    def get_instance(cls):
+
+        if cls._instance is None:
+            cls._instance = cls()
+
+            return cls._instance
+
+        return cls._instance
+
+    get_instance = classmethod(get_instance)
+
+    def __init__(self):
+
+        self.end_flag = False
+
+    def stop_app(self):
+
+        self.end_flag = True
