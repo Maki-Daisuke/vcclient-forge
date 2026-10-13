@@ -10,7 +10,24 @@ import numpy as np
 import samplerate as sr
 from scipy import signal
 from scipy.io import wavfile
-from simple_performance_timer.Timer import Timer
+
+try:
+    from simple_performance_timer.Timer import Timer
+except ImportError:
+
+    class Timer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def record(self, *args):
+            pass
+
 
 from ...const import LOGGER_NAME, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import ERROR_CODE_MODEL_UPDATE_FAILED, ERROR_CODE_RECORDING_FAILED, VCClientError
@@ -94,10 +111,19 @@ class VoiceChanger:
             logging.getLogger(LOGGER_NAME).info(
                 f"slot_index: {self.vc_info.slot_index} -> {slot_index}, gpu_device_index: {self.vc_info.gpu_device_index} -> {conf.gpu_device_id_int}"
             )
-            self.vc_info.slot_index = slot_index
-            self.vc_info.gpu_device_index = conf.gpu_device_id_int
-            self._update_model(slot_index)
-            self._set_io_sample_rate()
+            prev_slot_index = self.vc_info.slot_index
+            prev_gpu_index = self.vc_info.gpu_device_index
+            try:
+                self._update_model(slot_index)
+                self.vc_info.slot_index = slot_index
+                self.vc_info.gpu_device_index = conf.gpu_device_id_int
+                self._set_io_sample_rate()
+            except Exception as e:
+                logging.getLogger(LOGGER_NAME).error(f"Failed to switch model to slot {slot_index}: {e}")
+                self.vc_info.slot_index = prev_slot_index
+                self.vc_info.gpu_device_index = prev_gpu_index
+                conf.current_slot_index = prev_slot_index
+                ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
             return None
         return None
 

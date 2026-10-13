@@ -1,5 +1,3 @@
-
-
 from ...data_types.voice_changer_data_types import EmbedderInfo
 from ..embedders.fairseq_hubert import FairseqHubert
 

@@ -1,17 +1,14 @@
 import argparse
-import pyaudio
-import wave
 import struct
-import socketio
-import ssl
-from datetime import datetime
 import time
+import wave
 
+import pyaudio
+import socketio
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-import signal
-import sys
 import numpy as np
 
 BUFFER_SIZE = 2048 * 2 * 10
@@ -82,10 +79,10 @@ class MyCustomNamespace(socketio.ClientNamespace):
         self.file_output_stream = file_output_stream
 
     def on_connect(self):
-        print(f'connected')
+        print('connected')
 
     def on_disconnect(self):
-        print(f'disconnected')
+        print('disconnected')
 
     def on_response(self, msg):
         timestamp = msg[0]

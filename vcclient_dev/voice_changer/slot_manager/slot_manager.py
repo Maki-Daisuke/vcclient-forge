@@ -31,6 +31,8 @@ from ..data_types.slot_manager_data_types import (
     SlotInfoMember,
 )
 from ..voice_chanager_const import (
+    BEATRICE_V2_ALPHA_SLOT_INDEX,
+    BEATRICE_V2_BETA_SLOT_INDEX,
     MAX_SLOT_INDEX,
     MERGED_SLOT_INDEX,
     ONNX_EXPORTED_SLOT_INDEX,
@@ -86,11 +88,10 @@ def reload_slot_infos(model_dir=None):
 
     slot_infos.append(exported_onnx_model_slot)
 
-    # Beatrice support is deprecated/disabled
-    # beatrice_v2_alpha_slot = load_slot_info(model_dir, BEATRICE_V2_ALPHA_SLOT_INDEX)
-    # slot_infos.append(beatrice_v2_alpha_slot)
-    # beatrice_v2_beta_slot = load_slot_info(model_dir, BEATRICE_V2_BETA_SLOT_INDEX)
-    # slot_infos.append(beatrice_v2_beta_slot)
+    beatrice_v2_alpha_slot = load_slot_info(model_dir, BEATRICE_V2_ALPHA_SLOT_INDEX)
+    slot_infos.append(beatrice_v2_alpha_slot)
+    beatrice_v2_beta_slot = load_slot_info(model_dir, BEATRICE_V2_BETA_SLOT_INDEX)
+    slot_infos.append(beatrice_v2_beta_slot)
 
     return slot_infos
 
@@ -228,34 +229,6 @@ class SlotManager:
 
     def export_onnx(self, params: OnnxExportParam, store_dir: Path):
         raise NotImplementedError("ONNX exporter is not supported in ONNX-only mode.")
-
-        store_path = store_dir / slot_info.model_file.name
-        store_path = store_path.with_suffix(".onnx")
-        exporter.export(params, store_path)
-
-        if slot_info.index_file is not None:
-            index_src_path = ModelDir / str(params.slot_index) / slot_info.index_file
-            index_dst_path = store_dir / slot_info.index_file.name
-            shutil.copy(index_src_path, index_dst_path)
-        else:
-            index_dst_path = None
-
-        if slot_info.icon_file is not None:
-            icon_src_path = ModelDir / str(params.slot_index) / slot_info.icon_file
-            icon_dst_path = store_dir / slot_info.icon_file.name
-            shutil.copy(icon_src_path, icon_dst_path)
-        else:
-            icon_dst_path = None
-
-        model_import_param = RVCModelImportParam(
-            name=f"{slot_info.name} onnx",
-            slot_index=ONNX_EXPORTED_SLOT_INDEX,
-            model_file=store_path,
-            index_file=index_dst_path,
-            icon_file=icon_dst_path,
-        )
-        import_model(ModelDir, model_import_param, remove_src=True)
-        self.reload(use_log=False)
 
     def export(self, params: ExportParam):
         logging.getLogger(LOGGER_NAME).info(f"export: {params}")

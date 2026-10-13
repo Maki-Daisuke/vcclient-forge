@@ -1,5 +1,7 @@
-import pyaudio
 import json
+
+import pyaudio
+
 if __name__ == '__main__':
     audio = pyaudio.PyAudio()
     audio_input_devices = []

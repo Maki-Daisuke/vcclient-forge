@@ -1,0 +1,73 @@
+name: Release Builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-packages:
+    name: Build ${{ matrix.target.name }}
+    runs-on: ${{ matrix.target.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: win-cuda
+            os: windows-latest
+            edition: cuda
+            python: "3.12"
+          - name: win-dml
+            os: windows-latest
+            edition: dml
+            python: "3.12"
+          - name: win-cpu
+            os: windows-latest
+            edition: cpu
+            python: "3.12"
+          - name: linux-cuda
+            os: ubuntu-latest
+            edition: cuda
+            python: "3.12"
+          - name: linux-cpu
+            os: ubuntu-latest
+            edition: cpu
+            python: "3.12"
+          - name: mac-universal
+            os: macos-latest
+            edition: mac
+            python: "3.12"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Build portable distribution package
+        shell: bash
+        run: |
+          uv run python scripts/build_package.py \
+            --edition "${{ matrix.target.edition }}" \
+            --python-version "${{ matrix.target.python }}" \
+            --output-dir "dist"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target.name }}
+          path: dist/*.zip
+          retention-days: 7
+
+      - name: Release to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

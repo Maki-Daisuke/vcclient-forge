@@ -1,11 +1,9 @@
-
 from pathlib import Path
 
 try:
     from fairseq import checkpoint_utils
 except ImportError:
     checkpoint_utils = None
-
 
 
 from ...data_types.voice_changer_data_types import EmbedderInfo

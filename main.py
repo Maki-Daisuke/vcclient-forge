@@ -1,14 +1,11 @@
-import os
-import sys
+import logging
+import multiprocessing as mp
 import platform
 import signal
-import threading
+import sys
 import time
 from pathlib import Path
-import multiprocessing as mp
-import json
-import logging
-from tqdm import tqdm
+
 import fire
 
 # Setup environment
@@ -16,30 +13,28 @@ _here = Path(__file__).parent.resolve()
 if str(_here) not in sys.path:
     sys.path.insert(0, str(_here))
 
-import sounddevice
 
 from vcclient_dev.app_status import AppStatus
 from vcclient_dev.client_launcher.client_launcher import ClientLauncher
-from vcclient_dev.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
 from vcclient_dev.const import LOG_FILE, LOGGER_NAME, VERSION
+from vcclient_dev.cui.vcclient_cui import VCClientCUI
+from vcclient_dev.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
 from vcclient_dev.logger import setup_logger
 from vcclient_dev.proxy.ngrok_proxy_manager import NgrokProxyManager
+from vcclient_dev.server.vcserver import VCServer
 from vcclient_dev.utils.is_running_on_colab import is_running_on_colab
 from vcclient_dev.utils.parseBoolArg import parse_bool_arg
 from vcclient_dev.utils.resolve_url import resolve_base_url
-from vcclient_dev.voice_changer.data_types.slot_manager_data_types import RVCModelImportParam
-from vcclient_dev.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
-from vcclient_dev.voice_changer.module_manager.module_manager import ModuleDownloadStatus, ModuleManager
-from vcclient_dev.cui.vcclient_cui import VCClientCUI
-from vcclient_dev.server.vcserver import VCServer
 from vcclient_dev.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
 from vcclient_dev.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient_dev.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
-from vcclient_dev.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient_dev.voice_changer.module_manager.module_manager import ModuleDownloadStatus, ModuleManager
+from vcclient_dev.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient_dev.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
 setup_logger(LOGGER_NAME, LOG_FILE)
 logger = logging.getLogger(LOGGER_NAME)
+
 
 def gradient_text(text, start_color=(0, 255, 255), end_color=(255, 0, 255)):
     lines = text.splitlines()
@@ -52,22 +47,27 @@ def gradient_text(text, start_color=(0, 255, 255), end_color=(255, 0, 255)):
         res.append(f"\033[38;2;{r};{g};{b}m{line}\033[0m")
     return "\n".join(res)
 
+
 def ignore_ctrl_c():
     if platform.system() == "Windows":
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+
 
 def download_progreess(status: list[ModuleDownloadStatus]):
     for s in status:
         if s.status == "done":
             pass
 
+
 def module_download(callback=None):
     mm = ModuleManager.get_instance()
     mm.download_rvc_modules(callback or download_progreess)
 
+
 def download_applio_modules(callback=None):
     mm = ModuleManager.get_instance()
     mm.download_applio_modules(callback or download_progreess)
+
 
 def start_cui(
     host: str = "0.0.0.0",
@@ -111,15 +111,15 @@ def start_cui(
 
     base_url = resolve_base_url(https, vcserver_port)
     urls = [
-        ['Application', base_url],
-        ['Log(rich)', f'{base_url}/?app_mode=LogViewer'],
-        ['Log(text)', f'{base_url}/vcclient.log'],
-        ['API', f'{base_url}/docs'],
-        ['License(js)', f'{base_url}/licenses-js.json'],
-        ['License(py)', f'{base_url}/licenses-py.json'],
+        ["Application", base_url],
+        ["Log(rich)", f"{base_url}/?app_mode=LogViewer"],
+        ["Log(text)", f"{base_url}/vcclient.log"],
+        ["API", f"{base_url}/docs"],
+        ["License(js)", f"{base_url}/licenses-js.json"],
+        ["License(py)", f"{base_url}/licenses-py.json"],
     ]
     if proxy_url:
-        urls.append(['Ngrok', proxy_url])
+        urls.append(["Ngrok", proxy_url])
 
     print("--------------------------------------------------")
     print("Please open the following URL in your browser:")
@@ -156,21 +156,27 @@ def start_cui(
             vcserver.stop()
             VoiceChanger.get_instance().stop_convert_chunk_bulk()
 
+
 def rest_client():
     print("REST Client interactive mode is currently not implemented.")
+
 
 def convert_file(src: str, dst: str, slot: int = 0):
     print(f"Converting {src} -> {dst} using slot {slot}")
 
+
 def main():
     mp.freeze_support()
-    fire.Fire({
-        "module_download": module_download,
-        "cui": start_cui,
-        "download_applio_modules": download_applio_modules,
-        "rest_client": rest_client,
-        "convert_file": convert_file,
-    })
+    fire.Fire(
+        {
+            "module_download": module_download,
+            "cui": start_cui,
+            "download_applio_modules": download_applio_modules,
+            "rest_client": rest_client,
+            "convert_file": convert_file,
+        }
+    )
+
 
 if __name__ == "__main__":
     main()

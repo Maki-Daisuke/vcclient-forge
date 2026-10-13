@@ -1,5 +1,3 @@
-
-
 import numpy as np
 
 from ...data_types.voice_changer_data_types import PipelineInfo
