@@ -1,148 +1,158 @@
-[日本語](/README.md) /
-[英語](/docs_i18n/README_en.md) /
-[韓国語](/docs_i18n/README_ko.md)/
-[中国語](/docs_i18n/README_zh.md)/
-[ドイツ語](/docs_i18n/README_de.md)/
-[アラビア語](/docs_i18n/README_ar.md)/
-[ギリシャ語](/docs_i18n/README_el.md)/
-[スペイン語](/docs_i18n/README_es.md)/
-[フランス語](/docs_i18n/README_fr.md)/
-[イタリア語](/docs_i18n/README_it.md)/
-[ラテン語](/docs_i18n/README_la.md)/
-[マレー語](/docs_i18n/README_ms.md)/
-[ロシア語](/docs_i18n/README_ru.md)
-*日本語以外は機械翻訳です。
+# VCClient Forge
 
-## VCClient
+> **A modernized, high-performance RVC fork of w-okada/voice-changer optimized for pure ONNX Runtime and modern CUDA environments.**
 
-VCClientは、AIを用いてリアルタイム音声変換を行うソフトウェアです。
+This project is a modernized **spiritual successor** to [`w-okada/voice-changer`](https://github.com/w-okada/voice-changer) (a.k.a. W-Okada VC), originally created by **[w-okada](https://x.com/DannadoriYellow)**. We deeply respect and honor w-okada's pioneering contributions to the real-time AI voice conversion community.
 
-## What's New!
-* v.2.0.78-beta
-  * bugfix: RVCモデルのアップロードエラーを回避
-  * ver.1.x との同時起動ができるようになりました。
-  * 選択できるchunk sizeを増やしました。
+> [!NOTE]
+> **For Japanese speakers:** 日本語で読まれる場合は、ブラウザの翻訳機能（右クリック「日本語に翻訳」など）をご利用ください。
 
-* v.2.0.77-beta (only for RTX 5090, experimental)
-  * 関連モジュールを5090対応 (開発者がRTX5090未所持のため、動作未検証)
-* v.2.0.76-beta
-  * new feature:
-    * Beatrice: 話者マージの実装
-    * Beatrice: オートピッチシフト
-  * bugfix:
-    * サーバモードのデバイス選択時の不具合対応
-* v.2.0.73-beta
-  * new feature:
-    * 編集したbeatrice modelのダウンロード
-  * bugfix:
-    * beatrice v2 のpitch, formantが反映されないバグを修正
-    * Applio のembedderを使用しているモデルのONNXができないバグを修正
+---
 
-## ダウンロードと関連リンク
+## Project Goals
 
-Windows版、 M1 Mac版はhugging faceのリポジトリからダウンロードできます。
+- **Spiritual Successor to the Golden Standard (v2.0.78)**:
+  Designed as a community-driven spiritual successor to the most widely adopted and beloved version (`v2.0.78`), honoring the original vision while breathing new life into the established ecosystem.
+- **Windows-First Portable Experience**:
+  Prioritizing the standalone Windows ZIP distribution as our first-class citizen. Our primary mission is ensuring seamless, zero-config local execution on Windows gaming and streaming rigs.
+- **Seamless Usability & Compatibility (Zero-Config Transition)**:
+  Preserving the familiar UI workflows, model slots, and configuration compatibility of v2.0.78. Creators and streamers can transition immediately without re-learning or re-configuring their setups.
+- **Laser-Focused on Real-Time Performance**:
+  Dedicated strictly to real-time voice conversion—maximizing latency efficiency and audio stability under demanding gaming and streaming workloads.
+- **"RVC First" Philosophy**:
+  Prioritizing the RVC models as our first-class citizen. Supporting other models (such as Beatrice) remains strictly secondary to delivering the best possible RVC experience.
+- **Future-Proof Maintainability**:
+  Engineered to smoothly track modern Python (3.12+) and newer GPU driver architectures, ensuring long-term reliability without bit-rot.
 
-* [VCClient のリポジトリ](https://huggingface.co/wok000/vcclient000/tree/main)
-* [Light VCClient for Beatrice v2 のリポジトリ](https://huggingface.co/wok000/light_vcclient_beatrice/tree/main)
+---
 
-*1 Linuxはリポジトリをcloneしてお使いください。
+## Technical Strategy (How We Achieve It)
 
-### 関連リンク
+- **Decoupling PyTorch toward a "Pure-ONNX" Runtime**:
+  Aiming to streamline the entire inference pipeline exclusively into ONNX. By intentionally shedding heavy PyTorch dependencies, we dramatically minimize dependency conflicts and shrink standalone distributions to a fraction of their original size.
+- **Deterministic Package Management ([uv](https://docs.astral.sh/uv/))**:
+  Employing `pyproject.toml` and a locked dependency manifest (`uv.lock`) for lightning-fast, 100% reproducible environments.
+- **Platform Scope & Support Boundaries**:
+  - **Windows**: Primary target. Officially supported and validated for portable ZIP distributions and source execution.
+  - **Linux & macOS**: Best-effort basis. Startup scripts and hardware extras are maintained, but formal validation is not guaranteed.
+  - **Docker & Google Colab**: Explicitly out of scope. Containerized and cloud-hosted environments are not officially supported; users requiring these setups may adapt the source independently (though doing so should be significantly easier and cleaner than before thanks to `uv` and deterministic dependency locks).
+- **Multi-Edition Hardware Adapters**:
+  Providing tailored extras (`cuda`, `dml`, `mac`, `cpu`) so NVIDIA, AMD, Intel, and Apple Silicon users each get optimal hardware acceleration.
+- **Standalone Portable Packaging**:
+  Automated bundling of isolated Python runtimes and Web UI assets into portable zip packages (`scripts/build_package.py`).
 
-* [Beatrice V2 トレーニングコードのリポジトリ](https://huggingface.co/fierce-cats/beatrice-trainer)
-* [Beatrice V2 トレーニングコード Colab版](https://github.com/w-okada/beatrice-trainer-colab)
+---
 
-### 関連ソフトウェア
+## Quick Start
 
-* [リアルタイムボイスチェンジャ VCClient](https://github.com/w-okada/voice-changer)
-* [読み上げソフトウェア TTSClient](https://github.com/w-okada/ttsclient)
-* [リアルタイム音声認識ソフトウェア ASRClient](https://github.com/w-okada/asrclient)
+### 1. Prerequisites
 
-## VC Clientの特徴
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) (the ultra-fast Python package and project manager):
 
-## 多様なAIモデルをサポート
+```bash
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-| AIモデル                                                                                                     | v.2       | v.1                  | ライセンス                                                                                 |
-| ------------------------------------------------------------------------------------------------------------ | --------- | -------------------- | ------------------------------------------------------------------------------------------ |
-| [RVC ](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/main/docs/jp/README.ja.md) | supported | supported            | リポジトリを参照してください。                                                             |
-| [Beatrice v1](https://prj-beatrice.com/)                                                                     | n/a       | supported (only win) | [独自](https://github.com/w-okada/voice-changer/tree/master/server/voice_changer/Beatrice) |
-| [Beatrice v2](https://prj-beatrice.com/)                                                                     | supported | n/a                  | [独自](https://huggingface.co/wok000/vcclient_model/blob/main/beatrice_v2_beta/readme.md)  |
-| [MMVC](https://github.com/isletennos/MMVC_Trainer)                                                           | n/a       | supported            | リポジトリを参照してください。                                                             |
-| [so-vits-svc](https://github.com/svc-develop-team/so-vits-svc)                                               | n/a       | supported            | リポジトリを参照してください。                                                             |
-| [DDSP-SVC](https://github.com/yxlllc/DDSP-SVC)                                                               | n/a       | supported            | リポジトリを参照してください。                                                             |
+# Linux & macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-## スタンドアロン、ネットワーク経由の両構成をサポート
+### 2. Clone and Setup Environment
 
-ローカルPCで完結した音声変換も、ネットワークを介した音声変換もサポートしています。
-ネットワークを介した利用を行うことで、ゲームなどの高負荷なアプリケーションと同時に使用する場合に音声変換の負荷を外部にオフロードすることができます。
+Clone the repository and synchronize dependencies for your target hardware edition:
 
-![image](https://user-images.githubusercontent.com/48346627/206640768-53f6052d-0a96-403b-a06c-6714a0b7471d.png)
+```bash
+git clone https://github.com/Maki-Daisuke/vcclient-forge.git
+cd vcclient-forge
 
-## 複数プラットフォームに対応
+# Choose ONE edition matching your hardware:
+uv sync --extra cuda    # NVIDIA GPU (Windows / Linux)
+uv sync --extra dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
+uv sync --extra mac     # macOS (Apple Silicon M-series)
+uv sync --extra cpu     # Generic CPU fallback
+```
 
-Windows, Mac(M1), Linux, Google Colab
+_(Python 3.12 is automatically downloaded and isolated by `uv`—no system Python installation required!)_
 
-*1 Linuxはリポジトリをcloneしてお使いください。
+### 3. Launch
 
-## REST APIを提供
+Run the startup script corresponding to your operating system:
 
-各種プログラミング言語でクライアントを作成することができます。
+- **Windows**: Double-click `start.bat` (or run `start.ps1` in PowerShell).
+- **Linux / macOS**: Run `./start.sh` in your terminal.
+- **CLI (Direct)**: Run `uv run python main.py`.
 
-また、curlなどのOSに組み込まれているHTTPクライアントを使って操作ができます。
+Once started, open your web browser and navigate to:
 
-## トラブルシュート
+```text
+http://localhost:18888/
+```
 
-[通信編](tutorials/trouble_shoot_communication_ja.md)
+Initial model assets will be downloaded automatically on first launch.
 
-## 開発者の署名について
+---
 
-本ソフトウェアは開発元の署名しておりません。下記のように警告が出ますが、コントロールキーを押しながらアイコンをクリックすると実行できるようになります。これは Apple のセキュリティポリシーによるものです。実行は自己責任となります。
+## Supported AI Models
 
-![image](https://user-images.githubusercontent.com/48346627/212567711-c4a8d599-e24c-4fa3-8145-a5df7211f023.png)
+| Model Architecture                                                                                                  |     Status      |  Acceleration  | Description                                                                                            |
+| :------------------------------------------------------------------------------------------------------------------ | :-------------: | :------------: | :----------------------------------------------------------------------------------------------------- |
+| **[RVC (Retrieval-based Voice Conversion)](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)** |  ✅ Supported   | ONNX / PyTorch | Industry-standard low-latency voice conversion. Supports ONNX exported models and PyTorch checkpoints. |
+| **[Beatrice v2](https://prj-beatrice.com/)**                                                                        | ⚠️ Experimental |      ONNX      | Fast formant-preserving neural voice conversion (sample metadata supported; pipeline in development).  |
+
+---
+
+## System Architecture
+
+- **Standalone & Client-Server Topology**: Supports local all-in-one processing or offloading computation across a local network to a dedicated server machine, freeing GPU resources on gaming or streaming PCs.
+- **REST & Socket.IO APIs**: Enables custom UI frontends, headless integration, and automation through well-defined REST endpoints.
+
+---
+
+## Development & Build Guide
+
+For source code development, running automated test suites, code formatting/linting, and building standalone packages, please refer to the dedicated [Developer & Build Guide (README_dev.md)](README_dev.md).
+
+---
+
+## Terms of Use for Bundled Voice Models
+
+The bundled initial voice models are provided courtesy of their respective original creators. The **official Japanese terms of service take precedence**; please review the official links before using converted voices:
+
+### 1. Tsukuyomi-chan (つくよみちゃん)
+
+- **Official Website & License:** [Tsukuyomi-chan Corpus](https://tyc.rei-yumesaki.net/material/corpus/) (CV: Rei Yumesaki / © Rei Yumesaki)
+- **Key Prohibitions:**
+  - Harassing, attacking, or criticizing others.
+  - Promoting specific political or religious causes.
+  - Distributing explicit or sensitive content without proper zoning.
+  - Secondary redistribution of converted voice as raw audio material.
+
+### 2. Amitaro (あみたろ)
+
+- **Official Website & License:** [Amitaro's Voice Material Workshop](https://amitaro.net/voice/faq/#index_id6)
+- **Key Guidelines:**
+  - You **must clearly state** that the voice has been converted using Amitaro (or Koharune Ami) and that she is not speaking directly.
+  - Do not use for defamatory, sensitive, or offensive content violating Amitaro's guidelines.
+
+### 3. Kikoto Mahiro & Kurage (黄琴まひろ / 黄琴海月)
+
+- **Official Website & License:** [Replica Doll (れぷりかどーる)](https://kikyohiroto1227.wixsite.com/kikoto-utau/terms-of-service)
+- **Key Guidelines:**
+  - Please adhere to the character guidelines published on the Replica Doll official site.
+
+---
 
 ## Acknowledgments
 
-* [立ちずんだもん素材](https://seiga.nicovideo.jp/seiga/im10792934)
-* [いらすとや](https://www.irasutoya.com/)
-* [つくよみちゃん](https://tyc.rei-yumesaki.net/)
+- **Original Project**:
+  - Original VCClient developed by [w-okada](https://github.com/w-okada/voice-changer).
+- **Character Voice Corpora**:
+  - [Tsukuyomi-chan Corpus](https://tyc.rei-yumesaki.net/) (© Rei Yumesaki)
+  - [Amitaro's Voice Material Workshop](https://amitaro.net/)
+  - [Replica Doll (れぷりかどーる)](https://kikyohiroto1227.wixsite.com/kikoto-utau)
 
-```
-  本ソフトウェアの音声合成には、フリー素材キャラクター「つくよみちゃん」が無料公開している音声データを使用しています。
-  ■つくよみちゃんコーパス（CV.夢前黎）
-  https://tyc.rei-yumesaki.net/material/corpus/
-  © Rei Yumesaki
-```
+---
 
-* [あみたろの声素材工房](https://amitaro.net/)
-* [れぷりかどーる](https://kikyohiroto1227.wixsite.com/kikoto-utau)
+## Disclaimer
 
-## 利用規約
-
-* リアルタイムボイスチェンジャーつくよみちゃんについては、つくよみちゃんコーパスの利用規約に準じ、次の目的で変換後の音声を使用することを禁止します。
-
-```
-
-■人を批判・攻撃すること。（「批判・攻撃」の定義は、つくよみちゃんキャラクターライセンスに準じます）
-
-■特定の政治的立場・宗教・思想への賛同または反対を呼びかけること。
-
-■刺激の強い表現をゾーニングなしで公開すること。
-
-■他者に対して二次利用（素材としての利用）を許可する形で公開すること。
-※鑑賞用の作品として配布・販売していただくことは問題ございません。
-```
-
-* リアルタイムボイスチェンジャーあみたろについては、あみたろの声素材工房様の次の利用規約に準じます。詳細は[こちら](https://amitaro.net/voice/faq/#index_id6)
-
-```
-あみたろの声素材やコーパス読み上げ音声を使って音声モデルを作ったり、ボイスチェンジャーや声質変換などを使用して、自分の声をあみたろの声に変換して使うのもOKです。
-
-ただしその場合は絶対に、あみたろ（もしくは小春音アミ）の声に声質変換していることを明記し、あみたろ（および小春音アミ）が話しているわけではないことが誰でもわかるようにしてください。
-また、あみたろの声で話す内容は声素材の利用規約の範囲内のみとし、センシティブな発言などはしないでください。
-```
-
-* リアルタイムボイスチェンジャー黄琴まひろについては、れぷりかどーるの利用規約に準じます。詳細は[こちら](https://kikyohiroto1227.wixsite.com/kikoto-utau/ter%EF%BD%8Ds-of-service)
-
-## 免責事項
-
-本ソフトウェアの使用または使用不能により生じたいかなる直接損害・間接損害・波及的損害・結果的損害 または特別損害についても、一切責任を負いません。
+The author and contributors assume no liability for any direct, indirect, incidental, consequential, or special damages arising out of the use of or inability to use this software.
