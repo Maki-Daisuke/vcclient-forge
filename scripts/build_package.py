@@ -146,9 +146,9 @@ def main():
     parser.add_argument(
         "--edition",
         type=str,
-        required=True,
+        default="cpu",
         choices=["cuda", "dml", "cpu", "mac"],
-        help="Target edition (cuda, dml, cpu, mac)",
+        help="Target edition (cuda, dml, cpu, mac, default: cpu)",
     )
     parser.add_argument(
         "--python-version",

@@ -78,11 +78,14 @@ uv run python scripts/build_package.py --edition mac
 uv run python scripts/build_package.py --edition cpu
 ```
 
-### Options
-
-* `--edition <edition>`: Target edition (`cuda`, `dml`, `mac`, `cpu`).
+* `--edition <edition>`: Target edition (`cuda`, `dml`, `mac`, `cpu`, default: `cpu`).
 * `--output-dir <path>`: Destination directory for artifacts (default: `dist/`).
 * `--skip-zip`: Create the uncompressed package folder without archiving to `.zip`.
+
+You can also use npm to build packages:
+```bash
+npm run build:package -- --edition cuda
+```
 
 Artifacts are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.zip`. End users simply extract the archive and launch `start.bat` or `start.sh` without installing Python or CUDA toolkits.
 
