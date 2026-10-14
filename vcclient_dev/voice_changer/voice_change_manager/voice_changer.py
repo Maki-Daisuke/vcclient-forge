@@ -296,7 +296,8 @@ class VoiceChanger:
         self._check_reload_model_is_required_and_update()
 
         if self.vc_pipeline is None:
-            return VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, "Failed to update model.")
+            logging.getLogger(LOGGER_NAME).warning("vc_pipeline is None, returning default vc_info")
+            return self.vc_info
 
         self._check_and_update_pitch_estimator()
 

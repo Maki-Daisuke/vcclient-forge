@@ -4,7 +4,7 @@
   "private": true,
   "description": "VCClient Forge - Task Runner and Integration",
   "scripts": {
-    "start": "uv run python main.py",
+    "start": "uv run python main.py cui",
     "test": "uv run pytest",
     "lint": "uv run ruff check",
     "lint:fix": "uv run ruff check --fix",

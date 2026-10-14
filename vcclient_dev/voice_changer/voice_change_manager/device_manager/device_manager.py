@@ -132,11 +132,11 @@ class DeviceManager(object):
                 ],
             )
 
-        if None >= 0 and "DmlExecutionProvider" in available_providers:
+        if device_id >= 0 and "DmlExecutionProvider" in available_providers:
             return (["DmlExecutionProvider"], [{"device_id": device_id}])
 
         return (
-            [None],
+            ["CPUExecutionProvider"],
             [
                 {
                     "intra_op_num_threads": 8,
@@ -146,6 +146,5 @@ class DeviceManager(object):
             ],
         )
 
-    def set_force_tensor(self=None, force_tensor=None):
-
-        self.forceTens
+    def set_force_tensor(self, force_tensor: bool = False):
+        self.force_tensor = force_tensor

@@ -3,20 +3,22 @@ import multiprocessing as mp
 import platform
 import signal
 import sys
+import threading
 import time
+import traceback
 from pathlib import Path
 
-import fire
-
-# Setup environment
+# Ensure the project root is in sys.path regardless of execution context
 _here = Path(__file__).parent.resolve()
 if str(_here) not in sys.path:
     sys.path.insert(0, str(_here))
 
+import fire
+import sounddevice as sd
 
 from vcclient_dev.app_status import AppStatus
 from vcclient_dev.client_launcher.client_launcher import ClientLauncher
-from vcclient_dev.const import LOG_FILE, LOGGER_NAME, VERSION
+from vcclient_dev.const import LOGGER_NAME, VERSION
 from vcclient_dev.cui.vcclient_cui import VCClientCUI
 from vcclient_dev.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
 from vcclient_dev.logger import setup_logger
@@ -32,7 +34,7 @@ from vcclient_dev.voice_changer.module_manager.module_manager import ModuleDownl
 from vcclient_dev.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient_dev.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
-setup_logger(LOGGER_NAME, LOG_FILE)
+setup_logger()
 logger = logging.getLogger(LOGGER_NAME)
 
 
@@ -93,14 +95,15 @@ def start_cui(
     audio_manager = AudioDeviceManager.get_instance()
     app_status = AppStatus.get_instance()
 
-    vcserver = VCServer.get_instance(
+    vcserver = VCServer(
         host=host,
         port=port,
         https=https,
-        allow_origins=allow_origins,
+        allow_origins=[allow_origins] if allow_origins else None,
     )
     vcserver_port = vcserver.start()
 
+    proxy_manager = None
     proxy_url = None
     if ngrok_token:
         proxy_manager = NgrokProxyManager.get_instance()
@@ -109,52 +112,109 @@ def start_cui(
             with open(ngrok_proxy_url_file, "w", encoding="utf-8") as f:
                 f.write(proxy_url)
 
-    base_url = resolve_base_url(https, vcserver_port)
-    urls = [
-        ["Application", base_url],
-        ["Log(rich)", f"{base_url}/?app_mode=LogViewer"],
-        ["Log(text)", f"{base_url}/vcclient.log"],
-        ["API", f"{base_url}/docs"],
-        ["License(js)", f"{base_url}/licenses-js.json"],
-        ["License(py)", f"{base_url}/licenses-py.json"],
-    ]
-    if proxy_url:
-        urls.append(["Ngrok", proxy_url])
+    cui = None
+    app = None
+    if not no_cui and platform.system() != "Darwin":
+        app = VCClientCUI(port=vcserver_port, https=https, terminate_callback=app_status.stop_app)
+        cui = threading.Thread(target=app.run)
+        cui.start()
+    else:
+        base_url = resolve_base_url(https, vcserver_port)
+        bold_green_start = "\x1b[1;32m"
+        bold_red_start = "\x1b[1;31m"
+        reset = "\x1b[0m"
+        urls = [
+            ["Application", base_url],
+            ["Log(rich)", f"{base_url}/?app_mode=LogViewer"],
+            ["Log(text)", f"{base_url}/vcclient.log"],
+            ["API", f"{base_url}/docs"],
+            ["License(js)", f"{base_url}/licenses-js.json"],
+            ["License(py)", f"{base_url}/licenses-py.json"],
+        ]
+        if proxy_url:
+            urls.append(["Ngrok", proxy_url])
 
-    print("--------------------------------------------------")
-    print("Please open the following URL in your browser:")
-    for label, u in urls:
-        print(f"  {label.ljust(15)}: {u}")
-    print("--------------------------------------------------")
+        key_max_length = max(len(u[0]) for u in urls)
+        url_max_length = max(len(u[1]) for u in urls)
+        box_width = key_max_length + url_max_length + 5
+
+        print("-" * box_width)
+        for u in urls:
+            print(f" {bold_green_start}{u[0].ljust(key_max_length)}{reset} | {u[1]} ")
+        print("-" * box_width)
+        print(f"{bold_green_start}Please press Ctrl+C once to exit vcclient.{reset}")
 
     if launch_client and not is_running_on_colab():
-        launcher = ClientLauncher(terminate_callback=vcserver.stop)
-        launcher.launch(port=vcserver_port, https=https)
+        client_launcher = ClientLauncher(app_status.stop_app)
+        client_launcher.launch(vcserver_port, https)
 
-    if no_cui:
-        print("Running in headless/no-CUI mode. Press Ctrl+C to terminate.")
-        try:
-            while not app_status.end_flag:
-                time.sleep(1)
-                conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-                lvc = LocalVoiceChangerInterface.get_instance()
-                if conf.voice_changer_input_mode == "server_device":
-                    if not lvc.local_voice_changer_enabled:
-                        pass
-        except KeyboardInterrupt:
-            print("\nShutting down server...")
-        finally:
-            vcserver.stop()
-            VoiceChanger.get_instance().stop_convert_chunk_bulk()
+    if is_running_on_colab():
+        while not app_status.end_flag:
+            current_time = time.strftime("%Y/%m/%d %H:%M:%S")
+            logging.getLogger(LOGGER_NAME).info(f"{current_time}: running...")
+            if app_status.end_flag is True:
+                break
+            time.sleep(60)
     else:
-        try:
-            cui = VCClientCUI(port=vcserver_port, https=https, terminate_callback=vcserver.stop)
-            cui.run()
-        except Exception as e:
-            logger.error(f"CUI Error: {e}")
-        finally:
-            vcserver.stop()
-            VoiceChanger.get_instance().stop_convert_chunk_bulk()
+        bold_red_start = "\x1b[1;31m"
+        reset = "\x1b[0m"
+        err_msg = ""
+        while not app_status.end_flag:
+            try:
+                conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+                local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
+                if conf.voice_changer_input_mode == "server":
+                    if local_voice_changer_interface.local_voice_changer_enabled is True:
+                        local_voice_changer_interface.run()
+                if app_status.end_flag is True:
+                    break
+                time.sleep(0.3)
+            except KeyboardInterrupt:
+                err_msg = "KeyboardInterrupt"
+                break
+            except sd.PortAudioError as e:
+                err_msg = f"sound device error:{e}"
+                logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
+                logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
+                wasapi_not_supported_msg = (
+                    "If you are using WASAPI or ASIO, your device might not be compatible with it. "
+                    "Please try using MME instead."
+                )
+                logging.getLogger(LOGGER_NAME).error(wasapi_not_supported_msg)
+                print(err_msg)
+                print(f" {bold_red_start}{wasapi_not_supported_msg}{reset} ")
+                local_voice_changer_interface.stop()
+                time.sleep(1)
+            except Exception as e:
+                err_msg = f"Error:{e}"
+                logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
+                logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
+                print(err_msg)
+                local_voice_changer_interface.stop()
+                time.sleep(1)
+
+    bold_green_start = "\x1b[1;32m"
+    reset = "\x1b[0m"
+    print(f"{bold_green_start}terminate vcclient...{reset}")
+
+    def ignore_ctrl_c(signum, frame):
+        pass
+
+    original_handler = signal.signal(signal.SIGINT, ignore_ctrl_c)
+    try:
+        app_status.stop_app()
+        if not no_cui and platform.system() != "Darwin" and cui is not None:
+            if cui.is_alive():
+                if app is not None and hasattr(app, "action_quit_server"):
+                    app.action_quit_server()
+                cui.join()
+        vcserver.stop()
+        VoiceChanger.get_instance().stop_convert_chunk_bulk()
+        if proxy_manager is not None:
+            proxy_manager.stop()
+    finally:
+        print("")
+        signal.signal(signal.SIGINT, original_handler)
 
 
 def rest_client():

@@ -70,7 +70,7 @@ class VoiceChangerConfiguration(BaseModel):
 
     audio_monitor_device_index: int = -1
 
-    wasapi_exclude_emabled: bool = True
+    wasapi_exclude_emabled: bool = False
 
     audio_input_device_sample_rate: int = -1
 
