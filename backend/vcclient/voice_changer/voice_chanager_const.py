@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, get_args
 
 SettingsDir = Path("./settings")
 
@@ -52,12 +52,6 @@ VoiceChangerType: TypeAlias = Literal["RVC", "Beatrice_v2", "RESERVED_FOR_SAMPLE
 VoiceChangerTypes: list[VoiceChangerType] = ["RVC", "Beatrice_v2"]
 
 InferencerType: TypeAlias = Literal[
-    "pyTorchRVC",
-    "pyTorchRVCNono",
-    "pyTorchRVCv2",
-    "pyTorchRVCv2Nono",
-    "pyTorchDDPN",
-    "pyTorchDDPNNono",
     "onnxRVC",
     "onnxRVCNono",
 ]
@@ -79,28 +73,11 @@ EmbedderType: TypeAlias = Literal[
 PitchEstimatorType: TypeAlias = Literal[
     "harvest",
     "dio",
-    "crepe_full",
-    "crepe_large",
-    "crepe_medium",
-    "crepe_small",
-    "crepe_tiny",
     "rmvpe",
-    "rmvpe_onnx",
     "fcpe",
 ]
 
-PitchEstimatorTypes: list[PitchEstimatorType] = [
-    "harvest",
-    "dio",
-    "crepe_full",
-    "crepe_large",
-    "crepe_medium",
-    "crepe_small",
-    "crepe_tiny",
-    "rmvpe",
-    "rmvpe_onnx",
-    "fcpe",
-]
+PitchEstimatorTypes: list[PitchEstimatorType] = list(get_args(PitchEstimatorType))
 
 ChunkSecs: list[float] = [
     0.05,

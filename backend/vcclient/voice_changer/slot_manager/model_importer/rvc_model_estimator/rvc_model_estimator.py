@@ -63,20 +63,12 @@ def estimate_rvc_model_pytorch(model_path: Path):
         logging.getLogger(LOGGER_NAME).error(f"Invalid torch version: {version}")
         raise VCClientError(ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE, f"Invalid torch version: {version}")
 
-    if training_by == "official" and is_f0 is True and torch_version == "v1":
-        inferencer_type = "pyTorchRVC"
+    inferencer_type = "onnxRVC" if is_f0 else "onnxRVCNono"
+    if training_by == "official" and torch_version == "v1":
         embedder = "hubert_base_l9fp"
-    elif training_by == "official" and is_f0 is False and torch_version == "v1":
-        inferencer_type = "pyTorchRVCNono"
-        embedder = "hubert_base_l9fp"
-    elif training_by == "official" and is_f0 is True and torch_version == "v2":
-        inferencer_type = "pyTorchRVCv2"
-        embedder = "hubert_base_l12"
-    elif training_by == "official" and is_f0 is False and torch_version == "v2":
-        inferencer_type = "pyTorchRVCv2Nono"
+    elif training_by == "official" and torch_version == "v2":
         embedder = "hubert_base_l12"
     elif training_by == "ddpn":
-        inferencer_type = "pyTorchDDPN" if is_f0 is True else "pyTorchDDPNNono"
         emb_channels = cpt["config"][17]
         if cpt["embedder_name"] == "hubert_base" and emb_channels == 256:
             embedder = "hubert_base_l9fp"
@@ -123,7 +115,7 @@ def estimate_rvc_model_pytorch(model_path: Path):
         is_f0=is_f0,
         deprecated=False,
         embedder=embedder,
-        pitch_estimator="rmvpe_onnx",
+        pitch_estimator="rmvpe",
         sample_id=None,
         version=version,
         chunk_sec=0.5,
@@ -182,7 +174,7 @@ def onnx_v3_x(metadata: dict, model_path: Path):
         is_f0=is_f0,
         deprecated=False,
         embedder=metadata["embedder"],
-        pitch_estimator="rmvpe_onnx",
+        pitch_estimator="rmvpe",
         sample_id=None,
         version=version,
         chunk_sec=0.5,
@@ -249,7 +241,7 @@ def onnx_v2_x(metadata: dict, model_path: Path):
         is_f0=is_f0,
         deprecated=False,
         embedder=embedder,
-        pitch_estimator="rmvpe_onnx",
+        pitch_estimator="rmvpe",
         sample_id=None,
         version=version,
         chunk_sec=0.5,

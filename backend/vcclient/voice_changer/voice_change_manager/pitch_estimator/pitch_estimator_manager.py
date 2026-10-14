@@ -24,15 +24,11 @@ class PitchEstimatorManager:
             from .dio_pitch_estimator import DioPitchEstimator
 
             return DioPitchEstimator()
-        elif pitch_estimator_type.startswith("crepe_"):
-            raise RuntimeError(f"Pitch estimator '{pitch_estimator_type}' is deprecated. Please use 'rmvpe_onnx'.")
         elif pitch_estimator_type == "rmvpe":
-            raise RuntimeError("PyTorch RMVPE ('rmvpe') is deprecated. Please use 'rmvpe_onnx'.")
-        elif pitch_estimator_type == "rmvpe_onnx":
             from .onnxrmvpe_pitch_estimator import RMVPEOnnxPitchEstimator
 
             path = ModuleManager.get_instance().get_module_filepath("rmvpe_20231006.onnx")
-            return RMVPEOnnxPitchEstimator("rmvpe_onnx", path, device_id)
+            return RMVPEOnnxPitchEstimator("rmvpe", path, device_id)
         elif pitch_estimator_type == "fcpe":
             from .fcpe_pitch_estimator import FCPEPitchEstimator
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Dict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..voice_chanager_const import (
     MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT,
@@ -106,19 +106,20 @@ class RVCSlotInfo(SlotInfo):
 
     embedder: EmbedderType = "hubert_base_l12"
 
-    pitch_estimator: PitchEstimatorType = "rmvpe_onnx"
-
+    pitch_estimator: PitchEstimatorType = "rmvpe"
     sample_id: str | None = None
-
     version: str = ""
-
     chunk_sec: float = 0.5
-
     pitch_shift: int = 0
-
     index_ratio: float = 0
-
     protect_ratio: float = 0.5
+
+    @field_validator("pitch_estimator", mode="before")
+    @classmethod
+    def normalize_pitch_estimator(cls, v: str) -> str:
+        if v == "rmvpe_onnx":
+            return "rmvpe"
+        return v
 
 
 class ReservedForSampleSlotInfo(SlotInfo):

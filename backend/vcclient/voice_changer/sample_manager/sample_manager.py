@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import math
 import platform
 from pathlib import Path
@@ -18,9 +18,6 @@ from ..data_types.slot_manager_data_types import BeatriceV2ModelImportParam, RVC
 from ..slot_manager.slot_manager import SlotManager
 from .sample_beatricev2 import SAMPLE_BEATRICE_V2_ALPHA
 from .sample_rvc_onnx import SAMPLE_RVC_ONNX
-from .sample_rvc_test_ddpn import SAMPLE_RVC_TEST_DDPN
-from .sample_rvc_test_official import SAMPLE_RVC_TEST_OFFICIAL
-from .sample_rvc_torch import SAMPLE_RVC_TORCH
 
 
 class SampleManager:
@@ -39,9 +36,6 @@ class SampleManager:
     def reload(self):
         self.sample_list = []
         self.sample_list.extend(SAMPLE_RVC_ONNX)
-        self.sample_list.extend(SAMPLE_RVC_TORCH)
-        self.sample_list.extend(SAMPLE_RVC_TEST_OFFICIAL)
-        self.sample_list.extend(SAMPLE_RVC_TEST_DDPN)
         self.sample_list.extend(SAMPLE_BEATRICE_V2_ALPHA)
 
     def get_samples(self):

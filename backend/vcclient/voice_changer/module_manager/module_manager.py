@@ -36,27 +36,6 @@ REGISTERD_MODULES: list[ModuleInfo] = [
         hash="d00e262757fa1550faac53fa6140dad16ca75603a36ecfead468920a9f744a16",
     ),
     ModuleInfo(
-        id="onnxcrepe_tiny.onnx",
-        display_name="onnxcrepe_tiny.onnx",
-        url="https://huggingface.co/wok000/vcclient_modules/resolve/main/onnxcrepe/tiny.onnx",
-        save_to=ModuleDir / Path("onnxcrepe/tiny.onnx"),
-        hash="91fc2a0fd10f965dbf7775995daf50e99273caedd7efd00001f23be649da1bc3",
-    ),
-    ModuleInfo(
-        id="onnxcrepe_full.onnx",
-        display_name="onnxcrepe_full.onnx",
-        url="https://huggingface.co/wok000/vcclient_modules/resolve/main/onnxcrepe/full.onnx",
-        save_to=ModuleDir / Path("onnxcrepe/full.onnx"),
-        hash="119845c72c702e052e5262430f9d120bce46176689aa226c39d09dea5cc3a610",
-    ),
-    ModuleInfo(
-        id="rmvpe_20231006.pt",
-        display_name="rmvpe_20231006.pt",
-        url="https://huggingface.co/wok000/vcclient_modules/resolve/main/rmvpe/rmvpe_20231006.pt",
-        save_to=ModuleDir / Path("rmvpe/rmvpe_20231006.pt"),
-        hash="6d62215f4306e3ca278246188607209f09af3dc77ed4232efdd069798c4ec193",
-    ),
-    ModuleInfo(
         id="rmvpe_20231006.onnx",
         display_name="rmvpe_20231006.onnx",
         url="https://huggingface.co/wok000/vcclient_modules/resolve/main/rmvpe/rmvpe_20231006.onnx",
@@ -87,12 +66,8 @@ REGISTERD_MODULES: list[ModuleInfo] = [
 ]
 
 RVC_REQUIRED_MODULES = [
-    "hubert_base.pt",
     "contentvec-f.onnx",
     "rinna_hubert_base-f.onnx",
-    "onnxcrepe_tiny.onnx",
-    "onnxcrepe_full.onnx",
-    "rmvpe_20231006.pt",
     "rmvpe_20231006.onnx",
 ]
 

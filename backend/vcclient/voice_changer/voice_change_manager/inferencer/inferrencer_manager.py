@@ -33,11 +33,7 @@ class InferencerManager:
         device_id: int,
         inferencer_type_version: RVCInferencerOnnxVersion | None = None,
     ) -> Inferencer:
-        if inferencer_type.startswith("pyTorch"):
-            raise RuntimeError(
-                f"PyTorch inferencer '{inferencer_type}' is not supported in ONNX mode. Please use ONNX models."
-            )
-        elif inferencer_type == "onnxRVC":
+        if inferencer_type == "onnxRVC":
             inferencer = RVCInferencerOnnxF0()
             inferencer.load_model(model_path, device_id, inferencer_type_version)
             return inferencer
