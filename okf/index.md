@@ -8,6 +8,7 @@ entries:
   - architectural-evolution.md
   - decompyle-plus-plus-traps-and-fixes.md
   - modern-runtime-and-toolchain.md
+  - frontend-architecture-and-roadmap.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -27,3 +28,6 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 
 4. **[Modern Runtime and Toolchain](./modern-runtime-and-toolchain.md)**
    Modern Python engineering principles applied to the codebase: `uv` package management, `pyproject.toml`, pure-ONNX execution, and `package.json` task running.
+
+5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
+   Analysis of legacy UI bottlenecks (slider locking, unbuffered network flood), complete preservation of 13-language i18n JSON assets, and the 2-stage transition strategy from Svelte 5 Web SPA to ultra-lightweight Wails desktop packaging.
