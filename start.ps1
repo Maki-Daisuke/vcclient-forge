@@ -4,9 +4,11 @@ Set-Location "$scriptDir"
 Write-Host "Starting VCClient v2.0.78-beta (pure-ONNX)..." -ForegroundColor Green
 
 if (Test-Path "$scriptDir\runtime\Scripts\python.exe") {
-    & "$scriptDir\runtime\Scripts\python.exe" main.py cui --launch_client True
+    & "$scriptDir\runtime\Scripts\python.exe" backend\main.py cui --launch_client True
+} elseif (Test-Path "$scriptDir\backend\.venv\Scripts\python.exe") {
+    & "$scriptDir\backend\.venv\Scripts\python.exe" backend\main.py cui --launch_client True
 } elseif (Test-Path "$scriptDir\.venv\Scripts\python.exe") {
-    & "$scriptDir\.venv\Scripts\python.exe" main.py cui --launch_client True
+    & "$scriptDir\.venv\Scripts\python.exe" backend\main.py cui --launch_client True
 } else {
-    uv run python main.py cui --launch_client True
+    uv run --project backend python backend\main.py cui --launch_client True
 }

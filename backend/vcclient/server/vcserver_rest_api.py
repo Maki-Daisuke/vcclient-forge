@@ -1,0 +1,187 @@
+﻿import json
+import logging
+import shutil
+import sys
+from typing import Any, Dict, Optional
+
+from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi.openapi.docs import swagger_ui_default_parameters
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
+from vcclient.const import LOGGER_NAME
+from vcclient.server.fileuploader.fileuploader import EasyFileUploader
+from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR
+from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
+from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioDeviceManager
+from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
+from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
+from vcclient.server.vcserver_rest_api_hello import RestHello
+from vcclient.server.vcserver_rest_api_module_manager import RestAPIModuleManager
+from vcclient.server.vcserver_rest_api_sample_manager import RestAPISampleManager
+from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
+from vcclient.server.vcserver_rest_api_task_manager import RestAPITaskManager
+from vcclient.server.vcserver_rest_api_voice_changaer import RestAPIVoiceChanger
+from vcclient.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
+from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
+from vcclient.voice_changer.module_manager.module_manager import ModuleManager
+from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient.voice_changer.voice_chanager_const import ConfigFile, ModelDir, ModuleDir
+from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
+
+
+def get_custom_swagger_ui_html(
+    *,
+    openapi_url: str,
+    title: str,
+    swagger_js_url: str = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui-bundle.js",
+    swagger_css_url: str = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.9.0/swagger-ui.css",
+    swagger_favicon_url: str = "https://fastapi.tiangolo.com/img/favicon.png",
+    oauth2_redirect_url: Optional[str] = None,
+    init_oauth: Optional[Dict[str, Any]] = None,
+    swagger_ui_parameters: Optional[Dict[str, Any]] = None,
+):
+
+    current_swagger_ui_parameters = swagger_ui_default_parameters.copy()
+
+    if swagger_ui_parameters:
+        current_swagger_ui_parameters.update(swagger_ui_parameters)
+
+    html = f'''\n    <!DOCTYPE html>\n    <html>\n    <head>\n    <link type="text/css" rel="stylesheet" href="{swagger_css_url}">\n    <link rel="shortcut icon" href="{swagger_favicon_url}">\n    <title>{title}</title>\n    </head>\n    <body>\n    <div style="color:red;font-weight: 600;">Note: API may be subject to change in the future.</div>\n    <div id="swagger-ui">\n    </div>\n    <script src="{swagger_js_url}"></script>\n    <!-- `SwaggerUIBundle` is now available on the page -->\n    <script>\n    const ui = SwaggerUIBundle({{\n        url: \'{openapi_url}\',\n    '''
+
+    for key, value in current_swagger_ui_parameters.items():
+        html += f"""{json.dumps(key)}: {json.dumps(jsonable_encoder(value))},\n"""
+
+    if oauth2_redirect_url:
+        html += f"""oauth2RedirectUrl: window.location.origin + \'{oauth2_redirect_url}\',"""
+
+    html += "\n    presets: [\n        SwaggerUIBundle.presets.apis,\n        SwaggerUIBundle.SwaggerUIStandalonePreset\n        ],\n    })"
+
+    if init_oauth:
+        html += f"""\n        ui.initOAuth({json.dumps(jsonable_encoder(init_oauth))})\n        """
+
+    html += "\n    </script>\n    </body>\n    </html>\n    "
+
+    return HTMLResponse(html)
+
+
+class RestAPI:
+    _instance = None
+
+    def get_instance(cls=None, voice_changer_params=None):
+
+        if cls._instance is None:
+            app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
+
+            app_fastapi.router.route_class = ValidationErrorLoggingRoute
+
+            def custom_swagger_ui_html():
+
+                logging.getLogger(LOGGER_NAME).info("CUSTOM UI")
+
+                return get_custom_swagger_ui_html(openapi_url=app_fastapi.openapi_url, title="VCClient API Docs")
+
+            custom_swagger_ui_html = app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
+
+            app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
+
+            app_fastapi.mount("/upload_dir", StaticFiles(directory=f"""{UPLOAD_DIR}"""), name="static")
+
+            if sys.platform.startswith("darwin"):
+                app_fastapi.mount(f"""/{ModelDir}""", StaticFiles(directory=ModelDir), name="static")
+
+            else:
+                app_fastapi.mount(f"""/{ModelDir}""", StaticFiles(directory=ModelDir), name="static")
+
+            rest_hello = RestHello()
+
+            app_fastapi.include_router(rest_hello.router)
+
+            rest_slot_manager = RestAPISlotManager()
+
+            app_fastapi.include_router(rest_slot_manager.router)
+
+            rest_configuration_manager = RestAPIConfigurationManager()
+
+            app_fastapi.include_router(rest_configuration_manager.router)
+
+            rest_audio_device_manager = RestAPIAudioDeviceManager()
+
+            app_fastapi.include_router(rest_audio_device_manager.router)
+
+            rest_gpu_device_manager = RestAPIGPUDeviceManager()
+
+            app_fastapi.include_router(rest_gpu_device_manager.router)
+
+            rest_module_manager = RestAPIModuleManager()
+
+            app_fastapi.include_router(rest_module_manager.router)
+
+            rest_sample_manager = RestAPISampleManager()
+
+            app_fastapi.include_router(rest_sample_manager.router)
+
+            fileuploader = EasyFileUploader(UPLOAD_DIR)
+
+            app_fastapi.include_router(fileuploader.router)
+
+            voice_changer = RestAPIVoiceChanger()
+
+            app_fastapi.include_router(voice_changer.router)
+
+            task_manager = RestAPITaskManager()
+
+            app_fastapi.include_router(task_manager.router)
+
+            app_fastapi.router.add_api_route("/api/operation/initialize", initialize, methods=["POST"])
+
+            app_fastapi.router.add_api_route("/api_operation_initialize", initialize, methods=["POST"])
+
+            cls._instance = app_fastapi
+
+            return cls._instance
+
+        return cls._instance
+
+    get_instance = classmethod(get_instance)
+
+
+def initialize():
+
+    ConfigFile.unlink(missing_ok=True)
+
+    shutil.rmtree(ModelDir)
+
+    ModelDir.mkdir(parents=True, exist_ok=True)
+
+    shutil.rmtree(ModuleDir)
+
+    ModuleDir.mkdir(parents=True, exist_ok=True)
+
+    audio_device_manager = AudioDeviceManager.get_instance()
+
+    audio_device_manager.reload_device()
+
+    configuration_manager = ConfigurationManager.get_instance()
+
+    configuration_manager.reload()
+
+    gpu_device_manager = GPUDeviceManager.get_instance()
+
+    gpu_device_manager.reload()
+
+    moduele_manager = ModuleManager.get_instance()
+
+    moduele_manager.reload()
+
+    slot_manager = SlotManager.get_instance()
+
+    slot_manager.reload()
+
+    voice_changer = VoiceChanger.get_instance()
+
+    voice_changer.initialize()
+
+    return {"message": "initialized."}

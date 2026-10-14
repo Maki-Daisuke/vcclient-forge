@@ -38,11 +38,31 @@ During initial reverse-engineering, a copy of `main.py` was mistakenly placed bo
 2. **Decompilation Duplication**: Decompilation produced `vcclient_dev/main.py`. Because edits were made to the duplicate while `npm start` executed root `main.py`, bug fixes were initially shadowed.
 3. **Forge Resolution**: Consolidated all production entry logic into root [`main.py`](../main.py) with defensive `sys.path` bootstrapping, and removed the duplicate `vcclient_dev/main.py`.
 
-## 4. Future Architecture Roadmap
+## 4. Architectural Transformation: Frontend / Backend Symmetric Separation
 
-A core design objective for VCClient Forge is transforming the legacy, idiosyncratic directory layout into an immediately intuitive, modern full-stack architecture:
+Forge established an immediately intuitive, modern full-stack architecture that cleanly separates frontend and backend:
 
-* **Symmetric `frontend/` and `backend/` Structure**:
-  * **`backend/`**: Refactor `vcclient_dev/` and consolidate all Python code under a unified `backend/` directory. All FastAPI routers, audio streaming interfaces, and ONNX/PyTorch inference pipelines will live cleanly here.
-  * **`frontend/`**: Transition `web_front/` into a dedicated `frontend/` directory with a modern, reproducible build pipeline (Webpack/Vite), enabling transparent development and automated packaging.
-  * **Instant Cognitive Clarity**: Anyone inspecting the repository root will immediately recognize where code lives (`frontend/` vs. `backend/`), cleanly eliminating ambiguity inherited from the legacy `vcclient_dev` naming.
+### 4.1. Fully Decoupled `backend/`
+* **Package Modernization**: Renamed legacy `vcclient_dev` to clean `vcclient` and consolidated all Python code under `backend/`.
+* **Isolated uv Environment**: `pyproject.toml`, `uv.lock`, and standalone `.venv` reside directly inside `backend/`, cleanly decoupling backend Python dependencies from root task runners.
+* **Deterministic Static Asset Resolution**: `vcclient.server.server_const.get_frontend_path()` resolves `frontend/dist` via relative anchors from `__file__`, ensuring identical asset resolution both in local development and inside portable distribution zips.
+
+### 4.2. Strangler Fig Frontend Strategy (`frontend/dist`)
+An essential discovery was made regarding the legacy frontend assets:
+* **`client/` (Reference Implementation A)**: Contains early 2024 uncompiled React/Webpack source code (frozen at commit `2024-02-28`). It lacks Beatrice UI, modern multi-language localizations, and contemporary UI features. Compiling it directly causes regression.
+* **`web_front/` (Reference Implementation B)**: Contains the December 2025 golden binary bundle extracted from `vcclient_win_cuda_2.0.78-beta.zip`.
+* **Interface-First Shim**: Rather than contaminating `frontend/` with obsolete source or minified blobs, Forge established `frontend/dist` as an ignored build artifact (`.gitignore`).
+* **Safe Incremental Migration**: `npm run build:frontend` runs `scripts/build_frontend.js` to synchronize `web_front` into `frontend/dist`. When `frontend/src` is subsequently re-implemented with modern Vite + React, only `build:frontend` needs to be swapped—zero backend or packaging changes required.
+
+```
+voice-changer/
+├── backend/                  # Python / uv project (vcclient, main.py, tests)
+├── frontend/                 # Reserved for next-gen Vite/React (dist is .gitignored)
+├── client/                   # Reference implementation A (frozen 2024 source)
+├── web_front/                # Reference implementation B (golden 2025 binary)
+├── modules/                  # Pretrained ONNX/PyTorch models
+├── okf/                      # Open Knowledge Format bundle
+├── scripts/                  # Build & packaging scripts
+├── package.json              # Root orchestrator (npm start, npm test, etc.)
+└── start.bat / .ps1 / .sh    # Launcher scripts targeting backend/main.py
+```

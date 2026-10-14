@@ -76,6 +76,7 @@ def build_package(
 
     # 2. Sync dependencies into runtime using uv sync
     print(f">>> 2. Installing dependencies for edition '{edition}' into runtime...")
+    backend_dir = PROJECT_ROOT / "backend"
     env = os.environ.copy()
     env["VIRTUAL_ENV"] = str(runtime_dir.resolve())
     run_cmd(
@@ -90,18 +91,20 @@ def build_package(
             "--python",
             python_version,
         ],
-        cwd=PROJECT_ROOT,
+        cwd=backend_dir,
         env=env,
     )
+
+    # 3. Build/prepare frontend distribution
+    print(">>> 3. Preparing frontend distribution...")
+    run_cmd(["node", "scripts/build_frontend.js"], cwd=PROJECT_ROOT)
 
     # 4. Copy project assets into package_dir
     print(">>> 4. Copying project files...")
     copy_targets = [
-        "main.py",
-        "vcclient_dev",
-        "signatures",
-        "client",
-        "web_front",
+        "backend",
+        "frontend/dist",
+        "modules",
         "start.bat",
         "start.ps1",
         "start.sh",
@@ -115,8 +118,21 @@ def build_package(
             continue
         dst = package_dir / item
         if src.is_dir():
-            shutil.copytree(src, dst, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(
+                src,
+                dst,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns(
+                    "__pycache__",
+                    "*.pyc",
+                    ".venv",
+                    ".pytest_cache",
+                    ".ruff_cache",
+                ),
+            )
         else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
 
     # 5. Archive to zip if requested

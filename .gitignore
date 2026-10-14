@@ -44,6 +44,7 @@ dummy/
 
 # Node / Frontend
 node_modules/
+frontend/dist/
 client/lib/dist
 client/lib/worklet/dist
 client/demo/public/models
