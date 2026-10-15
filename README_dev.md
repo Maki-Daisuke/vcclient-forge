@@ -10,45 +10,61 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast, deterministic Pytho
 
 ### Prerequisites
 
-Install `uv`:
+1. **[uv](https://docs.astral.sh/uv/)**: Fast, deterministic Python package and environment manager.
+   ```bash
+   # Windows (PowerShell)
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-```bash
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   # Linux & macOS
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 
-# Linux & macOS
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+2. **[Node.js](https://nodejs.org/) & npm**: Unified task runner and workspace management.
+   * Node.js v24+ (v26 LTS recommended).
+   * Verified via `node -v` and `npm -v`.
 
-### Clone and Synchronize
+3. **[7-Zip](https://www.7-zip.org/) (`7z`)**: Required for creating ultra-compact standalone `.7z` distributions.
+   * **Windows**: `winget install 7zip.7zip` (or install from [7-zip.org](https://www.7-zip.org/)). Ensure `7z` is added to `PATH`.
+   * **Ubuntu/Debian**: `sudo apt-get install p7zip-full`
+   * **macOS**: `brew install p7zip`
 
-Clone the repository and synchronize the dependencies for your target hardware accelerator:
+4. **System Audio Dependency (Linux only)**: Required by `sounddevice` for host audio I/O.
+   ```bash
+   sudo apt-get update && sudo apt-get install -y libportaudio2
+   ```
+
+### Clone and Build Environment
+
+Clone the repository and build the workspace for your target hardware accelerator:
 
 ```bash
 git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
 
 # Choose ONE edition matching your development/testing target:
-uv sync --extra cuda    # NVIDIA GPU (Windows / Linux)
-uv sync --extra dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
-uv sync --extra mac     # macOS (Apple Silicon M-series CoreML)
-uv sync --extra cpu     # Generic CPU fallback
+npm run build:cuda    # NVIDIA GPU (Windows / Linux)
+npm run build:dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
+npm run build:mac     # macOS (Apple Silicon M-series CoreML)
+npm run build:cpu     # Generic CPU fallback
 ```
 
+* Builds frontend assets into `frontend/dist` and provisions the Python 3.14 virtual environment in one command.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
-* The locked dependencies (`uv.lock`) guarantee an identical environment across machines.
+* The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
+* Advanced: You can also synchronize the Python backend directly using `uv sync --project backend --extra <edition>`.
 
 ---
 
 ## 2. Running from Source
 
-You can run the application directly from the repository using the multi-stage fallback startup scripts or the `uv` CLI:
+You can run the application directly from the repository using the multi-stage fallback startup scripts, npm, or the `uv` CLI:
 
 * **Windows**: Run `start.bat` (Command Prompt) or `start.ps1` (PowerShell).
 * **Linux / macOS**: Run `./start.sh`.
+* **npm (Unified)**: Run `npm start`.
 * **CLI (Direct)**:
   ```bash
-  uv run python main.py
+  uv run --project backend python backend/main.py
   ```
 
 Once launched, the Web UI is served at:
@@ -80,14 +96,14 @@ uv run python scripts/build_package.py --edition cpu
 
 * `--edition <edition>`: Target edition (`cuda`, `dml`, `mac`, `cpu`, default: `cpu`).
 * `--output-dir <path>`: Destination directory for artifacts (default: `dist/`).
-* `--skip-zip`: Create the uncompressed package folder without archiving to `.zip`.
+* `--skip-archive`: Create the uncompressed package folder without archiving to `.7z`.
 
 You can also use npm to build packages:
 ```bash
 npm run build:package -- --edition cuda
 ```
 
-Artifacts are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.zip`. End users simply extract the archive and launch `start.bat` or `start.sh` without installing Python or CUDA toolkits.
+Artifacts are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z`. End users simply extract the archive and launch `start.bat` or `start.sh` without installing Python or CUDA toolkits.
 
 ---
 

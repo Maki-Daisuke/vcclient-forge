@@ -49,40 +49,45 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 
 ### 1. Prerequisites
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) (the ultra-fast Python package and project manager):
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**: Fast, deterministic Python environment and package manager.
+  ```bash
+  # Windows (PowerShell)
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-```bash
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Linux & macOS
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+  # Linux & macOS
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+- **[Node.js](https://nodejs.org/) & npm**: Task runner and frontend workspace manager (Node.js v24+ / v26 LTS recommended).
+- **System Audio Dependency (Linux only)**: Required by `sounddevice`:
+  ```bash
+  sudo apt-get update && sudo apt-get install -y libportaudio2
+  ```
 
 ### 2. Clone and Setup Environment
 
-Clone the repository and synchronize dependencies for your target hardware edition:
+Clone the repository and build both frontend assets and backend runtime for your target hardware in one step:
 
 ```bash
 git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
 
-# Choose ONE edition matching your hardware:
-uv sync --extra cuda    # NVIDIA GPU (Windows / Linux)
-uv sync --extra dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
-uv sync --extra mac     # macOS (Apple Silicon M-series)
-uv sync --extra cpu     # Generic CPU fallback
+# Choose ONE edition matching your hardware (builds Web UI and syncs Python runtime):
+npm run build:cuda    # NVIDIA GPU (Windows / Linux)
+npm run build:dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
+npm run build:mac     # macOS (Apple Silicon M-series)
+npm run build:cpu     # Generic CPU fallback
 ```
 
-_(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)_
+*(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)*
 
 ### 3. Launch
 
-Run the startup script corresponding to your operating system:
+Run the startup script or unified npm runner:
 
 - **Windows**: Double-click `start.bat` (or run `start.ps1` in PowerShell).
 - **Linux / macOS**: Run `./start.sh` in your terminal.
-- **CLI (Direct)**: Run `uv run python main.py`.
+- **npm (Unified)**: Run `npm start`.
+- **CLI (Direct)**: Run `uv run --project backend python backend/main.py`.
 
 Once started, open your web browser and navigate to:
 
