@@ -33,6 +33,10 @@ jobs:
       - name: Set up Python 3.12
         run: uv python install 3.12
 
+      - name: Install system audio dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+
       - name: Install dependencies (CPU + Dev)
         run: uv sync --project backend --extra cpu --extra dev --python 3.12
 
