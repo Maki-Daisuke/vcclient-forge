@@ -52,7 +52,7 @@ def find_7z_binary() -> str:
 
 def build_package(
     edition: str,
-    python_version: str = "3.12",
+    python_version: str = "3.14",
     output_dir: Path | None = None,
     skip_archive: bool = False,
 ) -> Path:
@@ -209,8 +209,8 @@ def main():
     parser.add_argument(
         "--python-version",
         type=str,
-        default="3.12",
-        help="Python version for runtime (default: 3.12)",
+        default="3.14",
+        help="Python version for runtime (default: 3.14)",
     )
     parser.add_argument(
         "--output-dir",
