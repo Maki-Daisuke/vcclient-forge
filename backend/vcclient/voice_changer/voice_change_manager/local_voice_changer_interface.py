@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import time
 import traceback
 from queue import Empty, Queue
@@ -191,9 +191,9 @@ class LocalVoiceChangerInterface:
                             if self.local_voice_changer_enabled is False:
                                 break
                             if stop_check_counter % 100 == 0:
-                                logging.getLogger(LOGGER_NAME).info(
+                                logging.getLogger(LOGGER_NAME).debug(
                                     f"Start Local Voice Changer(2way) counter:{stop_check_counter}, sr:[{input_stream.samplerate}, {output_stream.samplerate}, {monitor_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}, {monitor_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}, {monitor_stream.dtype}]"
-                                )
+                                ) if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
                 else:
                     logging.getLogger(LOGGER_NAME).info(
                         f"Start Local Voice Changer(1way), sr:[{input_stream.samplerate}, {output_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}]"

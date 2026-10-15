@@ -366,7 +366,7 @@ class VoiceChanger:
 
     def stop_convert_chunk_bulk(self):
         if self.vc_info.bulk_process_start_flag is False:
-            logging.getLogger(LOGGER_NAME).warn("bulk conversion process is already stopped.")
+            logging.getLogger(LOGGER_NAME).debug("bulk conversion process is already stopped.") if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
             return None
         self.vc_info.bulk_process_start_flag = False
         if self.bulk_process.is_alive():
@@ -382,7 +382,7 @@ class VoiceChanger:
         self._check_and_update_filter()
         try:
             if self.vc_info.bulk_process_start_flag is False:
-                logging.getLogger(LOGGER_NAME).warn("bulk conversion process is not started.")
+                logging.getLogger(LOGGER_NAME).debug("bulk conversion process is not started.") if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
                 return (None, None, None)
             if self.waveform_rest.dtype != waveform.dtype:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)
@@ -633,9 +633,9 @@ class VoiceChanger:
                 [resampled_waveform, np.zeros(input_size - resampled_waveform.shape[0])]
             )
             padded_shape = resampled_waveform.shape
-            logging.getLogger(LOGGER_NAME).warn(
+            logging.getLogger(LOGGER_NAME).debug(
                 f"data type resampled is short. padded.:{original_shape}, shape:{padded_shape}"
-            )
+            ) if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
 
         real_crossfade_sec = min(vc_chunk_sec, conf.crossfade_sec)
         converted_waveform = self.vc_pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)

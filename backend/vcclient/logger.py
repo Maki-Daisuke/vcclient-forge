@@ -1,4 +1,5 @@
 import logging
+import os
 import warnings
 from pathlib import Path
 
@@ -37,7 +38,11 @@ class IgnoreConvertRequestFilter(logging.Filter):
         return all([convert_chunk, convert_chunk_f, convert_chunk_bulk, convert_chunk_bukl_f, vcclient])
 
 
-def setup_logger(logger_name: str = None, filename: Path = None, level=logging.DEBUG):
+def setup_logger(logger_name: str = None, filename: Path = None, level: int | None = None):
+    if level is None:
+        level_str = os.environ.get("LOG_LEVEL", os.environ.get("VCCLIENT_LOG_LEVEL", "WARNING")).upper()
+        level = getattr(logging, level_str, logging.WARNING)
+
     if logger_name is None:
         from .const import LOGGER_NAME
 
@@ -49,7 +54,7 @@ def setup_logger(logger_name: str = None, filename: Path = None, level=logging.D
 
     logger = logging.getLogger(logger_name)
 
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(level)
 
     logger.propagate = False
 
@@ -68,7 +73,7 @@ def setup_logger(logger_name: str = None, filename: Path = None, level=logging.D
 
     file_handler = logging.FileHandler(filename, mode="w", encoding="utf-8")
 
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(level)
 
     file_handler.setFormatter(formatter)
 

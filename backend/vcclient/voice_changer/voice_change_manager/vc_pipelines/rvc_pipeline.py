@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import cast
 
 import faiss
@@ -199,7 +199,7 @@ class RVCPipeline(VCPipeline):
         else:
             vol_db = 20 * np.log10(vol / reference_volume)
         if vol_db < conf.noise_gate:
-            logging.getLogger(LOGGER_NAME).info(f"noise gate {vol_db} < {conf.noise_gate}")
+            logging.getLogger(LOGGER_NAME).debug(f"noise gate {vol_db} < {conf.noise_gate}") if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
             return np.zeros(real_output_size).astype(float)
         if slot_info.is_f0:
             pitch_coarse, pitch = self.pitch_estimator.estimate(
