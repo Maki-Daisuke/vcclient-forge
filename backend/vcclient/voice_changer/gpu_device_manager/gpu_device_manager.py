@@ -1,106 +1,169 @@
+import json
 import logging
 import platform
 import re
-
-import torch
+import subprocess
 
 from ...const import LOGGER_NAME
 from ..data_types.data_types import GPUInfo
 
 
-def reload_gpu_info_for_win() -> list[GPUInfo]:
-    import clr
-
-    clr.AddReference("System.Management")
-    from System.Management import ManagementObjectSearcher
-
-    management_objects = ManagementObjectSearcher("select * from Win32_VideoController")
-    gpu_info = []
-    gpu_info.append(GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1))
-    for management_object in management_objects.Get():
-        name = management_object["Name"]
-        device_id = management_object["DeviceID"]
-        try:
-            logging.getLogger(LOGGER_NAME).info(f"AdapterRAM : {management_object['AdapterRAM']}")
-            if management_object["AdapterRAM"] is not None:
-                adapter_ram = int(management_object["AdapterRAM"])
-            else:
-                adapter_ram = 0
-        except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"AdapterRAM is not found. {e}")
-            adapter_ram = 0
-
-        try:
-            device_id_int = int(re.findall(r"\d+", device_id)[0]) - 1
-        except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"DeviceID is not found.(1) {e} ")
-            logging.getLogger(LOGGER_NAME).error(f"DeviceID is not found.(2) {device_id} ")
-            device_id_int = -1
-
-        gpu_info.append(GPUInfo(name=name, device_id=device_id, adapter_ram=adapter_ram, device_id_int=device_id_int))
-    management_objects.Dispose()
-    return gpu_info
-
-
-def reload_gpu_info() -> list[GPUInfo]:
-    if platform.system() == "Windows":
-        try:
-            return reload_gpu_info_for_win()
-        except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(
-                f"Failed to reload_gpu_info_for_win. {e}. If you are using torch_cuda, this error can be ignored."
-            )
-            gpu_info = []
-            gpu_info.append(GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1))
-            return gpu_info
-    elif platform.system() == "Linux":
-        gpu_info = []
-        gpu_info.append(GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1))
-        return gpu_info
-    elif platform.system() == "Darwin":
-        gpu_info = []
-        gpu_info.append(GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1))
-        return gpu_info
-    else:
-        logging.getLogger(LOGGER_NAME).error(f"Unknown platform:{platform.system()}")
-        gpu_info = []
-        gpu_info.append(GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1))
-        return gpu_info
-
-
-def reload_cuda_info() -> list[GPUInfo]:
-    gpu_info = []
-    gpu_info.append(GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1))
-    if torch.cuda.is_available():
-        for i in range(torch.cuda.device_count()):
-            gpu_info.append(
-                GPUInfo(
-                    name=torch.cuda.get_device_name(i),
-                    device_id=str(i),
-                    adapter_ram=torch.cuda.get_device_properties(i).total_memory,
-                    device_id_int=i,
-                    cuda_compute_version_major=torch.cuda.get_device_properties(i).major,
-                    cuda_compute_version_minor=torch.cuda.get_device_properties(i).minor,
+def _detect_nvidia_gpus() -> list[GPUInfo]:
+    gpu_list: list[GPUInfo] = []
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+        for line in result.stdout.strip().splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 3:
+                idx = int(parts[0])
+                name = parts[1]
+                vram_mb = int(parts[2])
+                vram_bytes = vram_mb * 1024 * 1024
+                gpu_list.append(
+                    GPUInfo(
+                        name=name,
+                        device_id=str(idx),
+                        adapter_ram=vram_bytes,
+                        device_id_int=idx,
+                    )
                 )
-            )
-    return gpu_info
+    except Exception as e:
+        logging.getLogger(LOGGER_NAME).debug(f"NVIDIA GPU detection skipped: {e}")
+    return gpu_list
 
 
-def get_cuda_version():
-    import subprocess
+def _detect_windows_gpus() -> list[GPUInfo]:
+    gpu_list: list[GPUInfo] = []
+    try:
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_VideoController | Select-Object -Property Name, DeviceID, AdapterRAM | ConvertTo-Json",
+        ]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout.strip())
+            if isinstance(data, dict):
+                data = [data]
+            for idx, item in enumerate(data):
+                name = item.get("Name", "")
+                dev_id = item.get("DeviceID", str(idx))
+                vram = int(item.get("AdapterRAM") or 0)
+                gpu_list.append(
+                    GPUInfo(
+                        name=name,
+                        device_id=dev_id,
+                        adapter_ram=vram,
+                        device_id_int=idx,
+                    )
+                )
+    except Exception as e:
+        logging.getLogger(LOGGER_NAME).debug(f"Windows GPU detection skipped: {e}")
+    return gpu_list
 
+
+def _detect_macos_gpus() -> list[GPUInfo]:
+    gpu_list: list[GPUInfo] = []
+    try:
+        cmd = ["system_profiler", "SPDisplaysDataType", "-json"]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            data = json.loads(result.stdout.strip())
+            displays = data.get("SPDisplaysDataType", [])
+            for idx, item in enumerate(displays):
+                name = item.get("sppci_model") or item.get("_name", "Apple GPU")
+                vram_str = item.get("spdisplays_vram", "")
+                vram = 0
+                if "GB" in vram_str:
+                    try:
+                        vram = int(vram_str.replace("GB", "").strip()) * 1024 * 1024 * 1024
+                    except Exception:
+                        pass
+                gpu_list.append(
+                    GPUInfo(
+                        name=name,
+                        device_id=str(idx),
+                        adapter_ram=vram,
+                        device_id_int=idx,
+                    )
+                )
+    except Exception as e:
+        logging.getLogger(LOGGER_NAME).debug(f"macOS GPU detection skipped: {e}")
+    return gpu_list
+
+
+def _detect_linux_gpus() -> list[GPUInfo]:
+    gpu_list: list[GPUInfo] = []
+    try:
+        cmd = ["lspci"]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            idx = 0
+            for line in result.stdout.splitlines():
+                if "VGA compatible controller" in line or "3D controller" in line:
+                    parts = line.split(":", 2)
+                    name = parts[-1].strip() if len(parts) >= 3 else line
+                    gpu_list.append(
+                        GPUInfo(
+                            name=name,
+                            device_id=str(idx),
+                            adapter_ram=0,
+                            device_id_int=idx,
+                        )
+                    )
+                    idx += 1
+    except Exception as e:
+        logging.getLogger(LOGGER_NAME).debug(f"Linux GPU detection skipped: {e}")
+    return gpu_list
+
+
+def get_driver_and_cuda_version() -> tuple[str | None, str | None]:
+    driver_version = None
     cuda_version = None
     try:
-        result = subprocess.run(["nvidia-smi"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = result.stdout.decode("utf-8")
-        for line in output.split("\n"):
-            logging.getLogger(LOGGER_NAME).info(line)
-            if "CUDA Version" in line:
-                cuda_version = line.split(":")[-1].strip()
-        return cuda_version
-    except Exception as e:
-        logging.getLogger(LOGGER_NAME).error(f"Get CUDA version failed. {e}")
-        return cuda_version
+        result = subprocess.run(
+            ["nvidia-smi"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            m_cuda = re.search(r"CUDA.*?Version:\s*([0-9.]+)", line)
+            if m_cuda and cuda_version is None:
+                cuda_version = m_cuda.group(1)
+            m_driver = re.search(r"(?:Driver Version:|NVIDIA-SMI)\s*([0-9.]+)", line)
+            if m_driver and driver_version is None:
+                driver_version = m_driver.group(1)
+    except Exception:
+        pass
+    return driver_version, cuda_version
 
 
 class GPUDeviceManager:
@@ -117,33 +180,55 @@ class GPUDeviceManager:
 
     def reload(self):
         logging.getLogger(LOGGER_NAME).info("Reloading GPU info")
-        self.gpu_info = reload_gpu_info()
-        logging.getLogger(LOGGER_NAME).info(f"GPU[sys]:{self.gpu_info}")
-        self.cuda_available = torch.cuda.is_available()
-        self.cuda_version = torch.version.cuda
-        self.cudnn_version = torch.backends.cudnn.version()
-        self.cuda_gpu_num = torch.cuda.device_count()
-        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            self.cuda_mps_enabled = True
+
+        # 1. NVIDIA GPU の検出 (Windows / Linux 共通)
+        nvidia_gpus = _detect_nvidia_gpus()
+
+        # 2. プラットフォームごとのシステムGPU検出
+        system = platform.system()
+        if system == "Windows":
+            sys_gpus = _detect_windows_gpus()
+        elif system == "Darwin":
+            sys_gpus = _detect_macos_gpus()
+        elif system == "Linux":
+            sys_gpus = _detect_linux_gpus()
         else:
-            self.cuda_mps_enabled = False
-        self.cuda_driver_version = get_cuda_version()
-        self.cuda_info = reload_cuda_info()
+            sys_gpus = []
+
+        cpu_entry = GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1)
+
+        # システムGPUリスト (CPU + 検出されたGPU)
+        all_sys = [cpu_entry]
+        detected = nvidia_gpus if nvidia_gpus else sys_gpus
+        for g in detected:
+            if g.name.lower() != "cpu":
+                all_sys.append(g)
+        self.gpu_info = all_sys
+
+        # CUDA/アクセラレータGPUリスト
+        all_cuda = [cpu_entry]
+        for g in nvidia_gpus:
+            all_cuda.append(g)
+        self.cuda_info = all_cuda
+
+        self.cuda_available = len(nvidia_gpus) > 0
+        self.cuda_gpu_num = len(nvidia_gpus)
+        self.cuda_driver_version, self.cuda_version = get_driver_and_cuda_version()
+        self.cudnn_version = None
+        self.cuda_mps_enabled = system == "Darwin"
+
+        logging.getLogger(LOGGER_NAME).info(f"GPU[sys]: {self.gpu_info}")
         logging.getLogger(LOGGER_NAME).info(
-            f"GPU[cuda](1): available:{self.cuda_available}, num:{self.cuda_gpu_num}, mps_enabled: {self.cuda_mps_enabled}"
+            f"GPU[cuda]: available:{self.cuda_available}, num:{self.cuda_gpu_num}, driver_version:{self.cuda_driver_version}"
         )
-        logging.getLogger(LOGGER_NAME).info(
-            f"GPU[cuda](2): cuda_version(build):{self.cuda_version}, cudnn_version(build){self.cudnn_version}"
-        )
-        logging.getLogger(LOGGER_NAME).info(f"GPU[cuda](3): cuda_driver_version:{self.cuda_driver_version}")
-        logging.getLogger(LOGGER_NAME).info(f"GPU[cuda](4): {self.cuda_info}")
+        logging.getLogger(LOGGER_NAME).info(f"GPU[cuda_info]: {self.cuda_info}")
         return self.gpu_info
 
-    def get_gpu_info(self):
+    def get_gpu_info(self) -> list[GPUInfo]:
         return self.gpu_info
 
-    def get_cuda_info(self):
+    def get_cuda_info(self) -> list[GPUInfo]:
         return self.cuda_info
 
-    def is_cuda_available(self):
+    def is_cuda_available(self) -> bool:
         return self.cuda_available
