@@ -9,6 +9,7 @@ entries:
   - decompyle-plus-plus-traps-and-fixes.md
   - modern-runtime-and-toolchain.md
   - frontend-architecture-and-roadmap.md
+  - streamlined-pitch-estimation-and-torch-free-pipeline.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -31,3 +32,8 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
    Analysis of legacy UI bottlenecks (slider locking, unbuffered network flood), complete preservation of 13-language i18n JSON assets, and the 2-stage transition strategy from Svelte 5 Web SPA to ultra-lightweight Wails desktop packaging.
+
+6. **[Streamlined Pitch Estimation: Why RMVPE & FCPE Only](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
+   Consolidating pitch estimation to the definitive standard (RMVPE) and a newer ultra-fast model (FCPE), eliminating decision fatigue, pure-ONNX execution, and self-healing whitelist fallback.
+
+

@@ -38,6 +38,8 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
   - **Docker & Google Colab**: Explicitly out of scope. Containerized and cloud-hosted environments are not officially supported; users requiring these setups may adapt the source independently (though doing so should be significantly easier and cleaner than before thanks to `uv` and deterministic dependency locks).
 - **Multi-Edition Hardware Adapters**:
   Providing tailored extras (`cuda`, `dml`, `mac`, `cpu`) so NVIDIA, AMD, Intel, and Apple Silicon users each get optimal hardware acceleration.
+- **Streamlined Pure-ONNX Pitch Estimation (RMVPE & FCPE Only)**:
+  Consolidating pitch estimation exclusively to the gold standard (RMVPE) and a newer, ultra-fast alternative (FCPE) running torch-free via ONNX Runtime and NumPy. See [OKF Documentation](okf/streamlined-pitch-estimation-and-torch-free-pipeline.md) for details.
 - **Standalone Portable Packaging**:
   Automated bundling of isolated Python runtimes and Web UI assets into portable zip packages (`scripts/build_package.py`).
 
