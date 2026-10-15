@@ -64,4 +64,3 @@ def test_merge_models_not_supported(client):
     data = response.json()
     detail = json.loads(data["detail"])
     assert detail["code"] == "NOT_SUPPORTED"
-

@@ -194,9 +194,7 @@ def export_pth_to_onnx(
 
     # ダミー入力テンソルの準備
     feats_len = 64
-    feats = torch.randn(
-        1, feats_len, emb_channels, device=dev, dtype=torch.float16 if is_half else torch.float32
-    )
+    feats = torch.randn(1, feats_len, emb_channels, device=dev, dtype=torch.float16 if is_half else torch.float32)
     p_len = torch.tensor([feats_len], device=dev, dtype=torch.int64)
     sid = torch.tensor([0], device=dev, dtype=torch.int64)
 

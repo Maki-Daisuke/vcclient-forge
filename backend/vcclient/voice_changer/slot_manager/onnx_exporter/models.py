@@ -209,16 +209,18 @@ class Generator(torch.nn.Module):
             # conv_post
             self.ups_size[-1] += 3
 
-            for i in range(len(self.ups)-1, -1, -1):
+            for i in range(len(self.ups) - 1, -1, -1):
                 for k, d in zip(resblock_kernel_sizes[::-1], resblock_dilation_sizes[::-1]):
                     # conv2
-                    self.ups_size[i] += (k - 1)//2
+                    self.ups_size[i] += (k - 1) // 2
                     # conv1
-                    self.ups_size[i] += d[-1] * (k - 1)//2
+                    self.ups_size[i] += d[-1] * (k - 1) // 2
                 # upsampling
-                self.ups_size[i] = -(-self.ups_size[i] // upsample_rates[i]) + (upsample_kernel_sizes[i] - upsample_rates[i]) // 2
+                self.ups_size[i] = (
+                    -(-self.ups_size[i] // upsample_rates[i]) + (upsample_kernel_sizes[i] - upsample_rates[i]) // 2
+                )
                 if i:
-                    self.ups_size[i-1] = self.ups_size[i] + 0
+                    self.ups_size[i - 1] = self.ups_size[i] + 0
 
     def forward(self, x, g=None):
         x = self.conv_pre(x)
@@ -252,7 +254,7 @@ class Generator(torch.nn.Module):
 
         for i in range(self.num_upsamples):
             if self.realtime:
-                x = x[:, :, -self.ups_size[i] + (-convert_length // np.prod(self.upsample_rates[i:])):]
+                x = x[:, :, -self.ups_size[i] + (-convert_length // np.prod(self.upsample_rates[i:])) :]
             x = F.leaky_relu(x, LRELU_SLOPE)
             x = self.ups[i](x)
 
@@ -267,7 +269,7 @@ class Generator(torch.nn.Module):
         x = self.conv_post(x)
         x = torch.tanh(x)
         out = torch.zeros([x.shape[0], 1, out_length], device=x.device, dtype=x.dtype)
-        out[:, :, -x.shape[2]:] = x[:, :, -out.shape[2]:]
+        out[:, :, -x.shape[2] :] = x[:, :, -out.shape[2] :]
         return out
 
     def remove_weight_norm(self):
@@ -329,7 +331,9 @@ class SineGen(torch.nn.Module):
             # fundamental component
             f0_buf[:, :, 0] = f0[:, :, 0]
             for idx in np.arange(self.harmonic_num):
-                f0_buf[:, :, idx + 1] = f0_buf[:, :, 0] * (idx + 2)  # idx + 2: the (idx+1)-th overtone, (idx+2)-th harmonic
+                f0_buf[:, :, idx + 1] = f0_buf[:, :, 0] * (
+                    idx + 2
+                )  # idx + 2: the (idx+1)-th overtone, (idx+2)-th harmonic
             rad_values = (f0_buf / self.sampling_rate) % 1  # %1意味着n_har的乘积无法后处理优化
             rand_ini = torch.rand(f0_buf.shape[0], f0_buf.shape[2], device=f0_buf.device)
             rand_ini[:, 0] = 0
@@ -480,19 +484,21 @@ class GeneratorNSF(torch.nn.Module):
             # conv_post
             self.ups_size[-1] += 3
 
-            for i in range(len(self.ups)-1, -1, -1):
+            for i in range(len(self.ups) - 1, -1, -1):
                 for k, d in zip(resblock_kernel_sizes[::-1], resblock_dilation_sizes[::-1]):
                     # conv2
-                    self.ups_size[i] += (k - 1)//2
+                    self.ups_size[i] += (k - 1) // 2
                     # conv1
-                    self.ups_size[i] += d[-1] * (k - 1)//2
+                    self.ups_size[i] += d[-1] * (k - 1) // 2
                 # noise_conv
                 self.noise_conv_size[i] = self.ups_size[i] * np.prod(upsample_rates[i:])
                 # upsampling
 
-                self.ups_size[i] = -(-self.ups_size[i] // upsample_rates[i]) + (upsample_kernel_sizes[i] - upsample_rates[i]) // 2
+                self.ups_size[i] = (
+                    -(-self.ups_size[i] // upsample_rates[i]) + (upsample_kernel_sizes[i] - upsample_rates[i]) // 2
+                )
                 if i:
-                    self.ups_size[i-1] = self.ups_size[i] + 0
+                    self.ups_size[i - 1] = self.ups_size[i] + 0
 
     def forward(self, x, f0, g=None):
         har_source, noi_source, uv = self.m_source(f0, self.upp)
@@ -532,13 +538,15 @@ class GeneratorNSF(torch.nn.Module):
 
         for i in range(self.num_upsamples):
             if self.realtime:
-                x = x[:, :, -self.ups_size[i] + (-convert_length // np.prod(self.upsample_rates[i:])):]
+                x = x[:, :, -self.ups_size[i] + (-convert_length // np.prod(self.upsample_rates[i:])) :]
             x = F.leaky_relu(x, LRELU_SLOPE)
             x_ = self.ups[i](x)
-            x_source = self.noise_convs[i](har_source[:, :, -convert_length - self.noise_conv_size[i]:])
-            x = torch.zeros([x_.shape[0], x_.shape[1], max(x_.shape[2], x_source.shape[2])], device=x.device, dtype=x.dtype)
-            x[:, :, -x_.shape[2]:] += x_
-            x[:, :, -x_source.shape[2]:] += x_source
+            x_source = self.noise_convs[i](har_source[:, :, -convert_length - self.noise_conv_size[i] :])
+            x = torch.zeros(
+                [x_.shape[0], x_.shape[1], max(x_.shape[2], x_source.shape[2])], device=x.device, dtype=x.dtype
+            )
+            x[:, :, -x_.shape[2] :] += x_
+            x[:, :, -x_source.shape[2] :] += x_source
 
             xs = None
             for j in range(self.num_kernels):
@@ -551,9 +559,9 @@ class GeneratorNSF(torch.nn.Module):
         x = self.conv_post(x)
         x = torch.tanh(x)
         out = torch.zeros([x.shape[0], 1, out_length], device=x.device, dtype=x.dtype)
-        out[:, :, -x.shape[2]:] = x[:, :, -out.shape[2]:]
+        out[:, :, -x.shape[2] :] = x[:, :, -out.shape[2] :]
 
-        return x #out
+        return x  # out
 
     def remove_weight_norm(self):
         for layer in self.ups:
@@ -567,7 +575,6 @@ sr2sr = {
     "40k": 40000,
     "48k": 48000,
 }
-
 
 
 class SynthesizerTrnF0(nn.Module):

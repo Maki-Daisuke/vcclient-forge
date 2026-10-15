@@ -22,16 +22,12 @@ class DeviceManager:
         setup_cuda_env()
         logging.getLogger(LOGGER_NAME).info("DeviceManager initialized in pure-ONNX mode.")
 
-    def get_onnx_execution_provider(
-        self, device_id: int | None = None
-    ) -> tuple[list[str], list[dict]]:
+    def get_onnx_execution_provider(self, device_id: int | None = None) -> tuple[list[str], list[dict]]:
         res = self._get_onnx_execution_provider(device_id)
         logging.getLogger(LOGGER_NAME).info(f"get_onnx_execution_provider: {res}")
         return res
 
-    def _get_onnx_execution_provider(
-        self, device_id: int | None = None
-    ) -> tuple[list[str], list[dict]]:
+    def _get_onnx_execution_provider(self, device_id: int | None = None) -> tuple[list[str], list[dict]]:
         available_providers = onnxruntime.get_available_providers()
         logging.getLogger(LOGGER_NAME).info(f"available_providers: {available_providers}")
 
