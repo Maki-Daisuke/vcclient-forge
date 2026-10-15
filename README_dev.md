@@ -35,7 +35,7 @@ uv sync --extra mac     # macOS (Apple Silicon M-series CoreML)
 uv sync --extra cpu     # Generic CPU fallback
 ```
 
-* Python 3.12 is automatically downloaded, isolated, and pinned via `.python-version`.
+* Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`uv.lock`) guarantee an identical environment across machines.
 
 ---

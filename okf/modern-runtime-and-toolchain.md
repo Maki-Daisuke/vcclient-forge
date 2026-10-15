@@ -12,19 +12,27 @@ timestamp: 2026-10-14T12:28:00Z
 
 Upstream distributions relied on bundled standalone Python embeds or instructions requiring manual Anaconda/virtual environment setup. VCClient Forge standardizes on [`uv`](https://docs.astral.sh/uv/):
 
-- **Python Version**: Strictly pinned to `3.12` via `.python-version` and `pyproject.toml`.
+- **Python Version**: Strictly pinned to `3.14` (CPython 3.14.8) via `.python-version` and `pyproject.toml`.
 - **Lockfile Integrity**: All dependency trees are locked deterministically in `uv.lock`.
 - **Fast Virtualenvs**: `uv sync` provisions an identical, reproducible virtual environment across Windows, Linux, and macOS in seconds without global pollution.
 
-## 2. Pure-ONNX Architecture and CUDA 12 Support
+## 2. Higher-Efficiency Audio Pipeline (Python 3.14 & NumPy 2.x)
+
+VCClient Forge upgrades from the legacy Python 3.12 stack to Python 3.14.8 and NumPy >= 2.0.0 (2.5.4), delivering improved stability, pipeline efficiency, and lower latency for real-time voice conversion:
+
+- Optimized Array Operations (NumPy 2.x): Leverages NumPy 2.x's refined Universal Intrinsics for CPU-native SIMD vectorization across AVX2, AVX-512, and ARM NEON. Basic array operations, type casting, slicing, and windowing functions execute with minimal overhead, maintaining tight audio buffer latencies.
+- CPython Runtime Enhancements: Python 3.14 provides streamlined frame evaluation and interpreter-level optimizations, reducing invocation overhead within high-frequency audio chunk loops (typically 40–100Hz real-time processing).
+- CPU Inference Efficiency: Streamlined pre/post-processing combined with ONNX Runtime optimizations (CPUExecutionProvider) reduces overall CPU utilization and jitter, preserving vital system headroom for gaming and streaming workloads.
+
+## 3. Pure-ONNX Architecture and CUDA 12 Support
 
 VCClient Forge prioritizes high-performance, lightweight pure-ONNX inference:
 
-- **ONNX Runtime GPU**: Targets `onnxruntime-gpu>=1.19.0`, fully compatible with NVIDIA CUDA 12.x and TensorRT.
+- **ONNX Runtime GPU**: Targets `onnxruntime-gpu>=1.20.0`, fully compatible with NVIDIA CUDA 12.x and TensorRT.
 - **Transparent CUDA Environment Hook**: [`cuda_env.py`](../vcclient_dev/cuda_env.py) dynamically locates and registers CUDA runtime libraries into Windows DLL search paths, eliminating `cublas64_12.dll` missing errors without requiring manual system environment variable manipulation.
 - **Hardware Fallback**: Supports CUDA, DirectML (Windows AMD/Intel), and highly parallelized CPU execution (`CPUExecutionProvider`).
 
-## 3. Hybrid Task Runner via `package.json`
+## 4. Hybrid Task Runner via `package.json`
 
 To bridge developer experience between the Node.js/Web frontend ecosystem and Python backend services, `package.json` acts as the unified task runner:
 
@@ -36,9 +44,9 @@ To bridge developer experience between the Node.js/Web frontend ecosystem and Py
 | `npm run lint:fix`      | Auto-fix lints                          | `uv run ruff check --fix`                |
 | `npm run format`        | Format code with Ruff                   | `uv run ruff format`                     |
 | `npm run clean`         | Clean build artifacts, venv, and caches | `node scripts/clean.js`                  |
-| `npm run build:package` | Build portable distribution zip         | `uv run python scripts/build_package.py` |
+| `npm run build:package` | Build portable distribution 7z          | `uv run python scripts/build_package.py` |
 
-## 4. Portable Packaging Pipeline (`scripts/build_package.py`)
+## 5. Portable Packaging Pipeline (`scripts/build_package.py`)
 
 A fully automated standalone distribution generator compiles portable bundles:
 

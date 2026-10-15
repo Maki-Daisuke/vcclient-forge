@@ -22,7 +22,7 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 - **"RVC First" Philosophy**:
   Prioritizing the RVC models as our first-class citizen. Supporting other models (such as Beatrice) remains strictly secondary to delivering the best possible RVC experience.
 - **Future-Proof Maintainability**:
-  Engineered to smoothly track modern Python (3.12+) and newer GPU driver architectures, ensuring long-term reliability without bit-rot.
+  Engineered to smoothly track modern Python (3.14+) and newer GPU driver architectures, ensuring long-term reliability without bit-rot.
 
 ---
 
@@ -74,7 +74,7 @@ uv sync --extra mac     # macOS (Apple Silicon M-series)
 uv sync --extra cpu     # Generic CPU fallback
 ```
 
-_(Python 3.12 is automatically downloaded and isolated by `uv`—no system Python installation required!)_
+_(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)_
 
 ### 3. Launch
 
