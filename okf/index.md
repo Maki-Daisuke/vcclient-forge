@@ -10,6 +10,7 @@ entries:
   - modern-runtime-and-toolchain.md
   - frontend-architecture-and-roadmap.md
   - streamlined-pitch-estimation-and-torch-free-pipeline.md
+  - sub-2gb-portable-distribution-and-packaging.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -36,4 +37,5 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 6. **[Streamlined Pitch Estimation: Why RMVPE & FCPE Only](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
    Consolidating pitch estimation to the definitive standard (RMVPE) and a newer ultra-fast model (FCPE), eliminating decision fatigue, pure-ONNX execution, and self-healing whitelist fallback.
 
-
+7. **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**
+   Overcoming upstream's 2GB GitHub Releases limitation to enable direct, one-click distribution: pure-ONNX inference, CPU-only PyTorch relegation, surgical CUDA dependency selection, and workspace reset architecture (`npm run clean`).
