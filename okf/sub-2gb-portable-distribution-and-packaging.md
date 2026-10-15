@@ -21,7 +21,7 @@ One of the foundational design objectives of **VCClient Forge** is to deliver a 
 
 Crucially, VCClient Forge establishes a strict engineering constraint: **the portable distribution package (including CUDA runtime dependencies) must remain strictly under 2.00 GiB (2,147,483,648 bytes)**. This constraint enables direct hosting and automated release deployments on GitHub Releases, eliminating the multi-gigabyte bloat that likely drove upstream to rely on third-party hosting platforms like Hugging Face.
 
-Through pure-ONNX inference, CPU-only PyTorch relegation, surgical dependency pruning, and deterministic packaging scripts, VCClient Forge achieved a verified portable CUDA archive size of **2015.9 MB (1.969 GiB)**, breaking the 2GB barrier.
+Through pure-ONNX inference, CPU-only PyTorch relegation, surgical dependency pruning, and multi-threaded 7z (LZMA2) packaging, VCClient Forge achieved a verified portable CUDA archive size of **1314.0 MB (1.283 GiB)**, decisively breaking the 2GB barrier with massive headroom (~770 MB safety margin).
 
 ---
 
@@ -51,7 +51,7 @@ External hosting introduced substantial UX friction and maintenance overhead:
 
 ## 2. Core Architectural Breakthroughs for Sub-2GB Packaging
 
-Achieving a sub-2GB CUDA portable distribution was made possible by three foundational architectural decisions:
+Achieving a sub-2GB CUDA portable distribution was made possible by four foundational architectural decisions:
 
 ```
 +-------------------------------------------------------------------------------+
@@ -60,6 +60,7 @@ Achieving a sub-2GB CUDA portable distribution was made possible by three founda
 |  1. Pure-ONNX Inference Pipeline       --> Eliminate Torch from hot path      |
 |  2. CPU-Only PyTorch Relegation         --> 118MB vs 2.5GB+ CUDA Torch         |
 |  3. Surgical NVIDIA Dependency Pruning --> Keep only ONNX Runtime CUDA DLLs   |
+|  4. Standardized 7z (LZMA2) Packaging  --> 1.28GiB archive via native tool    |
 +-------------------------------------------------------------------------------+
 ```
 
@@ -84,6 +85,14 @@ In Forge, we isolate and bundle only the exact PyPI wheels needed by ONNX Runtim
 - Pruned: `nvidia-curand-cu12` (saving ~77 MB) and other non-inference components.
 - Path Resolution: `backend/vcclient/utils/cuda_env.py` automatically injects these paths into `os.add_dll_directory` and `PATH` on Windows at startup.
 
+### 4. Standardized 7z (LZMA2) Multi-Threaded Packaging
+
+Rather than standard Deflate compression used in `.zip`, VCClient Forge standardizes distribution packaging entirely on **7z (LZMA2)**:
+
+- **Massive Binary Compression**: Shared libraries (`.dll`, `.so`) contain extensive repetitive binary structures that LZMA2 compresses far more effectively, cutting archive size by ~35% from ~1.97 GiB down to **1314.0 MB (1.283 GiB)**.
+- **High-Speed Parallelization**: Built with `7z` native CLI integration configured for balanced thread and dictionary limits (`-mx=5 -md=32m -mmt=4`), avoiding out-of-memory errors on high-core CPUs while compressing multi-gigabyte runtimes in seconds.
+
+
 ---
 
 ## 3. Workspace Clean Architecture (`npm run clean`)
@@ -104,24 +113,16 @@ In Python on Windows, attempting to delete the active `.venv` from a Python-base
 
 ## 4. Future Headroom and Roadmap
 
-While the standard `.zip` format already breaks the 2GB barrier (1.969 GiB), future architectural evolutions will expand this safety margin significantly:
+While the standardized `.7z` package already operates well within the 2GB limit (1.283 GiB), upcoming roadmap phases will reduce package size and overhead even further:
 
-### 1. 7z (LZMA2) Archive Format
-
-The Deflate compression algorithm used in standard `.zip` archives is suboptimal for repetitive binary blocks found in shared libraries (`.dll`, `.so`).
-Migrating distribution archives to **7z (LZMA2)**:
-
-- Exploits larger dictionary sizes across CUDA and ONNX runtime binaries.
-- Estimated archive size reduction: **20% – 35%**, bringing the package down to approximately **1.3 – 1.5 GiB**.
-
-### 2. Pruning C/C++ Linker Libraries (`.lib`) and Headers (`.h`)
+### 1. Pruning C/C++ Linker Libraries (`.lib`) and Headers (`.h`)
 
 Python packages frequently distribute build-time C headers (`*.h`, `*.hpp`) and MSVC import libraries (`*.lib`) in `site-packages` (e.g. within PyTorch and Scikit-learn):
 
 - Total unneeded linker files: **~95 MB** uncompressed.
-- Purging these in `build_package.py` provides an additional **~25 MB** zip reduction.
+- Purging these in `build_package.py` provides an additional **~25 MB** archive reduction.
 
-### 3. Wails + Svelte Desktop Application
+### 2. Wails + Svelte Desktop Application
 
 As detailed in [Frontend Architecture & Roadmap](./frontend-architecture-and-roadmap.md), migrating from the legacy web UI to **Wails + Svelte 5**:
 

@@ -53,6 +53,6 @@ npm run build:package
 npm run build:package -- --edition cuda
 ```
 
-The build script creates a self-contained runtime environment using `uv`, includes only production assets, purges bytecode/compiler caches, and outputs a ready-to-distribute `.zip` archive into `dist/`.
+The build script creates a self-contained runtime environment using `uv`, includes only production assets, purges bytecode/compiler caches, and outputs a ready-to-distribute `.7z` archive into `dist/`.
 
 For the full architectural analysis on achieving a sub-2GB CUDA portable distribution for direct GitHub Releases hosting, see **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**.

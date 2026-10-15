@@ -42,11 +42,19 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None 
         raise RuntimeError(f"Command failed with exit code {res.returncode}: {' '.join(str(c) for c in cmd)}")
 
 
+def find_7z_binary() -> str:
+    for cmd in ("7z", "7za"):
+        p = shutil.which(cmd)
+        if p:
+            return p
+    raise RuntimeError("7-Zip executable ('7z' or '7za') was not found in PATH.")
+
+
 def build_package(
     edition: str,
     python_version: str = "3.12",
     output_dir: Path | None = None,
-    skip_zip: bool = False,
+    skip_archive: bool = False,
 ) -> Path:
     if output_dir is None:
         output_dir = PROJECT_ROOT / "dist"
@@ -152,26 +160,41 @@ def build_package(
     (package_dir / "modules").mkdir(exist_ok=True)
     (package_dir / "model_dir").mkdir(exist_ok=True)
 
-    # 5. Archive to zip if requested
-    if skip_zip:
+    # 5. Archive to 7z
+    if skip_archive:
         print(f"\n[OK] Package directory created at: {package_dir}")
         return package_dir
 
-    print(">>> 5. Creating zip archive...")
-    zip_path_base = output_dir / package_name
-    archive_format = "zip"
-    zip_file = shutil.make_archive(
-        str(zip_path_base),
-        archive_format,
-        root_dir=output_dir,
-        base_dir=package_name,
+    seven_zip = find_7z_binary()
+    archive_path = output_dir / f"{package_name}.7z"
+    if archive_path.exists():
+        archive_path.unlink()
+
+    print(f">>> 5. Creating 7z archive via {seven_zip} (multi-threaded LZMA2)...")
+    # -mx=5: balanced high compression ratio and speed
+    # -md=32m: 32MB dictionary size (keeps RAM usage safe <= ~1.5GB across threads)
+    # -mmt=4: limit to 4 threads to prevent OOM on high-core-count machines
+    threads = min(os.cpu_count() or 4, 4)
+    run_cmd(
+        [
+            seven_zip,
+            "a",
+            "-t7z",
+            "-mx=5",
+            "-md=32m",
+            f"-mmt={threads}",
+            archive_path.name,
+            package_name,
+        ],
+        cwd=output_dir,
     )
-    zip_path = Path(zip_file)
-    size_mb = zip_path.stat().st_size / (1024 * 1024)
+
+    size_mb = archive_path.stat().st_size / (1024 * 1024)
+    size_gib = archive_path.stat().st_size / (1024 * 1024 * 1024)
     print("\n[OK] Build complete!")
-    print(f"Archive: {zip_path}")
-    print(f"Size:    {size_mb:.1f} MB\n")
-    return zip_path
+    print(f"Archive: {archive_path}")
+    print(f"Size:    {size_mb:.1f} MB ({size_gib:.3f} GiB)\n")
+    return archive_path
 
 
 def main():
@@ -196,9 +219,9 @@ def main():
         help="Output directory (default: dist/)",
     )
     parser.add_argument(
-        "--skip-zip",
+        "--skip-archive",
         action="store_true",
-        help="Skip zip archive creation (leave directory)",
+        help="Skip 7z archive creation (leave directory unpacked)",
     )
     args = parser.parse_args()
 
@@ -206,7 +229,7 @@ def main():
         edition=args.edition,
         python_version=args.python_version,
         output_dir=args.output_dir,
-        skip_zip=args.skip_zip,
+        skip_archive=args.skip_archive,
     )
 
 
