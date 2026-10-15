@@ -1,3 +1,6 @@
+import logging
+
+from ....const import LOGGER_NAME
 from ...module_manager.module_manager import ModuleManager
 from ...voice_chanager_const import PitchEstimatorType
 from .pitch_estimator import PitchEstimator
@@ -16,22 +19,11 @@ class PitchEstimatorManager:
 
     @classmethod
     def load_pitch_estimator(cls, pitch_estimator_type: PitchEstimatorType, device_id: int) -> PitchEstimator:
-        if pitch_estimator_type == "harvest":
-            from .harvest_pitch_estimator import HarvestPitchEstimator
+        if pitch_estimator_type != "rmvpe":
+            logging.getLogger(LOGGER_NAME).warning(
+                f"Pitch estimator '{pitch_estimator_type}' is unimplemented or deprecated. Falling back to 'rmvpe'."
+            )
+        from .onnxrmvpe_pitch_estimator import RMVPEOnnxPitchEstimator
 
-            return HarvestPitchEstimator()
-        elif pitch_estimator_type == "dio":
-            from .dio_pitch_estimator import DioPitchEstimator
-
-            return DioPitchEstimator()
-        elif pitch_estimator_type == "rmvpe":
-            from .onnxrmvpe_pitch_estimator import RMVPEOnnxPitchEstimator
-
-            path = ModuleManager.get_instance().get_module_filepath("rmvpe_20231006.onnx")
-            return RMVPEOnnxPitchEstimator("rmvpe", path, device_id)
-        elif pitch_estimator_type == "fcpe":
-            from .fcpe_pitch_estimator import FCPEPitchEstimator
-
-            return FCPEPitchEstimator("fcpe", device_id)
-        else:
-            raise RuntimeError(f"Unknown PitchEstimatorType {pitch_estimator_type}")
+        path = ModuleManager.get_instance().get_module_filepath("rmvpe_20231006.onnx")
+        return RMVPEOnnxPitchEstimator("rmvpe", path, device_id)

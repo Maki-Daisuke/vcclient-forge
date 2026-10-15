@@ -117,7 +117,7 @@ class RVCSlotInfo(SlotInfo):
     @field_validator("pitch_estimator", mode="before")
     @classmethod
     def normalize_pitch_estimator(cls, v: str) -> str:
-        if v == "rmvpe_onnx":
+        if v in ("rmvpe_onnx", "harvest", "dio", "fcpe") or (isinstance(v, str) and v.startswith("crepe")):
             return "rmvpe"
         return v
 
