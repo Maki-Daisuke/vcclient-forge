@@ -3,7 +3,6 @@ from pathlib import Path
 
 import numpy as np
 import onnxruntime
-import torch
 
 from ....const import LOGGER_NAME
 from ...data_types.voice_changer_data_types import EmbedderInfo
@@ -55,11 +54,8 @@ class ContentvecOnnx(Embedder):
 
         return self
 
-    def extract_features(self, audio: np.ndarray | torch.Tensor) -> np.ndarray:
+    def extract_features(self, audio: np.ndarray) -> np.ndarray:
         try:
-            if isinstance(audio, torch.Tensor):
-                assert isinstance(audio, torch.Tensor)
-                audio = audio.cpu().numpy()
             assert isinstance(audio, np.ndarray)
             if audio.ndim != 1:
                 logging.getLogger(LOGGER_NAME).error(

@@ -1,7 +1,5 @@
 import numpy as np
 import onnxruntime
-import torch
-from torch import nn
 
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
@@ -10,8 +8,6 @@ from .rvc_inferencer import RVCInferencer
 
 
 class RVCInferencerOnnxNoF0(RVCInferencer):
-    model: nn.Module
-
     def load_model(self=None, file=None, device_id=None, inferencer_type_version=(None,)):
 
         self.file = file
@@ -46,24 +42,14 @@ class RVCInferencerOnnxNoF0(RVCInferencer):
 
     def infer(
         self,
-        feats: np.ndarray | torch.Tensor,
-        pitch_length: np.ndarray | torch.Tensor,
-        pitch: np.ndarray | torch.Tensor | None = None,
-        pitchf: np.ndarray | torch.Tensor | None = None,
-        sid: np.ndarray | torch.Tensor = None,
+        feats: np.ndarray,
+        pitch_length: np.ndarray,
+        pitch: np.ndarray | None = None,
+        pitchf: np.ndarray | None = None,
+        sid: np.ndarray | None = None,
         convert_length: int | None = None,
     ) -> np.ndarray:
         try:
-            if isinstance(feats, torch.Tensor):
-                assert isinstance(feats, torch.Tensor)
-                feats = feats.cpu().numpy()
-            if isinstance(pitch_length, torch.Tensor):
-                assert isinstance(pitch_length, torch.Tensor)
-                pitch_length = pitch_length.cpu().numpy()
-            if isinstance(sid, torch.Tensor):
-                assert isinstance(sid, torch.Tensor)
-                sid = sid.cpu().numpy()
-
             assert (
                 isinstance(feats, np.ndarray) and isinstance(pitch_length, np.ndarray) and isinstance(sid, np.ndarray)
             )

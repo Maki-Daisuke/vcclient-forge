@@ -4,8 +4,6 @@ from typing import cast
 import faiss
 import numpy as np
 import onnxruntime
-import torch
-import torch.nn.functional as F
 from onnx import TensorProto
 from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_tensor_value_info
 
@@ -217,10 +215,7 @@ class RVCPipeline(VCPipeline):
 
         feats = self.embedder.extract_features(audio)
         if index_enabled is True:
-            if isinstance(feats, np.ndarray):
-                new_feats = feats[0]
-            else:
-                new_feats = feats[0].cpu().numpy()
+            new_feats = feats[0]
             feats_length = new_feats.shape[0]
             feats_channels = new_feats.shape[1]
             latest_audio_feats_length = int(round(input_sample_num / 320))
@@ -229,9 +224,6 @@ class RVCPipeline(VCPipeline):
                 new_feats = new_feats.astype("float32")
             _, ix = self.index.search(new_feats, 1)
             new_feats_retrieved = self.big_npy[ix.squeeze()]
-            if not isinstance(prev_feature, np.ndarray):
-                if isinstance(prev_feature, torch.Tensor):
-                    prev_feature = prev_feature.cpu().numpy()
             new_feats_retrieved = np.concatenate(
                 [
                     np.zeros((feats_length, feats_channels), dtype=np.float32),
@@ -239,25 +231,15 @@ class RVCPipeline(VCPipeline):
                     new_feats_retrieved,
                 ]
             )[-1 * feats_length :]
-            if not isinstance(feats, np.ndarray):
-                if isinstance(feats, torch.Tensor):
-                    feats = (
-                        torch.from_numpy(new_feats_retrieved).unsqueeze(0).to(feats.device) * self.slot_info.index_ratio
-                        + (1 - self.slot_info.index_ratio) * feats
-                    )
+            feats = (
+                new_feats_retrieved[np.newaxis, :] * self.slot_info.index_ratio
+                + (1 - self.slot_info.index_ratio) * feats
+            )
 
-        if isinstance(feats, np.ndarray):
-            feats = feats.transpose(0, 2, 1)
-            feats = self.onnx_upscaler.run(["out"], {"in": feats, "scales": np.array([2], dtype=np.float32)})
-            assert isinstance(feats[0], np.ndarray)
-            feats = feats[0].transpose(0, 2, 1)
-        elif isinstance(feats, torch.Tensor):
-            fests = feats.permute(0, 2, 1)
-            feats = F.interpolate(fests, scale_factor=2)
-            assert isinstance(feats, torch.Tensor)
-            feats = feats.permute(0, 2, 1)
-        else:
-            raise RuntimeError(f"feats should be np.ndarray or torch.Tensor. {type(feats)}")
+        feats = feats.transpose(0, 2, 1)
+        feats = self.onnx_upscaler.run(["out"], {"in": feats, "scales": np.array([2], dtype=np.float32)})
+        assert isinstance(feats[0], np.ndarray)
+        feats = feats[0].transpose(0, 2, 1)
 
         import math
 
@@ -274,9 +256,6 @@ class RVCPipeline(VCPipeline):
         self.pitchf_buffer = pitch
         self.feature_buffer = feats
 
-        if isinstance(converted, torch.Tensor):
-            converted = cast(np.ndarray, converted.cpu().numpy())
-
         if conf.volume_tuning_type == "linear":
             converted = converted * vol
         elif conf.volume_tuning_type == "linear_ratio":
@@ -290,8 +269,6 @@ class RVCPipeline(VCPipeline):
             vol_scaling_factor = np.sqrt(vol) / converted_vol
             converted = converted * vol_scaling_factor
 
-        if isinstance(converted, torch.Tensor):
-            converted = cast(np.ndarray, converted.cpu().numpy())
         return converted
 
     def get_pipeline_info(self):

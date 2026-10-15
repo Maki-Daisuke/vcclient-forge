@@ -1,7 +1,5 @@
 import logging
 
-from vcclient.voice_changer.voice_change_manager.embedders.fairseq_hubert_jp import FairseqHubertJp
-
 from ....const import LOGGER_NAME
 from ...module_manager.module_manager import ModuleManager
 from ...voice_chanager_const import EmbedderType
@@ -38,14 +36,13 @@ class EmbedderManager:
         elif embedder_type == "hubert_base_japanese_l12":
             file = ModuleManager.get_instance().get_module_filepath("rinna_hubert_base-f.onnx")
             return ContentvecOnnx().load_model(file, device_id, 12, False)
-        elif embedder_type == "applio_japanese_hubert_base_l12":
-            file = ModuleManager.get_instance().get_module_filepath("applio_japanese_hubert_base.pt")
-            return FairseqHubertJp().load_model(file, device_id, 12, False)
-        elif embedder_type == "applio_chinese_hubert_base_l12":
-            file = ModuleManager.get_instance().get_module_filepath("applio_chinese_hubert_base.pt")
-            return FairseqHubertJp().load_model(file, device_id, 12, False)
-        elif embedder_type == "applio_korean_hubert_base_l12":
-            file = ModuleManager.get_instance().get_module_filepath("applio_korean_hubert_base.pt")
-            return FairseqHubertJp().load_model(file, device_id, 12, False)
+        elif embedder_type in (
+            "applio_japanese_hubert_base_l12",
+            "applio_chinese_hubert_base_l12",
+            "applio_korean_hubert_base_l12",
+        ):
+            raise RuntimeError(
+                f"Applio embedder '{embedder_type}' with PyTorch format is not supported in pure-ONNX runtime."
+            )
         else:
             raise RuntimeError(f"Unknown Embedder {embedder_type}")
