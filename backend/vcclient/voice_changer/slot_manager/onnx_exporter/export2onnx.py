@@ -223,18 +223,19 @@ def export_pth_to_onnx(
         f"Exporting PyTorch model to ONNX: {pth_file} -> {out_file} (f0={is_f0}, emb_channels={emb_channels})"
     )
 
-    # ONNX エクスポート実行
-    torch.onnx.export(
-        net_g,
-        inputs,
-        str(out_file),
-        input_names=input_names,
-        output_names=output_names,
-        dynamic_axes=dynamic_axes,
-        do_constant_folding=True,
-        opset_version=17,
-        verbose=False,
-    )
+    # ONNX エクスポート実行（PyTorch 2.9+ では dynamo=False で TorchScript エクスポーターを指定）
+    export_kwargs = {
+        "input_names": input_names,
+        "output_names": output_names,
+        "dynamic_axes": dynamic_axes,
+        "do_constant_folding": True,
+        "opset_version": 17,
+        "verbose": False,
+    }
+    try:
+        torch.onnx.export(net_g, inputs, str(out_file), dynamo=False, **export_kwargs)
+    except TypeError:
+        torch.onnx.export(net_g, inputs, str(out_file), **export_kwargs)
 
     # メタデータ書き込み
     model_onnx = onnx.load(str(out_file))
