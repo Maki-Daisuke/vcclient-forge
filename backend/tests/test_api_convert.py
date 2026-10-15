@@ -43,3 +43,17 @@ def test_frontend_root():
     response = c.get("/")
     assert response.status_code == 200
     assert "html" in response.headers.get("content-type", "")
+
+
+def test_merge_models_not_supported(client):
+    import json
+
+    response = client.post(
+        "/api/slot-manager/slots/operation/merge_models",
+        json={"files": [{"slot_index": 0, "strength": 0.5}]},
+    )
+    assert response.status_code == 400
+    data = response.json()
+    detail = json.loads(data["detail"])
+    assert detail["code"] == "NOT_SUPPORTED"
+

@@ -1,3 +1,4 @@
+import json
 import logging
 import traceback
 
@@ -202,16 +203,25 @@ class RestAPISlotManager:
         slot_manager.delete_slot(index)
 
     def post_merge_models(self, merge_param: MergeParam):
-        slot_manager = SlotManager.get_instance()
-        slot_manager.merge_models(UPLOAD_DIR, merge_param)
+        raise HTTPException(
+            status_code=400,
+            detail=json.dumps(
+                {"code": "NOT_SUPPORTED", "message": "Model merge is not supported in VCClient Forge."}
+            ),
+        )
 
     def post_export_onnx(self, params: OnnxExportParam):
         slot_manager = SlotManager.get_instance()
         slot_manager.export_onnx(params, UPLOAD_DIR)
 
     def post_move_merged_model(self, param: MoveMergedModelParam):
-        slot_manager = SlotManager.get_instance()
-        slot_manager.move_model_slot_from_merged(param)
+        raise HTTPException(
+            status_code=400,
+            detail=json.dumps(
+                {"code": "NOT_SUPPORTED", "message": "Model merge is not supported in VCClient Forge."}
+            ),
+        )
+
 
     def post_move_export_onnx_model(self, param: MoveExportedOnnxModelParam):
         slot_manager = SlotManager.get_instance()

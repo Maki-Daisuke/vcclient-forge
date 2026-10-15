@@ -13,15 +13,12 @@ from ..data_types.slot_manager_data_types import (
     BeatriceV2ModelInfo,
     BeatriceV2SlotInfo,
     ExportParam,
-    MergeParam,
     ModelImportParamMember,
     MoveExportedOnnxModelParam,
-    MoveMergedModelParam,
     MoveModelParam,
     OnnxExportParam,
     ReservedForSampleModelImportParam,
     ReservedForSampleSlotInfo,
-    RVCModelImportParam,
     RVCSlotInfo,
     SetBeatriceV2VoiceDescriptionParam,
     SetBeatriceV2VoiceIconFileParam,
@@ -211,22 +208,6 @@ class SlotManager:
         assert len(index_in_slot_info) == 1
         self.slot_infos[index_in_slot_info[0]] = slot_info
 
-    def merge_models(self, store_dir: Path, merge_param: MergeParam):
-        """
-        現時点ではRVCのみサポート。
-        処理はRVC決め打ちで実施。
-        """
-        from model_merger.rvc_model_merger import RVCModelMerger
-
-        merger = RVCModelMerger()
-        store_path = store_dir / "merged.pth"
-        merger.merge(store_path, merge_param)
-        model_import_param = RVCModelImportParam(
-            name="merged model", slot_index=MERGED_SLOT_INDEX, model_file=store_path
-        )
-        import_model(ModelDir, model_import_param, remove_src=True)
-        self.reload(use_log=False)
-
     def export_onnx(self, params: OnnxExportParam, store_dir: Path):
         raise NotImplementedError("ONNX exporter is not supported in ONNX-only mode.")
 
@@ -266,12 +247,6 @@ class SlotManager:
         with open(config_file, "w", encoding="utf-8") as f:
             f.write(slot_info.model_dump_json(indent=4))
         self.reload(use_log=False)
-
-    def move_model_slot_from_merged(self, param: MoveMergedModelParam):
-        if param.dst is None:
-            param.dst = self.get_blank_slot_index()
-        move_modelparams = MoveModelParam(src=MERGED_SLOT_INDEX, dst=param.dst)
-        self.move_model_slot(move_modelparams)
 
     def move_model_slot_from_onnx_exported(self, param: MoveExportedOnnxModelParam):
         if param.dst is None:
