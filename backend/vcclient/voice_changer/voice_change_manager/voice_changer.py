@@ -84,6 +84,9 @@ class VoiceChanger:
         self.input_record = []
         self.output_record = []
         self.monitor_record = []
+        self.resampler_in = sr.Resampler("sinc_best", channels=1)
+        self.resampler_out = sr.Resampler("sinc_best", channels=1)
+        self.resampler_monitor = sr.Resampler("sinc_best", channels=1)
 
     def _update_model(self, slot_index: int):
         try:
@@ -570,36 +573,8 @@ class VoiceChanger:
 
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
 
-        self._check_reload_model_is_required_and_update()
-
-        self._check_and_update_pitch_estimator()
-
-        self._check_and_update_sample_rate()
-
-        self._check_and_update_filter()
-
-        vc_chunk_sec = self.vc_pipeline.get_chunk_sec()
-
-        vc_input_bitdepth = self.vc_pipeline.get_input_bitdepth()
-
-        vc_output_bitdepth = self.vc_pipeline.get_output_bitdepth()
-
-        vc_needs_crossfade = self.vc_pipeline.needs_crossfade()
-
-        if direct_from_server is True:
-            input_size = int(self.vc_info.resample_ratio_in * waveform.shape[0])
-
-            output_size = int((input_size / self.vc_info.vc_input_sample_rate) * self.vc_info.vc_output_sample_rate)
-
-        else:
-            input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
-
-            output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
-
-        if self.vc_info.recording_start_flag is True:
-            self.input_record.append(waveform)
-
-        if conf.pass_through is True:
+        if conf.pass_through is True or getattr(self, "vc_pipeline", None) is None:
+            self._check_and_update_sample_rate()
             waveform_out = self._exec_resample_pass_through_in_out(waveform)
             if self.vc_info.recording_start_flag is True:
                 self.output_record.append(waveform_out)
@@ -607,9 +582,28 @@ class VoiceChanger:
                 waveform_monitor = self._exec_resample_pass_through_in_monitor(waveform)
                 if self.vc_info.recording_start_flag is True:
                     self.output_record.append(waveform_monitor)
-            if self.vc_info.monitor_enabled is False:
-                return (waveform_out, None)
-            return (waveform_out, waveform_monitor)
+                return (waveform_out, waveform_monitor)
+            return (waveform_out, None)
+
+        self._check_reload_model_is_required_and_update()
+        self._check_and_update_pitch_estimator()
+        self._check_and_update_sample_rate()
+        self._check_and_update_filter()
+
+        vc_chunk_sec = self.vc_pipeline.get_chunk_sec()
+        vc_input_bitdepth = self.vc_pipeline.get_input_bitdepth()
+        vc_output_bitdepth = self.vc_pipeline.get_output_bitdepth()
+        vc_needs_crossfade = self.vc_pipeline.needs_crossfade()
+
+        if direct_from_server is True:
+            input_size = int(self.vc_info.resample_ratio_in * waveform.shape[0])
+            output_size = int((input_size / self.vc_info.vc_input_sample_rate) * self.vc_info.vc_output_sample_rate)
+        else:
+            input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
+            output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
+
+        if self.vc_info.recording_start_flag is True:
+            self.input_record.append(waveform)
 
         input_data_type = waveform.dtype
         if vc_input_bitdepth == np.int16 and waveform.dtype != np.int16:

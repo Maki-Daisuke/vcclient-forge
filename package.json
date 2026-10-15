@@ -4,6 +4,7 @@
   "private": true,
   "description": "VCClient Forge - Task Runner and Integration",
   "scripts": {
+    "clean": "node scripts/clean.js",
     "start": "uv run --project backend python backend/main.py cui",
     "dev:backend": "uv run --project backend python backend/main.py cui",
     "build:frontend": "node scripts/build_frontend.js",

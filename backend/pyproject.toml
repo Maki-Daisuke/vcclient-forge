@@ -39,6 +39,10 @@ dependencies = [
 [project.optional-dependencies]
 cuda = [
     "onnxruntime-gpu>=1.20.0,<1.25.0",
+    "nvidia-cublas-cu12>=12.4.0",
+    "nvidia-cudnn-cu12>=9.1.0",
+    "nvidia-cufft-cu12>=11.2.0",
+    "nvidia-cuda-runtime-cu12>=12.4.0",
 ]
 dml = [
     "onnxruntime-directml>=1.20.0",
@@ -66,6 +70,14 @@ dev = [
 
 [tool.uv]
 default-groups = ["dev"]
+conflicts = [
+    [
+        { extra = "cuda" },
+        { extra = "dml" },
+        { extra = "cpu" },
+        { extra = "mac" },
+    ],
+]
 
 [tool.uv.sources]
 torch = [

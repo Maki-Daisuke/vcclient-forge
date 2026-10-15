@@ -2,6 +2,7 @@ import logging
 
 import onnxruntime
 
+from vcclient.utils.cuda_env import setup_cuda_env
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
 
 from ....const import LOGGER_NAME
@@ -18,6 +19,7 @@ class DeviceManager:
         return cls._instance
 
     def __init__(self):
+        setup_cuda_env()
         logging.getLogger(LOGGER_NAME).info("DeviceManager initialized in pure-ONNX mode.")
 
     def get_onnx_execution_provider(

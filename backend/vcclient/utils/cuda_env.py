@@ -20,6 +20,7 @@ def setup_cuda_env() -> None:
     _initialized = True
 
     if sys.platform == "win32":
+        # 1. PyTorch's bundled lib (if CUDA-enabled PyTorch is present)
         try:
             import torch
 
@@ -29,6 +30,27 @@ def setup_cuda_env() -> None:
                 os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
         except Exception:
             pass
+
+        # 2. nvidia-* pip packages (for pure-ONNX mode with CPU PyTorch)
+        import importlib.util
+
+        nvidia_pkgs = [
+            "nvidia.cublas",
+            "nvidia.cudnn",
+            "nvidia.cuda_runtime",
+            "nvidia.cufft",
+        ]
+        for pkg in nvidia_pkgs:
+            try:
+                spec = importlib.util.find_spec(pkg)
+                if spec and spec.submodule_search_locations:
+                    loc = Path(list(spec.submodule_search_locations)[0])
+                    bin_dir = loc / "bin"
+                    if bin_dir.exists():
+                        os.add_dll_directory(str(bin_dir))
+                        os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
+            except Exception:
+                pass
     elif sys.platform == "linux":
         # Future Linux-specific environment hook (e.g., LD_LIBRARY_PATH checks)
         pass

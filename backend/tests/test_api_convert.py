@@ -19,6 +19,14 @@ def test_hello_endpoint(client):
 
 
 def test_convert_chunk_endpoint(client):
+    from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+
+    conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+    conf.pass_through = True
+    conf.input_sample_rate = 48000
+    conf.output_sample_rate = 48000
+    ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
+
     sample_rate = 48000
     duration_sec = 0.5
     num_samples = int(sample_rate * duration_sec)

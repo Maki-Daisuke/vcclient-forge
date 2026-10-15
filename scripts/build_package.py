@@ -104,7 +104,6 @@ def build_package(
     copy_targets = [
         "backend",
         "frontend/dist",
-        "modules",
         "start.bat",
         "start.ps1",
         "start.sh",
@@ -134,6 +133,24 @@ def build_package(
         else:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
+
+    # 4.5. Clean up runtime caches and unneeded files before packaging
+    print(">>> 4.5. Cleaning up runtime caches to minimize package size...")
+    for root, dirs, files in os.walk(runtime_dir):
+        for d in list(dirs):
+            if d in ("__pycache__", ".pytest_cache", ".ruff_cache"):
+                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+                dirs.remove(d)
+        for f in files:
+            if f.endswith((".pyc", ".pyo")):
+                try:
+                    os.remove(os.path.join(root, f))
+                except OSError:
+                    pass
+
+    # Ensure empty modules and model_dir directories exist
+    (package_dir / "modules").mkdir(exist_ok=True)
+    (package_dir / "model_dir").mkdir(exist_ok=True)
 
     # 5. Archive to zip if requested
     if skip_zip:
