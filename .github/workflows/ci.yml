@@ -8,17 +8,21 @@ on:
 
 jobs:
   lint-and-test:
-    name: ${{ matrix.os }} / py${{ matrix.python-version }}
+    name: ${{ matrix.os }} / py3.12 / node26
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.12"]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -26,14 +30,17 @@ jobs:
           enable-cache: true
           version: "latest"
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies (CPU + Dev)
+        run: uv sync --project backend --extra cpu --extra dev --python 3.12
 
       - name: Check code formatting (Ruff)
-        run: uv run ruff format --check --config pyproject.toml .
+        run: npm run format:check
 
       - name: Lint code (Ruff)
-        run: uv run ruff check --config pyproject.toml .
+        run: npm run lint
 
       - name: Run test suite (pytest)
-        run: uv run pytest
+        run: npm test

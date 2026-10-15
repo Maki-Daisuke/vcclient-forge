@@ -12,6 +12,7 @@
     "lint": "uv run --project backend ruff check backend",
     "lint:fix": "uv run --project backend ruff check --fix backend",
     "format": "uv run --project backend ruff format backend",
+    "format:check": "uv run --project backend ruff format --check backend",
     "build:package": "uv run --project backend python scripts/build_package.py"
   },
   "repository": {
