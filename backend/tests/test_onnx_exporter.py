@@ -1,0 +1,292 @@
+import json
+from pathlib import Path
+
+import numpy as np
+import onnxruntime
+import pytest
+import torch
+
+from vcclient.voice_changer.slot_manager.model_importer.rvc_model_estimator.rvc_model_estimator import (
+    estimate_rvc_model,
+)
+from vcclient.voice_changer.slot_manager.onnx_exporter import export_pth_to_onnx
+from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0, SynthesizerTrnNoF0
+
+
+@pytest.fixture
+def dummy_rvc_v2_f0_checkpoint(tmp_path: Path) -> Path:
+    """RVC v2 F0 ありの最小チェックポイント (.pth) を生成する"""
+    config = [
+        1025,  # spec_channels
+        32,  # segment_size
+        192,  # inter_channels
+        192,  # hidden_channels
+        768,  # filter_channels
+        2,  # n_heads
+        2,  # n_layers
+        3,  # kernel_size
+        0.0,  # p_dropout
+        "1",  # resblock
+        [3, 7, 11],  # resblock_kernel_sizes
+        [[1, 3, 5], [1, 3, 5], [1, 3, 5]],  # resblock_dilation_sizes
+        [10, 8, 2, 2],  # upsample_rates
+        512,  # upsample_initial_channel
+        [16, 16, 4, 4],  # upsample_kernel_sizes
+        1,  # spk_embed_dim
+        256,  # gin_channels
+        40000,  # sr
+    ]
+
+    model = SynthesizerTrnF0(
+        spec_channels=config[0],
+        segment_size=config[1],
+        inter_channels=config[2],
+        hidden_channels=config[3],
+        filter_channels=config[4],
+        n_heads=config[5],
+        n_layers=config[6],
+        kernel_size=config[7],
+        p_dropout=config[8],
+        resblock=config[9],
+        resblock_kernel_sizes=config[10],
+        resblock_dilation_sizes=config[11],
+        upsample_rates=config[12],
+        upsample_initial_channel=config[13],
+        upsample_kernel_sizes=config[14],
+        spk_embed_dim=config[15],
+        gin_channels=config[16],
+        sr=config[17],
+        emb_channels=768,
+        is_half=False,
+    )
+
+    cpt = {
+        "config": config,
+        "weight": model.state_dict(),
+        "f0": 1,
+        "version": "v2",
+    }
+    pth_path = tmp_path / "dummy_v2_f0.pth"
+    torch.save(cpt, pth_path)
+    return pth_path
+
+
+@pytest.fixture
+def dummy_rvc_v1_nof0_checkpoint(tmp_path: Path) -> Path:
+    """RVC v1 F0 なしの最小チェックポイント (.pth) を生成する"""
+    config = [
+        1025,
+        32,
+        192,
+        192,
+        768,
+        2,
+        2,
+        3,
+        0.0,
+        "1",
+        [3, 7, 11],
+        [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+        [10, 8, 2, 2],
+        512,
+        [16, 16, 4, 4],
+        1,
+        256,
+        40000,
+    ]
+
+    model = SynthesizerTrnNoF0(
+        spec_channels=config[0],
+        segment_size=config[1],
+        inter_channels=config[2],
+        hidden_channels=config[3],
+        filter_channels=config[4],
+        n_heads=config[5],
+        n_layers=config[6],
+        kernel_size=config[7],
+        p_dropout=config[8],
+        resblock=config[9],
+        resblock_kernel_sizes=config[10],
+        resblock_dilation_sizes=config[11],
+        upsample_rates=config[12],
+        upsample_initial_channel=config[13],
+        upsample_kernel_sizes=config[14],
+        spk_embed_dim=config[15],
+        gin_channels=config[16],
+        sr=config[17],
+        emb_channels=256,
+    )
+
+    cpt = {
+        "config": config,
+        "weight": model.state_dict(),
+        "f0": 0,
+        "version": "v1",
+    }
+    pth_path = tmp_path / "dummy_v1_nof0.pth"
+    torch.save(cpt, pth_path)
+    return pth_path
+
+
+def test_export_pth_to_onnx_v2_f0(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path):
+    """v2 F0 モデルのエクスポートと推論の整合性をテスト"""
+    onnx_path = tmp_path / "dummy_v2_f0.onnx"
+    res_path = export_pth_to_onnx(dummy_rvc_v2_f0_checkpoint, onnx_path)
+    assert res_path == onnx_path
+    assert onnx_path.exists()
+    assert onnx_path.stat().st_size > 1000
+
+    # ONNX メタデータの検証
+    slot_info = estimate_rvc_model(onnx_path)
+    assert slot_info.is_onnx is True
+    assert slot_info.inferencer_type == "onnxRVC"
+    assert slot_info.sample_rate == 40000
+    assert slot_info.is_f0 is True
+    assert slot_info.embedder == "hubert_base_l12"
+    assert slot_info.version == "v2.1"
+
+    # ONNX Runtime セッションでの推論検証
+    session = onnxruntime.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    feats = np.random.randn(1, 32, 768).astype(np.float32)
+    p_len = np.array([32], dtype=np.int64)
+    pitch = np.zeros((1, 32), dtype=np.int64)
+    pitchf = np.zeros((1, 32), dtype=np.float32)
+    sid = np.array([0], dtype=np.int64)
+
+    outputs = session.run(
+        ["audio"],
+        {
+            "feats": feats,
+            "p_len": p_len,
+            "pitch": pitch,
+            "pitchf": pitchf,
+            "sid": sid,
+        },
+    )
+    assert len(outputs) == 1
+    audio = outputs[0]
+    # 出力は音声波形
+    assert audio.size > 0
+    assert not np.isnan(audio).any()
+
+
+def test_export_pth_to_onnx_v1_nof0(dummy_rvc_v1_nof0_checkpoint: Path, tmp_path: Path):
+    """v1 noF0 モデルのエクスポートと推論の整合性をテスト"""
+    onnx_path = tmp_path / "dummy_v1_nof0.onnx"
+    res_path = export_pth_to_onnx(dummy_rvc_v1_nof0_checkpoint, onnx_path)
+    assert res_path == onnx_path
+    assert onnx_path.exists()
+
+    # ONNX メタデータの検証
+    slot_info = estimate_rvc_model(onnx_path)
+    assert slot_info.is_onnx is True
+    assert slot_info.inferencer_type == "onnxRVCNono"
+    assert slot_info.sample_rate == 40000
+    assert slot_info.is_f0 is False
+    assert slot_info.embedder == "hubert_base_l9fp"
+    assert slot_info.version == "v1.1"
+
+    # ONNX Runtime セッションでの推論検証
+    session = onnxruntime.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    feats = np.random.randn(1, 32, 256).astype(np.float32)
+    p_len = np.array([32], dtype=np.int64)
+    sid = np.array([0], dtype=np.int64)
+
+    outputs = session.run(
+        ["audio"],
+        {
+            "feats": feats,
+            "p_len": p_len,
+            "sid": sid,
+        },
+    )
+    assert len(outputs) == 1
+    audio = outputs[0]
+    assert audio.size > 0
+    assert not np.isnan(audio).any()
+
+
+def test_import_model_auto_converts_pth(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path):
+    """import_model に .pth を渡した際、自動的に .onnx に変換されて .pth が削除されることをテスト"""
+    from vcclient.voice_changer.data_types.slot_manager_data_types import RVCModelImportParam
+    from vcclient.voice_changer.slot_manager.model_importer.model_importer import import_model
+    from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
+
+    model_dir = tmp_path / "models"
+    slot_index = 0
+    import_param = RVCModelImportParam(
+        slot_index=slot_index,
+        name="test_model",
+        voice_changer_type="RVC",
+        model_file=dummy_rvc_v2_f0_checkpoint,
+    )
+
+    import_model(model_dir, import_param)
+
+    slot_dir = model_dir / str(slot_index)
+    onnx_file = slot_dir / f"{dummy_rvc_v2_f0_checkpoint.stem}.onnx"
+    pth_file = slot_dir / dummy_rvc_v2_f0_checkpoint.name
+
+    # .onnx が生成され、元の .pth は削除されていること
+    assert onnx_file.exists()
+    assert not pth_file.exists()
+
+    # slot_param.json の検証
+    param_file = slot_dir / SLOT_PARAM_FILE
+    assert param_file.exists()
+    data = json.loads(param_file.read_text(encoding="utf-8"))
+    assert data["is_onnx"] is True
+    assert data["inferencer_type"] == "onnxRVC"
+    assert data["model_file"] == onnx_file.name
+
+
+def test_slot_manager_export_onnx_in_place(dummy_rvc_v1_nof0_checkpoint: Path, tmp_path: Path, monkeypatch):
+    """SlotManager.export_onnx が既存スロット内のモデルをインプレースで .onnx に変換・上書きすることをテスト"""
+    import shutil
+
+    from vcclient.voice_changer.data_types.slot_manager_data_types import OnnxExportParam, RVCSlotInfo
+    from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+    from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
+
+    models_dir = tmp_path / "models"
+    slot_index = 1
+    slot_dir = models_dir / str(slot_index)
+    slot_dir.mkdir(parents=True, exist_ok=True)
+
+    # .pth を配置
+    target_pth = slot_dir / dummy_rvc_v1_nof0_checkpoint.name
+    shutil.copy(dummy_rvc_v1_nof0_checkpoint, target_pth)
+
+    slot_info = RVCSlotInfo(
+        slot_index=slot_index,
+        name="legacy_model",
+        voice_changer_type="RVC",
+        model_file=Path(target_pth.name),
+        is_onnx=False,
+        inferencer_type="onnxRVCNono",
+        sample_rate=40000,
+        is_f0=False,
+    )
+    (slot_dir / SLOT_PARAM_FILE).write_text(slot_info.model_dump_json(indent=4), encoding="utf-8")
+
+    # SlotManager の ModelDir を tmp_path に向ける
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_chanager_const.ModelDir", models_dir)
+
+    manager = SlotManager()
+    manager.export_onnx(OnnxExportParam(slot_index=slot_index), tmp_path)
+
+    # .onnx が生成され、.pth が削除されていること
+    expected_onnx = slot_dir / f"{dummy_rvc_v1_nof0_checkpoint.stem}.onnx"
+    assert expected_onnx.exists()
+    assert not target_pth.exists()
+
+    # スロット情報が更新されていること
+    updated_info = manager.get_slot_info(slot_index)
+    assert isinstance(updated_info, RVCSlotInfo)
+    assert updated_info.is_onnx is True
+    assert updated_info.model_file == Path(expected_onnx.name)
+
+    # 既に ONNX のスロットで再度呼んでもエラーなく安全に完了すること
+    manager.export_onnx(OnnxExportParam(slot_index=slot_index), tmp_path)
+    assert expected_onnx.exists()

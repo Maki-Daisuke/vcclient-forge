@@ -27,7 +27,8 @@ from ...data_types.slot_manager_data_types import (
     RVCModelImportParam,
     RVCSlotInfo,
 )
-from ...voice_chanager_const import MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT, SLOT_PARAM_FILE, ModelDir
+from ...voice_chanager_const import MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT, SLOT_PARAM_FILE
+from ..onnx_exporter import export_pth_to_onnx
 from .rvc_model_estimator.rvc_model_estimator import estimate_rvc_model
 
 
@@ -50,20 +51,30 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
             ):
                 if src is not None:
                     dst = slot_dir / src.name
-                    if len(str(src)) > 80 or len(str(dst)) > 80:
+                    if len(src.name) > 80 or len(dst.name) > 80:
                         raise VCClientError(
-                            ERROR_CODE_FILENAME_TOO_LONG, detail=f"filename is too long: {src} -> {dst}"
+                            ERROR_CODE_FILENAME_TOO_LONG, detail=f"filename is too long: {src.name} -> {dst.name}"
                         )
                     logging.getLogger(LOGGER_NAME).debug(f"copy {src} to {dst}")
                     shutil.copy(src, dst)
                     if remove_src is True:
                         src.unlink()
             assert model_importer_param.slot_index is not None
-            model_file = Path(ModelDir / str(model_importer_param.slot_index) / model_importer_param.model_file.name)
+            model_file = slot_dir / model_importer_param.model_file.name
+            if model_file.suffix == ".pth":
+                onnx_file = slot_dir / f"{model_file.stem}.onnx"
+                logging.getLogger(LOGGER_NAME).info(
+                    f"Auto-converting imported PyTorch model to ONNX: {model_file} -> {onnx_file}"
+                )
+                export_pth_to_onnx(model_file, onnx_file)
+                model_file.unlink()
+                model_file = onnx_file
+
             slot_info = estimate_rvc_model(model_file)
             assert isinstance(slot_info, RVCSlotInfo)
             slot_info.slot_index = model_importer_param.slot_index
             slot_info.name = model_importer_param.name
+            slot_info.model_file = Path(model_file.name)
             slot_info.index_file = (
                 Path(model_importer_param.index_file.name) if model_importer_param.index_file is not None else None
             )
@@ -78,9 +89,9 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
             for src in cast(list[Path | None], [model_importer_param.zip_file, model_importer_param.icon_file]):
                 if src is not None:
                     dst = slot_dir / src.name
-                    if len(str(src)) > 80 or len(str(dst)) > 80:
+                    if len(src.name) > 80 or len(dst.name) > 80:
                         raise VCClientError(
-                            ERROR_CODE_FILENAME_TOO_LONG, detail=f"filename is too long: {src} -> {dst}"
+                            ERROR_CODE_FILENAME_TOO_LONG, detail=f"filename is too long: {src.name} -> {dst.name}"
                         )
                     logging.getLogger(LOGGER_NAME).debug(f"copy {src} to {dst}")
                     shutil.copy(src, dst)
