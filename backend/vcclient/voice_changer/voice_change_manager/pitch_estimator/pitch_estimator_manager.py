@@ -19,6 +19,12 @@ class PitchEstimatorManager:
 
     @classmethod
     def load_pitch_estimator(cls, pitch_estimator_type: PitchEstimatorType, device_id: int) -> PitchEstimator:
+        if pitch_estimator_type == "fcpe":
+            from .onnxfcpe_pitch_estimator import FCPEOnnxPitchEstimator
+
+            path = ModuleManager.get_instance().get_module_filepath("fcpe.onnx")
+            return FCPEOnnxPitchEstimator("fcpe", path, device_id)
+
         if pitch_estimator_type != "rmvpe":
             logging.getLogger(LOGGER_NAME).warning(
                 f"Pitch estimator '{pitch_estimator_type}' is unimplemented or deprecated. Falling back to 'rmvpe'."

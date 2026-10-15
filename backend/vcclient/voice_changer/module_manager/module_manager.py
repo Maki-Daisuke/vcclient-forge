@@ -43,6 +43,13 @@ REGISTERD_MODULES: list[ModuleInfo] = [
         hash="84f0586308e36157f75b77c8591bf636d6719c0c4ba95f8faf3df479e7566219",
     ),
     ModuleInfo(
+        id="fcpe.onnx",
+        display_name="fcpe.onnx",
+        url="https://huggingface.co/gzivdo/fcpe-onnx/resolve/main/fcpe.onnx",
+        save_to=ModuleDir / Path("fcpe/fcpe.onnx"),
+        hash="acbe8d2e28c15372bd82248ce07827514730a19073f34269fd3b8a6c42324310",
+    ),
+    ModuleInfo(
         id="applio_japanese_hubert_base.pt",
         display_name="applio_japanese_hubert_base.pt",
         url="https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/japanese_hubert_base.pt",

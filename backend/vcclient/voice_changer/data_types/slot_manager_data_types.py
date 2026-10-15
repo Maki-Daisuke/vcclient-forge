@@ -117,12 +117,13 @@ class RVCSlotInfo(SlotInfo):
     @field_validator("pitch_estimator", mode="before")
     @classmethod
     def normalize_pitch_estimator(cls, v: str) -> str:
-        if v in ("rmvpe_onnx", "harvest", "dio", "fcpe") or (isinstance(v, str) and v.startswith("crepe")):
+        if v not in ("rmvpe", "fcpe"):
             return "rmvpe"
         return v
 
 
 class ReservedForSampleSlotInfo(SlotInfo):
+
     voice_changer_type: VoiceChangerType = "RESERVED_FOR_SAMPLE"
     progress: float
 

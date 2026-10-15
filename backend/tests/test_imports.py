@@ -1,4 +1,4 @@
-﻿def test_import_server():
+def test_import_server():
     from vcclient.server.vcserver import VCServer
 
     assert VCServer is not None
@@ -17,11 +17,15 @@ def test_import_inferencers():
 
 
 def test_import_pitch_estimators():
+    from vcclient.voice_changer.voice_change_manager.pitch_estimator.onnxfcpe_pitch_estimator import (
+        FCPEOnnxPitchEstimator,
+    )
     from vcclient.voice_changer.voice_change_manager.pitch_estimator.onnxrmvpe_pitch_estimator import (
         RMVPEOnnxPitchEstimator,
     )
 
     assert RMVPEOnnxPitchEstimator is not None
+    assert FCPEOnnxPitchEstimator is not None
 
 
 def test_import_crossfade_processor():
