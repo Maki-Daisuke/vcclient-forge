@@ -1,4 +1,4 @@
-﻿import numpy as np
+import numpy as np
 import onnxruntime
 import torch
 from torch import nn

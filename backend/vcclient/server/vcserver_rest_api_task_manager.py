@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 
 from vcclient.server.task_manager.task_manager import TaskManager
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute

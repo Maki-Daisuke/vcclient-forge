@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 
 import numpy as np
 from fastapi import APIRouter, File, Header, UploadFile

@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 
 from vcclient.server.server_const import UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute

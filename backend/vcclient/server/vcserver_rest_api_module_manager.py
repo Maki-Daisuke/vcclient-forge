@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 
 from fastapi import APIRouter
 from tqdm import tqdm

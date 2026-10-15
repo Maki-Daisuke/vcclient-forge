@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import multiprocessing as mp
 import platform
 import signal

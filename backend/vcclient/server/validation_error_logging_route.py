@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Callable
 
 from fastapi import HTTPException, Request, Response

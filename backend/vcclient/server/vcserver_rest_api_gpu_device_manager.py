@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager

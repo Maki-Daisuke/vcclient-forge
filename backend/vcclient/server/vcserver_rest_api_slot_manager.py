@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import traceback
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response

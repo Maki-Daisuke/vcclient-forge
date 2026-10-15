@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Label, Static

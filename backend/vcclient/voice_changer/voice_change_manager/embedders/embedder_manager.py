@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 
 from vcclient.voice_changer.voice_change_manager.embedders.fairseq_hubert_jp import FairseqHubertJp
 

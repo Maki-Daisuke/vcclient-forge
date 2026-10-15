@@ -366,7 +366,9 @@ class VoiceChanger:
 
     def stop_convert_chunk_bulk(self):
         if self.vc_info.bulk_process_start_flag is False:
-            logging.getLogger(LOGGER_NAME).debug("bulk conversion process is already stopped.") if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
+            logging.getLogger(LOGGER_NAME).debug("bulk conversion process is already stopped.") if logging.getLogger(
+                LOGGER_NAME
+            ).isEnabledFor(logging.DEBUG) else None
             return None
         self.vc_info.bulk_process_start_flag = False
         if self.bulk_process.is_alive():
@@ -382,7 +384,9 @@ class VoiceChanger:
         self._check_and_update_filter()
         try:
             if self.vc_info.bulk_process_start_flag is False:
-                logging.getLogger(LOGGER_NAME).debug("bulk conversion process is not started.") if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
+                logging.getLogger(LOGGER_NAME).debug("bulk conversion process is not started.") if logging.getLogger(
+                    LOGGER_NAME
+                ).isEnabledFor(logging.DEBUG) else None
                 return (None, None, None)
             if self.waveform_rest.dtype != waveform.dtype:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)

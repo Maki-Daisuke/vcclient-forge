@@ -1,4 +1,4 @@
-﻿import os
+import os
 from datetime import datetime
 
 from OpenSSL import crypto

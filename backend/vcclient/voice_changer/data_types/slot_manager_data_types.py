@@ -123,7 +123,6 @@ class RVCSlotInfo(SlotInfo):
 
 
 class ReservedForSampleSlotInfo(SlotInfo):
-
     voice_changer_type: VoiceChangerType = "RESERVED_FOR_SAMPLE"
     progress: float
 
