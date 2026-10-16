@@ -580,7 +580,7 @@ class VoiceChanger:
             if self.vc_info.monitor_enabled is True:
                 waveform_monitor = self._exec_resample_pass_through_in_monitor(waveform)
                 if self.vc_info.recording_start_flag is True:
-                    self.output_record.append(waveform_monitor)
+                    self.monitor_record.append(waveform_monitor)
                 return (waveform_out, waveform_monitor)
             return (waveform_out, None)
 
@@ -662,9 +662,8 @@ class VoiceChanger:
                     resampled_waveform_monitor = (resampled_waveform_monitor * 32768).astype(np.int16)
                 elif input_data_type == np.float32:
                     resampled_waveform_monitor = (resampled_waveform_monitor / 32768).astype(np.float32)
-            self.monitor_record.append(resampled_waveform_monitor)
             if self.vc_info.recording_start_flag is True:
-                self.output_record.append(resampled_waveform_out)
+                self.monitor_record.append(resampled_waveform_monitor)
 
         if self.vc_info.monitor_enabled is False:
             return (resampled_waveform_out, None)
