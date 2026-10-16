@@ -69,11 +69,12 @@ However, this created a critical divergence from what users actually wanted:
 
 Because users with existing RVC models had zero incentive to migrate to an edition where their primary models were unsupported, community adoption halted at `v2.0.78-beta`. As often seen across the history of technology (e.g., VHS vs. Betamax), **the technically superior technology does not automatically win if it severs ties with the established user ecosystem**.
 
-`v2.0.78-beta` was the final, mature release where **both RVC and Beatrice coexisted seamlessly** within a single unified CUDA/ONNX pipeline.
+`v2.0.78-beta` was the final widely distributed release that officially provided full RVC support before upstream relegated it in favor of Beatrice.
 
-### 5.4 The Forge Vision: An "RVC-First" Philosophy
+### 5.4 The Forge Vision: A Dedicated RVC Client
 
-This historical context forms the philosophical foundation of **VCClient Forge**:
+This historical context forms the architectural foundation of **VCClient Forge**:
 
-- **RVC-First Doctrine**: We explicitly embrace an **RVC-first** philosophy. Fulfilling the user's primary desire—effortlessly inhabiting their chosen vocal identity—is our guiding North Star.
-- **Honoring Upstream Innovation**: While prioritizing RVC, we retain full support for Beatrice, honoring w-okada's technical foresight by striving for the best of both worlds: RVC's rich model ecosystem combined with modern, low-latency ONNX runtime optimizations and a clean, maintainable `frontend/` + `backend/` architecture.
+- **Dedicated RVC Specialization**: Rather than fragmenting maintenance resources across fundamentally incompatible DSP engines and dual-UI designs, Forge focuses exclusively on being a **clean, efficient, and intuitive dedicated RVC client** (see [OKF-8: Deprecating and Removing Beatrice Support](deprecating-and-removing-beatrice.md)).
+- **Maximized Hardware Ecosystem**: By anchoring firmly on PyTorch, ONNX Runtime, and hardware-accelerated backends (CUDA, DirectML), Forge leverages the full breadth of modern GPU performance optimizations.
+- **Empowering User Identity**: Our guiding North Star remains the user's primary desire—effortlessly inhabiting their chosen vocal identity through the vast, vibrant RVC model ecosystem.
