@@ -22,7 +22,6 @@ from vcclient.const import LOGGER_NAME, VERSION
 from vcclient.cui.vcclient_cui import VCClientCUI
 from vcclient.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
 from vcclient.logger import setup_logger
-from vcclient.proxy.ngrok_proxy_manager import NgrokProxyManager
 from vcclient.server.vcserver import VCServer
 from vcclient.utils.is_running_on_colab import is_running_on_colab
 from vcclient.utils.parseBoolArg import parse_bool_arg
@@ -78,8 +77,6 @@ def start_cui(
     launch_client: bool = True,
     allow_origins: str = "*",
     no_cui: bool = False,
-    ngrok_token: str = None,
-    ngrok_proxy_url_file: str = None,
 ):
     https = parse_bool_arg(https)
     launch_client = parse_bool_arg(launch_client)
@@ -103,15 +100,6 @@ def start_cui(
     )
     vcserver_port = vcserver.start()
 
-    proxy_manager = None
-    proxy_url = None
-    if ngrok_token:
-        proxy_manager = NgrokProxyManager.get_instance()
-        proxy_url = proxy_manager.start(token=ngrok_token, port=vcserver_port)
-        if ngrok_proxy_url_file and proxy_url:
-            with open(ngrok_proxy_url_file, "w", encoding="utf-8") as f:
-                f.write(proxy_url)
-
     cui = None
     app = None
     if not no_cui and platform.system() != "Darwin":
@@ -131,8 +119,6 @@ def start_cui(
             ["License(js)", f"{base_url}/licenses-js.json"],
             ["License(py)", f"{base_url}/licenses-py.json"],
         ]
-        if proxy_url:
-            urls.append(["Ngrok", proxy_url])
 
         key_max_length = max(len(u[0]) for u in urls)
         url_max_length = max(len(u[1]) for u in urls)
@@ -210,8 +196,6 @@ def start_cui(
                 cui.join()
         vcserver.stop()
         VoiceChanger.get_instance().stop_convert_chunk_bulk()
-        if proxy_manager is not None:
-            proxy_manager.stop()
     finally:
         print("")
         signal.signal(signal.SIGINT, original_handler)
