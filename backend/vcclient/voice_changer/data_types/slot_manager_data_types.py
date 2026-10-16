@@ -4,7 +4,6 @@ from typing import Dict
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from ..voice_chanager_const import (
-    MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT,
     EmbedderType,
     InferencerType,
     PitchEstimatorType,
@@ -22,11 +21,6 @@ class ModelImportParam(BaseModel):
     icon_file: Path | None = None
 
 
-class BeatriceV2ModelImportParam(ModelImportParam):
-    voice_changer_type: VoiceChangerType = "Beatrice_v2"
-    zip_file: Path | None = None
-
-
 class ReservedForSampleModelImportParam(ModelImportParam):
     voice_changer_type: VoiceChangerType = "RESERVED_FOR_SAMPLE"
     progress: float
@@ -40,7 +34,7 @@ class RVCModelImportParam(ModelImportParam):
 
 
 ModelImportParamMember = (
-    ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam | BeatriceV2ModelImportParam
+    ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam
 )
 
 
@@ -127,60 +121,7 @@ class ReservedForSampleSlotInfo(SlotInfo):
     progress: float
 
 
-class BeatriceV2Model(BaseModel):
-    version: str
-    name: str
-    description: str
-
-
-class BeatriceV2Portrait(BaseModel):
-    path: str
-    description: str
-
-
-class BeatriceV2Voice(BaseModel):
-    name: str
-    description: str
-    average_pitch: float
-    portrait: BeatriceV2Portrait
-
-
-class BeatriceV2ModelInfo(BaseModel):
-    model: BeatriceV2Model
-    voice: Dict[str, BeatriceV2Voice]
-
-
-class BeatriceV2SlotInfo(SlotInfo):
-    voice_changer_type: VoiceChangerType = "Beatrice_v2"
-
-    toml_file: Path = None
-
-    dst_id: int = 0
-
-    pitch_shift: int = 0
-
-    pitch_shifts: list[int] = []
-
-    formant_shift: float = 0
-
-    waveform_generator_file: Path = []
-
-    chunk_sec: float = 0.1
-
-    use_merged_speaker_embedding: bool = False
-
-    merged_speaker_id: int = 0
-
-    merged_speaker_weights_list: list[list[float]] = [[] for _ in range(MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT)]
-
-    merged_speaker_pitch_shifts: list[int] = [0] * MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT
-
-    merged_speaker_formant_shifts: list[float] = [0] * MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT
-
-    auto_pitch_shift: bool = False
-
-
-SlotInfoMember = SlotInfo | ReservedForSampleSlotInfo | RVCSlotInfo | BeatriceV2SlotInfo
+SlotInfoMember = SlotInfo | ReservedForSampleSlotInfo | RVCSlotInfo
 
 
 class MoveMergedModelParam(BaseModel):
@@ -199,21 +140,3 @@ class MoveModelParam(BaseModel):
 class SetIconParam(BaseModel):
     slot_index: int
     icon_file: Path
-
-
-class SetBeatriceV2VoiceIconFileParam(BaseModel):
-    slot_index: int
-    voice_index: int
-    icon_file: Path
-
-
-class SetBeatriceV2VoiceNameParam(BaseModel):
-    slot_index: int
-    voice_index: int
-    voice_name: str
-
-
-class SetBeatriceV2VoiceDescriptionParam(BaseModel):
-    slot_index: int
-    voice_index: int
-    voice_description: str

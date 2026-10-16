@@ -35,21 +35,13 @@ MERGED_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 1
 
 ONNX_EXPORTED_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 2
 
-BEATRICE_V2_ALPHA_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 3
-
-BEATRICE_V2_BETA_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 4
-
-MAX_BEATRICE_MERGED_SPEAKER_WEIGHTS_SLOT = 3
-
-MAX_STATIC_SLOT = 5
-
 ModuleDir = Path("modules")
 
 GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE = -100
 
-VoiceChangerType: TypeAlias = Literal["RVC", "Beatrice_v2", "RESERVED_FOR_SAMPLE", "BROKEN"]
+VoiceChangerType: TypeAlias = Literal["RVC", "RESERVED_FOR_SAMPLE", "BROKEN"]
 
-VoiceChangerTypes: list[VoiceChangerType] = ["RVC", "Beatrice_v2"]
+VoiceChangerTypes: list[VoiceChangerType] = ["RVC"]
 
 InferencerType: TypeAlias = Literal[
     "onnxRVC",

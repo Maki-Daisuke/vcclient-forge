@@ -2,10 +2,7 @@ import io
 import logging
 import os
 import shutil
-import zipfile
 from pathlib import Path
-
-import toml
 
 from ...const import LOGGER_NAME
 from ...exception import (
@@ -15,8 +12,6 @@ from ...exception import (
     VCClientError,
 )
 from ..data_types.slot_manager_data_types import (
-    BeatriceV2ModelInfo,
-    BeatriceV2SlotInfo,
     ExportParam,
     ModelImportParamMember,
     MoveExportedOnnxModelParam,
@@ -25,16 +20,11 @@ from ..data_types.slot_manager_data_types import (
     ReservedForSampleModelImportParam,
     ReservedForSampleSlotInfo,
     RVCSlotInfo,
-    SetBeatriceV2VoiceDescriptionParam,
-    SetBeatriceV2VoiceIconFileParam,
-    SetBeatriceV2VoiceNameParam,
     SetIconParam,
     SlotInfo,
     SlotInfoMember,
 )
 from ..voice_chanager_const import (
-    BEATRICE_V2_ALPHA_SLOT_INDEX,
-    BEATRICE_V2_BETA_SLOT_INDEX,
     MAX_SLOT_INDEX,
     MERGED_SLOT_INDEX,
     ONNX_EXPORTED_SLOT_INDEX,
@@ -61,8 +51,6 @@ def load_slot_info(model_dir: Path, slot_index: int) -> SlotInfo:
             slot_info = ReservedForSampleSlotInfo.model_validate_json(content)
         elif tmp.voice_changer_type == "RVC":
             slot_info = RVCSlotInfo.model_validate_json(content)
-        elif tmp.voice_changer_type == "Beatrice_v2":
-            slot_info = BeatriceV2SlotInfo.model_validate_json(content)
         else:
             slot_info = tmp
         slot_info.slot_index = slot_index
@@ -91,11 +79,6 @@ def reload_slot_infos(model_dir=None):
     exported_onnx_model_slot = load_slot_info(model_dir, ONNX_EXPORTED_SLOT_INDEX)
 
     slot_infos.append(exported_onnx_model_slot)
-
-    beatrice_v2_alpha_slot = load_slot_info(model_dir, BEATRICE_V2_ALPHA_SLOT_INDEX)
-    slot_infos.append(beatrice_v2_alpha_slot)
-    beatrice_v2_beta_slot = load_slot_info(model_dir, BEATRICE_V2_BETA_SLOT_INDEX)
-    slot_infos.append(beatrice_v2_beta_slot)
 
     return slot_infos
 
@@ -256,27 +239,6 @@ class SlotManager:
         self.update_slot_info(new_slot_info)
         self.reload(use_log=False)
 
-    def export(self, params: ExportParam):
-        logging.getLogger(LOGGER_NAME).info(f"export: {params}")
-        voice_changer_type = self.get_slot_info(params.slot_index).voice_changer_type
-        assert voice_changer_type == "Beatrice_v2", f"Export model failed. {voice_changer_type} is not supported."
-        slot_path = ModelDir / str(params.slot_index)
-        model_root_dir = slot_path / "model"
-        assert os.path.exists(model_root_dir), f"model_dir:{model_root_dir} is not found."
-        assert os.path.isdir(model_root_dir), f"model_dir:{model_root_dir} is not directory."
-        model_dir = model_root_dir
-        model_name = os.path.basename(model_dir)
-        logging.getLogger(LOGGER_NAME).info(f"model_dir: {model_dir}, model_name: {model_name}")
-        io_buffer = io.BytesIO()
-        with zipfile.ZipFile(io_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for root, _, files in os.walk(model_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, model_dir)
-                    zip_file.write(file_path, arcname)
-        io_buffer.seek(0)
-        return model_name, io_buffer
-
     def move_model_slot(self, param: MoveModelParam):
         assert param.dst <= MAX_SLOT_INDEX, f"dst:{param.dst} is over MAX_SLOT_INDEX:{MAX_SLOT_INDEX}"
         assert self.get_slot_info(param.dst).voice_changer_type is None, f"dst:{param.dst} is already exists."
@@ -306,42 +268,3 @@ class SlotManager:
         assert slot_info is not None, f"slot_index:{param.slot_index} is not exists."
         slot_info.icon_file = Path(icon_dst_path.name)
         self.update_slot_info(slot_info)
-
-    def _beatrice_update_toml_by_voice_param(self, slot_index: int, voice_index: int, key: str | list[str], val: str):
-        slot_info = self.get_slot_info(slot_index)
-        assert isinstance(slot_info, BeatriceV2SlotInfo), f"slot is not for BeatriceV2 model: {slot_info}"
-        with open(slot_info.toml_file, "r", encoding="utf-8") as file:
-            data = toml.load(file)
-        target = data["voice"][f"{voice_index}"]
-        if isinstance(key, list):
-            for k in key[:-1]:
-                target = target[k]
-            target[key[-1]] = val
-        else:
-            target[key] = val
-        with open(slot_info.toml_file, "w", encoding="utf-8") as file:
-            toml.dump(data, file)
-        model_info = BeatriceV2ModelInfo(**data)
-        slot_info.model_info = model_info
-        self.update_slot_info(slot_info)
-
-    def beatrice_set_voice_icon_file(self, param: SetBeatriceV2VoiceIconFileParam):
-        slot_info = self.get_slot_info(param.slot_index)
-        assert isinstance(slot_info, BeatriceV2SlotInfo), f"slot is not for BeatriceV2 model: {slot_info}"
-        icon_dst_path = slot_info.toml_file.parent / param.icon_file.name
-        if icon_dst_path.parent.exists() is False:
-            raise RuntimeError(f"slot index {icon_dst_path.parent} is not found")
-        if param.icon_file.exists() is False:
-            raise RuntimeError(f"icon file {param.icon_file} is not found")
-        shutil.move(param.icon_file, icon_dst_path)
-        self._beatrice_update_toml_by_voice_param(
-            param.slot_index, param.voice_index, ["portrait", "path"], param.icon_file.name
-        )
-
-    def beatrice_set_voice_description(self, param: SetBeatriceV2VoiceDescriptionParam):
-        self._beatrice_update_toml_by_voice_param(
-            param.slot_index, param.voice_index, "description", param.voice_description
-        )
-
-    def beatrice_set_voice_name(self, param: SetBeatriceV2VoiceNameParam):
-        self._beatrice_update_toml_by_voice_param(param.slot_index, param.voice_index, "name", param.voice_name)

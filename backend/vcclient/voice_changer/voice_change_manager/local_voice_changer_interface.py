@@ -255,13 +255,9 @@ class LocalVoiceChangerInterface:
 
     def audio_output_callback(self, outdata, frames, times, status):
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        current_voice_changer_type = VoiceChanger.get_instance().get_voice_changer_information().voice_changer_type
         try:
-            if current_voice_changer_type == "Beatrice_v2":
-                buffer_for_trancate = 3
-            else:
-                buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
-                buffer_for_trancate = max(buffer_for_trancate, 3)
+            buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
+            buffer_for_trancate = max(buffer_for_trancate, 3)
 
             if self.out_queue.qsize() > self.split_length + buffer_for_trancate:
                 logging.getLogger(LOGGER_NAME).info(f"audio_output_callback trancate queue: {self.out_queue.qsize()}")
@@ -282,13 +278,9 @@ class LocalVoiceChangerInterface:
 
     def audio_monitor_callback(self, outdata, frames, times, status):
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        current_voice_changer_type = VoiceChanger.get_instance().get_voice_changer_information().voice_changer_type
         try:
-            if current_voice_changer_type == "Beatrice_v2":
-                buffer_for_trancate = 3
-            else:
-                buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
-                buffer_for_trancate = max(buffer_for_trancate, 3)
+            buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
+            buffer_for_trancate = max(buffer_for_trancate, 3)
 
             if self.monitor_queue.qsize() > self.split_length + buffer_for_trancate:
                 for i in range(self.monitor_queue.qsize()):

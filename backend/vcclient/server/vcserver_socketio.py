@@ -50,14 +50,6 @@ class SocketIOApp:
                         "filename": f"""{get_frontend_path()}/ort-wasm-simd.wasm""",
                         "content_type": "application/wasm",
                     },
-                    "/assets/beatrice_jvs/female-clickable.svg": {
-                        "filename": f"""{get_frontend_path()}/assets/beatrice_jvs/female-clickable.svg""",
-                        "content_type": "image/svg+xml",
-                    },
-                    "/assets/beatrice_jvs/male-clickable.svg": {
-                        "filename": f"""{get_frontend_path()}/assets/beatrice_jvs/male-clickable.svg""",
-                        "content_type": "image/svg+xml",
-                    },
                     "": f"""{get_frontend_path()}""",
                     "/": f"""{get_frontend_path()}/index.html""",
                     "/vcclient.log": {"filename": f"""{LOG_FILE}""", "content_type": "text/plain"},

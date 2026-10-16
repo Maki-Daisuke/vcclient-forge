@@ -30,8 +30,6 @@ ERROR_CODE_UPDATE_SLOT_INFO_FAILED = 517
 ERROR_CODE_SLOT_INDEX_NOT_FOUND = 518
 ERROR_CODE_NO_BLANK_SLOT = 519
 ERROR_CODE_IMPORT_MODEL_FAILED = 520
-ERROR_CODE_BEATRICE_TOML_NOT_FOUND = 521
-ERROR_CODE_BEATRICE_MODEL_FILES_NOT_FOUND = 522
 ERROR_CODE_FILENAME_TOO_LONG = 523
 ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED = 600
 ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED = 601
@@ -137,14 +135,6 @@ ERROR_MESSAGES = {
     },
     ERROR_CODE_NO_BLANK_SLOT: {"reason": "No blank slot.", "action": "Please delete some slots."},
     ERROR_CODE_IMPORT_MODEL_FAILED: {"reason": "Failed to import model.", "action": "Please check logs."},
-    ERROR_CODE_BEATRICE_TOML_NOT_FOUND: {
-        "reason": "Failed to import model because beatrice toml is not found.",
-        "action": "Please check the model file.",
-    },
-    ERROR_CODE_BEATRICE_MODEL_FILES_NOT_FOUND: {
-        "reason": "Failed to import model because beatrice model file is not found.",
-        "action": "Please check the model file.",
-    },
     ERROR_CODE_FILENAME_TOO_LONG: {
         "reason": "Failed to import model because filename is too long.",
         "action": "Please rename file.",

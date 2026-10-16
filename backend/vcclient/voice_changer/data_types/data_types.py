@@ -153,8 +153,4 @@ class RVCSampleInfo(SampleInfo):
     sample_rate: int
 
 
-class BeatriceV2SampleInfo(SampleInfo):
-    zip_url: str
-
-
-SampleInfoMember = SampleInfo | RVCSampleInfo | BeatriceV2SampleInfo
+SampleInfoMember = SampleInfo | RVCSampleInfo
