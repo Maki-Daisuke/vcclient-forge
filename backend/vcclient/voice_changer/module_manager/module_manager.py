@@ -139,27 +139,38 @@ class ModuleManager:
 
         chunk_num = math.ceil(content_length / chunk_size)
 
-        with open(target_module.save_to, "wb") as f:
-            for i, chunk in enumerate(req.iter_content(chunk_size=chunk_size)):
-                f.write(chunk)
-                callback(
-                    ModuleDownloadStatus(
-                        id=target_module.id, status="processing", progress=min(1, round((i + 1) / chunk_num, 2))
-                    )
-                )
-
-        callback(
-            ModuleDownloadStatus(
-                id=target_module.id, status="validating", progress=min(1, round((i + 1) / chunk_num, 2))
-            )
-        )
         try:
-            self._check_hash(target_module.id)
-            logging.getLogger(LOGGER_NAME).info(f"Downloading completed: {target_module.id}")
-            callback(ModuleDownloadStatus(id=target_module.id, status="done", progress=1))
+            with open(target_module.save_to, "wb") as f:
+                for i, chunk in enumerate(req.iter_content(chunk_size=chunk_size)):
+                    f.write(chunk)
+                    callback(
+                        ModuleDownloadStatus(
+                            id=target_module.id, status="processing", progress=min(1, round((i + 1) / chunk_num, 2))
+                        )
+                    )
+
+            callback(
+                ModuleDownloadStatus(
+                    id=target_module.id, status="validating", progress=min(1, round((i + 1) / chunk_num, 2))
+                )
+            )
+
+            if not self._check_hash(target_module.id):
+                if target_module.save_to.exists():
+                    target_module.save_to.unlink(missing_ok=True)
+                raise RuntimeError(f"Hash validation failed for module: {target_module.id}")
         except Exception as e:
+            if target_module.save_to.exists():
+                target_module.save_to.unlink(missing_ok=True)
             logging.getLogger(LOGGER_NAME).error(f"Downloading error: {target_module.id}, {e}")
             callback(ModuleDownloadStatus(id=target_module.id, status="error", progress=1, error_message=str(e)))
+            return
+
+        logging.getLogger(LOGGER_NAME).info(f"Downloading completed: {target_module.id}")
+        try:
+            callback(ModuleDownloadStatus(id=target_module.id, status="done", progress=1))
+        except Exception as e:
+            logging.getLogger(LOGGER_NAME).error(f"Failed to send completion callback for {target_module.id}: {e}")
 
     def _get_target_module(self, id: str):
         target_module = None
