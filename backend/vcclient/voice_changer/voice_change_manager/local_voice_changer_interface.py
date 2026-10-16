@@ -260,19 +260,34 @@ class LocalVoiceChangerInterface:
             buffer_for_trancate = max(buffer_for_trancate, 3)
 
             if self.out_queue.qsize() > self.split_length + buffer_for_trancate:
-                logging.getLogger(LOGGER_NAME).info(f"audio_output_callback trancate queue: {self.out_queue.qsize()}")
-                for i in range(self.out_queue.qsize()):
-                    out_wav = self.out_queue.get()
+                drop_count = self.out_queue.qsize()
+                logging.getLogger(LOGGER_NAME).info(f"audio_output_callback trancate queue: {drop_count}")
+                out_wav = None
+                for _ in range(drop_count):
+                    try:
+                        out_wav = self.out_queue.get_nowait()
+                    except Empty:
+                        break
+                if out_wav is None:
+                    outdata.fill(0)
+                    return
             else:
-                out_wav = self.out_queue.get(timeout=0.1)
+                out_wav = self.out_queue.get_nowait()
 
             out_wav = out_wav.reshape(-1, 1)
             out_wav = np.repeat(out_wav, outdata.shape[1]).reshape(-1, outdata.shape[1])
             out_wav = out_wav * conf.audio_output_device_gain
-            outdata[:, :] = out_wav[:, :]
-        except Empty as e:
-            logging.getLogger(LOGGER_NAME).debug(f"audio output callback ex: empty queue :{e}")
+            if out_wav.shape[0] == outdata.shape[0]:
+                outdata[:, :] = out_wav[:, :]
+            else:
+                min_len = min(out_wav.shape[0], outdata.shape[0])
+                outdata[:min_len, :] = out_wav[:min_len, :]
+                if min_len < outdata.shape[0]:
+                    outdata[min_len:, :].fill(0)
+        except Empty:
+            outdata.fill(0)
         except Exception as e:
+            outdata.fill(0)
             logging.getLogger(LOGGER_NAME).error(f"audio output callback ex:{e}")
             logging.getLogger(LOGGER_NAME).error(f"audio output {traceback.format_exc()}")
 
@@ -283,17 +298,32 @@ class LocalVoiceChangerInterface:
             buffer_for_trancate = max(buffer_for_trancate, 3)
 
             if self.monitor_queue.qsize() > self.split_length + buffer_for_trancate:
-                for i in range(self.monitor_queue.qsize()):
-                    out_wav = self.monitor_queue.get()
+                drop_count = self.monitor_queue.qsize()
+                out_wav = None
+                for _ in range(drop_count):
+                    try:
+                        out_wav = self.monitor_queue.get_nowait()
+                    except Empty:
+                        break
+                if out_wav is None:
+                    outdata.fill(0)
+                    return
             else:
-                out_wav = self.monitor_queue.get(timeout=0.1)
+                out_wav = self.monitor_queue.get_nowait()
 
             out_wav = out_wav.reshape(-1, 1)
             out_wav = np.repeat(out_wav, outdata.shape[1]).reshape(-1, outdata.shape[1])
             out_wav = out_wav * conf.audio_output_device_gain
-            outdata[:, :] = out_wav[:, :]
-        except Empty as e:
-            logging.getLogger(LOGGER_NAME).debug(f"audio monitor callback ex: empty queue :{e}")
+            if out_wav.shape[0] == outdata.shape[0]:
+                outdata[:, :] = out_wav[:, :]
+            else:
+                min_len = min(out_wav.shape[0], outdata.shape[0])
+                outdata[:min_len, :] = out_wav[:min_len, :]
+                if min_len < outdata.shape[0]:
+                    outdata[min_len:, :].fill(0)
+        except Empty:
+            outdata.fill(0)
         except Exception as e:
+            outdata.fill(0)
             logging.getLogger(LOGGER_NAME).error(f"audio monitor callback ex:{e}")
             logging.getLogger(LOGGER_NAME).error(f"audio monitor {traceback.format_exc()}")
