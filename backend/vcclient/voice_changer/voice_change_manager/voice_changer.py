@@ -547,7 +547,7 @@ class VoiceChanger:
 
             return (output, monitor, performance_data)
 
-        (output, monitor) = self._convert_chunk(waveform)
+        (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
 
         return (output, monitor, None)
 

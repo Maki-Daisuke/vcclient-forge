@@ -64,3 +64,22 @@ def test_merge_models_not_supported(client):
     data = response.json()
     detail = json.loads(data["detail"])
     assert detail["code"] == "NOT_SUPPORTED"
+
+
+def test_convert_chunk_passes_direct_from_server_when_perf_monitor_disabled(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+    from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
+
+    vc = VoiceChanger.get_instance()
+    conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+    monkeypatch.setattr(conf, "enable_performance_monitor", False)
+
+    mock_internal = MagicMock(return_value=(np.zeros(100), None))
+    monkeypatch.setattr(vc, "_convert_chunk", mock_internal)
+
+    dummy_wave = np.zeros(100, dtype=np.float32)
+    vc.convert_chunk(dummy_wave, direct_from_server=True)
+
+    mock_internal.assert_called_once_with(dummy_wave, direct_from_server=True)
