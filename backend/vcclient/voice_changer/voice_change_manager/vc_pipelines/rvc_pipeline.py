@@ -177,9 +177,9 @@ class RVCPipeline(VCPipeline):
             self.audio_buffer = np.concatenate([np.zeros([convert_size]), self.audio_buffer])
         self.audio_buffer = self.audio_buffer[-1 * convert_size :]
         crop_offset = -1 * (new_frame_size + crossfade_overlap_size)
-        crop_end = -1 * crossfade_overlap_size
+        crop_end = -1 * crossfade_overlap_size if crossfade_overlap_size > 0 else None
         crop = self.audio_buffer[crop_offset:crop_end]
-        input_volume = np.sqrt(np.square(crop).mean())
+        input_volume = float(np.sqrt(np.square(crop).mean())) if crop.size > 0 else 0.0
         return (
             self.audio_buffer,
             self.pitchf_buffer,

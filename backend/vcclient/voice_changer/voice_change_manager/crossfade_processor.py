@@ -28,11 +28,23 @@ class CrossfadeProcessor:
 
         self.crossfade_end = crossfade_end
 
+        if crossfade_size <= 0:
+            self.np_prev_strength = np.array([], dtype=np.float32)
+            self.np_cur_strength = np.array([], dtype=np.float32)
+            self.prev_rest_buffer = np.array([], dtype=np.float32)
+            return
+
         cf_offset = int(crossfade_size * crossfade_offset)
 
         cf_end = int(crossfade_size * crossfade_end)
 
         cf_range = cf_end - cf_offset
+
+        if cf_range <= 0:
+            self.np_prev_strength = np.zeros(crossfade_size, dtype=np.float32)
+            self.np_cur_strength = np.ones(crossfade_size, dtype=np.float32)
+            self.prev_rest_buffer = np.zeros(crossfade_size, dtype=np.float32)
+            return
 
         percent = np.arange(cf_range) / cf_range
 
@@ -63,6 +75,16 @@ class CrossfadeProcessor:
         crossfade_end: float,
         sola_search_frame: int,
     ):
+        if crossfade_size <= 0:
+            self.crossfade_size = 0
+            self.prev_rest_buffer = np.array([], dtype=np.float32)
+            if audio_with_overlap_buffer.shape[0] >= output_audio_size:
+                return audio_with_overlap_buffer[-output_audio_size:].astype(np.float32)
+            result = np.zeros(output_audio_size, dtype=np.float32)
+            if audio_with_overlap_buffer.shape[0] > 0:
+                result[-audio_with_overlap_buffer.shape[0] :] = audio_with_overlap_buffer
+            return result
+
         if (
             self.crossfade_size != crossfade_size
             or self.crossfade_offset != crossfade_offset
