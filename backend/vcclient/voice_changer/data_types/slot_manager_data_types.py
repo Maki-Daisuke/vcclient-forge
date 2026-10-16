@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Dict
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -33,9 +32,7 @@ class RVCModelImportParam(ModelImportParam):
     embedder: EmbedderType | None = None
 
 
-ModelImportParamMember = (
-    ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam
-)
+ModelImportParamMember = ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam
 
 
 class ModelSource(BaseModel):

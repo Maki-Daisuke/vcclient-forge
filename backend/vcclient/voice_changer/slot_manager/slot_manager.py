@@ -1,4 +1,3 @@
-import io
 import logging
 import os
 import shutil
@@ -12,7 +11,6 @@ from ...exception import (
     VCClientError,
 )
 from ..data_types.slot_manager_data_types import (
-    ExportParam,
     ModelImportParamMember,
     MoveExportedOnnxModelParam,
     MoveModelParam,

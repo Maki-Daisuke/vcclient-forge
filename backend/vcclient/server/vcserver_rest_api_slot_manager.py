@@ -2,13 +2,12 @@ import json
 import logging
 import traceback
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from vcclient.const import LOGGER_NAME
 from vcclient.server.server_const import UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.data_types.slot_manager_data_types import (
-    ExportParam,
     MergeParam,
     ModelImportParam,
     ModelImportParamMember,
