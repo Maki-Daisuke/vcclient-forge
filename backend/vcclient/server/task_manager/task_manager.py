@@ -20,8 +20,6 @@ class TaskManager:
             cls._instance = cls()
         return cls._instance
 
-    get_instance = classmethod(get_instance)
-
     def __init__(self):
 
         self.tasks = []
@@ -38,35 +36,27 @@ class TaskManager:
 
         return self.tasks
 
-    def get_task(self=None, task_id=None):
+    def get_task(self, task_id=None):
 
         for task in self.tasks:
             if task.id == task_id:
                 return task
 
-            return None
+        return None
 
     def update_task(
-        self=None,
+        self,
         task_id=None,
         status=None,
-        progress=(0, "not finished"),
-        result=(
-            "task_id",
-            str,
-            "status",
-            Literal["done", "progress"],
-            "progress",
-            float,
-            "result",
-            Literal["not finished", "success", "fail"],
-        ),
+        progress: float = 0,
+        result: Literal["not finished", "success", "fail"] = "not finished",
     ):
 
         task = self.get_task(task_id)
 
         if task is not None:
-            task.status = status
+            if status is not None:
+                task.status = status
 
             task.progress = progress
 
@@ -74,7 +64,7 @@ class TaskManager:
 
             return None
 
-    def delete_task(self=None, task_id=None):
+    def delete_task(self, task_id=None):
 
         task = self.get_task(task_id)
 

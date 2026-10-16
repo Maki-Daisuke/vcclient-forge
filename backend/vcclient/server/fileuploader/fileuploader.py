@@ -25,7 +25,7 @@ class FileuploaderConcatUploadedFileChunkResult(BaseModel):
 
 
 class EasyFileUploader:
-    def __init__(self=None, upload_dir=None):
+    def __init__(self, upload_dir=None):
 
         self.upload_dir = upload_dir
 

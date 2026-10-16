@@ -13,8 +13,8 @@ from .vcserver_socketio_server import SocketIOServer
 class SocketIOApp:
     _instance: socketio.ASGIApp | None = None
 
-    def get_instance(cls=None, app_fastapi=None, allow_origins=classmethod):
-
+    @classmethod
+    def get_instance(cls, app_fastapi=None, allow_origins=None):
         if cls._instance is None:
             sio = SocketIOServer.get_instance(allowed_origins=allow_origins)
 
@@ -63,8 +63,6 @@ class SocketIOApp:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
 
 voice_changer_params = VoiceChangerParams(vc_model_dir="model_dir")

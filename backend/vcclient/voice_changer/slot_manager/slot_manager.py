@@ -84,6 +84,7 @@ def reload_slot_infos(model_dir=None):
 class SlotManager:
     _instance = None
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -93,13 +94,11 @@ class SlotManager:
 
         return cls._instance
 
-    get_instance = classmethod(get_instance)
-
     def __init__(self):
 
         self.reload()
 
-    def reload(self=None, use_log=None):
+    def reload(self, use_log=None):
 
         logging.getLogger(LOGGER_NAME).debug("Reloading Slot info")
 
@@ -107,11 +106,11 @@ class SlotManager:
 
         return self.slot_infos
 
-    def get_slot_infos(self=None):
+    def get_slot_infos(self):
 
         return self.slot_infos
 
-    def get_slot_info(self=None, index=None):
+    def get_slot_info(self, index=None):
 
         slot_info_array = [slot_info for slot_info in self.slot_infos if slot_info.slot_index == index]
 

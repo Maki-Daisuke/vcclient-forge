@@ -78,7 +78,7 @@ class ContentvecOnnx(Embedder):
         except Exception as e:
             raise RuntimeError(f"Exeption in {self.__class__.__name__}", e)
 
-    def get_info(self=None):
+    def get_info(self):
 
         info = EmbedderInfo(
             embedder_type="contentvec",

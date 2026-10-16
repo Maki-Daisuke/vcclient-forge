@@ -6,8 +6,8 @@ from .vcserver_socketio_namespace import SocketIONamespace
 class SocketIOServer(socketio.AsyncServer):
     _instance: socketio.AsyncServer | None = None
 
-    def get_instance(cls=None, allowed_origins=None):
-
+    @classmethod
+    def get_instance(cls, allowed_origins=None):
         if cls._instance is None:
             if allowed_origins is None:
                 sio = cls(async_mode="asgi")
@@ -24,8 +24,6 @@ class SocketIOServer(socketio.AsyncServer):
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def list_all_sids(self, namespace, room=("/", None)):
 

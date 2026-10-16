@@ -116,23 +116,23 @@ class RVCPipeline(VCPipeline):
 
         return np.float32
 
-    def get_chunk_sec(self=None):
+    def get_chunk_sec(self):
 
         return SlotManager.get_instance().get_slot_info(self.slot_index).chunk_sec
 
-    def needs_crossfade(self=None):
+    def needs_crossfade(self):
 
         return True
 
-    def get_pitch_estimator_type(self=None):
+    def get_pitch_estimator_type(self):
 
         return self.pitch_estimator_type
 
-    def get_gpu_device_id(self=None):
+    def get_gpu_device_id(self):
 
         return self.gpu_device_id
 
-    def set_pitch_estimator_type(self=None, pitch_estimator_type=None):
+    def set_pitch_estimator_type(self, pitch_estimator_type=None):
 
         logging.getLogger(LOGGER_NAME).info(
             f"""pitch extimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"""

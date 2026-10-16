@@ -8,6 +8,7 @@ class EventEmitterManager:
 
     event_emitter: "EventEmitter | None" = None
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -17,12 +18,10 @@ class EventEmitterManager:
 
         return cls._instance
 
-    get_instance = classmethod(get_instance)
-
-    def set_event_emitter(self=None, event_emitter=None):
+    def set_event_emitter(self, event_emitter=None):
 
         self.event_emitter = event_emitter
 
-    def get_event_emitter(self=None):
+    def get_event_emitter(self):
 
         return self.event_emitter

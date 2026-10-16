@@ -19,7 +19,7 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
 
         await self.emit(event, data, to=to)
 
-    def emit_coroutine(self, event, data, to=(None,)):
+    def emit_coroutine(self, event, data, to=None):
 
         if to is None:
             asyncio.run(self.emit_to(event, data, to=None))
@@ -28,7 +28,7 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
 
         asyncio.run(self.emit_to(event, data, to=to))
 
-    def __init__(self=None, namespace=None):
+    def __init__(self, namespace=None):
 
         super().__init__(namespace)
 
@@ -36,6 +36,7 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
 
         EventEmitterManager.get_instance().set_event_emitter(self)
 
+    @classmethod
     def get_instance(cls, list_all_sids):
 
         if not hasattr(cls, "_instance"):
@@ -44,8 +45,6 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
             cls._instance.list_all_sids = list_all_sids
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def on_connect(self, sid, environ):
 

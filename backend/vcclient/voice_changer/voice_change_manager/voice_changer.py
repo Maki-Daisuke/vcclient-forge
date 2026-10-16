@@ -43,6 +43,7 @@ from .vc_pipelines.pipeline_manager import PipelineManager
 class VoiceChanger:
     _instance = None
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -51,8 +52,6 @@ class VoiceChanger:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def __init__(self):
 
@@ -68,7 +67,7 @@ class VoiceChanger:
 
         self.crossfadeSize = 0
 
-    def set_performance_listener(self=None, performance_listener=None):
+    def set_performance_listener(self, performance_listener=None):
 
         self.performance_listener = performance_listener
 
@@ -130,7 +129,7 @@ class VoiceChanger:
             return None
         return None
 
-    def _set_pitch_estimator(self=None, pitch_estimator=None):
+    def _set_pitch_estimator(self, pitch_estimator=None):
 
         self.vc_pipeline.set_pitch_estimator_type(pitch_estimator)
 
@@ -258,37 +257,37 @@ class VoiceChanger:
             self._generate_filter()
             return None
 
-    def _exec_filter_in_high_pass(self=None, waveform=None):
+    def _exec_filter_in_high_pass(self, waveform):
 
         return signal.filtfilt(self.bh, self.ah, waveform)
 
-    def _exec_filter_in_low_pass(self=None, waveform=None):
+    def _exec_filter_in_low_pass(self, waveform):
 
         return signal.filtfilt(self.bl, self.al, waveform)
 
-    def _exec_filter_in_band_pass(self=None, waveform=None):
+    def _exec_filter_in_band_pass(self, waveform):
 
         return signal.filtfilt(self.bb, self.ab, waveform)
 
-    def _exec_resample_in(self=None, waveform=None):
+    def _exec_resample_in(self, waveform):
 
         return self.resampler_in.process(waveform, self.vc_info.resample_ratio_in, end_of_input=False)
 
-    def _exec_resample_out(self=None, waveform=None):
+    def _exec_resample_out(self, waveform):
 
         return self.resampler_out.process(waveform, self.vc_info.resample_ratio_out, end_of_input=False)
 
-    def _exec_resample_monitor(self=None, waveform=None):
+    def _exec_resample_monitor(self, waveform):
 
         return self.resampler_monitor.process(waveform, self.vc_info.resample_ratio_monitor, end_of_input=False)
 
-    def _exec_resample_pass_through_in_out(self=None, waveform=None):
+    def _exec_resample_pass_through_in_out(self, waveform):
 
         return self.resampler_monitor.process(
             waveform, self.vc_info.resample_ratio_pass_through_in_out, end_of_input=False
         )
 
-    def _exec_resample_pass_through_in_monitor(self=None, waveform=None):
+    def _exec_resample_pass_through_in_monitor(self, waveform):
 
         return self.resampler_monitor.process(
             waveform, self.vc_info.resample_ratio_pass_through_in_monitor, end_of_input=False
@@ -314,7 +313,7 @@ class VoiceChanger:
 
         return self.vc_info
 
-    def set_monitor_enable(self=None, enable=None):
+    def set_monitor_enable(self, enable=None):
         """
 
         ローカルマイクでのモニタリング。ブラウザ経由ではブラウザ上でやるので無視してよい。
@@ -476,7 +475,7 @@ class VoiceChanger:
                 logging.getLogger(LOGGER_NAME).warn(f"Failed to convert_chunk_bulk_internal:{e}")
                 logging.getLogger(LOGGER_NAME).warn(f"Failed to convert_chunk_bulk_internal:{traceback.format_exc()}")
 
-    def convert_chunk(self=None, waveform=None, direct_from_server=None):
+    def convert_chunk(self, waveform, direct_from_server=None):
         """
 
         Convert waveform.
@@ -552,7 +551,7 @@ class VoiceChanger:
 
         return (output, monitor, None)
 
-    def _convert_chunk(self=None, waveform=None, direct_from_server=None):
+    def _convert_chunk(self, waveform, direct_from_server=None):
         """
 
         Convert waveform.

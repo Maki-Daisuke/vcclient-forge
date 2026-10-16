@@ -10,13 +10,13 @@ from vcclient.voice_changer.voice_chanager_const import ModelDir, SettingsDir
 
 
 class VCClientFileEventHandler(FileSystemEventHandler):
-    def __init__(self=None, callback=None):
+    def __init__(self, callback=None):
 
         super().__init__()
 
         self.callback = callback
 
-    def on_any_event(self=None, event=None):
+    def on_any_event(self, event):
 
         if str(ModelDir) in event.src_path:
             self.callback("model", event)
@@ -28,7 +28,7 @@ class VCClientFileEventHandler(FileSystemEventHandler):
 
 
 class VCClientFileWatcher:
-    def __init__(self=None, paths=None, handler=None):
+    def __init__(self, paths=None, handler=None):
 
         self.observer = Observer()
 

@@ -11,7 +11,7 @@ from .rvc_inferencer import RVCInferencer
 
 
 class RVCInferencerOnnxF0(RVCInferencer):
-    def load_model(self=None, file=None, device_id=None, inferencer_type_version=(None,)):
+    def load_model(self, file=None, device_id=None, inferencer_type_version=None):
 
         self.file = file
 
@@ -122,7 +122,7 @@ class RVCInferencerOnnxF0(RVCInferencer):
         except Exception as e:
             raise RuntimeError(f"Exeption in {self.__class__.__name__}", e)
 
-    def get_info(self=None):
+    def get_info(self):
 
         info = RVCInferencerInfo(
             inferencer_type="onnxRVC",

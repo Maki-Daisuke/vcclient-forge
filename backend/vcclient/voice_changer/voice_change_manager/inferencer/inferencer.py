@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 
 
 class Inferencer(ABC):
-    def get_info(self=None):
-
+    @abstractmethod
+    def get_info(self):
         pass
-
-    get_info = abstractmethod(get_info)

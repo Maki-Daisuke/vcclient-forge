@@ -70,8 +70,8 @@ def get_custom_swagger_ui_html(
 class RestAPI:
     _instance = None
 
-    def get_instance(cls=None, voice_changer_params=None):
-
+    @classmethod
+    def get_instance(cls, voice_changer_params=None):
         if cls._instance is None:
             app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
 
@@ -144,8 +144,6 @@ class RestAPI:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
 
 def initialize():

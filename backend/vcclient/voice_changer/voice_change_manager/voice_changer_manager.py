@@ -9,6 +9,7 @@ from .voice_changer import VoiceChanger
 class VoiceChangerManager:
     _instance = None
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -17,8 +18,6 @@ class VoiceChangerManager:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def get_info(self):
 

@@ -7,7 +7,7 @@ warnings.filterwarnings("ignore", message="Duplicate Operation ID")
 
 
 class CustomFormatter(logging.Formatter):
-    def format(self=None, record=None):
+    def format(self, record):
 
         record.name = record.name.ljust(10)[:10]
 

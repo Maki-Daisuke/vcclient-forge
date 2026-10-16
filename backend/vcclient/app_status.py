@@ -1,6 +1,7 @@
 class AppStatus:
     _instance = None
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -9,8 +10,6 @@ class AppStatus:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def __init__(self):
 

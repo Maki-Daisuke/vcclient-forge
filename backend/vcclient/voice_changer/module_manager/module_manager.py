@@ -86,6 +86,7 @@ class ModuleManager:
 
     module_status_list: list[ModuleStatus] = []
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -94,8 +95,6 @@ class ModuleManager:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def __init__(self):
 
@@ -122,11 +121,11 @@ class ModuleManager:
 
             self.module_status_list.append(module_status)
 
-    def get_modules(self=None):
+    def get_modules(self):
 
         return self.module_status_list
 
-    def _download(self=None, target_module=None, callback=None):
+    def _download(self, target_module=None, callback=None):
 
         target_module.save_to.parent.mkdir(parents=True, exist_ok=True)
 
@@ -251,7 +250,7 @@ class ModuleManager:
             return True
         return False
 
-    def download_applio_modules(self=None, callback=None):
+    def download_applio_modules(self, callback=None):
 
         applio_modules = [x for x in self.get_modules() if x.info.id in APPLIO_MODULES and x.valid is False]
         status_dict = {

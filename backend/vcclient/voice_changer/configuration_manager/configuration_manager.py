@@ -18,6 +18,7 @@ from ..voice_chanager_const import ConfigFile
 class ConfigurationManager:
     _instance = None
 
+    @classmethod
     def get_instance(cls):
 
         if cls._instance is None:
@@ -26,8 +27,6 @@ class ConfigurationManager:
             return cls._instance
 
         return cls._instance
-
-    get_instance = classmethod(get_instance)
 
     def __init__(self):
 
@@ -48,7 +47,7 @@ class ConfigurationManager:
 
         self.save_voice_changer_configuration()
 
-    def get_voice_changer_configuration(self=None):
+    def get_voice_changer_configuration(self):
 
         return self.voice_changer_configuration
 
