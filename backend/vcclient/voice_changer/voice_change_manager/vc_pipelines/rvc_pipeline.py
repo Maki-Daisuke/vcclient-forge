@@ -28,46 +28,56 @@ class RVCPipeline(VCPipeline):
 
     def __init__(self, slot_info: RVCSlotInfo):
         assert isinstance(slot_info, RVCSlotInfo)
-        self.slot_info = slot_info
-        self.slot_index = self.slot_info.slot_index
+        self._slot_info = slot_info
+        self.slot_index = slot_info.slot_index
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         self.gpu_device_id = conf.gpu_device_id_int
-        self.pitch_estimator_type = self.slot_info.pitch_estimator
+        self.pitch_estimator_type = slot_info.pitch_estimator
         logging.getLogger(LOGGER_NAME).info(
             f"construct new pipelinepitch: slot_index:{self.slot_index}, gpu_device_id:{self.gpu_device_id} pitch_estimator: {self.pitch_estimator_type}"
         )
         self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(
-            self.slot_info.pitch_estimator, conf.gpu_device_id_int
+            slot_info.pitch_estimator, conf.gpu_device_id_int
         )
-        self.embedder = EmbedderManager.get_embedder(self.slot_info.embedder, conf.gpu_device_id_int)
-        assert self.slot_info.model_file is not None
+        self.embedder = EmbedderManager.get_embedder(slot_info.embedder, conf.gpu_device_id_int)
+        assert slot_info.model_file is not None
         self.rvc = cast(
             RVCInferencer,
             InferencerManager.get_inferencer(
-                self.slot_info.inferencer_type,
-                ModelDir / str(self.slot_info.slot_index) / self.slot_info.model_file,
+                slot_info.inferencer_type,
+                ModelDir / str(slot_info.slot_index) / slot_info.model_file,
                 conf.gpu_device_id_int,
                 inferencer_type_version=cast(RVCInferencerOnnxVersion, slot_info.version),
             ),
         )
-        if self.slot_info.index_file is not None:
-            index, big_npy = self._load_index(ModelDir / str(self.slot_info.slot_index) / self.slot_info.index_file)
+        if slot_info.index_file is not None:
+            index, big_npy = self._load_index(ModelDir / str(slot_info.slot_index) / slot_info.index_file)
         else:
             index, big_npy = None, None
         self.index = index
         self.big_npy = big_npy
-        if self.slot_info.embedder == "hubert_base_japanese_l9fp" or self.slot_info.embedder == "hubert_base_l9fp":
+        if slot_info.embedder == "hubert_base_japanese_l9fp" or slot_info.embedder == "hubert_base_l9fp":
             embedder_dim_size = 256
         else:
             embedder_dim_size = 768
         self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, conf.gpu_device_id_int)
         self.audio_buffer = np.zeros([16384], dtype=float)
         self.pitchf_buffer = np.zeros([1, 1], dtype=np.float64)
-        if self.slot_info.embedder == "hubert_base_l12" or self.slot_info.embedder == "hubert_base_japanese_l12":
+        if slot_info.embedder == "hubert_base_l12" or slot_info.embedder == "hubert_base_japanese_l12":
             self.feature_buffer = np.zeros((1, 1, 768), dtype=np.float64)
         else:
             self.feature_buffer = np.zeros((1, 1, 256), dtype=np.float64)
         self.prev_vol = 0
+
+    @property
+    def slot_info(self) -> RVCSlotInfo:
+        try:
+            info = SlotManager.get_instance().get_slot_info(self.slot_index)
+            if isinstance(info, RVCSlotInfo):
+                return info
+        except Exception:
+            pass
+        return self._slot_info
 
     def _load_index(self, index_file: str):
         try:
@@ -135,16 +145,16 @@ class RVCPipeline(VCPipeline):
     def set_pitch_estimator_type(self, pitch_estimator_type=None):
 
         logging.getLogger(LOGGER_NAME).info(
-            f"""pitch extimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"""
+            f"pitch estimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"
         )
 
         self.pitch_estimator_type = pitch_estimator_type
+        if hasattr(self, "_slot_info") and self._slot_info is not None:
+            self._slot_info.pitch_estimator = pitch_estimator_type
 
-        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(
-            self.slot_info.pitch_estimator, self.gpu_device_id
-        )
+        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
 
-        logging.getLogger(LOGGER_NAME).info("pitch extimator is changed: done")
+        logging.getLogger(LOGGER_NAME).info("pitch estimator is changed: done")
 
     def _generate_inputs(
         self, audio: np.ndarray, crossfade_overlap_sec: float, sola_search_frame_sec: float, extra_frame_sec: float
@@ -183,7 +193,7 @@ class RVCPipeline(VCPipeline):
         assert audio.ndim == 1, "audio should be 1d."
         assert audio.dtype in (np.float32, np.float64), f"audio should be float32 or float64. {audio.dtype}"
         input_sample_num = audio.shape[0]
-        slot_info = SlotManager.get_instance().get_slot_info(self.slot_index)
+        slot_info = self.slot_info
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         crossfacde_overlap_sec = real_crossfade_sec
         sola_search_frame_sec = conf.sola_search_frame_sec
@@ -231,10 +241,7 @@ class RVCPipeline(VCPipeline):
                     new_feats_retrieved,
                 ]
             )[-1 * feats_length :]
-            feats = (
-                new_feats_retrieved[np.newaxis, :] * self.slot_info.index_ratio
-                + (1 - self.slot_info.index_ratio) * feats
-            )
+            feats = new_feats_retrieved[np.newaxis, :] * slot_info.index_ratio + (1 - slot_info.index_ratio) * feats
 
         feats = feats.transpose(0, 2, 1)
         feats = self.onnx_upscaler.run(["out"], {"in": feats, "scales": np.array([2], dtype=np.float32)})
