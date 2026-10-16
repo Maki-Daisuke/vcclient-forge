@@ -12,6 +12,7 @@ entries:
   - streamlined-pitch-estimation-and-torch-free-pipeline.md
   - sub-2gb-portable-distribution-and-packaging.md
   - deprecating-and-removing-beatrice.md
+  - deprecating-and-removing-ngrok.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -43,3 +44,6 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 
 8. **[Deprecating and Pruning Beatrice](./deprecating-and-removing-beatrice.md)**
    Architectural rationale for fully pruning Beatrice support: dual-UI maintenance burden, limits of maintaining a native C/C++ cross-platform toolchain, presence of dedicated official tools, and doubling down on deep-learning RVC.
+
+9. **[Deprecating and Removing ngrok](./deprecating-and-removing-ngrok.md)**
+   Why cloud HTTP tunneling via ngrok was excised: network latency contradiction with real-time audio DSP, expiration of Google Colab's historical use case, browser Web Audio SSL/TLS friction, and recommending direct WireGuard mesh routing (Tailscale Serve) for remote compute.
