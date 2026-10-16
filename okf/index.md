@@ -11,6 +11,7 @@ entries:
   - frontend-architecture-and-roadmap.md
   - streamlined-pitch-estimation-and-torch-free-pipeline.md
   - sub-2gb-portable-distribution-and-packaging.md
+  - deprecating-and-removing-beatrice.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -39,3 +40,6 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 
 7. **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**
    Overcoming upstream's 2GB GitHub Releases limitation to enable direct, one-click distribution: pure-ONNX inference, CPU-only PyTorch relegation, surgical CUDA dependency selection, and workspace reset architecture (`npm run clean`).
+
+8. **[Deprecating and Pruning Beatrice](./deprecating-and-removing-beatrice.md)**
+   Architectural rationale for fully pruning Beatrice support: dual-UI maintenance burden, limits of maintaining a native C/C++ cross-platform toolchain, presence of dedicated official tools, and doubling down on deep-learning RVC.

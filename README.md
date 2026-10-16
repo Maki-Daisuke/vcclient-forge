@@ -19,8 +19,8 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
   Preserving the familiar UI workflows, model slots, and configuration compatibility of v2.0.78. Creators and streamers can transition immediately without re-learning or re-configuring their setups.
 - **Laser-Focused on Real-Time Performance**:
   Dedicated strictly to real-time voice conversion—maximizing latency efficiency and audio stability under demanding gaming and streaming workloads.
-- **"RVC First" Philosophy**:
-  Prioritizing the RVC models as our first-class citizen. Supporting other models (such as Beatrice) remains strictly secondary to delivering the best possible RVC experience.
+- **Dedicated RVC Client**:
+  Exclusively specialized for RVC to deliver a clean, efficient, and intuitive real-time voice conversion experience.
 - **Future-Proof Maintainability**:
   Engineered to smoothly track modern Python (3.14+) and newer GPU driver architectures, ensuring long-term reliability without bit-rot.
 
@@ -50,6 +50,7 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 ### 1. Prerequisites
 
 - **[uv](https://docs.astral.sh/uv/getting-started/installation/)**: Fast, deterministic Python environment and package manager.
+
   ```bash
   # Windows (PowerShell)
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -57,6 +58,7 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
   # Linux & macOS
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
+
 - **[Node.js](https://nodejs.org/) & npm**: Task runner and frontend workspace manager (Node.js v24+ / v26 LTS recommended).
 - **System Audio Dependency (Linux only)**: Required by `sounddevice`:
   ```bash
@@ -78,7 +80,7 @@ npm run build:mac     # macOS (Apple Silicon M-series)
 npm run build:cpu     # Generic CPU fallback
 ```
 
-*(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)*
+_(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)_
 
 ### 3. Launch
 
@@ -96,15 +98,6 @@ http://localhost:18888/
 ```
 
 Initial model assets will be downloaded automatically on first launch.
-
----
-
-## Supported AI Models
-
-| Model Architecture                                                                                                  |     Status      |  Acceleration  | Description                                                                                            |
-| :------------------------------------------------------------------------------------------------------------------ | :-------------: | :------------: | :----------------------------------------------------------------------------------------------------- |
-| **[RVC (Retrieval-based Voice Conversion)](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)** |  ✅ Supported   | ONNX / PyTorch | Industry-standard low-latency voice conversion. Supports ONNX exported models and PyTorch checkpoints. |
-| **[Beatrice v2](https://prj-beatrice.com/)**                                                                        | ⚠️ Experimental |      ONNX      | Fast formant-preserving neural voice conversion (sample metadata supported; pipeline in development).  |
 
 ---
 
