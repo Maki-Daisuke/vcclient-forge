@@ -266,16 +266,19 @@ class RVCPipeline(VCPipeline):
         if conf.volume_tuning_type == "linear":
             converted = converted * vol
         elif conf.volume_tuning_type == "linear_ratio":
-            converted_vol = np.sqrt(np.square(converted).mean())
-            vol_scaling_factor = vol / converted_vol
-            converted = converted * vol_scaling_factor
+            converted_vol = float(np.sqrt(np.square(converted).mean())) if converted.size > 0 else 0.0
+            if converted_vol >= 1e-06:
+                vol_scaling_factor = vol / converted_vol
+                converted = converted * vol_scaling_factor
         elif conf.volume_tuning_type == "sqrt":
             converted = converted * np.sqrt(vol)
         elif conf.volume_tuning_type == "sqrt_ratio":
-            converted_vol = np.sqrt(np.square(converted).mean())
-            vol_scaling_factor = np.sqrt(vol) / converted_vol
-            converted = converted * vol_scaling_factor
+            converted_vol = float(np.sqrt(np.square(converted).mean())) if converted.size > 0 else 0.0
+            if converted_vol >= 1e-06:
+                vol_scaling_factor = np.sqrt(vol) / converted_vol
+                converted = converted * vol_scaling_factor
 
+        converted = np.nan_to_num(converted, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         return converted
 
     def get_pipeline_info(self):
