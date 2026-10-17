@@ -13,6 +13,7 @@ entries:
   - sub-2gb-portable-distribution-and-packaging.md
   - deprecating-and-removing-beatrice.md
   - deprecating-and-removing-ngrok.md
+  - server-first-architecture-and-static-pipeline-roadmap.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -47,3 +48,6 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 
 9. **[Deprecating and Removing ngrok](./deprecating-and-removing-ngrok.md)**
    Why cloud HTTP tunneling via ngrok was excised: network latency contradiction with real-time audio DSP, expiration of Google Colab's historical use case, browser Web Audio SSL/TLS friction, and recommending direct WireGuard mesh routing (Tailscale Serve) for remote compute.
+
+10. **[Server-First Audio Architecture & Static-Shape Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md)**
+    Roadmap for transitioning VCClient Forge from legacy client-first dynamic-shape audio processing to a server-first, fixed-chunk zero-allocation inference architecture, unlocking "Boost Mode" via End-to-End Graph Fusion and CUDA Graphs.
