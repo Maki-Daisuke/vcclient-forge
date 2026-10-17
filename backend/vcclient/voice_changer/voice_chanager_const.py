@@ -23,7 +23,6 @@ GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE = -100
 AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]
 
 VoiceChangerInputMode: TypeAlias = Literal["server", "client"]
-EventSource: TypeAlias = Literal["config", "model"]
 AudioDeviceType: TypeAlias = Literal["audioinput", "audiooutput"]
 AudioDevicePurpose: TypeAlias = Literal["audioinput", "audiooutput", "monitoroutput"]
 

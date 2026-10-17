@@ -35,9 +35,3 @@ def test_import_crossfade_processor():
 
     proc = CrossfadeProcessor()
     assert proc is not None
-
-
-def test_import_cui():
-    from vcclient.cui.vcclient_cui import VCClientCUI
-
-    assert VCClientCUI is not None

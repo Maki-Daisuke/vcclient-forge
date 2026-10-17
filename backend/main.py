@@ -3,7 +3,6 @@ import multiprocessing as mp
 import platform
 import signal
 import sys
-import threading
 import time
 import traceback
 from pathlib import Path
@@ -19,7 +18,6 @@ import sounddevice as sd
 from vcclient.app_status import AppStatus
 from vcclient.client_launcher.client_launcher import ClientLauncher
 from vcclient.const import LOGGER_NAME, VERSION
-from vcclient.cui.vcclient_cui import VCClientCUI
 from vcclient.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
 from vcclient.logger import setup_logger
 from vcclient.server.vcserver import VCServer
@@ -70,17 +68,16 @@ def download_applio_modules(callback=None):
     mm.download_applio_modules(callback or download_progreess)
 
 
-def start_cui(
+def start_server(
     host: str = "0.0.0.0",
     port: int = 18888,
     https: bool = False,
     launch_client: bool = True,
     allow_origins: str = "*",
-    no_cui: bool = False,
+    **_kwargs,
 ):
     https = parse_bool_arg(https)
     launch_client = parse_bool_arg(launch_client)
-    no_cui = parse_bool_arg(no_cui)
 
     logger.info(f"VCClient Version: {VERSION}")
     print(f"VCClient Version: {VERSION}")
@@ -100,35 +97,28 @@ def start_cui(
     )
     vcserver_port = vcserver.start()
 
-    cui = None
-    app = None
-    if not no_cui and platform.system() != "Darwin":
-        app = VCClientCUI(port=vcserver_port, https=https, terminate_callback=app_status.stop_app)
-        cui = threading.Thread(target=app.run)
-        cui.start()
-    else:
-        base_url = resolve_base_url(https, vcserver_port)
-        bold_green_start = "\x1b[1;32m"
-        bold_red_start = "\x1b[1;31m"
-        reset = "\x1b[0m"
-        urls = [
-            ["Application", base_url],
-            ["Log(rich)", f"{base_url}/?app_mode=LogViewer"],
-            ["Log(text)", f"{base_url}/vcclient.log"],
-            ["API", f"{base_url}/docs"],
-            ["License(js)", f"{base_url}/licenses-js.json"],
-            ["License(py)", f"{base_url}/licenses-py.json"],
-        ]
+    base_url = resolve_base_url(https, vcserver_port)
+    bold_green_start = "\x1b[1;32m"
+    bold_red_start = "\x1b[1;31m"
+    reset = "\x1b[0m"
+    urls = [
+        ["Application", base_url],
+        ["Log(rich)", f"{base_url}/?app_mode=LogViewer"],
+        ["Log(text)", f"{base_url}/vcclient.log"],
+        ["API", f"{base_url}/docs"],
+        ["License(js)", f"{base_url}/licenses-js.json"],
+        ["License(py)", f"{base_url}/licenses-py.json"],
+    ]
 
-        key_max_length = max(len(u[0]) for u in urls)
-        url_max_length = max(len(u[1]) for u in urls)
-        box_width = key_max_length + url_max_length + 5
+    key_max_length = max(len(u[0]) for u in urls)
+    url_max_length = max(len(u[1]) for u in urls)
+    box_width = key_max_length + url_max_length + 5
 
-        print("-" * box_width)
-        for u in urls:
-            print(f" {bold_green_start}{u[0].ljust(key_max_length)}{reset} | {u[1]} ")
-        print("-" * box_width)
-        print(f"{bold_green_start}Please press Ctrl+C once to exit vcclient.{reset}")
+    print("-" * box_width)
+    for u in urls:
+        print(f" {bold_green_start}{u[0].ljust(key_max_length)}{reset} | {u[1]} ")
+    print("-" * box_width)
+    print(f"{bold_green_start}Please press Ctrl+C once to exit vcclient.{reset}")
 
     if launch_client and not is_running_on_colab():
         client_launcher = ClientLauncher(app_status.stop_app)
@@ -142,8 +132,6 @@ def start_cui(
                 break
             time.sleep(60)
     else:
-        bold_red_start = "\x1b[1;31m"
-        reset = "\x1b[0m"
         err_msg = ""
         while not app_status.end_flag:
             try:
@@ -189,16 +177,14 @@ def start_cui(
     original_handler = signal.signal(signal.SIGINT, ignore_ctrl_c)
     try:
         app_status.stop_app()
-        if not no_cui and platform.system() != "Darwin" and cui is not None:
-            if cui.is_alive():
-                if app is not None and hasattr(app, "action_quit_server"):
-                    app.action_quit_server()
-                cui.join()
         vcserver.stop()
         VoiceChanger.get_instance().stop_convert_chunk_bulk()
     finally:
         print("")
         signal.signal(signal.SIGINT, original_handler)
+
+
+start_cui = start_server
 
 
 def rest_client():
@@ -213,8 +199,9 @@ def main():
     mp.freeze_support()
     fire.Fire(
         {
-            "module_download": module_download,
+            "server": start_server,
             "cui": start_cui,
+            "module_download": module_download,
             "download_applio_modules": download_applio_modules,
             "rest_client": rest_client,
             "convert_file": convert_file,

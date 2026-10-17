@@ -419,7 +419,9 @@ class VoiceChanger:
                 import traceback
 
                 logging.getLogger(LOGGER_NAME).warning(f"Failed to convert_chunk_bulk_internal:{e}")
-                logging.getLogger(LOGGER_NAME).warning(f"Failed to convert_chunk_bulk_internal:{traceback.format_exc()}")
+                logging.getLogger(LOGGER_NAME).warning(
+                    f"Failed to convert_chunk_bulk_internal:{traceback.format_exc()}"
+                )
 
     def convert_chunk(self, waveform, direct_from_server=None):
         """Convert waveform.
