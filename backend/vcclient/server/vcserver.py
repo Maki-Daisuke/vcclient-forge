@@ -106,10 +106,11 @@ class VCServer:
             pass
 
     def start_server(self):
-        if os.name == "nt":
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         logging.getLogger(LOGGER_NAME).info(f"Starting VCServer on port {self.port}")
-        self.loop = asyncio.new_event_loop()
+        if os.name == "nt":
+            self.loop = asyncio.SelectorEventLoop()
+        else:
+            self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
             self.loop.run_until_complete(self.server.serve())
