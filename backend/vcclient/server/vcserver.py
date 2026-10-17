@@ -64,6 +64,7 @@ class VCServer:
                 log_config=None,
                 ssl_keyfile=key,
                 ssl_certfile=cert,
+                timeout_graceful_shutdown=5.0,
             )
         else:
             config = uvicorn.Config(
@@ -72,6 +73,7 @@ class VCServer:
                 port=self.port,
                 log_level="info",
                 log_config=None,
+                timeout_graceful_shutdown=5.0,
             )
 
         self.server = uvicorn.Server(config)
@@ -80,9 +82,28 @@ class VCServer:
         return self.port
 
     async def stop_all_sockets(self):
-        sio = SocketIOServer.get_instance()
-        for sid in list(sio.eio.sockets.keys()):
-            await sio.disconnect(sid)
+        try:
+            sio = SocketIOServer.get_instance()
+            if hasattr(sio, "manager"):
+                for ns in list(sio.manager.get_namespaces()):
+                    if ns in sio.manager.rooms and None in sio.manager.rooms[ns]:
+                        for sid in list(sio.manager.rooms[ns][None].keys()):
+                            try:
+                                await sio.disconnect(sid, namespace=ns)
+                            except Exception:
+                                pass
+            if hasattr(sio, "eio") and hasattr(sio.eio, "sockets"):
+                for eio_sid, sock in list(sio.eio.sockets.items()):
+                    try:
+                        if hasattr(sock, "close"):
+                            await sock.close(wait=False, abort=True)
+                        else:
+                            await sio.eio.disconnect(eio_sid)
+                    except Exception:
+                        pass
+                sio.eio.sockets.clear()
+        except Exception:
+            pass
 
     def start_server(self):
         if os.name == "nt":
@@ -90,15 +111,34 @@ class VCServer:
         logging.getLogger(LOGGER_NAME).info(f"Starting VCServer on port {self.port}")
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.loop.create_task(self.server.serve())
-        self.loop.run_forever()
+        try:
+            self.loop.run_until_complete(self.server.serve())
+        finally:
+            try:
+                self.loop.run_until_complete(self.stop_all_sockets())
+            except Exception:
+                pass
+
+            pending = [t for t in asyncio.all_tasks(self.loop) if not t.done()]
+            for task in pending:
+                task.cancel()
+            if pending:
+                self.loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+            try:
+                self.loop.run_until_complete(self.loop.shutdown_asyncgens())
+            except Exception:
+                pass
+            self.loop.close()
 
     def stop(self):
+        logging.getLogger(LOGGER_NAME).info("wait vcserver to stop...")
         if hasattr(self, "server") and self.server:
             self.server.should_exit = True
-        logging.getLogger(LOGGER_NAME).info("wait vccserver to stop...")
-        if hasattr(self, "loop") and self.loop and self.loop.is_running():
-            self.loop.stop()
         if hasattr(self, "server_thread") and self.server_thread and self.server_thread.is_alive():
-            self.server_thread.join()
-        logging.getLogger(LOGGER_NAME).info("wait vccserver to stop...done")
+            self.server_thread.join(timeout=10)
+            if self.server_thread.is_alive():
+                logging.getLogger(LOGGER_NAME).error("Server thread failed to terminate within timeout")
+                return False
+        logging.getLogger(LOGGER_NAME).info("wait vcserver to stop...done")
+        return True
