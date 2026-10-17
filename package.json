@@ -5,8 +5,8 @@
   "description": "VCClient Forge - Task Runner and Integration",
   "scripts": {
     "clean": "node scripts/clean.js",
-    "start": "uv run --project backend python backend/main.py cui",
-    "dev:backend": "uv run --project backend python backend/main.py cui",
+    "start": "uv run --project backend python backend/main.py server",
+    "dev:backend": "uv run --project backend python backend/main.py server",
     "build:frontend": "node scripts/build_frontend.js",
     "build:backend": "uv sync --project backend",
     "build": "npm run build:frontend && npm run build:backend --",

@@ -36,7 +36,7 @@ During initial reverse-engineering, a copy of `main.py` was mistakenly placed bo
 
 1. **Original Upstream Topology**: In the upstream build tree, `vcclient_dev/` contained **no** `main.py`. The single entry point was root `main.py`, which PyInstaller packaged as `main.exe`.
 2. **Decompilation Duplication**: Decompilation produced `vcclient_dev/main.py`. Because edits were made to the duplicate while `npm start` executed root `main.py`, bug fixes were initially shadowed.
-3. **Forge Resolution**: Consolidated all production entry logic into root [`main.py`](../main.py) with defensive `sys.path` bootstrapping, and removed the duplicate `vcclient_dev/main.py`.
+3. **Forge Resolution**: Consolidated all production entry logic into [`backend/main.py`](../backend/main.py) with defensive `sys.path` bootstrapping, and removed obsolete duplicate files.
 
 ## 4. Architectural Transformation: Frontend / Backend Symmetric Separation
 
@@ -66,3 +66,13 @@ voice-changer/
 ├── package.json              # Root orchestrator (npm start, npm test, etc.)
 └── start.bat / .ps1 / .sh    # Launcher scripts targeting backend/main.py
 ```
+
+## 5. Pruning the Legacy CUI Layer
+
+Upstream included an optional terminal-based user interface (CUI) powered by `textual` and file monitoring via `watchdog`.
+
+In Forge, this layer was completely removed based on core engineering rationale:
+1. **Redundant Functionality**: Full-featured real-time log monitoring and status inspection are already provided in the Web UI, and management is exposed via REST and Socket.IO APIs. The CUI merely mirrored server logs inside an artificial terminal widget.
+2. **Dead Dependency Elimination**: Removing the CUI eliminated four heavy third-party packages (`textual`, `watchdog`, `linkify-it-py`, `mdit-py-plugins`) and pruned over 500 lines of complex terminal UI logic.
+3. **Clean Shutdown & Process Lifecycle**: Dropping terminal event loops and file watcher threads substantially simplified graceful shutdown, preventing thread deadlocks and orphaned async tasks.
+4. **Guiding Philosophy**: *"If the outcome is identical, having less code and fewer dependencies is strictly superior."*

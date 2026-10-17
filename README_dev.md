@@ -81,27 +81,19 @@ Initial model assets are downloaded into `model_dir/` upon the first startup.
 The packaging script (`scripts/build_package.py`) generates fully self-contained portable distributions bundled with an isolated Python standalone runtime and all dependencies:
 
 ```bash
-# Build NVIDIA CUDA edition (Windows / Linux)
-uv run python scripts/build_package.py --edition cuda
+# Recommended via npm:
+npm run build:package -- --edition cuda   # NVIDIA GPU (Windows / Linux)
+npm run build:package -- --edition dml    # Windows Universal GPU (DirectX 12)
+npm run build:package -- --edition mac    # Apple Silicon macOS
+npm run build:package -- --edition cpu    # Generic CPU
 
-# Build Windows DirectML edition
-uv run python scripts/build_package.py --edition dml
-
-# Build Apple Silicon macOS edition
-uv run python scripts/build_package.py --edition mac
-
-# Build CPU edition
-uv run python scripts/build_package.py --edition cpu
+# Or directly via uv:
+uv run --project backend python scripts/build_package.py --edition cuda
 ```
 
 * `--edition <edition>`: Target edition (`cuda`, `dml`, `mac`, `cpu`, default: `cpu`).
 * `--output-dir <path>`: Destination directory for artifacts (default: `dist/`).
 * `--skip-archive`: Create the uncompressed package folder without archiving to `.7z`.
-
-You can also use npm to build packages:
-```bash
-npm run build:package -- --edition cuda
-```
 
 Artifacts are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z`. End users simply extract the archive and launch `start.bat` or `start.sh` without installing Python or CUDA toolkits.
 
@@ -114,27 +106,34 @@ Artifacts are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z`. End
 Automated unit and integration tests are executed using pytest:
 
 ```bash
-uv run pytest
+npm test
+# Or directly via uv:
+uv run --project backend pytest backend/tests
 ```
 
 Test coverage includes:
-* Import verification across server modules, inferencers, and CUI.
+* Import verification across server modules and inferencers.
+* Graceful shutdown and Socket.IO connection/disconnection lifecycle.
 * REST API endpoints (`/api/hello`, chunk conversion).
 * Web frontend static file delivery (`/`).
+* In-place ONNX export and pitch estimation pipelines (RMVPE, FCPE).
 
 ### Linting & Formatting
 
-Code formatting and linting are powered by [Ruff](https://docs.astral.sh/ruff/) configured via `pyproject.toml`:
+Code formatting and linting are powered by [Ruff](https://docs.astral.sh/ruff/) configured via `backend/pyproject.toml` (targeting Python 3.14):
 
 ```bash
 # Check for lint issues
-uv run ruff check
+npm run lint
 
 # Automatically fix lint issues
-uv run ruff check --fix
+npm run lint:fix
 
 # Format code
-uv run ruff format
+npm run format
+
+# Verify formatting without modifying files
+npm run format:check
 ```
 
 ---
@@ -143,7 +142,7 @@ uv run ruff format
 
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
-* **`ci.yml`**: Runs Ruff linting and pytest on every push and pull request across Ubuntu, Windows, and macOS with Python 3.10 and 3.12.
+* **`ci.yml`**: Runs Ruff linting, formatting checks, and pytest on every push and pull request across Ubuntu, Windows, and macOS using Python 3.14 and Node.js 26.
 * **`release.yml`**: Automatically builds portable standalone packages across all hardware matrix editions when a new version tag (`v*`) is pushed, attaching the archives directly to GitHub Releases.
 
 ---
@@ -152,18 +151,25 @@ Continuous integration and automated release workflows are configured in `.githu
 
 ```text
 voice-changer/
-├── main.py                     # Primary application entry point
-├── pyproject.toml              # Project metadata, dependencies, extras, and tool configurations
-├── uv.lock                     # Deterministic dependency lockfile
-├── .python-version             # Pinned Python version (3.12)
+├── backend/                    # Python / uv workspace
+│   ├── main.py                 # Backend application entry point (FastAPI + Socket.IO)
+│   ├── pyproject.toml          # Python package metadata, dependencies, extras, and tool configs
+│   ├── uv.lock                 # Deterministic dependency lockfile (Python 3.14)
+│   ├── .python-version         # Pinned Python version (3.14)
+│   ├── tests/                  # Pytest test suite
+│   └── vcclient/               # Core application package
+│       ├── utils/cuda_env.py   # Encapsulated platform-specific GPU runtime initialization
+│       ├── server/             # FastAPI REST and Socket.IO servers (graceful shutdown)
+│       └── voice_changer/      # Audio pipeline, inferencers, and model management
+├── frontend/                   # Frontend workspace
+│   └── dist/                   # Built Web UI assets (.gitignored)
+├── web_front/                  # Reference implementation B (golden 2025 binary assets)
+├── client/                     # Reference implementation A (frozen 2024 uncompiled React source)
+├── okf/                        # Open Knowledge Format architectural documentation
 ├── scripts/
-│   └── build_package.py        # Portable package builder
-├── start.bat / start.ps1       # Windows startup scripts with 3-stage fallback
-├── start.sh                    # Linux / macOS startup script
-├── tests/                      # Automated test suite (pytest)
-├── vcclient_dev/               # Core application implementation
-│   ├── utils/cuda_env.py       # Encapsulated platform-specific GPU runtime initialization
-│   ├── server/                 # FastAPI REST and Socket.IO servers
-│   └── voice_changer/          # Audio pipeline, inferencers, and model management
-└── web_front/                  # Web UI frontend assets (HTML, JavaScript, CSS)
+│   ├── build_frontend.js       # Synchronizes web_front assets to frontend/dist
+│   ├── build_package.py        # Portable standalone package builder (sub-2GB target)
+│   └── clean.js                # Workspace cleaning script
+├── package.json                # Root task runner (npm start, npm test, etc.)
+└── start.bat / .ps1 / .sh      # Multi-stage launcher scripts
 ```
