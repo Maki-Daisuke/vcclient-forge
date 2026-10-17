@@ -2,45 +2,32 @@ from pathlib import Path
 from typing import Literal, TypeAlias, get_args
 
 SettingsDir = Path("./settings")
-
 SettingsDir.mkdir(parents=True, exist_ok=True)
-
 ConfigFile = SettingsDir / "vc_conf.json"
 
-VoiceChangerInputMode: TypeAlias = Literal["server", "client"]
-
-EventSource: TypeAlias = Literal["config", "model"]
-
-AudioDeviceType: TypeAlias = Literal["audioinput", "audiooutput"]
-
-AudioDevicePurpose: TypeAlias = Literal["audioinput", "audiooutput", "monitoroutput"]
-
-AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]
-
 ModelDir = Path("model_dir")
-
 ModelDir.mkdir(parents=True, exist_ok=True)
 
 StaticModelDir = Path("static_model_dir")
-
 StaticModelDir.mkdir(parents=True, exist_ok=True)
-
-SLOT_PARAM_FILE = "params.json"
-
-MAX_SLOT_INDEX = 199
-
-SLOT_INDEX_BUFFER = 10000
-
-MERGED_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 1
-
-ONNX_EXPORTED_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 2
 
 ModuleDir = Path("modules")
 
+SLOT_PARAM_FILE = "params.json"
+MAX_SLOT_INDEX = 199
+SLOT_INDEX_BUFFER = 10000
+MERGED_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 1
+ONNX_EXPORTED_SLOT_INDEX = MAX_SLOT_INDEX + SLOT_INDEX_BUFFER + 2
 GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE = -100
 
-VoiceChangerType: TypeAlias = Literal["RVC", "RESERVED_FOR_SAMPLE", "BROKEN"]
+AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]
 
+VoiceChangerInputMode: TypeAlias = Literal["server", "client"]
+EventSource: TypeAlias = Literal["config", "model"]
+AudioDeviceType: TypeAlias = Literal["audioinput", "audiooutput"]
+AudioDevicePurpose: TypeAlias = Literal["audioinput", "audiooutput", "monitoroutput"]
+
+VoiceChangerType: TypeAlias = Literal["RVC", "RESERVED_FOR_SAMPLE", "BROKEN"]
 VoiceChangerTypes: list[VoiceChangerType] = ["RVC"]
 
 InferencerType: TypeAlias = Literal[

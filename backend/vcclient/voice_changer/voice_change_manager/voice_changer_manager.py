@@ -11,25 +11,16 @@ class VoiceChangerManager:
 
     @classmethod
     def get_instance(cls):
-
         if cls._instance is None:
             cls._instance = cls()
-
-            return cls._instance
-
         return cls._instance
 
     def get_info(self):
-
         logging.getLogger(LOGGER_NAME).info("Getting voice changer manager information.")
-
         local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
-
         voice_changer_information = VoiceChanger.get_instance().get_voice_changer_information()
 
-        info = VoiceChangerManagerInfo(
+        return VoiceChangerManagerInfo(
             local_voice_changer_interface_active=local_voice_changer_interface.local_voice_changer_enabled is True,
             voice_changer_information=voice_changer_information,
         )
-
-        return info

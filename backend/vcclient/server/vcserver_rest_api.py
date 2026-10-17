@@ -43,9 +43,7 @@ def get_custom_swagger_ui_html(
     init_oauth: Optional[Dict[str, Any]] = None,
     swagger_ui_parameters: Optional[Dict[str, Any]] = None,
 ):
-
     current_swagger_ui_parameters = swagger_ui_default_parameters.copy()
-
     if swagger_ui_parameters:
         current_swagger_ui_parameters.update(swagger_ui_parameters)
 
@@ -63,7 +61,6 @@ def get_custom_swagger_ui_html(
         html += f"""\n        ui.initOAuth({json.dumps(jsonable_encoder(init_oauth))})\n        """
 
     html += "\n    </script>\n    </body>\n    </html>\n    "
-
     return HTMLResponse(html)
 
 
@@ -74,112 +71,67 @@ class RestAPI:
     def get_instance(cls, voice_changer_params=None):
         if cls._instance is None:
             app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
-
             app_fastapi.router.route_class = ValidationErrorLoggingRoute
 
             def custom_swagger_ui_html():
-
                 logging.getLogger(LOGGER_NAME).info("CUSTOM UI")
-
                 return get_custom_swagger_ui_html(openapi_url=app_fastapi.openapi_url, title="VCClient API Docs")
 
             custom_swagger_ui_html = app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
-
             app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
-
             app_fastapi.mount("/upload_dir", StaticFiles(directory=f"""{UPLOAD_DIR}"""), name="static")
-
             if sys.platform.startswith("darwin"):
                 app_fastapi.mount(f"""/{ModelDir}""", StaticFiles(directory=ModelDir), name="static")
-
             else:
                 app_fastapi.mount(f"""/{ModelDir}""", StaticFiles(directory=ModelDir), name="static")
 
             rest_hello = RestHello()
-
             app_fastapi.include_router(rest_hello.router)
-
             rest_slot_manager = RestAPISlotManager()
-
             app_fastapi.include_router(rest_slot_manager.router)
-
             rest_configuration_manager = RestAPIConfigurationManager()
-
             app_fastapi.include_router(rest_configuration_manager.router)
-
             rest_audio_device_manager = RestAPIAudioDeviceManager()
-
             app_fastapi.include_router(rest_audio_device_manager.router)
-
             rest_gpu_device_manager = RestAPIGPUDeviceManager()
-
             app_fastapi.include_router(rest_gpu_device_manager.router)
-
             rest_module_manager = RestAPIModuleManager()
-
             app_fastapi.include_router(rest_module_manager.router)
-
             rest_sample_manager = RestAPISampleManager()
-
             app_fastapi.include_router(rest_sample_manager.router)
-
             fileuploader = EasyFileUploader(UPLOAD_DIR)
-
             app_fastapi.include_router(fileuploader.router)
-
             voice_changer = RestAPIVoiceChanger()
-
             app_fastapi.include_router(voice_changer.router)
-
             task_manager = RestAPITaskManager()
-
             app_fastapi.include_router(task_manager.router)
 
             app_fastapi.router.add_api_route("/api/operation/initialize", initialize, methods=["POST"])
-
             app_fastapi.router.add_api_route("/api_operation_initialize", initialize, methods=["POST"])
-
             cls._instance = app_fastapi
-
             return cls._instance
 
         return cls._instance
 
 
 def initialize():
-
     ConfigFile.unlink(missing_ok=True)
-
     shutil.rmtree(ModelDir)
-
     ModelDir.mkdir(parents=True, exist_ok=True)
-
     shutil.rmtree(ModuleDir)
-
     ModuleDir.mkdir(parents=True, exist_ok=True)
 
     audio_device_manager = AudioDeviceManager.get_instance()
-
     audio_device_manager.reload_device()
-
     configuration_manager = ConfigurationManager.get_instance()
-
     configuration_manager.reload()
-
     gpu_device_manager = GPUDeviceManager.get_instance()
-
     gpu_device_manager.reload()
-
     moduele_manager = ModuleManager.get_instance()
-
     moduele_manager.reload()
-
     slot_manager = SlotManager.get_instance()
-
     slot_manager.reload()
-
     voice_changer = VoiceChanger.get_instance()
-
     voice_changer.initialize()
 
     return {"message": "initialized."}

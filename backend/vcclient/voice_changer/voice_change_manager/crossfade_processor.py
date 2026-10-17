@@ -7,25 +7,16 @@ from vcclient.const import LOGGER_NAME
 
 class CrossfadeProcessor:
     crossfade_size = 0
-
     crossfade_offset = 0
-
     crossfade_end = 1
-
     np_prev_strength = np.array([0], dtype=np.float32)
-
     np_cur_strength = np.array([0], dtype=np.float32)
-
     np_prev_audio = np.array([0], dtype=np.float32)
-
     prev_rest_buffer = np.array([0], dtype=np.float32)
 
     def _generate_strength(self, crossfade_size: int, crossfade_offset: float, crossfade_end: float):
-
         self.crossfade_size = crossfade_size
-
         self.crossfade_offset = crossfade_offset
-
         self.crossfade_end = crossfade_end
 
         if crossfade_size <= 0:
@@ -35,9 +26,7 @@ class CrossfadeProcessor:
             return
 
         cf_offset = int(crossfade_size * crossfade_offset)
-
         cf_end = int(crossfade_size * crossfade_end)
-
         cf_range = cf_end - cf_offset
 
         if cf_range <= 0:
@@ -47,15 +36,12 @@ class CrossfadeProcessor:
             return
 
         percent = np.arange(cf_range) / cf_range
-
         np_prev_strength = np.cos(percent * 0.5 * np.pi) ** 2
-
         np_cur_strength = np.cos((1 - percent) * 0.5 * np.pi) ** 2
 
         self.np_prev_strength = np.concatenate(
             [np.ones(cf_offset), np_prev_strength, np.zeros(crossfade_size - cf_offset - len(np_prev_strength))]
         )
-
         self.np_cur_strength = np.concatenate(
             [np.zeros(cf_offset), np_cur_strength, np.ones(crossfade_size - cf_offset - len(np_cur_strength))]
         )
@@ -63,7 +49,6 @@ class CrossfadeProcessor:
         logging.getLogger(LOGGER_NAME).info(
             f"""Generated Strengths: for prev:{self.np_prev_strength.shape}, for cur:{self.np_cur_strength.shape}"""
         )
-
         self.prev_rest_buffer = np.zeros(crossfade_size, dtype=np.float32)
 
     def apply(

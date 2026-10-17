@@ -12,37 +12,26 @@ from .rvc_inferencer import RVCInferencer
 
 class RVCInferencerOnnxF0(RVCInferencer):
     def load_model(self, file=None, device_id=None, inferencer_type_version=None):
-
         self.file = file
-
         self.device_id = device_id
-
         (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(device_id)
-
         self.candidate_onnx_providers = onnx_providers
-
         self.candidate_onnx_provider_options = onnx_provider_options
 
         so = onnxruntime.SessionOptions()
-
         so.log_severity_level = 3
-
         self.onnx_session = onnxruntime.InferenceSession(
             str(self.file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
-
         if first_input_type == "tensor(float)":
             self.isHalf = False
-
         else:
             self.isHalf = True
 
-        logging.getLogger(LOGGER_NAME).info(f"""ONNX model loaded: {self.file}, first_input_type:{first_input_type}""")
-
+        logging.getLogger(LOGGER_NAME).info(f"ONNX model loaded: {self.file}, first_input_type:{first_input_type}")
         self.inferencer_type_version = inferencer_type_version
-
         return self
 
     def infer(
@@ -123,8 +112,7 @@ class RVCInferencerOnnxF0(RVCInferencer):
             raise RuntimeError(f"Exeption in {self.__class__.__name__}", e)
 
     def get_info(self):
-
-        info = RVCInferencerInfo(
+        return RVCInferencerInfo(
             inferencer_type="onnxRVC",
             model_file=self.file,
             device_id=self.device_id,
@@ -133,5 +121,3 @@ class RVCInferencerOnnxF0(RVCInferencer):
             onnx_providers=self.onnx_session.get_providers(),
             onnx_provider_options=str(self.onnx_session.get_provider_options()),
         )
-
-        return info

@@ -20,37 +20,27 @@ class ContentvecOnnx(Embedder):
     ):
 
         self.model_file = model_file
-
         self.deviceId = device_id
-
         self.layer = layer
-
         self.useFinalProj = use_final_proj
 
         (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(
             self.deviceId
         )
-
         self.candidate_onnx_providers = onnx_providers
-
         self.candidate_onnx_provider_options = onnx_provider_options
 
         so = onnxruntime.SessionOptions()
-
         so.log_severity_level = 3
-
         self.onnx_session = onnxruntime.InferenceSession(
             str(model_file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
-
         if first_input_type == "tensor(float)":
             self.isHalf = False
-
-            return self
-
-        self.isHalf = None
+        else:
+            self.isHalf = None
 
         return self
 
@@ -79,8 +69,7 @@ class ContentvecOnnx(Embedder):
             raise RuntimeError(f"Exeption in {self.__class__.__name__}", e)
 
     def get_info(self):
-
-        info = EmbedderInfo(
+        return EmbedderInfo(
             embedder_type="contentvec",
             model_file=self.model_file,
             device_id=self.deviceId,
@@ -89,5 +78,3 @@ class ContentvecOnnx(Embedder):
             onnx_providers=self.onnx_session.get_providers(),
             onnx_provider_options=str(self.onnx_session.get_provider_options()),
         )
-
-        return info

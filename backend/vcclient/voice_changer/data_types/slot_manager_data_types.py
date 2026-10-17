@@ -56,23 +56,15 @@ class SlotInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     slot_index: int = -1
-
     voice_changer_type: VoiceChangerType | None = None
-
     name: str = ""
-
     description: str = ""
-
     credit: str = ""
-
     terms_of_use_url: str = ""
-
     icon_file: Path | None = None
-
     speakers: dict = {}
 
     def update(self, **kwargs):
-
         for key, value in kwargs.items():
             if key in self.model_fields:
                 setattr(self, key, value)
@@ -80,23 +72,14 @@ class SlotInfo(BaseModel):
 
 class RVCSlotInfo(SlotInfo):
     voice_changer_type: VoiceChangerType = "RVC"
-
     model_file: Path | None = None
-
     index_file: Path | None = None
-
     is_onnx: bool = False
-
     inferencer_type: InferencerType = "onnxRVC"
-
     sample_rate: int = -1
-
     is_f0: bool = True
-
     deprecated: bool = False
-
     embedder: EmbedderType = "hubert_base_l12"
-
     pitch_estimator: PitchEstimatorType = "rmvpe"
     sample_id: str | None = None
     version: str = ""

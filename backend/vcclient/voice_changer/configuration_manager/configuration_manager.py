@@ -20,35 +20,25 @@ class ConfigurationManager:
 
     @classmethod
     def get_instance(cls):
-
         if cls._instance is None:
             cls._instance = cls()
-
-            return cls._instance
-
         return cls._instance
 
     def __init__(self):
-
         self.reload()
-
         self.voice_changer_configuration.recording_started = False
 
     def reload(self):
-
         if os.path.exists(ConfigFile):
             self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(
                 open(ConfigFile, encoding="utf-8").read()
             )
-
             return None
 
         self.voice_changer_configuration = VoiceChangerConfiguration()
-
         self.save_voice_changer_configuration()
 
     def get_voice_changer_configuration(self):
-
         return self.voice_changer_configuration
 
     def set_voice_changer_configuration(self, conf: VoiceChangerConfiguration):
@@ -138,5 +128,4 @@ class ConfigurationManager:
         self.save_voice_changer_configuration()
 
     def save_voice_changer_configuration(self):
-
         open(ConfigFile, "w", encoding="utf-8").write(self.voice_changer_configuration.model_dump_json(indent=4))

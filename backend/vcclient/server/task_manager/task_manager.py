@@ -21,27 +21,20 @@ class TaskManager:
         return cls._instance
 
     def __init__(self):
-
         self.tasks = []
 
     def add_task(self):
-
         task = Task(id=str(uuid.uuid4()))
-
         self.tasks.append(task)
-
         return task.id
 
     def get_all_tasks(self):
-
         return self.tasks
 
     def get_task(self, task_id=None):
-
         for task in self.tasks:
             if task.id == task_id:
                 return task
-
         return None
 
     def update_task(
@@ -51,24 +44,14 @@ class TaskManager:
         progress: float = 0,
         result: Literal["not finished", "success", "fail"] = "not finished",
     ):
-
         task = self.get_task(task_id)
-
         if task is not None:
             if status is not None:
                 task.status = status
-
             task.progress = progress
-
             task.result = result
 
-            return None
-
     def delete_task(self, task_id=None):
-
         task = self.get_task(task_id)
-
         if task is not None:
             self.tasks.remove(task)
-
-            return None

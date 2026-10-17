@@ -16,41 +16,29 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
     sid: int = 0
 
     async def emit_to(self, event, data, to):
-
         await self.emit(event, data, to=to)
 
     def emit_coroutine(self, event, data, to=None):
-
         if to is None:
             asyncio.run(self.emit_to(event, data, to=None))
-
             return None
-
         asyncio.run(self.emit_to(event, data, to=to))
 
     def __init__(self, namespace=None):
-
         super().__init__(namespace)
-
         self.namespace = namespace
-
         EventEmitterManager.get_instance().set_event_emitter(self)
 
     @classmethod
     def get_instance(cls, list_all_sids):
-
         if not hasattr(cls, "_instance"):
             cls._instance = cls("/test")
-
             cls._instance.list_all_sids = list_all_sids
-
         return cls._instance
 
     def on_connect(self, sid, environ):
-
         self.sid = sid
-
-        logging.getLogger(LOGGER_NAME).info(f"""connect sid: {sid}""")
+        logging.getLogger(LOGGER_NAME).info(f"connect sid: {sid}")
 
     async def on_request_message(self, sid, msg):
         try:
@@ -92,5 +80,4 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
             return None
 
     def on_disconnect(self, sid):
-
         pass

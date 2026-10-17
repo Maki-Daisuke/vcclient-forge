@@ -62,20 +62,15 @@ def load_slot_info(model_dir: Path, slot_index: int) -> SlotInfo:
 
 
 def reload_slot_infos(model_dir=None):
-
     slot_infos = []
-
     for i in range(MAX_SLOT_INDEX):
         slot_info = load_slot_info(model_dir, i)
-
         slot_infos.append(slot_info)
 
     merged_model_slot = load_slot_info(model_dir, MERGED_SLOT_INDEX)
-
     slot_infos.append(merged_model_slot)
 
     exported_onnx_model_slot = load_slot_info(model_dir, ONNX_EXPORTED_SLOT_INDEX)
-
     slot_infos.append(exported_onnx_model_slot)
 
     return slot_infos
@@ -86,37 +81,25 @@ class SlotManager:
 
     @classmethod
     def get_instance(cls):
-
         if cls._instance is None:
             cls._instance = cls()
-
-            return cls._instance
-
         return cls._instance
 
     def __init__(self):
-
         self.reload()
 
     def reload(self, use_log=None):
-
         logging.getLogger(LOGGER_NAME).debug("Reloading Slot info")
-
         self.slot_infos = reload_slot_infos(ModelDir)
-
         return self.slot_infos
 
     def get_slot_infos(self):
-
         return self.slot_infos
 
     def get_slot_info(self, index=None):
-
         slot_info_array = [slot_info for slot_info in self.slot_infos if slot_info.slot_index == index]
-
         if len(slot_info_array) == 0:
-            raise VCClientError(ERROR_CODE_SLOT_INDEX_NOT_FOUND, f"""Slot index {index} is not found""")
-
+            raise VCClientError(ERROR_CODE_SLOT_INDEX_NOT_FOUND, f"Slot index {index} is not found")
         return slot_info_array[0]
 
     def get_blank_slot_index(self) -> int:

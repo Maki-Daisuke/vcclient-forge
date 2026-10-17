@@ -26,40 +26,28 @@ class FileuploaderConcatUploadedFileChunkResult(BaseModel):
 
 class EasyFileUploader:
     def __init__(self, upload_dir=None):
-
         self.upload_dir = upload_dir
-
         self.upload_dir.mkdir(exist_ok=True)
-
         self.info = FileuploaderInfo(
             uploadable_files=[
                 UploadableFile(title="model file", filename="model_file"),
                 UploadableFile(title="index file", filename="index_file"),
             ]
         )
-
         self.router = APIRouter()
-
         self.router.route_class = ValidationErrorLoggingRoute
-
         self.router.add_api_route("/api/uploader/info", self.get_info, methods=["GET"])
-
         self.router.add_api_route("/api/uploader/upload_file_chunk", self.post_upload_file_chunk, methods=["POST"])
-
         self.router.add_api_route(
             "/api/uploader/concat_uploaded_file_chunk", self.post_concat_uploaded_file_chunk, methods=["POST"]
         )
-
         self.router.add_api_route("/api_uploader_info", self.get_info, methods=["GET"])
-
         self.router.add_api_route("/api_uploader_upload_file_chunk", self.post_upload_file_chunk, methods=["POST"])
-
         self.router.add_api_route(
             "/api_uploader_concat_uploaded_file_chunk", self.post_concat_uploaded_file_chunk, methods=["POST"]
         )
 
     def get_info(self):
-
         return self.info
 
     def _sanitize_filename(self, filename: str) -> str:

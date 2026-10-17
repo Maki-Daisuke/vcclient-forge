@@ -49,19 +49,15 @@ class VCServer:
         self.port = portpicker.pick_unused_port()
 
     def start(self):
-
         this_modeule = importlib.util.find_spec(__name__)
-
         if this_modeule is None:
             raise Exception("FastAPI instance is not initialized.")
 
         module_parent = this_modeule.parent
-
         if self.https is True:
             (cert, key) = generate_self_signed_cert()
-
             config = uvicorn.Config(
-                f"""{module_parent}.vcserver_socketio:serverio_app""",
+                f"{module_parent}.vcserver_socketio:serverio_app",
                 host=self.host,
                 port=self.port,
                 log_level="info",
@@ -69,10 +65,9 @@ class VCServer:
                 ssl_keyfile=key,
                 ssl_certfile=cert,
             )
-
         else:
             config = uvicorn.Config(
-                f"""{module_parent}.vcserver_socketio:serverio_app""",
+                f"{module_parent}.vcserver_socketio:serverio_app",
                 host=self.host,
                 port=self.port,
                 log_level="info",
@@ -80,33 +75,22 @@ class VCServer:
             )
 
         self.server = uvicorn.Server(config)
-
         self.server_thread = threading.Thread(target=self.start_server)
-
         self.server_thread.start()
-
         return self.port
 
     async def stop_all_sockets(self):
-
         sio = SocketIOServer.get_instance()
-
         for sid in list(sio.eio.sockets.keys()):
             await sio.disconnect(sid)
 
     def start_server(self):
-
         if os.name == "nt":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-        logging.getLogger(LOGGER_NAME).info(f"""Starting VCServer on port {self.port}""")
-
+        logging.getLogger(LOGGER_NAME).info(f"Starting VCServer on port {self.port}")
         self.loop = asyncio.new_event_loop()
-
         asyncio.set_event_loop(self.loop)
-
         self.loop.create_task(self.server.serve())
-
         self.loop.run_forever()
 
     def stop(self):

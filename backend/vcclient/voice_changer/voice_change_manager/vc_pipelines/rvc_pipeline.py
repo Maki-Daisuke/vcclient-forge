@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import cast
 
 import faiss
@@ -111,49 +112,37 @@ class RVCPipeline(VCPipeline):
             raise e
 
     def get_input_sample_rate(self):
-
         return 16000
 
     def get_output_sample_rate(self):
-
         return self.slot_info.sample_rate
 
     def get_input_bitdepth(self):
-
         return np.float32
 
     def get_output_bitdepth(self):
-
         return np.float32
 
     def get_chunk_sec(self):
-
         return SlotManager.get_instance().get_slot_info(self.slot_index).chunk_sec
 
     def needs_crossfade(self):
-
         return True
 
     def get_pitch_estimator_type(self):
-
         return self.pitch_estimator_type
 
     def get_gpu_device_id(self):
-
         return self.gpu_device_id
 
     def set_pitch_estimator_type(self, pitch_estimator_type=None):
-
         logging.getLogger(LOGGER_NAME).info(
             f"pitch estimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"
         )
-
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type
-
         self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
-
         logging.getLogger(LOGGER_NAME).info("pitch estimator is changed: done")
 
     def _generate_inputs(
@@ -163,23 +152,28 @@ class RVCPipeline(VCPipeline):
         crossfade_overlap_size = int(crossfade_overlap_sec * self.get_input_sample_rate())
         sola_search_frame_size = int(sola_search_frame_sec * self.get_input_sample_rate())
         extra_frame_size = int(extra_frame_sec * self.get_input_sample_rate())
+
         self.audio_buffer = np.concatenate([self.audio_buffer, audio], 0)
         convert_size = new_frame_size + crossfade_overlap_size + sola_search_frame_size + extra_frame_size
         embedder_hop_size = self.processing_window * 1
         hop_mod = convert_size % embedder_hop_size
         if hop_mod != 0:
             convert_size = convert_size + (embedder_hop_size - hop_mod)
+
         real_convert_size = (new_frame_size + crossfade_overlap_size + sola_search_frame_size) * (
             self.get_output_sample_rate() / self.get_input_sample_rate()
         )
         real_convert_size = int(round(real_convert_size))
+
         if self.audio_buffer.shape[0] < convert_size:
             self.audio_buffer = np.concatenate([np.zeros([convert_size]), self.audio_buffer])
         self.audio_buffer = self.audio_buffer[-1 * convert_size :]
+
         crop_offset = -1 * (new_frame_size + crossfade_overlap_size)
         crop_end = -1 * crossfade_overlap_size if crossfade_overlap_size > 0 else None
         crop = self.audio_buffer[crop_offset:crop_end]
         input_volume = float(np.sqrt(np.square(crop).mean())) if crop.size > 0 else 0.0
+
         return (
             self.audio_buffer,
             self.pitchf_buffer,
@@ -199,8 +193,10 @@ class RVCPipeline(VCPipeline):
         sola_search_frame_sec = conf.sola_search_frame_sec
         extra_frame_sec = conf.extra_frame_sec
         index_enabled = self.index is not None and self.big_npy is not None and slot_info.index_ratio > 0
+
         data = self._generate_inputs(audio, crossfacde_overlap_sec, sola_search_frame_sec, extra_frame_sec)
         audio, prev_pitch, prev_feature, convert_size, vol, real_output_size = data
+
         reference_volume = 1
         if vol < 1e-06:
             vol_db = -np.inf
@@ -211,6 +207,7 @@ class RVCPipeline(VCPipeline):
                 LOGGER_NAME
             ).isEnabledFor(logging.DEBUG) else None
             return np.zeros(real_output_size).astype(float)
+
         if slot_info.is_f0:
             pitch_coarse, pitch = self.pitch_estimator.estimate(
                 audio,
@@ -247,8 +244,6 @@ class RVCPipeline(VCPipeline):
         feats = self.onnx_upscaler.run(["out"], {"in": feats, "scales": np.array([2], dtype=np.float32)})
         assert isinstance(feats[0], np.ndarray)
         feats = feats[0].transpose(0, 2, 1)
-
-        import math
 
         npy_offset = math.floor(extra_frame_sec * 16000) // 360
         feats = feats[:, npy_offset * 2 :, :]

@@ -44,13 +44,9 @@ class RVCInferencerInfo(BaseModel):
 
 class PipelineInfo(BaseModel):
     slot_index: int = -1
-
     input_sample_rate: int = -1
-
     output_sample_rate: int = -1
-
     chunk_sec: float = 0.1
-
     slot_info: Any = None
 
 
@@ -65,49 +61,27 @@ PipelineInfoMember = PipelineInfo | RVCPipelineInfo
 
 class VoiceChangerInformation(BaseModel):
     slot_index: int = -1
-
     pitch_estimator_type: PitchEstimatorType | None = None
-
     gpu_device_index: int = -1
-
     input_sample_rate: int = -1
-
     output_sample_rate: int = -1
-
     monitor_sample_rate: int = -1
-
     vc_input_sample_rate: int = -1
-
     vc_output_sample_rate: int = -1
-
     resample_ratio_in: float = 1
-
     resample_ratio_out: float = 1
-
     resample_ratio_monitor: float = 1
-
     resample_ratio_pass_through_in_out: float = 1
-
     resample_ratio_pass_through_in_monitor: float = 1
-
     enable_high_pass_filter: bool = False
-
     high_pass_filter_cutoff: float = -1
-
     enable_low_pass_filter: bool = False
-
     low_pass_filter_cutoff: float = -1
-
     chunk_sec: float = 0.1
-
     pipeline_info: PipelineInfoMember | None = None
-
     voice_changer_type: VoiceChangerType | None = None
-
     bulk_process_start_flag: bool = False
-
     recording_start_flag: bool = False
-
     monitor_enabled: bool = False
 
 

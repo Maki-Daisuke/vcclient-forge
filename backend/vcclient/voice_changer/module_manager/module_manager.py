@@ -83,60 +83,39 @@ APPLIO_MODULES = ["applio_japanese_hubert_base.pt", "applio_chinese_hubert_base.
 
 class ModuleManager:
     _instance = None
-
     module_status_list: list[ModuleStatus] = []
 
     @classmethod
     def get_instance(cls):
-
         if cls._instance is None:
             cls._instance = cls()
-
-            return cls._instance
-
         return cls._instance
 
     def __init__(self):
-
         self.module_status_list = []
-
         self.threads = {}
-
         self.reload()
-
-        logging.getLogger(LOGGER_NAME).info(f"""Initial module status: {self.module_status_list}""")
+        logging.getLogger(LOGGER_NAME).info(f"Initial module status: {self.module_status_list}")
 
     def reload(self):
-
         self.module_status_list = []
-
         for module_info in REGISTERD_MODULES:
             module_status = ModuleStatus(info=module_info, downloaded=False, valid=False)
-
             if module_info.save_to.exists():
                 module_status.downloaded = True
-
                 if self._check_hash(module_info.id):
                     module_status.valid = True
-
             self.module_status_list.append(module_status)
 
     def get_modules(self):
-
         return self.module_status_list
 
     def _download(self, target_module=None, callback=None):
-
         target_module.save_to.parent.mkdir(parents=True, exist_ok=True)
-
         req = requests.get(target_module.url, stream=True, allow_redirects=True)
-
         content_length_header = req.headers.get("content-length")
-
         content_length = int(content_length_header) if content_length_header is not None else 1073741824
-
         chunk_size = 1048576
-
         chunk_num = math.ceil(content_length / chunk_size)
 
         try:
@@ -262,22 +241,20 @@ class ModuleManager:
         return False
 
     def download_applio_modules(self, callback=None):
-
         applio_modules = [x for x in self.get_modules() if x.info.id in APPLIO_MODULES and x.valid is False]
         status_dict = {
             x.info.id: ModuleDownloadStatus(id=x.info.id, status="processing", progress=0) for x in applio_modules
         }
 
         def download_callback(status=None):
-
             status_dict[status.id] = status
-
             callback(list(status_dict.values()))
 
         for module in applio_modules:
             self.download(module.info.id, download_callback)
 
         for threads in self.threads.values():
-            threads.join()
+            if threads is not None:
+                threads.join()
 
         print("module download fin!")

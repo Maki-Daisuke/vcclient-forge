@@ -27,7 +27,6 @@ def setupArgParser():
 
 
 class MockStream:
-
     def __init__(self, sampling_rate):
         self.sampling_rate = sampling_rate
         self.start_count = 2
