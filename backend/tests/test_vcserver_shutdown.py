@@ -142,7 +142,7 @@ def test_stop_reports_failure_if_thread_survives_timeout(caplog: pytest.LogCaptu
     result = None
     try:
         result = server.stop()
-    except (RuntimeError, TimeoutError):
+    except RuntimeError, TimeoutError:
         raised = True
 
     assert server.server.should_exit
