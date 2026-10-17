@@ -41,11 +41,6 @@ class EasyFileUploader:
         self.router.add_api_route(
             "/api/uploader/concat_uploaded_file_chunk", self.post_concat_uploaded_file_chunk, methods=["POST"]
         )
-        self.router.add_api_route("/api_uploader_info", self.get_info, methods=["GET"])
-        self.router.add_api_route("/api_uploader_upload_file_chunk", self.post_upload_file_chunk, methods=["POST"])
-        self.router.add_api_route(
-            "/api_uploader_concat_uploaded_file_chunk", self.post_concat_uploaded_file_chunk, methods=["POST"]
-        )
 
     def get_info(self):
         return self.info

@@ -1,4 +1,3 @@
-import json
 import logging
 import traceback
 
@@ -8,13 +7,9 @@ from vcclient.const import LOGGER_NAME
 from vcclient.server.server_const import UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.data_types.slot_manager_data_types import (
-    MergeParam,
     ModelImportParam,
     ModelImportParamMember,
-    MoveExportedOnnxModelParam,
-    MoveMergedModelParam,
     MoveModelParam,
-    OnnxExportParam,
     RVCModelImportParam,
     RVCSlotInfo,
     SetIconParam,
@@ -52,55 +47,13 @@ class RestAPISlotManager:
         self.router.add_api_route("/api/slot-manager/slots", self.get_slots, methods=["GET"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.get_slot, methods=["GET"])
         self.router.add_api_route("/api/slot-manager/slots", self.post_slot, methods=["POST"])
-        self.router.add_api_route("/api/slot-manager/slots/dummy/rvc", self.post_slot_dummy_rvc, methods=["POST"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.put_slot_info, methods=["PUT"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.delete_slot_info, methods=["DELETE"])
-        self.router.add_api_route(
-            "/api/slot-manager/slots/operation/merge_models", self.post_merge_models, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api/slot-manager/slots/operation/export_onnx", self.post_export_onnx, methods=["POST"]
-        )
         self.router.add_api_route(
             "/api/slot-manager/slots/operation/move_model", self.post_move_model, methods=["POST"]
         )
         self.router.add_api_route(
-            "/api/slot-manager/slots/operation/move_merged_model", self.post_move_merged_model, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api/slot-manager/slots/operation/move_exported_onnx_model",
-            self.post_move_export_onnx_model,
-            methods=["POST"],
-        )
-        self.router.add_api_route(
             "/api/slot-manager/slots/operation/set_icon_file", self.post_set_icon_file, methods=["POST"]
-        )
-
-        self.router.add_api_route("/api_slot-manager_slots", self.get_slots, methods=["GET"])
-        self.router.add_api_route("/api_slot-manager_slots_{index}", self.get_slot, methods=["GET"])
-        self.router.add_api_route("/api_slot-manager_slots", self.post_slot, methods=["POST"])
-        self.router.add_api_route("/api_slot-manager_slots_dummy_rvc", self.post_slot_dummy_rvc, methods=["POST"])
-        self.router.add_api_route("/api_slot-manager_slots_{index}", self.put_slot_info, methods=["PUT"])
-        self.router.add_api_route("/api_slot-manager_slots_{index}", self.delete_slot_info, methods=["DELETE"])
-        self.router.add_api_route(
-            "/api_slot-manager_slots_operation_merge_models", self.post_merge_models, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api_slot-manager_slots_operation_export_onnx", self.post_export_onnx, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api_slot-manager_slots_operation_move_model", self.post_move_model, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api_slot-manager_slots_operation_move_merged_model", self.post_move_merged_model, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api_slot-manager_slots_operation_move_exported_onnx_model",
-            self.post_move_export_onnx_model,
-            methods=["POST"],
-        )
-        self.router.add_api_route(
-            "/api_slot-manager_slots_operation_set_icon_file", self.post_set_icon_file, methods=["POST"]
         )
 
     def get_slots(self, reload: bool = False):
@@ -131,9 +84,6 @@ class RestAPISlotManager:
             logging.getLogger(LOGGER_NAME).error(f"Failed to set_new_slot: {traceback.format_exc()}")
             raise HTTPException(status_code=400, detail=str(e))
 
-    def post_slot_dummy_rvc(self, import_param: RVCModelImportParam):
-        raise NotImplementedError("this method is dummy for doc. please use /api/slot-manager/slots")
-
     def post_set_icon_file(self, param: SetIconParam):
         param.icon_file = UPLOAD_DIR / param.icon_file.name
         slot_manager = SlotManager.get_instance()
@@ -146,30 +96,6 @@ class RestAPISlotManager:
     def delete_slot_info(self, index: int):
         slot_manager = SlotManager.get_instance()
         slot_manager.delete_slot(index)
-
-    def post_merge_models(self, merge_param: MergeParam):
-        raise HTTPException(
-            status_code=400,
-            detail=json.dumps({"code": "NOT_SUPPORTED", "message": "Model merge is not supported in VCClient Forge."}),
-        )
-
-    def post_export_onnx(self, params: OnnxExportParam):
-        slot_manager = SlotManager.get_instance()
-        slot_manager.export_onnx(params, UPLOAD_DIR)
-
-    def post_move_merged_model(self, param: MoveMergedModelParam):
-        raise HTTPException(
-            status_code=400,
-            detail=json.dumps({"code": "NOT_SUPPORTED", "message": "Model merge is not supported in VCClient Forge."}),
-        )
-
-    def post_move_export_onnx_model(self, param: MoveExportedOnnxModelParam):
-        raise HTTPException(
-            status_code=400,
-            detail=json.dumps(
-                {"code": "NOT_SUPPORTED", "message": "Moving exported ONNX model is not supported in VCClient Forge."}
-            ),
-        )
 
     def post_move_model(self, param: MoveModelParam):
         slot_manager = SlotManager.get_instance()

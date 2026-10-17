@@ -35,23 +35,6 @@ class RVCModelImportParam(ModelImportParam):
 ModelImportParamMember = ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam
 
 
-class ModelSource(BaseModel):
-    slot_index: int
-    strength: float
-
-
-class MergeParam(BaseModel):
-    files: list[ModelSource]
-
-
-class OnnxExportParam(BaseModel):
-    slot_index: int
-
-
-class ExportParam(BaseModel):
-    slot_index: int
-
-
 class SlotInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -111,14 +94,6 @@ class ReservedForSampleSlotInfo(SlotInfo):
 
 
 SlotInfoMember = SlotInfo | ReservedForSampleSlotInfo | RVCSlotInfo
-
-
-class MoveMergedModelParam(BaseModel):
-    dst: int | None = None
-
-
-class MoveExportedOnnxModelParam(BaseModel):
-    dst: int | None = None
 
 
 class MoveModelParam(BaseModel):

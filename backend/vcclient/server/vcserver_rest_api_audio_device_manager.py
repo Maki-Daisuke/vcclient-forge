@@ -10,8 +10,6 @@ class RestAPIAudioDeviceManager:
         self.router.route_class = ValidationErrorLoggingRoute
         self.router.add_api_route("/api/audio-device-manager/input_devices", self.get_input_devices, methods=["GET"])
         self.router.add_api_route("/api/audio-device-manager/output_devices", self.get_output_devices, methods=["GET"])
-        self.router.add_api_route("/api_audio-device-manager_input_devices", self.get_input_devices, methods=["GET"])
-        self.router.add_api_route("/api_audio-device-manager_output_devices", self.get_output_devices, methods=["GET"])
 
     def get_input_devices(self, reload: bool = False):
         audio_device_manager = AudioDeviceManager.get_instance()

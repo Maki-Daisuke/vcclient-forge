@@ -19,12 +19,6 @@ class RestAPIModuleManager:
             self.post_download_applio_modules,
             methods=["POST"],
         )
-        self.router.add_api_route("/api_module-manager_modules", self.get_modules, methods=["GET"])
-        self.router.add_api_route(
-            "/api_module-manager_modules_operation_download_applio_modules",
-            self.post_download_applio_modules,
-            methods=["POST"],
-        )
 
     def get_modules(self, reload: bool = False):
         moduele_manager = ModuleManager.get_instance()

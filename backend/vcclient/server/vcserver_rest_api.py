@@ -4,11 +4,13 @@ import shutil
 import sys
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from vcclient.const import LOGGER_NAME
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
@@ -73,6 +75,18 @@ class RestAPI:
             app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
             app_fastapi.router.route_class = ValidationErrorLoggingRoute
 
+            @app_fastapi.exception_handler(StarletteHTTPException)
+            async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+                if request.url.path.startswith("/api/"):
+                    try:
+                        json.loads(exc.detail)
+                        detail = exc.detail
+                    except Exception:
+                        code = "NOT_SUPPORTED" if exc.status_code == 404 else "ERR_HTTP_EXCEPTION"
+                        detail = json.dumps({"code": code, "message": str(exc.detail)})
+                    return JSONResponse(status_code=exc.status_code, content={"detail": detail})
+                return await http_exception_handler(request, exc)
+
             def custom_swagger_ui_html():
                 logging.getLogger(LOGGER_NAME).info("CUSTOM UI")
                 return get_custom_swagger_ui_html(openapi_url=app_fastapi.openapi_url, title="VCClient API Docs")
@@ -107,7 +121,6 @@ class RestAPI:
             app_fastapi.include_router(task_manager.router)
 
             app_fastapi.router.add_api_route("/api/operation/initialize", initialize, methods=["POST"])
-            app_fastapi.router.add_api_route("/api_operation_initialize", initialize, methods=["POST"])
             cls._instance = app_fastapi
             return cls._instance
 

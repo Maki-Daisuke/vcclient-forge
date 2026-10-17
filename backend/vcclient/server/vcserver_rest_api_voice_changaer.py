@@ -39,21 +39,6 @@ class RestAPIVoiceChanger:
             "/api/voice-changer-manager/information", self.get_voice_changer_information, methods=["GET"]
         )
 
-        self.router.add_api_route("/api_voice-changer_convert_chunk", self.post_convert_chunk, methods=["POST"])
-        self.router.add_api_route(
-            "/api_voice-changer_convert_chunk_bulk", self.post_convert_chunk_bulk, methods=["POST"]
-        )
-        self.router.add_api_route("/api_voice-changer_convert_file", self.post_convert_file, methods=["POST"])
-        self.router.add_api_route(
-            "/api_voice-changer_operation_start_server_device", self.start_server_device, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api_voice-changer_operation_stop_server_device", self.stop_server_device, methods=["POST"]
-        )
-        self.router.add_api_route(
-            "/api_voice-changer-manager_information", self.get_voice_changer_information, methods=["GET"]
-        )
-
     async def post_convert_chunk_bulk(
         self, waveform: UploadFile = File(...), x_timestamp: int | None = Header(default=0)
     ):

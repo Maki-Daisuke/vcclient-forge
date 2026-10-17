@@ -7,15 +7,12 @@ from pathlib import Path
 
 from ...const import LOGGER_NAME
 from ...exception import (
-    ERROR_CODE_IMPORT_MODEL_FAILED,
     ERROR_CODE_SLOT_INDEX_NOT_FOUND,
     VCClientError,
 )
 from ..data_types.slot_manager_data_types import (
     ModelImportParamMember,
-    MoveExportedOnnxModelParam,
     MoveModelParam,
-    OnnxExportParam,
     ReservedForSampleModelImportParam,
     ReservedForSampleSlotInfo,
     RVCSlotInfo,
@@ -211,47 +208,6 @@ class SlotManager:
         logging.getLogger(LOGGER_NAME).debug(f"updating slot info: new => {slot_info}")
         self.save_slot_info(slot_info)
 
-    def export_onnx(self, params: OnnxExportParam, store_dir: Path):
-        slot_info = self.get_slot_info(params.slot_index)
-        if slot_info.voice_changer_type != "RVC":
-            raise VCClientError(
-                ERROR_CODE_IMPORT_MODEL_FAILED,
-                detail=f"Slot {params.slot_index} is not an RVC model ({slot_info.voice_changer_type}).",
-            )
-        slot_dir = ModelDir / str(params.slot_index)
-        assert isinstance(slot_info, RVCSlotInfo)
-        assert slot_info.model_file is not None, f"Slot {params.slot_index} has no model file."
-        model_path = slot_dir / slot_info.model_file.name
-
-        if model_path.suffix == ".onnx":
-            logging.getLogger(LOGGER_NAME).info(f"Slot {params.slot_index} model is already ONNX: {model_path}")
-            return
-
-        onnx_file = slot_dir / f"{model_path.stem}.onnx"
-        logging.getLogger(LOGGER_NAME).info(
-            f"Exporting PyTorch model to ONNX for slot {params.slot_index}: {model_path} -> {onnx_file}"
-        )
-        export_pth_to_onnx(model_path, onnx_file)
-        model_path.unlink()
-
-        new_slot_info = estimate_rvc_model(onnx_file)
-        assert isinstance(new_slot_info, RVCSlotInfo)
-        new_slot_info.slot_index = slot_info.slot_index
-        new_slot_info.name = slot_info.name
-        new_slot_info.description = slot_info.description
-        new_slot_info.credit = slot_info.credit
-        new_slot_info.terms_of_use_url = slot_info.terms_of_use_url
-        new_slot_info.icon_file = slot_info.icon_file
-        new_slot_info.index_file = slot_info.index_file
-        new_slot_info.speakers = slot_info.speakers
-        new_slot_info.chunk_sec = slot_info.chunk_sec
-        new_slot_info.pitch_shift = slot_info.pitch_shift
-        new_slot_info.index_ratio = slot_info.index_ratio
-        new_slot_info.protect_ratio = slot_info.protect_ratio
-
-        self.update_slot_info(new_slot_info)
-        self.reload(use_log=False)
-
     def find_legacy_pth_slots(self) -> list[tuple[int, Path]]:
         """スロットディレクトリを走査し、.pth が存在して .onnx が未生成のスロット一覧を返す。
 
@@ -348,12 +304,6 @@ class SlotManager:
         with open(config_file, "w", encoding="utf-8") as f:
             f.write(slot_info.model_dump_json(indent=4))
         self.reload(use_log=False)
-
-    def move_model_slot_from_onnx_exported(self, param: MoveExportedOnnxModelParam):
-        raise VCClientError(
-            ERROR_CODE_IMPORT_MODEL_FAILED,
-            "Moving exported ONNX model is not supported in VCClient Forge.",
-        )
 
     def set_icon_file(self, param: SetIconParam):
         icon_dst_path = ModelDir / f"{param.slot_index}" / param.icon_file.name

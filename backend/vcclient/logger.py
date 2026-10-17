@@ -24,9 +24,7 @@ class IgnoreConvertRequestFilter(logging.Filter):
         return all(
             [
                 "/api/voice-changer/convert_chunk" not in msg,
-                "/api_voice-changer_convert_chunk" not in msg,
                 "/api/voice-changer/convert_chunk_bulk" not in msg,
-                "/api_voice-changer_convert_chunk_bulk" not in msg,
                 "/vcclient.log" not in msg,
             ]
         )

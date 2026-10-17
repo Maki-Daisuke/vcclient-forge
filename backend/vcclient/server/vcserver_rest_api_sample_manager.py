@@ -13,10 +13,6 @@ class RestAPISampleManager:
         self.router.add_api_route(
             "/api/sample-manager/samples/operation/download", self.post_download, methods=["POST"]
         )
-        self.router.add_api_route("/api_sample-manager_samples", self.get_samples, methods=["GET"])
-        self.router.add_api_route(
-            "/api_sample-manager_samples_operation_download", self.post_download, methods=["POST"]
-        )
 
     def get_samples(self, reload: bool = False):
         sample_manager = SampleManager.get_instance()

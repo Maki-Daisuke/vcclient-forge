@@ -53,17 +53,30 @@ def test_frontend_root():
     assert "html" in response.headers.get("content-type", "")
 
 
-def test_merge_models_not_supported(client):
+def test_unsupported_api_returns_safe_json_404(client):
     import json
 
+    # 削除された merge_models へのアクセス
     response = client.post(
         "/api/slot-manager/slots/operation/merge_models",
         json={"files": [{"slot_index": 0, "strength": 0.5}]},
     )
-    assert response.status_code == 400
+    assert response.status_code == 404
     data = response.json()
     detail = json.loads(data["detail"])
     assert detail["code"] == "NOT_SUPPORTED"
+
+    # 存在しないエンドポイントへのアクセスでも安全な JSON が返ること（UIクラッシュ防止）
+    response_unknown = client.get("/api/unknown_route")
+    assert response_unknown.status_code == 404
+    data_unknown = response_unknown.json()
+    detail_unknown = json.loads(data_unknown["detail"])
+    assert detail_unknown["code"] == "NOT_SUPPORTED"
+
+    # /api/ 以外のパス（通常のWebリクエスト）では通常の 404 が返ること
+    response_non_api = client.get("/non_api_route")
+    assert response_non_api.status_code == 404
+    assert response_non_api.json()["detail"] == "Not Found"
 
 
 def test_convert_chunk_passes_direct_from_server_when_perf_monitor_disabled(monkeypatch):

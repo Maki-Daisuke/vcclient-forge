@@ -16,8 +16,6 @@ class RestAPIConfigurationManager:
         self.router.route_class = ValidationErrorLoggingRoute
         self.router.add_api_route("/api/configuration-manager/configuration", self.get_configuration, methods=["GET"])
         self.router.add_api_route("/api/configuration-manager/configuration", self.put_configuration, methods=["PUT"])
-        self.router.add_api_route("/api_configuration-manager_configuration", self.get_configuration, methods=["GET"])
-        self.router.add_api_route("/api_configuration-manager_configuration", self.put_configuration, methods=["PUT"])
 
     def get_configuration(self, reload: bool = False):
         configuration_manager = ConfigurationManager.get_instance()
