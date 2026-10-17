@@ -1,12 +1,13 @@
 import logging
 import os
 import shutil
+import stat
+import time
 from pathlib import Path
 
 from ...const import LOGGER_NAME
 from ...exception import (
     ERROR_CODE_IMPORT_MODEL_FAILED,
-    ERROR_CODE_NO_BLANK_SLOT,
     ERROR_CODE_SLOT_INDEX_NOT_FOUND,
     VCClientError,
 )
@@ -23,9 +24,6 @@ from ..data_types.slot_manager_data_types import (
     SlotInfoMember,
 )
 from ..voice_chanager_const import (
-    MAX_SLOT_INDEX,
-    MERGED_SLOT_INDEX,
-    ONNX_EXPORTED_SLOT_INDEX,
     SLOT_PARAM_FILE,
     ModelDir,
 )
@@ -61,19 +59,51 @@ def load_slot_info(model_dir: Path, slot_index: int) -> SlotInfo:
         return broken
 
 
-def reload_slot_infos(model_dir=None):
+def reload_slot_infos(model_dir=None) -> list[SlotInfoMember]:
+    if model_dir is None:
+        target_dir = ModelDir
+    else:
+        target_dir = Path(model_dir)
+
+    # 実際に存在する数字名ディレクトリを特定
+    existing_indices = set()
+    if target_dir.exists():
+        for entry in target_dir.iterdir():
+            if entry.is_dir() and entry.name.isdigit():
+                existing_indices.add(int(entry.name))
+
+    max_idx = max(existing_indices) if existing_indices else -1
+    # 常に「現在の最大スロット番号 + 1（次の空き枠）」までを生成。
+    # スロットが1つもない場合でも、スロット0を空き枠として生成する（要素数1）。
+    slot_count = max_idx + 2 if max_idx >= 0 else 1
+
     slot_infos = []
-    for i in range(MAX_SLOT_INDEX):
-        slot_info = load_slot_info(model_dir, i)
+    for i in range(slot_count):
+        slot_info = load_slot_info(target_dir, i)
         slot_infos.append(slot_info)
 
-    merged_model_slot = load_slot_info(model_dir, MERGED_SLOT_INDEX)
-    slot_infos.append(merged_model_slot)
-
-    exported_onnx_model_slot = load_slot_info(model_dir, ONNX_EXPORTED_SLOT_INDEX)
-    slot_infos.append(exported_onnx_model_slot)
-
     return slot_infos
+
+
+def safe_rmtree(target_dir: Path | str, retries: int = 3, delay: float = 0.1) -> None:
+    """Windows の ReadOnly 属性や一時的なファイルロックに対応した安全なディレクトリ削除関数。"""
+    p = Path(target_dir)
+    if not p.exists():
+        return
+
+    def _remove_readonly(func, exc_path, _exc_info):
+        os.chmod(exc_path, stat.S_IWRITE)
+        func(exc_path)
+
+    for attempt in range(retries):
+        try:
+            shutil.rmtree(p, onexc=_remove_readonly)
+            return
+        except PermissionError:
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                raise
 
 
 class SlotManager:
@@ -96,9 +126,13 @@ class SlotManager:
     def get_slot_infos(self):
         return self.slot_infos
 
-    def get_slot_info(self, index=None):
+    def get_slot_info(self, index: int | None = None) -> SlotInfoMember:
+        if index is None:
+            raise VCClientError(ERROR_CODE_SLOT_INDEX_NOT_FOUND, "Slot index is None")
         slot_info_array = [slot_info for slot_info in self.slot_infos if slot_info.slot_index == index]
         if len(slot_info_array) == 0:
+            if index >= 0:
+                return load_slot_info(ModelDir, index)
             raise VCClientError(ERROR_CODE_SLOT_INDEX_NOT_FOUND, f"Slot index {index} is not found")
         return slot_info_array[0]
 
@@ -107,10 +141,10 @@ class SlotManager:
         exist_slot_index = {
             slot_info.slot_index for slot_info in self.slot_infos if slot_info.voice_changer_type is not None
         }
-        next_index = next((i for i in range(MAX_SLOT_INDEX) if i not in exist_slot_index), -1)
-        if next_index == -1:
-            raise VCClientError(ERROR_CODE_NO_BLANK_SLOT)
-        return next_index
+        i = 0
+        while i in exist_slot_index:
+            i += 1
+        return i
 
     def set_new_slot(self, model_import_param: ModelImportParamMember, remove_src: bool = False):
         if model_import_param.slot_index is None:
@@ -159,7 +193,7 @@ class SlotManager:
     def delete_slot(self, slot_index: int):
         slot_dir = ModelDir / str(slot_index)
         if os.path.exists(slot_dir):
-            shutil.rmtree(slot_dir)
+            safe_rmtree(slot_dir)
         self.reload(use_log=False)
 
     def save_slot_info(self, slot_info: SlotInfoMember):
@@ -168,11 +202,7 @@ class SlotManager:
         config_file = slot_dir / SLOT_PARAM_FILE
         with open(config_file, "w", encoding="utf-8") as f:
             f.write(slot_info.model_dump_json(indent=4))
-        index_in_slot_info = [i for i, s in enumerate(self.get_slot_infos()) if s.slot_index == slot_info.slot_index]
-        if index_in_slot_info:
-            self.slot_infos[index_in_slot_info[0]] = slot_info
-        else:
-            self.slot_infos.append(slot_info)
+        self.reload(use_log=False)
 
     def update_slot_info(self, slot_info: SlotInfoMember):
         org_slot_info = self.get_slot_info(slot_info.slot_index)
@@ -241,9 +271,6 @@ class SlotManager:
         slot_dirs.sort(key=lambda x: x[0])
 
         for slot_index, slot_dir in slot_dirs:
-            if slot_index >= MAX_SLOT_INDEX:
-                continue
-
             slot_info = self.get_slot_info(slot_index)
             pth_file = None
             if isinstance(slot_info, RVCSlotInfo) and slot_info.model_file:
@@ -307,7 +334,7 @@ class SlotManager:
         self.save_slot_info(new_slot_info)
 
     def move_model_slot(self, param: MoveModelParam):
-        assert param.dst <= MAX_SLOT_INDEX, f"dst:{param.dst} is over MAX_SLOT_INDEX:{MAX_SLOT_INDEX}"
+        assert param.dst >= 0, f"dst:{param.dst} must be >= 0"
         assert self.get_slot_info(param.dst).voice_changer_type is None, f"dst:{param.dst} is already exists."
         assert self.get_slot_info(param.src).voice_changer_type is not None, f"src:{param.src} is not exist."
         slot_info = self.get_slot_info(param.src)
@@ -323,10 +350,10 @@ class SlotManager:
         self.reload(use_log=False)
 
     def move_model_slot_from_onnx_exported(self, param: MoveExportedOnnxModelParam):
-        if param.dst is None:
-            param.dst = self.get_blank_slot_index()
-        move_modelparams = MoveModelParam(src=ONNX_EXPORTED_SLOT_INDEX, dst=param.dst)
-        self.move_model_slot(move_modelparams)
+        raise VCClientError(
+            ERROR_CODE_IMPORT_MODEL_FAILED,
+            "Moving exported ONNX model is not supported in VCClient Forge.",
+        )
 
     def set_icon_file(self, param: SetIconParam):
         icon_dst_path = ModelDir / f"{param.slot_index}" / param.icon_file.name

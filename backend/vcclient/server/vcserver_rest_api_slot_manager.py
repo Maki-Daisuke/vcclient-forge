@@ -164,8 +164,12 @@ class RestAPISlotManager:
         )
 
     def post_move_export_onnx_model(self, param: MoveExportedOnnxModelParam):
-        slot_manager = SlotManager.get_instance()
-        slot_manager.move_model_slot_from_onnx_exported(param)
+        raise HTTPException(
+            status_code=400,
+            detail=json.dumps(
+                {"code": "NOT_SUPPORTED", "message": "Moving exported ONNX model is not supported in VCClient Forge."}
+            ),
+        )
 
     def post_move_model(self, param: MoveModelParam):
         slot_manager = SlotManager.get_instance()
