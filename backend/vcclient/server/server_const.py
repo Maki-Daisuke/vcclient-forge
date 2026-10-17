@@ -1,10 +1,7 @@
 import os
-import sys
 from pathlib import Path
 
 from pydantic import BaseModel
-
-from vcclient.utils.is_running_on_colab import is_running_on_colab
 
 
 class VoiceChangerParams(BaseModel):
@@ -12,12 +9,6 @@ class VoiceChangerParams(BaseModel):
 
 
 def get_frontend_path() -> Path:
-    if is_running_on_colab():
-        colab_path = Path(sys._MEIPASS) / "frontend" / "dist"
-        if colab_path.exists():
-            return colab_path
-        return Path(sys._MEIPASS) / "web_front"
-
     # server_const.py -> server -> vcclient -> backend -> PROJECT_ROOT
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     frontend_dist = project_root / "frontend" / "dist"

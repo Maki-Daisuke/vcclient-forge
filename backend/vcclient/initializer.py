@@ -4,7 +4,6 @@ from tqdm import tqdm
 
 from vcclient.const import LOG_FILE, LOGGER_NAME
 from vcclient.logger import setup_logger
-from vcclient.utils.is_running_on_colab import is_running_on_colab
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
 from vcclient.voice_changer.sample_manager.sample_manager import SampleManager
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
@@ -34,11 +33,7 @@ def _check_and_download_rvc_modules():
                 if s.status == "done":
                     pbar.close()
 
-        def download_callback_colab(status=None):
-            print(status)
-
-        callback = download_callback if not is_running_on_colab() else download_callback_colab
-        module_manager.download_rvc_modules(callback)
+        module_manager.download_rvc_modules(download_callback)
         logging.getLogger(LOGGER_NAME).info("RVC is not ready. Downloading RVC modules. Done.")
         print("\n\nRVC is not ready. Downloading RVC modules. Done.")
 
@@ -67,10 +62,6 @@ def _cehck_and_download_initial_samples():
                 if s.status == "done":
                     pbar.close()
 
-        def download_callback_colab(status=None):
-            print(status)
-
-        callback = download_callback if not is_running_on_colab() else download_callback_colab
-        sample_manager.download_initial_samples(callback)
+        sample_manager.download_initial_samples(download_callback)
         logging.getLogger(LOGGER_NAME).info("Sample is not ready. Downloading initial samples. Done.")
         print("\n\nSample is not ready. Downloading initial samples. Done.")

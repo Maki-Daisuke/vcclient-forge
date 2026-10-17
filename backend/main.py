@@ -21,7 +21,6 @@ from vcclient.const import LOGGER_NAME, VERSION
 from vcclient.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
 from vcclient.logger import setup_logger
 from vcclient.server.vcserver import VCServer
-from vcclient.utils.is_running_on_colab import is_running_on_colab
 from vcclient.utils.parseBoolArg import parse_bool_arg
 from vcclient.utils.resolve_url import resolve_base_url
 from vcclient.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
@@ -120,52 +119,44 @@ def start_server(
     print("-" * box_width)
     print(f"{bold_green_start}Please press Ctrl+C once to exit vcclient.{reset}")
 
-    if launch_client and not is_running_on_colab():
+    if launch_client:
         client_launcher = ClientLauncher(app_status.stop_app)
         client_launcher.launch(vcserver_port, https)
 
-    if is_running_on_colab():
-        while not app_status.end_flag:
-            current_time = time.strftime("%Y/%m/%d %H:%M:%S")
-            logging.getLogger(LOGGER_NAME).info(f"{current_time}: running...")
+    err_msg = ""
+    while not app_status.end_flag:
+        try:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
+            if conf.voice_changer_input_mode == "server":
+                if local_voice_changer_interface.local_voice_changer_enabled is True:
+                    local_voice_changer_interface.run()
             if app_status.end_flag is True:
                 break
-            time.sleep(60)
-    else:
-        err_msg = ""
-        while not app_status.end_flag:
-            try:
-                conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-                local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
-                if conf.voice_changer_input_mode == "server":
-                    if local_voice_changer_interface.local_voice_changer_enabled is True:
-                        local_voice_changer_interface.run()
-                if app_status.end_flag is True:
-                    break
-                time.sleep(0.3)
-            except KeyboardInterrupt:
-                err_msg = "KeyboardInterrupt"
-                break
-            except sd.PortAudioError as e:
-                err_msg = f"sound device error:{e}"
-                logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
-                logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
-                wasapi_not_supported_msg = (
-                    "If you are using WASAPI or ASIO, your device might not be compatible with it. "
-                    "Please try using MME instead."
-                )
-                logging.getLogger(LOGGER_NAME).error(wasapi_not_supported_msg)
-                print(err_msg)
-                print(f" {bold_red_start}{wasapi_not_supported_msg}{reset} ")
-                local_voice_changer_interface.stop()
-                time.sleep(1)
-            except Exception as e:
-                err_msg = f"Error:{e}"
-                logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
-                logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
-                print(err_msg)
-                local_voice_changer_interface.stop()
-                time.sleep(1)
+            time.sleep(0.3)
+        except KeyboardInterrupt:
+            err_msg = "KeyboardInterrupt"
+            break
+        except sd.PortAudioError as e:
+            err_msg = f"sound device error:{e}"
+            logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
+            logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
+            wasapi_not_supported_msg = (
+                "If you are using WASAPI or ASIO, your device might not be compatible with it. "
+                "Please try using MME instead."
+            )
+            logging.getLogger(LOGGER_NAME).error(wasapi_not_supported_msg)
+            print(err_msg)
+            print(f" {bold_red_start}{wasapi_not_supported_msg}{reset} ")
+            local_voice_changer_interface.stop()
+            time.sleep(1)
+        except Exception as e:
+            err_msg = f"Error:{e}"
+            logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
+            logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
+            print(err_msg)
+            local_voice_changer_interface.stop()
+            time.sleep(1)
 
     bold_green_start = "\x1b[1;32m"
     reset = "\x1b[0m"
