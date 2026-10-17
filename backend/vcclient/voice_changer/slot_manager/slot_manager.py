@@ -87,24 +87,45 @@ def reload_slot_infos(model_dir=None) -> list[SlotInfoMember]:
 
 
 def safe_rmtree(target_dir: Path | str, retries: int = 3, delay: float = 0.1) -> None:
-    """Windows の ReadOnly 属性や一時的なファイルロックに対応した安全なディレクトリ削除関数。"""
+    """Windows の ReadOnly 属性や一時的なファイルロック、POSIX 権限に対応した安全なディレクトリ削除関数。"""
     p = Path(target_dir)
     if not p.exists():
         return
 
-    def _remove_readonly(func, exc_path, _exc_info):
-        os.chmod(exc_path, stat.S_IWRITE)
-        func(exc_path)
+    def _ensure_writable(path: Path | str) -> None:
+        try:
+            p_item = Path(path)
+            if p_item.is_dir():
+                os.chmod(p_item, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            else:
+                os.chmod(p_item, stat.S_IWRITE | stat.S_IREAD)
+        except OSError:
+            pass
+
+    def _make_writable_recursively(root: Path) -> None:
+        _ensure_writable(root)
+        try:
+            for item in root.rglob("*"):
+                _ensure_writable(item)
+        except OSError:
+            pass
+
+    def _on_exc(func, exc_path, _exc):
+        _ensure_writable(exc_path)
 
     for attempt in range(retries):
         try:
-            shutil.rmtree(p, onexc=_remove_readonly)
-            return
-        except PermissionError:
-            if attempt < retries - 1:
-                time.sleep(delay)
-            else:
-                raise
+            _make_writable_recursively(p)
+            shutil.rmtree(p, onexc=_on_exc)
+            if not p.exists():
+                return
+        except OSError:
+            pass
+        if attempt < retries - 1:
+            time.sleep(delay)
+
+    if p.exists():
+        shutil.rmtree(p)
 
 
 def validate_slot_index(index: int | None, param_name: str = "slot_index") -> None:
