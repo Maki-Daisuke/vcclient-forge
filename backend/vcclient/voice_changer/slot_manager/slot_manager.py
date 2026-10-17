@@ -162,21 +162,24 @@ class SlotManager:
             shutil.rmtree(slot_dir)
         self.reload(use_log=False)
 
-    def update_slot_info(self, slot_info: SlotInfoMember):
-        org_slot_info = self.get_slot_info(slot_info.slot_index)
-        logging.getLogger(LOGGER_NAME).debug(f"updating slot info: org => {org_slot_info}")
-        assert org_slot_info.voice_changer_type is not None, f"src:{slot_info.slot_index} is not exist."
-        logging.getLogger(LOGGER_NAME).debug(f"updating slot info: new => {slot_info}")
+    def save_slot_info(self, slot_info: SlotInfoMember):
         slot_dir = ModelDir / f"{slot_info.slot_index}"
         slot_dir.mkdir(parents=True, exist_ok=True)
         config_file = slot_dir / SLOT_PARAM_FILE
         with open(config_file, "w", encoding="utf-8") as f:
             f.write(slot_info.model_dump_json(indent=4))
-        index_in_slot_info = [
-            i for i, s in enumerate(self.get_slot_infos()) if s.slot_index == org_slot_info.slot_index
-        ]
-        assert len(index_in_slot_info) == 1
-        self.slot_infos[index_in_slot_info[0]] = slot_info
+        index_in_slot_info = [i for i, s in enumerate(self.get_slot_infos()) if s.slot_index == slot_info.slot_index]
+        if index_in_slot_info:
+            self.slot_infos[index_in_slot_info[0]] = slot_info
+        else:
+            self.slot_infos.append(slot_info)
+
+    def update_slot_info(self, slot_info: SlotInfoMember):
+        org_slot_info = self.get_slot_info(slot_info.slot_index)
+        logging.getLogger(LOGGER_NAME).debug(f"updating slot info: org => {org_slot_info}")
+        assert org_slot_info.voice_changer_type is not None, f"src:{slot_info.slot_index} is not exist."
+        logging.getLogger(LOGGER_NAME).debug(f"updating slot info: new => {slot_info}")
+        self.save_slot_info(slot_info)
 
     def export_onnx(self, params: OnnxExportParam, store_dir: Path):
         slot_info = self.get_slot_info(params.slot_index)
@@ -218,6 +221,90 @@ class SlotManager:
 
         self.update_slot_info(new_slot_info)
         self.reload(use_log=False)
+
+    def find_legacy_pth_slots(self) -> list[tuple[int, Path]]:
+        """スロットディレクトリを走査し、.pth が存在して .onnx が未生成のスロット一覧を返す。
+
+        Returns:
+            [(slot_index, pth_file_path), ...]
+        """
+        legacy_slots = []
+        if not ModelDir.exists():
+            return legacy_slots
+
+        # 実際に存在する数字名のスロットディレクトリのみを昇順で走査
+        slot_dirs: list[tuple[int, Path]] = []
+        for entry in ModelDir.iterdir():
+            if entry.is_dir() and entry.name.isdigit():
+                slot_dirs.append((int(entry.name), entry))
+
+        slot_dirs.sort(key=lambda x: x[0])
+
+        for slot_index, slot_dir in slot_dirs:
+            if slot_index >= MAX_SLOT_INDEX:
+                continue
+
+            slot_info = self.get_slot_info(slot_index)
+            pth_file = None
+            if isinstance(slot_info, RVCSlotInfo) and slot_info.model_file:
+                target = slot_dir / slot_info.model_file.name
+                if target.suffix == ".pth" and target.exists():
+                    pth_file = target
+
+            if pth_file is None:
+                pths = list(slot_dir.glob("*.pth"))
+                if pths:
+                    pth_file = pths[0]
+
+            if pth_file and pth_file.exists():
+                onnx_file = slot_dir / f"{pth_file.stem}.onnx"
+                if not onnx_file.exists():
+                    legacy_slots.append((slot_index, pth_file))
+
+        return legacy_slots
+
+    def convert_legacy_slot_to_onnx(self, slot_index: int, pth_path: Path):
+        """指定スロットの .pth モデルを .onnx に変換し、スロット情報を更新する。"""
+        slot_dir = ModelDir / str(slot_index)
+        onnx_file = slot_dir / f"{pth_path.stem}.onnx"
+        logging.getLogger(LOGGER_NAME).info(
+            f"Converting legacy PyTorch model to ONNX for slot {slot_index}: {pth_path} -> {onnx_file}"
+        )
+        export_pth_to_onnx(pth_path, onnx_file)
+
+        existing_info = self.get_slot_info(slot_index)
+        new_slot_info = estimate_rvc_model(onnx_file)
+        assert isinstance(new_slot_info, RVCSlotInfo)
+        new_slot_info.slot_index = slot_index
+
+        if isinstance(existing_info, RVCSlotInfo):
+            if existing_info.name:
+                new_slot_info.name = existing_info.name
+            if existing_info.description:
+                new_slot_info.description = existing_info.description
+            if existing_info.credit:
+                new_slot_info.credit = existing_info.credit
+            if existing_info.terms_of_use_url:
+                new_slot_info.terms_of_use_url = existing_info.terms_of_use_url
+            if existing_info.icon_file and (slot_dir / existing_info.icon_file.name).exists():
+                new_slot_info.icon_file = existing_info.icon_file
+            if existing_info.index_file and (slot_dir / existing_info.index_file.name).exists():
+                new_slot_info.index_file = existing_info.index_file
+            if existing_info.speakers:
+                new_slot_info.speakers = existing_info.speakers
+            new_slot_info.chunk_sec = existing_info.chunk_sec
+            new_slot_info.pitch_shift = existing_info.pitch_shift
+            new_slot_info.index_ratio = existing_info.index_ratio
+            new_slot_info.protect_ratio = existing_info.protect_ratio
+        else:
+            indexes = list(slot_dir.glob("*.index"))
+            if indexes:
+                new_slot_info.index_file = Path(indexes[0].name)
+            icons = [f for f in slot_dir.glob("*.*") if f.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".gif")]
+            if icons:
+                new_slot_info.icon_file = Path(icons[0].name)
+
+        self.save_slot_info(new_slot_info)
 
     def move_model_slot(self, param: MoveModelParam):
         assert param.dst <= MAX_SLOT_INDEX, f"dst:{param.dst} is over MAX_SLOT_INDEX:{MAX_SLOT_INDEX}"

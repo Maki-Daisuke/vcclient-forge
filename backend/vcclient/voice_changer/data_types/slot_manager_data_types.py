@@ -95,6 +95,15 @@ class RVCSlotInfo(SlotInfo):
             return "rmvpe"
         return v
 
+    @field_validator("inferencer_type", mode="before")
+    @classmethod
+    def normalize_inferencer_type(cls, v: str) -> str:
+        if v in ("onnxRVC", "onnxRVCNono"):
+            return v
+        if isinstance(v, str) and "Nono" in v:
+            return "onnxRVCNono"
+        return "onnxRVC"
+
 
 class ReservedForSampleSlotInfo(SlotInfo):
     voice_changer_type: VoiceChangerType = "RESERVED_FOR_SAMPLE"

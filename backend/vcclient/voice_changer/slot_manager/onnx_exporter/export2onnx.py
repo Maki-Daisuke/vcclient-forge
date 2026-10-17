@@ -1,5 +1,6 @@
 import json
 import logging
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -131,131 +132,136 @@ def export_pth_to_onnx(
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    cpt = torch.load(pth_file, map_location="cpu", weights_only=False)
-    metadata = extract_metadata_from_checkpoint(cpt)
+    with warnings.catch_warnings():
+        # PyTorch JIT Tracer / weight_norm deprecation / Constant folding などの既知の警告を抑止
+        warnings.simplefilter("ignore")
 
-    is_f0 = metadata["f0"] == 1
-    emb_channels = metadata["embChannels"]
-    sample_rate = metadata["samplingRate"]
+        cpt = torch.load(pth_file, map_location="cpu", weights_only=False)
+        metadata = extract_metadata_from_checkpoint(cpt)
 
-    dev = torch.device(device)
-    if is_half and dev.type != "cuda":
-        # CPU での float16 onnx export は一部オペレータで非対応となる可能性があるため float32 を推奨
-        is_half = False
+        is_f0 = metadata["f0"] == 1
+        emb_channels = metadata["embChannels"]
+        sample_rate = metadata["samplingRate"]
 
-    # モデル構築
-    if "config" in cpt:
-        config = cpt["config"]
-        # config の末尾は sr
-        model_kwargs = {
-            "spec_channels": config[0],
-            "segment_size": config[1],
-            "inter_channels": config[2],
-            "hidden_channels": config[3],
-            "filter_channels": config[4],
-            "n_heads": config[5],
-            "n_layers": config[6],
-            "kernel_size": config[7],
-            "p_dropout": config[8],
-            "resblock": config[9],
-            "resblock_kernel_sizes": config[10],
-            "resblock_dilation_sizes": config[11],
-            "upsample_rates": config[12],
-            "upsample_initial_channel": config[13],
-            "upsample_kernel_sizes": config[14],
-            "spk_embed_dim": config[15],
-            "gin_channels": config[16],
-            "sr": sample_rate,
-            "emb_channels": emb_channels,
-            "is_half": is_half,
+        dev = torch.device(device)
+        if is_half and dev.type != "cuda":
+            # CPU での float16 onnx export は一部オペレータで非対応となる可能性があるため float32 を推奨
+            is_half = False
+
+        # モデル構築
+        if "config" in cpt:
+            config = cpt["config"]
+            # config の末尾は sr
+            model_kwargs = {
+                "spec_channels": config[0],
+                "segment_size": config[1],
+                "inter_channels": config[2],
+                "hidden_channels": config[3],
+                "filter_channels": config[4],
+                "n_heads": config[5],
+                "n_layers": config[6],
+                "kernel_size": config[7],
+                "p_dropout": config[8],
+                "resblock": config[9],
+                "resblock_kernel_sizes": config[10],
+                "resblock_dilation_sizes": config[11],
+                "upsample_rates": config[12],
+                "upsample_initial_channel": config[13],
+                "upsample_kernel_sizes": config[14],
+                "spk_embed_dim": config[15],
+                "gin_channels": config[16],
+                "sr": sample_rate,
+                "emb_channels": emb_channels,
+                "is_half": is_half,
+            }
+        else:
+            params = cpt["params"]
+            model_kwargs = {
+                **params,
+                "sr": sample_rate,
+                "emb_channels": emb_channels,
+                "is_half": is_half,
+            }
+
+        if is_f0:
+            net_g = SynthesizerTrnF0(**model_kwargs)
+        else:
+            net_g = SynthesizerTrnNoF0(**model_kwargs)
+
+        net_g.eval().to(dev)
+        if "weight" in cpt:
+            net_g.load_state_dict(cpt["weight"], strict=False)
+        elif "model" in cpt:
+            net_g.load_state_dict(cpt["model"], strict=False)
+
+        if is_half:
+            net_g = net_g.half()
+
+        # ダミー入力テンソルの準備
+        feats_len = 64
+        feats = torch.randn(1, feats_len, emb_channels, device=dev, dtype=torch.float16 if is_half else torch.float32)
+        p_len = torch.tensor([feats_len], device=dev, dtype=torch.int64)
+        sid = torch.tensor([0], device=dev, dtype=torch.int64)
+
+        if is_f0:
+            pitch = torch.zeros(1, feats_len, device=dev, dtype=torch.int64)
+            pitchf = torch.zeros(1, feats_len, device=dev, dtype=torch.float32)
+            inputs = (feats, p_len, pitch, pitchf, sid)
+            input_names = ["feats", "p_len", "pitch", "pitchf", "sid"]
+            dynamic_axes = {
+                "feats": {1: "time"},
+                "pitch": {1: "time"},
+                "pitchf": {1: "time"},
+            }
+        else:
+            inputs = (feats, p_len, sid)
+            input_names = ["feats", "p_len", "sid"]
+            dynamic_axes = {
+                "feats": {1: "time"},
+            }
+
+        output_names = ["audio"]
+
+        logging.getLogger(LOGGER_NAME).info(
+            f"Exporting PyTorch model to ONNX: {pth_file} -> {out_file} (f0={is_f0}, emb_channels={emb_channels})"
+        )
+
+        # ONNX エクスポート実行（PyTorch 2.9+ では dynamo=False で TorchScript エクスポーターを指定）
+        export_kwargs = {
+            "input_names": input_names,
+            "output_names": output_names,
+            "dynamic_axes": dynamic_axes,
+            "do_constant_folding": True,
+            "opset_version": 17,
+            "verbose": False,
         }
-    else:
-        params = cpt["params"]
-        model_kwargs = {
-            **params,
-            "sr": sample_rate,
-            "emb_channels": emb_channels,
-            "is_half": is_half,
-        }
+        try:
+            torch.onnx.export(net_g, inputs, str(out_file), dynamo=False, **export_kwargs)
+        except TypeError:
+            torch.onnx.export(net_g, inputs, str(out_file), **export_kwargs)
 
-    if is_f0:
-        net_g = SynthesizerTrnF0(**model_kwargs)
-    else:
-        net_g = SynthesizerTrnNoF0(**model_kwargs)
+        # メタデータ書き込み
+        model_onnx = onnx.load(str(out_file))
 
-    net_g.eval().to(dev)
-    if "weight" in cpt:
-        net_g.load_state_dict(cpt["weight"], strict=False)
-    elif "model" in cpt:
-        net_g.load_state_dict(cpt["model"], strict=False)
+        # onnxsim 最適化（利用可能な場合）
+        try:
+            import onnxsim
 
-    if is_half:
-        net_g = net_g.half()
+            model_simp, check = onnxsim.simplify(model_onnx)
+            if check:
+                model_onnx = model_simp
+                logging.getLogger(LOGGER_NAME).debug("ONNX model successfully simplified with onnxsim.")
+        except Exception as e:
+            logging.getLogger(LOGGER_NAME).debug(f"onnxsim simplification skipped: {e}")
 
-    # ダミー入力テンソルの準備
-    feats_len = 64
-    feats = torch.randn(1, feats_len, emb_channels, device=dev, dtype=torch.float16 if is_half else torch.float32)
-    p_len = torch.tensor([feats_len], device=dev, dtype=torch.int64)
-    sid = torch.tensor([0], device=dev, dtype=torch.int64)
+        meta = model_onnx.metadata_props.add()
+        meta.key = "metadata"
+        # model_version は内部管理用なので ONNX メタデータからは除いて標準キーにする
+        export_metadata = {k: v for k, v in metadata.items() if k != "model_version"}
+        meta.value = json.dumps(export_metadata)
 
-    if is_f0:
-        pitch = torch.zeros(1, feats_len, device=dev, dtype=torch.int64)
-        pitchf = torch.zeros(1, feats_len, device=dev, dtype=torch.float32)
-        inputs = (feats, p_len, pitch, pitchf, sid)
-        input_names = ["feats", "p_len", "pitch", "pitchf", "sid"]
-        dynamic_axes = {
-            "feats": {1: "time"},
-            "pitch": {1: "time"},
-            "pitchf": {1: "time"},
-        }
-    else:
-        inputs = (feats, p_len, sid)
-        input_names = ["feats", "p_len", "sid"]
-        dynamic_axes = {
-            "feats": {1: "time"},
-        }
+        onnx.save(model_onnx, str(out_file))
 
-    output_names = ["audio"]
-
-    logging.getLogger(LOGGER_NAME).info(
-        f"Exporting PyTorch model to ONNX: {pth_file} -> {out_file} (f0={is_f0}, emb_channels={emb_channels})"
-    )
-
-    # ONNX エクスポート実行（PyTorch 2.9+ では dynamo=False で TorchScript エクスポーターを指定）
-    export_kwargs = {
-        "input_names": input_names,
-        "output_names": output_names,
-        "dynamic_axes": dynamic_axes,
-        "do_constant_folding": True,
-        "opset_version": 17,
-        "verbose": False,
-    }
-    try:
-        torch.onnx.export(net_g, inputs, str(out_file), dynamo=False, **export_kwargs)
-    except TypeError:
-        torch.onnx.export(net_g, inputs, str(out_file), **export_kwargs)
-
-    # メタデータ書き込み
-    model_onnx = onnx.load(str(out_file))
-
-    # onnxsim 最適化（利用可能な場合）
-    try:
-        import onnxsim
-
-        model_simp, check = onnxsim.simplify(model_onnx)
-        if check:
-            model_onnx = model_simp
-            logging.getLogger(LOGGER_NAME).debug("ONNX model successfully simplified with onnxsim.")
-    except Exception as e:
-        logging.getLogger(LOGGER_NAME).debug(f"onnxsim simplification skipped: {e}")
-
-    meta = model_onnx.metadata_props.add()
-    meta.key = "metadata"
-    # model_version は内部管理用なので ONNX メタデータからは除いて標準キーにする
-    export_metadata = {k: v for k, v in metadata.items() if k != "model_version"}
-    meta.value = json.dumps(export_metadata)
-
-    onnx.save(model_onnx, str(out_file))
     logging.getLogger(LOGGER_NAME).info(f"Successfully exported ONNX model to {out_file}")
 
     return out_file

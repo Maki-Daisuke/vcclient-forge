@@ -18,7 +18,11 @@ import sounddevice as sd
 from vcclient.app_status import AppStatus
 from vcclient.client_launcher.client_launcher import ClientLauncher
 from vcclient.const import LOGGER_NAME, VERSION
-from vcclient.initializer import _cehck_and_download_initial_samples, _check_and_download_rvc_modules
+from vcclient.initializer import (
+    _cehck_and_download_initial_samples,
+    _check_and_convert_legacy_pth_models,
+    _check_and_download_rvc_modules,
+)
 from vcclient.logger import setup_logger
 from vcclient.server.vcserver import VCServer
 from vcclient.utils.parseBoolArg import parse_bool_arg
@@ -82,6 +86,7 @@ def start_server(
     print(f"VCClient Version: {VERSION}")
 
     _check_and_download_rvc_modules()
+    _check_and_convert_legacy_pth_models()
     _cehck_and_download_initial_samples()
 
     gpu_manager = GPUDeviceManager.get_instance()

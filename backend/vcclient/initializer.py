@@ -38,6 +38,33 @@ def _check_and_download_rvc_modules():
         print("\n\nRVC is not ready. Downloading RVC modules. Done.")
 
 
+def _check_and_convert_legacy_pth_models():
+    slot_manager = SlotManager.get_instance()
+    legacy_slots = slot_manager.find_legacy_pth_slots()
+    if not legacy_slots:
+        return
+
+    logging.getLogger(LOGGER_NAME).info(f"Found {len(legacy_slots)} legacy .pth model(s). Converting to ONNX...")
+    print(f"\nFound {len(legacy_slots)} legacy .pth model(s). Converting to ONNX...")
+
+    pbar = tqdm(total=len(legacy_slots), desc="Converting models to ONNX", unit="model")
+    try:
+        for slot_index, pth_path in legacy_slots:
+            pbar.set_postfix_str(f"Slot {slot_index}: {pth_path.stem[:15]}")
+            try:
+                slot_manager.convert_legacy_slot_to_onnx(slot_index, pth_path)
+            except Exception as e:
+                logging.getLogger(LOGGER_NAME).error(f"Failed to convert slot {slot_index} ({pth_path}): {e}")
+                print(f"\nWarning: Failed to convert slot {slot_index} ({pth_path.name}): {e}")
+            pbar.update(1)
+    finally:
+        pbar.close()
+
+    slot_manager.reload(use_log=False)
+    logging.getLogger(LOGGER_NAME).info("Legacy .pth models conversion done.")
+    print("Legacy .pth models conversion done.\n")
+
+
 def _cehck_and_download_initial_samples():
     slot_manager = SlotManager.get_instance()
     valid_slot_infos = [x for x in slot_manager.get_slot_infos() if x.voice_changer_type is not None]
