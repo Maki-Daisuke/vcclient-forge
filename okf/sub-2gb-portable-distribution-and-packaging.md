@@ -122,10 +122,11 @@ Python packages frequently distribute build-time C headers (`*.h`, `*.hpp`) and 
 - Total unneeded linker files: **~95 MB** uncompressed.
 - Purging these in `build_package.py` provides an additional **~25 MB** archive reduction.
 
-### 2. Wails + Svelte Desktop Application
+### 2. Tauri v2 + Svelte Desktop Application
 
-As detailed in [Frontend Architecture & Roadmap](./frontend-architecture-and-roadmap.md), migrating from the legacy web UI to **Wails + Svelte 5**:
+As detailed in [Frontend Architecture & Roadmap](./frontend-architecture-and-roadmap.md), migrating from the legacy web UI to **Tauri v2 + Svelte 5**:
 
-- Eliminates Chromium bundles (unlike Electron's ~150 MB overhead) by utilizing the operating system's native WebView2 on Windows.
+- Eliminates Chromium bundles (unlike Upstream Electron's ~150 MB disk footprint) by utilizing the operating system's native WebView2 on Windows.
+- Shrinks the launcher binary down to **< 5 MB** using Rust, with baseline memory under **~20–30 MB**.
 - Svelte's compiler-first architecture outputs minuscule JavaScript bundles.
-- Packages the entire client into a polished, self-contained desktop binary with minimal footprint.
+- Packages the entire client into a polished, self-contained desktop application with deterministic sidecar process management.

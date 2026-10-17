@@ -35,7 +35,7 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
    Modern Python engineering principles applied to the codebase: `uv` package management, `pyproject.toml`, pure-ONNX execution, and `package.json` task running.
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
-   Analysis of legacy UI bottlenecks (slider locking, unbuffered network flood), complete preservation of 13-language i18n JSON assets, and the 2-stage transition strategy from Svelte 5 Web SPA to ultra-lightweight Wails desktop packaging.
+   Analysis of legacy UI bottlenecks and API coupling traps, ditching Socket.IO for Pure WebSocket, complete preservation of 13-language i18n JSON assets, and the 3-step UI rebirth roadmap towards Svelte 5 and Tauri.
 
 6. **[Streamlined Pitch Estimation: Why RMVPE & FCPE Only](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
    Consolidating pitch estimation to the definitive standard (RMVPE) and a newer ultra-fast model (FCPE), eliminating decision fatigue, pure-ONNX execution, and self-healing whitelist fallback.
