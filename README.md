@@ -101,13 +101,6 @@ Initial model assets will be downloaded automatically on first launch.
 
 ---
 
-## System Architecture
-
-- **Standalone & Client-Server Topology**: Supports local all-in-one processing or offloading computation across a local network to a dedicated server machine, freeing GPU resources on gaming or streaming PCs.
-- **REST & Socket.IO APIs**: Enables custom UI frontends, headless integration, and automation through well-defined REST endpoints.
-
----
-
 ## Development & Build Guide
 
 For source code development, running automated test suites, code formatting/linting, and building standalone packages, please refer to the dedicated [Developer & Build Guide (README_dev.md)](README_dev.md).
