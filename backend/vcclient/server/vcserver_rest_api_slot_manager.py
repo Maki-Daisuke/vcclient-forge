@@ -17,6 +17,7 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import (
     SlotInfoMember,
 )
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient.voice_changer.voice_chanager_const import MAX_SLOT_INDEX
 
 
 async def detect_model(request: Request) -> ModelImportParamMember:
@@ -38,6 +39,14 @@ async def detect_slot_info(request: Request) -> SlotInfoMember:
     if slot_info.voice_changer_type == "RVC":
         return RVCSlotInfo.model_validate_json(body)
     raise RuntimeError(f"body has slot_info with unknown voice_changer_type:{slot_info.voice_changer_type}")
+
+
+def validate_slot_index(index: int, param_name: str = "index") -> None:
+    if index < 0 or index >= MAX_SLOT_INDEX:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{param_name} {index} is out of range (must be 0 <= index < {MAX_SLOT_INDEX})",
+        )
 
 
 class RestAPISlotManager:
@@ -64,6 +73,7 @@ class RestAPISlotManager:
         return slots
 
     def get_slot(self, index: int, reload: bool = False):
+        validate_slot_index(index)
         slot_manager = SlotManager.get_instance()
         if reload:
             slot_manager.reload()
@@ -71,6 +81,8 @@ class RestAPISlotManager:
         return slot
 
     def post_slot(self, import_param: ModelImportParamMember = Depends(detect_model)):
+        if import_param.slot_index is not None:
+            validate_slot_index(import_param.slot_index, "slot_index")
         try:
             slot_manager = SlotManager.get_instance()
             if import_param.voice_changer_type == "RVC":
@@ -85,18 +97,23 @@ class RestAPISlotManager:
             raise HTTPException(status_code=400, detail=str(e))
 
     def post_set_icon_file(self, param: SetIconParam):
+        validate_slot_index(param.slot_index, "slot_index")
         param.icon_file = UPLOAD_DIR / param.icon_file.name
         slot_manager = SlotManager.get_instance()
         slot_manager.set_icon_file(param)
 
     def put_slot_info(self, index: int, slot_info: SlotInfoMember = Depends(detect_slot_info)):
+        validate_slot_index(index)
         slot_manager = SlotManager.get_instance()
         slot_manager.update_slot_info(slot_info)
 
     def delete_slot_info(self, index: int):
+        validate_slot_index(index)
         slot_manager = SlotManager.get_instance()
         slot_manager.delete_slot(index)
 
     def post_move_model(self, param: MoveModelParam):
+        validate_slot_index(param.src, "src")
+        validate_slot_index(param.dst, "dst")
         slot_manager = SlotManager.get_instance()
         slot_manager.move_model_slot(param)

@@ -14,6 +14,7 @@ StaticModelDir.mkdir(parents=True, exist_ok=True)
 ModuleDir = Path("modules")
 
 SLOT_PARAM_FILE = "params.json"
+MAX_SLOT_INDEX = 199
 GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE = -100
 
 AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]

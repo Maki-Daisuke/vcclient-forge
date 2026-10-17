@@ -96,3 +96,23 @@ def test_convert_chunk_passes_direct_from_server_when_perf_monitor_disabled(monk
     vc.convert_chunk(dummy_wave, direct_from_server=True)
 
     mock_internal.assert_called_once_with(dummy_wave, direct_from_server=True)
+
+
+def test_slot_index_out_of_range_api_validation(client):
+    """API経由で範囲外スロット番号（40億番や負の数）を指定された場合に 400 Bad Request を返すこと。"""
+    # 4000000000 番スロットの取得
+    res_huge = client.get("/api/slot-manager/slots/4000000000")
+    assert res_huge.status_code == 400
+    assert "out of range" in res_huge.text
+
+    # 負の数スロットの取得
+    res_neg = client.get("/api/slot-manager/slots/-1")
+    assert res_neg.status_code == 400
+
+    # 範囲外スロットの削除
+    res_del = client.delete("/api/slot-manager/slots/999999")
+    assert res_del.status_code == 400
+
+    # 範囲外スロットへの移動
+    res_move = client.post("/api/slot-manager/slots/operation/move_model", json={"src": 0, "dst": 4000000000})
+    assert res_move.status_code == 400

@@ -21,6 +21,7 @@ from ..data_types.slot_manager_data_types import (
     SlotInfoMember,
 )
 from ..voice_chanager_const import (
+    MAX_SLOT_INDEX,
     SLOT_PARAM_FILE,
     ModelDir,
 )
@@ -62,17 +63,20 @@ def reload_slot_infos(model_dir=None) -> list[SlotInfoMember]:
     else:
         target_dir = Path(model_dir)
 
-    # 実際に存在する数字名ディレクトリを特定
+    # 実際に存在する数字名ディレクトリを特定（ただし MAX_SLOT_INDEX 未満の正当なスロットのみ走査）
     existing_indices = set()
     if target_dir.exists():
         for entry in target_dir.iterdir():
             if entry.is_dir() and entry.name.isdigit():
-                existing_indices.add(int(entry.name))
+                idx = int(entry.name)
+                if 0 <= idx < MAX_SLOT_INDEX:
+                    existing_indices.add(idx)
 
     max_idx = max(existing_indices) if existing_indices else -1
     # 常に「現在の最大スロット番号 + 1（次の空き枠）」までを生成。
     # スロットが1つもない場合でも、スロット0を空き枠として生成する（要素数1）。
-    slot_count = max_idx + 2 if max_idx >= 0 else 1
+    # ただし MAX_SLOT_INDEX（199）を超えないように制限。
+    slot_count = min(max_idx + 2, MAX_SLOT_INDEX) if max_idx >= 0 else 1
 
     slot_infos = []
     for i in range(slot_count):
@@ -103,6 +107,14 @@ def safe_rmtree(target_dir: Path | str, retries: int = 3, delay: float = 0.1) ->
                 raise
 
 
+def validate_slot_index(index: int | None, param_name: str = "slot_index") -> None:
+    if index is None or index < 0 or index >= MAX_SLOT_INDEX:
+        raise VCClientError(
+            ERROR_CODE_SLOT_INDEX_NOT_FOUND,
+            f"{param_name} {index} is invalid (must be 0 <= index < {MAX_SLOT_INDEX})",
+        )
+
+
 class SlotManager:
     _instance = None
 
@@ -124,28 +136,26 @@ class SlotManager:
         return self.slot_infos
 
     def get_slot_info(self, index: int | None = None) -> SlotInfoMember:
-        if index is None:
-            raise VCClientError(ERROR_CODE_SLOT_INDEX_NOT_FOUND, "Slot index is None")
-        slot_info_array = [slot_info for slot_info in self.slot_infos if slot_info.slot_index == index]
-        if len(slot_info_array) == 0:
-            if index >= 0:
-                return load_slot_info(ModelDir, index)
-            raise VCClientError(ERROR_CODE_SLOT_INDEX_NOT_FOUND, f"Slot index {index} is not found")
-        return slot_info_array[0]
+        validate_slot_index(index, "Slot index")
+        for slot_info in self.slot_infos:
+            if slot_info.slot_index == index:
+                return slot_info
+        return load_slot_info(ModelDir, index)
 
     def get_blank_slot_index(self) -> int:
         self.reload(use_log=False)
-        exist_slot_index = {
-            slot_info.slot_index for slot_info in self.slot_infos if slot_info.voice_changer_type is not None
-        }
-        i = 0
-        while i in exist_slot_index:
-            i += 1
-        return i
+        for slot_info in self.slot_infos:
+            if slot_info.voice_changer_type is None:
+                return slot_info.slot_index
+        raise VCClientError(
+            ERROR_CODE_SLOT_INDEX_NOT_FOUND,
+            f"No blank slot available (max {MAX_SLOT_INDEX} slots reached)",
+        )
 
     def set_new_slot(self, model_import_param: ModelImportParamMember, remove_src: bool = False):
         if model_import_param.slot_index is None:
             model_import_param.slot_index = self.get_blank_slot_index()
+        validate_slot_index(model_import_param.slot_index)
         assert self.get_slot_info(model_import_param.slot_index).voice_changer_type is None, (
             f"slot_index:{model_import_param.slot_index} is already exists."
         )
@@ -163,6 +173,7 @@ class SlotManager:
 
         ※別の観点で、同じファイル名のサンプルが同時にダウンロードされると、uploadフォルダ内で上書きされてしまうが、それもまずは見てみなふりをする。
         """
+        validate_slot_index(slot_index)
         assert self.get_slot_info(slot_index).voice_changer_type is None, f"slot_index:{slot_index} is already exists."
         import_param = ReservedForSampleModelImportParam(
             voice_changer_type="RESERVED_FOR_SAMPLE",
@@ -188,6 +199,7 @@ class SlotManager:
         self.delete_slot(slot_index)
 
     def delete_slot(self, slot_index: int):
+        validate_slot_index(slot_index)
         slot_dir = ModelDir / str(slot_index)
         if os.path.exists(slot_dir):
             safe_rmtree(slot_dir)
@@ -202,6 +214,7 @@ class SlotManager:
         self.reload(use_log=False)
 
     def update_slot_info(self, slot_info: SlotInfoMember):
+        validate_slot_index(slot_info.slot_index)
         org_slot_info = self.get_slot_info(slot_info.slot_index)
         logging.getLogger(LOGGER_NAME).debug(f"updating slot info: org => {org_slot_info}")
         assert org_slot_info.voice_changer_type is not None, f"src:{slot_info.slot_index} is not exist."
@@ -227,6 +240,8 @@ class SlotManager:
         slot_dirs.sort(key=lambda x: x[0])
 
         for slot_index, slot_dir in slot_dirs:
+            if slot_index >= MAX_SLOT_INDEX:
+                continue
             slot_info = self.get_slot_info(slot_index)
             pth_file = None
             if isinstance(slot_info, RVCSlotInfo) and slot_info.model_file:
@@ -290,7 +305,8 @@ class SlotManager:
         self.save_slot_info(new_slot_info)
 
     def move_model_slot(self, param: MoveModelParam):
-        assert param.dst >= 0, f"dst:{param.dst} must be >= 0"
+        validate_slot_index(param.src, "src")
+        validate_slot_index(param.dst, "dst")
         assert self.get_slot_info(param.dst).voice_changer_type is None, f"dst:{param.dst} is already exists."
         assert self.get_slot_info(param.src).voice_changer_type is not None, f"src:{param.src} is not exist."
         slot_info = self.get_slot_info(param.src)
@@ -306,6 +322,7 @@ class SlotManager:
         self.reload(use_log=False)
 
     def set_icon_file(self, param: SetIconParam):
+        validate_slot_index(param.slot_index)
         icon_dst_path = ModelDir / f"{param.slot_index}" / param.icon_file.name
         shutil.move(param.icon_file, icon_dst_path)
         slot_info = self.get_slot_info(param.slot_index)

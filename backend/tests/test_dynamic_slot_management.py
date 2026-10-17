@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo, SlotInfo
+from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager, reload_slot_infos
 from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
 
@@ -13,8 +13,8 @@ def test_reload_slot_infos_empty_dir(tmp_path: Path):
     assert slot_infos[0].voice_changer_type is None
 
 
-def test_reload_slot_infos_dynamic_sizing_with_blank_padding(tmp_path: Path):
-    """スロット0と2が存在する場合、[0, 1, 2, 3] の4要素を返し、末尾に次の空き枠3を設ける。"""
+def test_reload_slot_infos_with_models(tmp_path: Path):
+    """スロット0と2が存在する場合、[0, 1, 2, 3] の4要素を返し、10202等の範囲外フォルダは無視される。"""
     # スロット0を作成
     slot0_dir = tmp_path / "0"
     slot0_dir.mkdir(parents=True)
@@ -39,6 +39,12 @@ def test_reload_slot_infos_dynamic_sizing_with_blank_padding(tmp_path: Path):
     with open(slot2_dir / SLOT_PARAM_FILE, "w", encoding="utf-8") as f:
         f.write(slot2_info.model_dump_json())
 
+    # 旧Beatrice等の範囲外フォルダが存在していても無視されること
+    out_of_range_dir = tmp_path / "10202"
+    out_of_range_dir.mkdir(parents=True)
+    with open(out_of_range_dir / SLOT_PARAM_FILE, "w", encoding="utf-8") as f:
+        f.write('{"voice_changer_type": "BROKEN"}')
+
     slot_infos = reload_slot_infos(tmp_path)
     assert len(slot_infos) == 4
 
@@ -56,13 +62,17 @@ def test_reload_slot_infos_dynamic_sizing_with_blank_padding(tmp_path: Path):
     assert slot_infos[2].voice_changer_type == "RVC"
     assert slot_infos[2].name == "ModelTwo"
 
-    # スロット3: 次の空き枠
+    # スロット3: 空き枠（次の枠）
     assert slot_infos[3].slot_index == 3
     assert slot_infos[3].voice_changer_type is None
 
 
 def test_get_blank_slot_index_and_out_of_range_lookup(monkeypatch, tmp_path: Path):
-    """get_blank_slot_index が最小の空き番号を返し、get_slot_info が範囲外でもブランクを返す。"""
+    """get_blank_slot_index が最小の空き番号を返し、get_slot_info が範囲外で VCClientError を投げる。"""
+    import pytest
+
+    from vcclient.exception import VCClientError
+
     slot_mgr = SlotManager.get_instance()
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path)
 
@@ -83,11 +93,15 @@ def test_get_blank_slot_index_and_out_of_range_lookup(monkeypatch, tmp_path: Pat
     # 次の空きインデックスは1
     assert slot_mgr.get_blank_slot_index() == 1
 
-    # 範囲外のインデックス（例: 50）にアクセスしても、クラッシュせずブランクスロットを返す
-    slot50 = slot_mgr.get_slot_info(50)
-    assert isinstance(slot50, SlotInfo)
-    assert slot50.slot_index == 50
-    assert slot50.voice_changer_type is None
+    # 範囲外のインデックス（例: 200 や 4000000000、負の数）にアクセスした場合はエラー
+    with pytest.raises(VCClientError):
+        slot_mgr.get_slot_info(200)
+
+    with pytest.raises(VCClientError):
+        slot_mgr.get_slot_info(4000000000)
+
+    with pytest.raises(VCClientError):
+        slot_mgr.get_slot_info(-1)
 
 
 def test_delete_slot_with_readonly_attributes(monkeypatch, tmp_path: Path):
