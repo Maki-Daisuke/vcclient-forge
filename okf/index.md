@@ -23,31 +23,31 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
 ## Knowledge Map
 
 1. **[Origin and Reverse Engineering](./origin-and-reverse-engineering.md)**
-   Why and how this project was reverse-engineered from the Hugging Face v2.0.78-beta distribution zip, addressing the missing upstream source code (GitHub Issue #1521) and explaining why v2.0.78-beta was chosen over the fragmented v2.2.2-beta.
+   Why Forge reconstructed the unavailable 2.x source from the v2.0.78-beta binary distribution, and how bytecode extraction, decompilation, and disassembly made that possible. Explains the choice of an RVC-capable baseline and the model ecosystem behind Forge's dedicated RVC focus.
 
 2. **[Architectural Evolution](./architectural-evolution.md)**
-   The journey from the monolithic 1.x era (`MMVCServerSIO.py`) to the modular 2.x era (`vcclient_dev`), PyInstaller bundling structure, and cleanup of legacy monorepo artifacts.
+   How upstream evolved from a monolithic 1.x server into the modular 2.x application, and how Forge reorganized the inherited monorepo. Covers frontend/backend separation, entry-point consolidation, a stable frontend build location for the UI replacement, and removal of the redundant terminal UI.
 
 3. **[Decompyle++ Traps and Critical Fixes](./decompyle-plus-plus-traps-and-fixes.md)**
-   Deep-dive technical post-mortem on bytecode decompilation errors that broke server-device audio monitoring, CPU execution provider fallback, and API validation.
+   Symptom-to-fix post-mortems from restoring the reconstructed application: native audio startup, CPU provider selection, server startup, API response validation, and WASAPI compatibility. Shows how disassembly and root-cause analysis exposed broken control flow, calls, and defaults.
 
 4. **[Modern Runtime and Toolchain](./modern-runtime-and-toolchain.md)**
-   Modern Python engineering principles applied to the codebase: `uv` package management, `pyproject.toml`, pure-ONNX execution, and `package.json` task running.
+   How Forge makes development and distribution reproducible with pinned Python environments, `uv` dependency locking, and unified npm tasks. Covers the ONNX Runtime hardware backends, automatic CUDA library discovery, and automated standalone packaging.
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
-   Analysis of legacy UI bottlenecks and API coupling traps, ditching Socket.IO for Pure WebSocket, complete preservation of 13-language i18n JSON assets, and the 3-step UI rebirth roadmap towards Svelte 5 and Tauri.
+   Why the legacy UI needs a redesign to make settings responsive and new backend features usable, and why Forge selects Svelte 5 + Vite and Tauri. Plans a Server Mode-first replacement, WebSocket notifications and Socket.IO removal, then WebSocket Client Mode, while preserving community translations.
 
-6. **[Streamlined Pitch Estimation: Why RMVPE & FCPE Only](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
-   Consolidating pitch estimation to the definitive standard (RMVPE) and a newer ultra-fast model (FCPE), eliminating decision fatigue, pure-ONNX execution, and self-healing whitelist fallback.
+6. **[Pitch Estimation: RMVPE Default and FCPE Alternative](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
+   Why Forge chooses the RVC ecosystem's widely used RMVPE as its default and retains FCPE as an alternative. Consolidating pitch estimation reduces maintenance and user decision friction, with both estimators running through ONNX Runtime and NumPy.
 
 7. **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**
-   Overcoming upstream's 2GB GitHub Releases limitation to enable direct, one-click distribution: pure-ONNX inference, CPU-only PyTorch relegation, surgical CUDA dependency selection, and workspace reset architecture (`npm run clean`).
+   How Forge fits a standalone CUDA distribution under GitHub Releases' 2 GiB per-asset limit using ONNX inference, CPU-only PyTorch for export, selected CUDA dependencies, and 7z compression. Covers the resulting 1.283 GiB archive, safe workspace cleanup, and further packaging headroom.
 
 8. **[Deprecating and Pruning Beatrice](./deprecating-and-removing-beatrice.md)**
-   Architectural rationale for fully pruning Beatrice support: dual-UI maintenance burden, limits of maintaining a native C/C++ cross-platform toolchain, presence of dedicated official tools, and doubling down on deep-learning RVC.
+   Why Forge chose to remove Beatrice even after restoring a working backend: distinct UI requirements and cross-platform native builds impose substantial maintenance costs, while dedicated Beatrice tools already exist. Concentrating on RVC keeps the application cohesive and development resources focused.
 
 9. **[Deprecating and Removing ngrok](./deprecating-and-removing-ngrok.md)**
-   Why cloud HTTP tunneling via ngrok was excised: network latency contradiction with real-time audio DSP, expiration of Google Colab's historical use case, browser Web Audio SSL/TLS friction, and recommending direct WireGuard mesh routing (Tailscale Serve) for remote compute.
+   Why ngrok no longer belongs in Forge: Colab's restrictions have largely ended the historical free-Colab workflow, and remote audio round trips conflict with the project's local real-time purpose. Includes Tailscale Serve as optional, separately managed access to a user's own host.
 
 10. **[Server-First Audio Architecture & Static-Shape Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md)**
-    Roadmap for transitioning VCClient Forge from legacy client-first dynamic-shape audio processing to a server-first, fixed-chunk zero-allocation inference architecture, unlocking "Boost Mode" via End-to-End Graph Fusion and CUDA Graphs.
+   A roadmap toward local round-trip latency of 100 ms or less, built around native Server Mode, fixed-length inference, direct output delivery, and bounded buffering. Develops GPU optimization through IO Binding, pitch estimation + RVC integration, retrieval-free full integration, and ONNX retrieval evaluation, assessing CUDA Graph capture at applicable stages.

@@ -1,14 +1,14 @@
 ---
 type: concept
 title: "Decompyle++ Traps and Technical Bug Post-Mortems"
-description: "Detailed technical analysis of bytecode decompilation errors in Python 3.12 and how they were diagnosed and repaired via disassembly."
-tags: [bytecode, decompilation, decompyle++, python312, audio, portaudio]
+description: "Technical analysis of Python 3.10 bytecode reconstruction errors and audio compatibility fixes discovered while restoring VCClient."
+tags: [bytecode, decompilation, decompyle++, python310, audio, portaudio]
 timestamp: 2026-10-14T12:27:00Z
 ---
 
 # Decompyle++ Traps and Technical Bug Post-Mortems
 
-Automated Python decompilers like `pycdc` (Decompyle++) struggle with Python 3.12 bytecode changes (such as new opcodes, adaptive specialization, and inlined exception table layouts). This section catalogs the five critical bugs introduced by decompilation and how they were solved.
+The original Windows v2.0.78-beta distribution bundles Python 3.10.11. Automated decompilers like `pycdc` (Decompyle++) can reconstruct incorrect control flow, calls, and expressions from its bytecode. This article records the reconstruction errors and audio compatibility issues encountered while restoring the application, together with their diagnosis and fixes.
 
 ---
 
@@ -46,7 +46,7 @@ Restored the background thread for `VCClientCUI`, reinstated `local_voice_change
 Selecting "CPU" in the GPU dropdown caused the model update to fail, resetting `current_slot_index` to `-1` and causing all central UI controls in the web frontend to vanish.
 
 ### Root Cause
-In [`device_manager.py`](../vcclient_dev/voice_changer/voice_change_manager/device_manager/device_manager.py#L135-L151), Decompyle++ corrupted the ONNX execution provider fallback:
+In the reconstructed `device_manager.py`, Decompyle++ corrupted the ONNX execution provider fallback. The maintained implementation is now in [`device_manager.py`](../backend/vcclient/voice_changer/voice_change_manager/device_manager/device_manager.py):
 
 ```python
 # Corrupted decompiled code:
@@ -78,7 +78,7 @@ TypeError: VCServer.start() got an unexpected keyword argument 'host'
 ```
 
 ### Root Cause
-[`vcserver.py`](../vcclient_dev/server/vcserver.py) accepts `host`, `port`, `https`, and `allow_origins` in its `__init__()` constructor, while `start()` takes zero arguments. The decompiler mistakenly placed all constructor keyword arguments onto `vcserver.start(...)`.
+[`vcserver.py`](../backend/vcclient/server/vcserver.py) accepts `host`, `port`, `https`, and `allow_origins` in its `__init__()` constructor, while `start()` takes zero arguments. The decompiler mistakenly placed all constructor keyword arguments onto `vcserver.start(...)`.
 
 ### Fix
 Instantiated `VCServer` with arguments and called `vcserver.start()` without parameters, wrapping `allow_origins` in a list as expected by `VCServer.__init__`.
@@ -91,7 +91,7 @@ Instantiated `VCServer` with arguments and called `vcserver.start()` without par
 When a model failed to load, subsequent HTTP requests to `GET /api/voice-changer-manager/information` returned HTTP 422 Unprocessable Entity, crashing the frontend state machine.
 
 ### Root Cause
-In [`voice_changer.py`](../vcclient_dev/voice_changer/voice_change_manager/voice_changer.py#L298):
+In the reconstructed `voice_changer.py` (now maintained in [`voice_changer.py`](../backend/vcclient/voice_changer/voice_change_manager/voice_changer.py)):
 ```python
 if self.vc_pipeline is None:
     return VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, "Failed to update model.")
@@ -109,7 +109,7 @@ Safely return `self.vc_info` (which holds a valid `VoiceChangerInformation` stru
 On certain audio hardware (e.g., Razer Barracuda Pro 2.4 GHz wireless), opening a stream in WASAPI exclusive mode caused `PortAudioError: Invalid sample rate [-9997]`.
 
 ### Root Cause
-[`data_types.py`](../vcclient_dev/voice_changer/data_types/data_types.py) defaulted `wasapi_exclude_emabled` to `True`. Exclusive mode forces strict sample rate matching that hardware drivers frequently reject.
+The original configuration defaulted `wasapi_exclude_emabled` to `True`; its maintained definition is in [`data_types.py`](../backend/vcclient/voice_changer/data_types/data_types.py). Exclusive mode forces strict sample rate matching that hardware drivers frequently reject.
 
 ### Fix
 Changed default `wasapi_exclude_emabled: bool` to `False` (Shared Mode), allowing the Windows Audio Engine mixer to handle sample rate bridging transparently.

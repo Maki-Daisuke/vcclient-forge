@@ -1,5 +1,5 @@
 ---
-title: "Streamlined Pitch Estimation: Why RMVPE & FCPE Only"
+title: "Pitch Estimation: RMVPE Default and FCPE Alternative"
 date: "2026-10-15"
 author: "VCClient Forge Team"
 category: "Architecture & Engineering Decisions"
@@ -13,76 +13,64 @@ tags:
   - simplicity
 ---
 
-# Streamlined Pitch Estimation: Why RMVPE & FCPE Only
+# Pitch Estimation: RMVPE Default and FCPE Alternative
 
 ## Executive Summary
 
-VCClient Forge deliberately streamlines fundamental frequency ($f_0$) estimation to strictly two modern deep-learning algorithms: **RMVPE** and a newer ultra-fast model, **FCPE**, both operating completely **torch-free via ONNX Runtime and NumPy**.
+VCClient Forge currently supports two fundamental-frequency ($f_0$) estimators: **RMVPE** and **FCPE**, using ONNX Runtime for model inference and NumPy-based surrounding processing.
 
-All legacy non-deep-learning estimators (such as `harvest` and `dio`) and redundant variants have been pruned. This decision reduces maintenance burden, improves UX by eliminating decision fatigue, and maximizes real-time performance, backed by a transparent fallback mechanism ensuring 100% backward compatibility with older voice models.
+The primary selection rationale is ecosystem compatibility: RMVPE is the de facto standard in the current RVC ecosystem, and many RVC models/workflows are trained or configured with RMVPE-derived pitch features. FCPE remains available as an alternative. Unsupported legacy estimator settings are normalized to RMVPE; this preserves a usable configuration path but does not guarantee identical output quality for every older model.
 
 ---
 
 ## 1. Context & Modern Reality
 
-### The De Facto Standard: RMVPE
-In the early days of RVC and AI voice conversion, traditional signal-processing algorithms such as `harvest` (WORLD vocoder) and `dio` were widely utilized. However, deep-learning-based pitch estimation has advanced rapidly. Today, **RMVPE (Robust Model for Vocal Pitch Estimation)** stands as the definitive, industry-standard pitch estimator for RVC. Across every critical metric—pitch tracking accuracy, noise robustness, computational efficiency, and end-to-end latency—RMVPE comprehensively outperforms traditional DSP algorithms.
+### RMVPE as the Ecosystem Default
 
-Consequently, the necessity to support legacy non-deep-learning pitch estimators has effectively vanished from real-time AI voice conversion workflows.
+Traditional estimators such as `harvest` (WORLD vocoder) and `dio` were used in older RVC workflows. Forge chooses RMVPE as its default because it is widely used in the current RVC ecosystem and is the compatibility-oriented choice for models trained/configured around RMVPE pitch extraction. This is an ecosystem-compatibility decision, not a claim that RMVPE wins every accuracy, robustness, or latency comparison against every alternative.
 
 ### Decompilation Finding
-During the reverse-engineering of v2.0.78-beta, several pitch estimator classes (`harvest`, `dio`, and legacy `fcpe`) were found with empty stub methods (`pass`). This was an artifact of the decompilation tool failing to reconstruct their bytecodes. However, rather than spending effort attempting to resurrect or maintain these obsolete implementations, this discovery presented the ideal opportunity to evaluate whether these estimators were actually needed in modern Forge. The answer was clear: **they were not**.
+
+During reverse-engineering of v2.0.78-beta, several legacy estimator classes (`harvest`, `dio`, and an older `fcpe` implementation) were reconstructed as empty stubs. Forge did not restore those implementations; it selected RMVPE as the ecosystem-compatible default and supports a separate ONNX FCPE implementation as an alternative.
 
 ---
 
 ## 2. Core Reasons for Consolidating to RMVPE and FCPE
 
-The decision to narrow the pitch estimation suite down to RMVPE and FCPE rests on four foundational pillars:
+The decision to support RMVPE as the default and FCPE as an alternative rests on these project-specific reasons:
 
-### 1. RMVPE as the Definitive Standard
-RMVPE delivers unmatched accuracy in tracking expressive vocal nuances, transitions, and falsetto without the audible pitch glitched or octave jumps common to older methods. It is the benchmark against which all RVC voices are tuned.
+### 1. RMVPE Compatibility
 
-### 2. FCPE as a Newer, Ultra-Fast Alternative
-**FCPE (Fast Context-based Pitch Estimation)** is a newer, highly efficient alternative model to RMVPE, engineered with a lightweight context-aware convolutional architecture. It matches RMVPE's accuracy while offering even lower latency and remarkable noise resistance, making it an ideal choice for competitive gaming and constrained hardware.
+Many RVC models and workflows use RMVPE-derived pitch features. Making it the default therefore best matches common training and configuration assumptions in the model ecosystem.
 
+### 2. FCPE as an Alternative
+
+FCPE is retained as an alternative supported ONNX estimator. Its relative accuracy, robustness, and latency should be evaluated on representative hardware and input audio before making universal performance claims.
 
 ### 3. Radical Code Maintainability ("Less Code is Better")
-Eliminating PyWorld bindings, heavy C extensions, and auxiliary PyTorch wrappers dramatically reduces the surface area of the backend. Maintaining fewer, high-quality ONNX implementations minimizes technical debt, eliminates hidden bugs, and keeps standalone distributions lean.
 
-### 4. Superior User Experience (Eliminating Decision Fatigue)
-Presenting end users with half a dozen pitch estimators (`harvest`, `dio`, `crepe`, `crepe-tiny`, `rmvpe`, etc.) introduces unnecessary confusion without any practical benefit. By offering only the two best-in-class options, users achieve optimal voice conversion quality out-of-the-box without needing to experiment with inferior legacy algorithms.
+Keeping the supported estimator set focused limits maintenance surface. Dependency and distribution-size effects should be described separately and backed by the actual package contents.
+
+### 4. Fewer Choices, Less Decision Friction
+
+The user-facing goal is to reduce the number of pitch-estimator choices a user must compare and configure. RMVPE is the compatibility-oriented default, while FCPE remains an explicit alternative for users who want it. This is about reducing decision friction, not claiming other estimators are universally inferior.
 
 ---
 
-## 3. Pure-ONNX & Self-Healing Architecture
+## 3. ONNX Runtime Implementations
 
-Both retained estimators operate in a completely torch-free runtime:
+Both supported estimators use ONNX Runtime for model inference, with NumPy-based surrounding processing:
 
-1. **Pure ONNX Runtime + NumPy**:
-   * **RMVPE**: Runs `rmvpe_20231006.onnx` via `onnxruntime.InferenceSession`. Vectorized NumPy handles silence trimming, key-shifting, and Mel coarse quantization without converting to PyTorch tensors.
-   * **FCPE**: Uses the community-exported ONNX model (`fcpe.onnx`, 41.6 MB; see [gzivdo/fcpe-onnx](https://huggingface.co/gzivdo/fcpe-onnx)). It takes raw 16 kHz audio (`[1, n_samples, 1]`) and outputs fundamental frequency in Hz (`[1, n_frames, 1]`), allowing it to integrate directly into our NumPy pipeline without external audio preprocessing.
-
-2. **Whitelist Normalization with Self-Healing Fallback**:
-   To ensure existing models (such as sample models configured with `"harvest"`) transition seamlessly, `RVCSlotInfo` validates slot configurations against a strict whitelist:
-   ```python
-   @field_validator("pitch_estimator", mode="before")
-   @classmethod
-   def normalize_pitch_estimator(cls, v: str) -> str:
-       if v not in ("rmvpe", "fcpe"):
-           return "rmvpe"
-       return v
-   ```
-   If a model specifies an unsupported estimator, the system automatically falls back to `rmvpe` at load time, ensuring audio always outputs correctly without crashes or silence.
+- **RMVPE**: Runs `rmvpe_20231006.onnx`. NumPy handles silence trimming, key-shifting, and mel-scale coarse pitch quantization.
+- **FCPE**: Uses the community-exported `fcpe.onnx` model. It accepts 16 kHz audio and returns fundamental frequency in Hz for the RVC pipeline.
 
 ---
 
 ## 4. Summary of Benefits
 
-| Aspect | Legacy Approach | Forge Modern Approach |
-| :--- | :--- | :--- |
-| **Supported Estimators** | Cluttered menu (`harvest`, `dio`, `crepe`, `rmvpe`) | **RMVPE** (gold standard) & **FCPE** (newer ultra-fast model) |
-
+| Aspect                   | Legacy Approach                                     | Forge Modern Approach                                         |
+| :----------------------- | :-------------------------------------------------- | :------------------------------------------------------------ |
+| **Supported Estimators** | Historical estimator options vary by upstream version | **RMVPE** (ecosystem-compatible default) & **FCPE** (supported alternative) |
 | **Runtime Dependency** | Mixed (PyWorld C extensions + PyTorch) | **Pure ONNX Runtime + NumPy** (Zero PyTorch) |
-| **User Experience** | Decision fatigue, trial-and-error | Streamlined, optimal results by default |
-| **Backward Compatibility** | Risk of failure if dependency missing | **100% Self-healing** (auto fallback to `rmvpe`) |
+| **User Experience** | More estimator choices to compare | RMVPE default with FCPE as one alternative |
 | **Code Surface** | High maintenance overhead | Minimal, clean, and easily auditable |

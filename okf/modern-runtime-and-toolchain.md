@@ -12,23 +12,23 @@ timestamp: 2026-10-14T12:28:00Z
 
 Upstream distributions relied on bundled standalone Python embeds or instructions requiring manual Anaconda/virtual environment setup. VCClient Forge standardizes on [`uv`](https://docs.astral.sh/uv/):
 
-- **Python Version**: Strictly pinned to `3.14` (CPython 3.14.8) via `.python-version` and `pyproject.toml`.
+- **Python Version**: Strictly pinned to a specific Python version for each development/runtime baseline; update the pin as the project deliberately moves to newer Python releases.
 - **Lockfile Integrity**: All dependency trees are locked deterministically in `uv.lock`.
-- **Fast Virtualenvs**: `uv sync` provisions an identical, reproducible virtual environment across Windows, Linux, and macOS in seconds without global pollution.
+- **Fast Virtualenvs**: `uv sync` provisions an isolated environment from the cross-platform lockfile. Installed artifacts remain platform- and Python-specific.
 
-## 2. Higher-Efficiency Audio Pipeline (Python 3.14 & NumPy 2.x)
+## 2. Modern Python & NumPy 2.x Audio Pipeline
 
-VCClient Forge upgrades from the legacy Python 3.12 stack to Python 3.14.8 and NumPy >= 2.0.0 (2.5.4), delivering improved stability, pipeline efficiency, and lower latency for real-time voice conversion:
+VCClient Forge moves beyond the original distribution's Python 3.10 stack and uses NumPy 2.x. Runtime versions are pinned in project configuration and the lockfile. These upgrades modernize the supported toolchain; performance and latency benefits should be established with application-specific benchmarks:
 
-- Optimized Array Operations (NumPy 2.x): Leverages NumPy 2.x's refined Universal Intrinsics for CPU-native SIMD vectorization across AVX2, AVX-512, and ARM NEON. Basic array operations, type casting, slicing, and windowing functions execute with minimal overhead, maintaining tight audio buffer latencies.
-- CPython Runtime Enhancements: Python 3.14 provides streamlined frame evaluation and interpreter-level optimizations, reducing invocation overhead within high-frequency audio chunk loops (typically 40–100Hz real-time processing).
-- CPU Inference Efficiency: Streamlined pre/post-processing combined with ONNX Runtime optimizations (CPUExecutionProvider) reduces overall CPU utilization and jitter, preserving vital system headroom for gaming and streaming workloads.
+- **NumPy 2.x**: Provides optimized array kernels, including CPU SIMD implementations where supported. Measure the operations and target platforms used by the audio pipeline before attributing end-to-end latency improvements.
+- **Current CPython**: Use the project's pinned Python release and validate compatibility/performance as that pin advances.
+- **CPU Inference**: ONNX Runtime CPUExecutionProvider is available as a backend; its throughput and scheduling impact depend on model, thread settings, and hardware.
 
 ## 3. Pure-ONNX Architecture and CUDA 12 Support
 
 VCClient Forge prioritizes high-performance, lightweight pure-ONNX inference:
 
-- **ONNX Runtime GPU**: Targets `onnxruntime-gpu>=1.20.0`, fully compatible with NVIDIA CUDA 12.x and TensorRT.
+- **ONNX Runtime GPU**: Uses the CUDA execution provider with CUDA 12.x and cuDNN runtime dependencies selected by the project's CUDA extra.
 - **Transparent CUDA Environment Hook**: [`cuda_env.py`](../backend/vcclient/utils/cuda_env.py) dynamically locates and registers CUDA runtime libraries into Windows DLL search paths, eliminating `cublas64_12.dll` missing errors without requiring manual system environment variable manipulation.
 - **Hardware Fallback**: Supports CUDA, DirectML (Windows AMD/Intel), and highly parallelized CPU execution (`CPUExecutionProvider`).
 

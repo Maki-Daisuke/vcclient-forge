@@ -92,7 +92,6 @@ Rather than standard Deflate compression used in `.zip`, VCClient Forge standard
 - **Massive Binary Compression**: Shared libraries (`.dll`, `.so`) contain extensive repetitive binary structures that LZMA2 compresses far more effectively, cutting archive size by ~35% from ~1.97 GiB down to **1314.0 MB (1.283 GiB)**.
 - **High-Speed Parallelization**: Built with `7z` native CLI integration configured for balanced thread and dictionary limits (`-mx=5 -md=32m -mmt=4`), avoiding out-of-memory errors on high-core CPUs while compressing multi-gigabyte runtimes in seconds.
 
-
 ---
 
 ## 3. Workspace Clean Architecture (`npm run clean`)
@@ -126,7 +125,5 @@ Python packages frequently distribute build-time C headers (`*.h`, `*.hpp`) and 
 
 As detailed in [Frontend Architecture & Roadmap](./frontend-architecture-and-roadmap.md), migrating from the legacy web UI to **Tauri v2 + Svelte 5**:
 
-- Eliminates Chromium bundles (unlike Upstream Electron's ~150 MB disk footprint) by utilizing the operating system's native WebView2 on Windows.
-- Shrinks the launcher binary down to **< 5 MB** using Rust, with baseline memory under **~20–30 MB**.
-- Svelte's compiler-first architecture outputs minuscule JavaScript bundles.
-- Packages the entire client into a polished, self-contained desktop application with deterministic sidecar process management.
+- Avoids bundling Electron's Chromium and Node.js runtime by using the operating system's native WebView, preserving more of the strict 2 GiB archive budget for the Python/CUDA inference runtime.
+- Uses a Rust application host without bundling the Node.js runtime used by Electron, keeping desktop-shell memory overhead small relative to the audio inference workload.

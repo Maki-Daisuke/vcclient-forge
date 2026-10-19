@@ -39,9 +39,9 @@ Because source code was unavailable, this project was bootstrapped by reverse-en
 
 ## 4. Reverse Engineering Strategy
 
-1. **Extraction**: The bundled PyInstaller archive was extracted to retrieve embedded `.pyc` bytecode files compiled under Python 3.12.
+1. **Extraction**: The bundled PyInstaller archive was extracted to retrieve embedded `.pyc` bytecode files from the Python 3.10 distribution. The original Windows bundle includes Python 3.10.11.
 2. **Decompilation**: Initial Python source was reconstructed using tools such as `pycdc` (Decompyle++).
-3. **Bytecode Verification & Audit**: Because decompilers frequently misinterpret Python 3.12 bytecode control flow, critical operational loops and algorithms were verified directly against disassembled bytecode (`dis` output) to eliminate decompiler-introduced regressions.
+3. **Bytecode Verification & Audit**: Because decompilers can misinterpret bytecode control flow, critical operational loops and algorithms were verified directly against disassembled bytecode (`dis` output) to eliminate decompiler-introduced regressions.
 4. **Modernization & Forking**: Transitioned into **VCClient Forge** to provide an open, maintainable, Git-native codebase for the community.
 
 ## 5. Why Base the Fork on v2.0.78-beta Instead of v2.2.2-beta?

@@ -17,8 +17,10 @@ Upstream `voice-changer` underwent a radical architectural overhaul that was nev
 | **Entry Point** | Root `MMVCServerSIO.py` (monolithic) | Root `main.py` invoking `vcclient_dev` |
 | **Package Structure** | Flat / unstructured scripts | Structured `vcclient_dev/` library package |
 | **Web Server** | Socket.IO server embedded in script | FastAPI REST API + Socket.IO server |
-| **Model Pipelines** | Tightly coupled MMVC/RVC scripts | Abstract `PipelineManager` with pure-ONNX inference |
+| **Model Pipelines** | Tightly coupled MMVC/RVC scripts | Abstract `PipelineManager` with PyTorch-dependent processing and ONNX model execution |
 | **Distribution** | Shell scripts running in user venv | Bundled standalone PyInstaller (`main.exe`) |
+
+Forge's later removal of PyTorch from the real-time inference path is a separate modernization step, not a property of the original 2.x architecture.
 
 ## 2. Anatomy of the Upstream "Chimera Monorepo"
 
@@ -52,12 +54,12 @@ An essential discovery was made regarding the legacy frontend assets:
 * **`client/` (Reference Implementation A)**: Contains early 2024 uncompiled React/Webpack source code (frozen at commit `2024-02-28`). It lacks Beatrice UI, modern multi-language localizations, and contemporary UI features. Compiling it directly causes regression.
 * **`web_front/` (Reference Implementation B)**: Contains the December 2025 golden binary bundle extracted from `vcclient_win_cuda_2.0.78-beta.zip`.
 * **Interface-First Shim**: Rather than contaminating `frontend/` with obsolete source or minified blobs, Forge established `frontend/dist` as an ignored build artifact (`.gitignore`).
-* **Safe Incremental Migration**: `npm run build:frontend` runs `scripts/build_frontend.js` to synchronize `web_front` into `frontend/dist`. When `frontend/src` is subsequently re-implemented with modern Vite + React, only `build:frontend` needs to be swapped—zero backend or packaging changes required.
+* **Safe Incremental Migration**: `npm run build:frontend` currently runs `scripts/build_frontend.js` to synchronize `web_front` into `frontend/dist`. The planned replacement is a new Svelte 5 + Vite UI, beginning with Server Mode. It can continue targeting `frontend/dist`, preserving the backend's static-asset location; the frontend build and package scripts still need to be updated as part of that migration.
 
 ```
 voice-changer/
 ├── backend/                  # Python / uv project (vcclient, main.py, tests)
-├── frontend/                 # Reserved for next-gen Vite/React (dist is .gitignored)
+├── frontend/                 # Next-generation Svelte 5 + Vite UI (dist is .gitignored)
 ├── client/                   # Reference implementation A (frozen 2024 source)
 ├── web_front/                # Reference implementation B (golden 2025 binary)
 ├── modules/                  # Pretrained ONNX/PyTorch models
