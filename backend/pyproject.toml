@@ -57,6 +57,9 @@ dev = [
 ]
 
 [dependency-groups]
+build = [
+    "pyinstaller>=6.19.0,<7",
+]
 dev = [
     "ruff>=0.9.0",
     "pytest>=8.0.0",

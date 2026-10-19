@@ -52,9 +52,6 @@ To bridge developer experience between the Node.js/Web frontend ecosystem and Py
 A fully automated standalone distribution generator compiles portable bundles:
 
 ```bash
-# Clean workspace to ensure a fresh build
-npm run clean
-
 # Build standalone CPU package (default)
 npm run build:package
 
@@ -62,6 +59,6 @@ npm run build:package
 npm run build:package -- --edition cuda
 ```
 
-The build script creates a self-contained runtime environment using `uv`, includes only production assets, purges bytecode/compiler caches, and outputs a ready-to-distribute `.7z` archive into `dist/`.
+The build script uses `uv` to synchronize an edition-specific **build** environment under `build/packaging/`, then runs PyInstaller in **onedir** mode. The distribution contains `main.exe` (or `main`) and `_internal/` with Python, its standard library, and required dependencies; it does not ship a virtual environment. Frontend assets and writable model/settings directories stay beside the executable. The optional `.7z` archive is written to `dist/` and must be smaller than 2 GiB. Existing artifacts are protected; select a new `--output-dir` when rebuilding instead of cleaning user data.
 
 For the full architectural analysis on achieving a sub-2GB CUDA portable distribution for direct GitHub Releases hosting, see **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**.

@@ -1,8 +1,7 @@
 """VCClient Portable Distribution Builder.
 
-Builds a self-contained portable distribution zip package for VCClient.
-Uses `uv` to provision a standalone Python runtime and pre-install dependencies
-locked by `uv.lock`.
+Builds a self-contained PyInstaller onedir distribution and optional 7z archive.
+Uses `uv` to provision edition-specific build dependencies locked by `uv.lock`.
 """
 
 import argparse
@@ -13,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 VERSION = "2.0.78-beta"
+MAX_ARCHIVE_BYTES = 2 * 1024**3
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -43,11 +43,11 @@ def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None 
 
 
 def find_7z_binary() -> str:
-    for cmd in ("7z", "7za"):
+    for cmd in ("7z", "7za", "7zz"):
         p = shutil.which(cmd)
         if p:
             return p
-    raise RuntimeError("7-Zip executable ('7z' or '7za') was not found in PATH.")
+    raise RuntimeError("7-Zip executable ('7z', '7za', or '7zz') was not found in PATH.")
 
 
 def build_package(
@@ -58,14 +58,20 @@ def build_package(
 ) -> Path:
     if output_dir is None:
         output_dir = PROJECT_ROOT / "dist"
+    output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     plat_tag = get_platform_tag()
     package_name = f"vcclient_{plat_tag}_{edition}_v{VERSION}"
     package_dir = output_dir / package_name
+    archive_path = output_dir / f"{package_name}.7z"
 
-    package_dir.mkdir(parents=True, exist_ok=True)
-    runtime_dir = package_dir / "runtime"
+    if package_dir.exists() or archive_path.exists():
+        raise FileExistsError(f"Package already exists; choose a new --output-dir: {package_dir}")
+    seven_zip = None if skip_archive else find_7z_binary()
+    build_dir = PROJECT_ROOT / "build" / "packaging" / f"{plat_tag}_{edition}_{python_version}"
+    runtime_dir = build_dir / ".venv"
+    runtime_python = runtime_dir / ("Scripts/python.exe" if platform.system() == "Windows" else "bin/python")
 
     print("\n==========================================")
     print(" Building VCClient Portable Package")
@@ -75,15 +81,13 @@ def build_package(
     print(f" Output:   {package_dir}")
     print("==========================================\n")
 
-    # 1. Create runtime venv using uv if not exists
     if not runtime_dir.exists():
-        print(">>> 1. Creating standalone Python runtime with uv...")
+        print(">>> 1. Creating isolated build environment with uv...")
         run_cmd(["uv", "venv", str(runtime_dir), "--python", python_version])
     else:
-        print(">>> 1. Reusing existing standalone Python runtime...")
+        print(">>> 1. Reusing isolated build environment...")
 
-    # 2. Sync dependencies into runtime using uv sync
-    print(f">>> 2. Installing dependencies for edition '{edition}' into runtime...")
+    print(f">>> 2. Installing build dependencies for edition '{edition}'...")
     backend_dir = PROJECT_ROOT / "backend"
     env = os.environ.copy()
     env["VIRTUAL_ENV"] = str(runtime_dir.resolve())
@@ -91,10 +95,13 @@ def build_package(
         [
             "uv",
             "sync",
+            "--locked",
             "--active",
             "--extra",
             edition,
             "--no-dev",
+            "--group",
+            "build",
             "--no-install-project",
             "--python",
             python_version,
@@ -103,17 +110,51 @@ def build_package(
         env=env,
     )
 
-    # 3. Build/prepare frontend distribution
     print(">>> 3. Preparing frontend distribution...")
     run_cmd(["node", "scripts/build_frontend.js"], cwd=PROJECT_ROOT)
 
-    # 4. Copy project assets into package_dir
-    print(">>> 4. Copying project files...")
+    print(">>> 4. Freezing backend with PyInstaller (onedir)...")
+    freeze_command = [
+        str(runtime_python),
+        "-m",
+        "PyInstaller",
+        "--onedir",
+        "--noupx",
+        "--noconfirm",
+        "--name",
+        "main",
+        "--distpath",
+        str(build_dir / "dist"),
+        "--workpath",
+        str(build_dir / "work"),
+        "--specpath",
+        str(build_dir),
+        "--paths",
+        str(backend_dir),
+        "--add-data",
+        f"{backend_dir / 'vcclient' / 'version.txt'}:vcclient",
+        "--collect-submodules",
+        "uvicorn",
+        "--hidden-import",
+        "engineio.async_drivers.asgi",
+        "--hidden-import",
+        "vcclient.server.vcserver_socketio",
+    ]
+    if edition == "cuda":
+        for package in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cufft", "nvidia.cuda_runtime"):
+            freeze_command.extend(["--hidden-import", package, "--collect-binaries", package])
+    freeze_command.append(str(backend_dir / "main.py"))
+    run_cmd(
+        freeze_command,
+        cwd=PROJECT_ROOT,
+        env=env,
+    )
+    shutil.move(str(build_dir / "dist" / "main"), str(package_dir))
+
+    print(">>> 5. Copying distribution assets...")
     copy_targets = [
-        "backend",
         "frontend/dist",
         "start.bat",
-        "start.ps1",
         "start.sh",
         "README.md",
         "LICENSE",
@@ -142,35 +183,16 @@ def build_package(
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
 
-    # 4.5. Clean up runtime caches and unneeded files before packaging
-    print(">>> 4.5. Cleaning up runtime caches to minimize package size...")
-    for root, dirs, files in os.walk(runtime_dir):
-        for d in list(dirs):
-            if d in ("__pycache__", ".pytest_cache", ".ruff_cache"):
-                shutil.rmtree(os.path.join(root, d), ignore_errors=True)
-                dirs.remove(d)
-        for f in files:
-            if f.endswith((".pyc", ".pyo")):
-                try:
-                    os.remove(os.path.join(root, f))
-                except OSError:
-                    pass
-
     # Ensure empty modules and model_dir directories exist
     (package_dir / "modules").mkdir(exist_ok=True)
     (package_dir / "model_dir").mkdir(exist_ok=True)
 
-    # 5. Archive to 7z
     if skip_archive:
         print(f"\n[OK] Package directory created at: {package_dir}")
         return package_dir
 
-    seven_zip = find_7z_binary()
-    archive_path = output_dir / f"{package_name}.7z"
-    if archive_path.exists():
-        archive_path.unlink()
-
-    print(f">>> 5. Creating 7z archive via {seven_zip} (multi-threaded LZMA2)...")
+    assert seven_zip is not None
+    print(f">>> 6. Creating 7z archive via {seven_zip} (multi-threaded LZMA2)...")
     # -mx=5: balanced high compression ratio and speed
     # -md=32m: 32MB dictionary size (keeps RAM usage safe <= ~1.5GB across threads)
     # -mmt=4: limit to 4 threads to prevent OOM on high-core-count machines
@@ -189,11 +211,14 @@ def build_package(
         cwd=output_dir,
     )
 
-    size_mb = archive_path.stat().st_size / (1024 * 1024)
-    size_gib = archive_path.stat().st_size / (1024 * 1024 * 1024)
+    archive_bytes = archive_path.stat().st_size
+    if archive_bytes >= MAX_ARCHIVE_BYTES:
+        raise RuntimeError(f"Archive must be smaller than 2 GiB: {archive_path} ({archive_bytes} bytes)")
+    size_mb = archive_bytes / (1024 * 1024)
+    size_gib = archive_bytes / (1024 * 1024 * 1024)
     print("\n[OK] Build complete!")
     print(f"Archive: {archive_path}")
-    print(f"Size:    {size_mb:.1f} MB ({size_gib:.3f} GiB)\n")
+    print(f"Size:    {size_mb:.1f} MiB ({size_gib:.3f} GiB)\n")
     return archive_path
 
 
@@ -210,7 +235,7 @@ def main():
         "--python-version",
         type=str,
         default="3.14",
-        help="Python version for runtime (default: 3.14)",
+        help="Python version for the build environment (default: 3.14)",
     )
     parser.add_argument(
         "--output-dir",

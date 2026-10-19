@@ -21,7 +21,7 @@ One of the foundational design objectives of **VCClient Forge** is to deliver a 
 
 Crucially, VCClient Forge establishes a strict engineering constraint: **the portable distribution package (including CUDA runtime dependencies) must remain strictly under 2.00 GiB (2,147,483,648 bytes)**. This constraint enables direct hosting and automated release deployments on GitHub Releases, eliminating the multi-gigabyte bloat that likely drove upstream to rely on third-party hosting platforms like Hugging Face.
 
-Through pure-ONNX inference, CPU-only PyTorch relegation, surgical dependency pruning, and multi-threaded 7z (LZMA2) packaging, VCClient Forge achieved a verified portable CUDA archive size of **1314.0 MB (1.283 GiB)**, decisively breaking the 2GB barrier with massive headroom (~770 MB safety margin).
+Through pure-ONNX inference, CPU-only PyTorch relegation, selected CUDA dependencies, and multi-threaded 7z (LZMA2) packaging, the Windows CUDA **PyInstaller onedir** distribution measured on 2026-10-19 is **1,318,130,525 bytes (1257.1 MiB / 1.228 GiB)**, including the Python interpreter and standard library. This leaves approximately **791 MiB** below the 2 GiB budget. The builder rejects archives at or above that limit.
 
 ---
 
@@ -60,7 +60,7 @@ Achieving a sub-2GB CUDA portable distribution was made possible by four foundat
 |  1. Pure-ONNX Inference Pipeline       --> Eliminate Torch from hot path      |
 |  2. CPU-Only PyTorch Relegation         --> 118MB vs 2.5GB+ CUDA Torch         |
 |  3. Surgical NVIDIA Dependency Pruning --> Keep only ONNX Runtime CUDA DLLs   |
-|  4. Standardized 7z (LZMA2) Packaging  --> 1.28GiB archive via native tool    |
+|  4. PyInstaller onedir + 7z (LZMA2)    --> 1.228GiB self-contained archive   |
 +-------------------------------------------------------------------------------+
 ```
 
@@ -89,8 +89,17 @@ In Forge, we isolate and bundle only the exact PyPI wheels needed by ONNX Runtim
 
 Rather than standard Deflate compression used in `.zip`, VCClient Forge standardizes distribution packaging entirely on **7z (LZMA2)**:
 
-- **Massive Binary Compression**: Shared libraries (`.dll`, `.so`) contain extensive repetitive binary structures that LZMA2 compresses far more effectively, cutting archive size by ~35% from ~1.97 GiB down to **1314.0 MB (1.283 GiB)**.
+- **Binary Compression**: The measured Windows CUDA onedir payload contains **3,343,350,748 bytes** before compression; the resulting LZMA2 archive contains **1,318,130,525 bytes (1.228 GiB)**. These measurements include Python, unlike the earlier virtual-environment packaging experiment.
 - **High-Speed Parallelization**: Built with `7z` native CLI integration configured for balanced thread and dictionary limits (`-mx=5 -md=32m -mmt=4`), avoiding out-of-memory errors on high-core CPUs while compressing multi-gigabyte runtimes in seconds.
+
+### 5. Self-Contained Python via PyInstaller Onedir
+
+A virtual environment is not a portable Python installation: its `python.exe` can still depend on a base installation outside the package. Forge therefore uses `uv` only to prepare isolated edition-specific **build environments**, and PyInstaller to collect the actual interpreter, standard library, application modules, and native dependencies.
+
+- **Onedir layout**: `main.exe` (or `main`) sits next to `_internal/`. Unlike `onefile`, startup does not unpack the multi-gigabyte runtime into a temporary directory.
+- **Explicit dynamic dependencies**: Collect the Uvicorn implementations, Engine.IO ASGI driver, dynamically loaded server module, and CUDA edition's `nvidia` packages and shared libraries. Existing PyInstaller hooks collect scientific/audio dependencies.
+- **External writable data**: Frontend assets, models, downloaded inference modules, settings, and logs live beside the executable. Frozen startup uses this location regardless of the caller's working directory.
+- **Reproducibility and preservation**: PyInstaller is locked in a separate `build` dependency group. Existing package directories and archives are not overwritten; another build uses a new output directory.
 
 ---
 
@@ -112,16 +121,9 @@ In Python on Windows, attempting to delete the active `.venv` from a Python-base
 
 ## 4. Future Headroom and Roadmap
 
-While the standardized `.7z` package already operates well within the 2GB limit (1.283 GiB), upcoming roadmap phases will reduce package size and overhead even further:
+The measured Windows CUDA onedir `.7z` package is within the 2 GiB limit (1.228 GiB). Future reductions must be measured against this self-contained baseline:
 
-### 1. Pruning C/C++ Linker Libraries (`.lib`) and Headers (`.h`)
-
-Python packages frequently distribute build-time C headers (`*.h`, `*.hpp`) and MSVC import libraries (`*.lib`) in `site-packages` (e.g. within PyTorch and Scikit-learn):
-
-- Total unneeded linker files: **~95 MB** uncompressed.
-- Purging these in `build_package.py` provides an additional **~25 MB** archive reduction.
-
-### 2. Tauri v2 + Svelte Desktop Application
+### Tauri v2 + Svelte Desktop Application
 
 As detailed in [Frontend Architecture & Roadmap](./frontend-architecture-and-roadmap.md), migrating from the legacy web UI to **Tauri v2 + Svelte 5**:
 

@@ -66,7 +66,7 @@ voice-changer/
 ├── okf/                      # Open Knowledge Format bundle
 ├── scripts/                  # Build & packaging scripts
 ├── package.json              # Root orchestrator (npm start, npm test, etc.)
-└── start.bat / .ps1 / .sh    # Launcher scripts targeting backend/main.py
+└── start.bat / start.sh       # Portable-package executable launchers
 ```
 
 ## 5. Pruning the Legacy CUI Layer

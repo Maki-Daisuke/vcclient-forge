@@ -84,12 +84,12 @@ _(Python 3.14 is automatically downloaded and isolated by `uv`—no system Pytho
 
 ### 3. Launch
 
-Run the startup script or unified npm runner:
+Run from source using npm or the CLI:
 
-- **Windows**: Double-click `start.bat` (or run `start.ps1` in PowerShell).
-- **Linux / macOS**: Run `./start.sh` in your terminal.
 - **npm (Unified)**: Run `npm start`.
 - **CLI (Direct)**: Run `uv run --project backend python backend/main.py`.
+
+The `start.bat` and `start.sh` launchers are for extracted portable packages only; they run the bundled executable.
 
 Once started, open your web browser and navigate to:
 

@@ -1,11 +1,17 @@
 import logging
 import multiprocessing as mp
+import os
 import platform
 import signal
 import sys
 import time
 import traceback
 from pathlib import Path
+
+if __name__ == "__main__":
+    mp.freeze_support()
+    if getattr(sys, "frozen", False):
+        os.chdir(Path(sys.executable).resolve().parent)
 
 # Ensure the project root is in sys.path regardless of execution context
 _here = Path(__file__).parent.resolve()
@@ -14,7 +20,6 @@ if str(_here) not in sys.path:
 
 import fire
 import sounddevice as sd
-
 from vcclient.app_status import AppStatus
 from vcclient.client_launcher.client_launcher import ClientLauncher
 from vcclient.const import LOGGER_NAME, VERSION
@@ -201,7 +206,8 @@ def main():
             "download_applio_modules": download_applio_modules,
             "rest_client": rest_client,
             "convert_file": convert_file,
-        }
+        },
+        command=["server"] if getattr(sys, "frozen", False) and len(sys.argv) == 1 else None,
     )
 
 

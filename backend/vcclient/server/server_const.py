@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -9,6 +10,9 @@ class VoiceChangerParams(BaseModel):
 
 
 def get_frontend_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "frontend" / "dist"
+
     # server_const.py -> server -> vcclient -> backend -> PROJECT_ROOT
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     frontend_dist = project_root / "frontend" / "dist"

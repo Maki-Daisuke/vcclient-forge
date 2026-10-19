@@ -41,7 +41,7 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
    Why Forge chooses the RVC ecosystem's widely used RMVPE as its default and retains FCPE as an alternative. Consolidating pitch estimation reduces maintenance and user decision friction, with both estimators running through ONNX Runtime and NumPy.
 
 7. **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**
-   How Forge fits a standalone CUDA distribution under GitHub Releases' 2 GiB per-asset limit using ONNX inference, CPU-only PyTorch for export, selected CUDA dependencies, and 7z compression. Covers the resulting 1.283 GiB archive, safe workspace cleanup, and further packaging headroom.
+   How Forge fits a standalone CUDA distribution under GitHub Releases' 2 GiB per-asset limit using ONNX inference, CPU-only PyTorch for export, selected CUDA dependencies, PyInstaller onedir, and 7z compression. Covers the resulting 1.228 GiB archive, external writable data, safe workspace cleanup, and further packaging headroom.
 
 8. **[Deprecating and Pruning Beatrice](./deprecating-and-removing-beatrice.md)**
    Why Forge chose to remove Beatrice even after restoring a working backend: distinct UI requirements and cross-platform native builds impose substantial maintenance costs, while dedicated Beatrice tools already exist. Concentrating on RVC keeps the application cohesive and development resources focused.

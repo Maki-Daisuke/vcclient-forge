@@ -17,31 +17,30 @@ jobs:
           - name: win-cuda
             os: windows-latest
             edition: cuda
-            python: "3.12"
           - name: win-dml
             os: windows-latest
             edition: dml
-            python: "3.12"
           - name: win-cpu
             os: windows-latest
             edition: cpu
-            python: "3.12"
           - name: linux-cuda
             os: ubuntu-latest
             edition: cuda
-            python: "3.12"
           - name: linux-cpu
             os: ubuntu-latest
             edition: cpu
-            python: "3.12"
           - name: mac-universal
             os: macos-latest
             edition: mac
-            python: "3.12"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v10.3.0
@@ -49,25 +48,42 @@ jobs:
           enable-cache: true
           version: "latest"
 
+      - name: Install audio and archive dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2 7zip
+
+      - name: Install 7-Zip (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sevenzip
+
       - name: Build portable distribution package
         shell: bash
         run: |
-          uv run python scripts/build_package.py \
+          uv run --no-project --python 3.14 python scripts/build_package.py \
             --edition "${{ matrix.target.edition }}" \
-            --python-version "${{ matrix.target.python }}" \
             --output-dir "dist"
+
+      - name: Check frozen backend startup
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          shopt -s nullglob
+          executables=(dist/*/main dist/*/main.exe)
+          test "${#executables[@]}" -eq 1
+          "${executables[0]}" -- --help
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
           name: package-${{ matrix.target.name }}
-          path: dist/*.zip
+          path: dist/*.7z
+          if-no-files-found: error
           retention-days: 7
 
       - name: Release to GitHub Releases
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*.zip
+          files: dist/*.7z
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
