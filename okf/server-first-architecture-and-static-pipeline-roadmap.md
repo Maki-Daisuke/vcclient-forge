@@ -155,6 +155,24 @@ The upstream RVC [real-time GUI](https://github.com/RVC-Project/Retrieval-based-
 - The pipeline's 160-sample processing unit at 16 kHz corresponds to 10 ms, but does not establish the minimum usable input window for every model. Validate feature/F0 alignment, receptive-field requirements, and quality before shrinking chunks.
 - Target measured local round-trip latency of **100 ms or less** on specified configurations. Include accumulation, algorithmic delay, resampling, scheduling, transfers, inference, and playback buffering in that measurement.
 
+### 3.7 Future Roadmap: Separate Configuration Acceptance, Notification, and Application
+
+Refactor the responsibilities currently mixed in `ConfigurationManager` into an explicit control flow. This is planned work, not implemented behavior:
+
+1. **Acceptance**: Validate configuration requests and serialize updates through a coordinator. Keep `ConfigurationManager` focused on configuration storage and persistence rather than recording commands, device operations, inference setup, or timing-based waits.
+2. **Notification**: Publish coherent configuration snapshots and classified changes with revision identifiers. Distinguish requested configuration from successfully applied runtime state; report application success or failure separately. Recording start/stop remain commands rather than persisted settings.
+3. **Application**: Route changes to the component's owning thread through explicit command queues. Apply inference settings at chunk boundaries and coordinate device/profile changes as stop, reconfigure, and restart operations. Do not let independent subscribers reconfigure dependent stages in an unspecified order, or use sleeps as completion acknowledgements.
+
+This separation should support interchangeable input (`PortAudioInput` / `WebSocketInput`), inference (`RvcPipeline` / proposed `BoostModePipeline`), and output (`PortAudioOutput` / `WebSocketOutput`) components with explicit audio-format, lifecycle, and state-ownership contracts. A configuration update does not necessarily rebuild the whole pipeline: update compatible scalar values in place and replace or reopen only affected components under coordinator control.
+
+After the native-only UI migration temporarily removes Client Mode, browser audio may return as independently selectable WebSocket input/output adapters rather than as a coupled "Client Mode" switch. Initially reproduce the native/native and browser/browser combinations; later evaluate native input with browser output and browser input with native output. The earlier Server/Client Mode descriptions specify the initial paired configurations, not a permanent coupling between input and output. Mode names could remain as presets. Mixed routing requires explicit format conversion, clock-drift and network-jitter handling, and disconnect/recovery policies before it is supported; it does not introduce multiple simultaneous inputs or multi-user sessions.
+
+Preserve the existing monitor capability: the minimum routing contract is **one selected input, one main output, and one optional monitor output**, not a single output only. Keep the monitor's signal source distinct from its destination adapter. Each enabled output needs independently owned bounded buffering/read positions, rate conversion and gain as required, and its own overflow/underflow and failure policy. Outputs must not compete to consume one queue, and a slow or disconnected output must not block inference or the other output. Account for independent playback clocks and define safe buffer lifetime if audio storage is shared. Arbitrary output counts are not required for the initial modularization.
+
+Start by separating responsibilities while preserving current workflows. Initially allow a brief interruption for structural changes: wait for in-flight work to finish, reset affected state, rebuild, and restart. Keep input context (`extra_chunk`), resampler/filter state, and inference/crossfade histories under explicit ownership; preserve compatible state for scalar updates, but reset invalidated histories and reject obsolete results when a source or execution profile changes. Seamless replacement and cross-component state transfer are later improvements, not prerequisites for modularization.
+
+Evaluate RxPY (`reactivex`) or lightweight signals only after defining these boundaries; library adoption is not decided. Reactive notifications belong to the control path, not the real-time audio-sample handoffs, and do not replace owner-thread dispatch, ordered reconfiguration, or completion/failure reporting.
+
 ---
 
 ## 4. The Ultimate Vision: "Boost Mode" (End-to-End Graph Fusion)
