@@ -48,6 +48,20 @@ jobs:
           enable-cache: true
           version: "latest"
 
+      - name: Set up Rust (Windows desktop)
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build (Windows desktop)
+        if: runner.os == 'Windows'
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install desktop build dependencies
+        if: runner.os == 'Windows'
+        run: npm ci
+
       - name: Install audio and archive dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libportaudio2 7zip
@@ -56,12 +70,15 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install sevenzip
 
-      - name: Build portable distribution package
+      - name: Build application artifacts
         shell: bash
         run: |
-          uv run --no-project --python 3.14 python scripts/build_package.py \
-            --edition "${{ matrix.target.edition }}" \
-            --output-dir "dist"
+          npm run build -- --edition "${{ matrix.target.edition }}"
+
+      - name: Validate and package application artifacts
+        shell: bash
+        run: |
+          npm run package -- --edition "${{ matrix.target.edition }}" --output-dir "dist"
 
       - name: Check frozen backend startup
         shell: bash

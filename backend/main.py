@@ -31,6 +31,7 @@ from vcclient.initializer import (
 )
 from vcclient.logger import setup_logger
 from vcclient.server.vcserver import VCServer
+from vcclient.utils.desktop_control import start_desktop_control
 from vcclient.utils.parseBoolArg import parse_bool_arg
 from vcclient.utils.resolve_url import resolve_base_url
 from vcclient.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
@@ -77,16 +78,34 @@ def download_applio_modules(callback=None):
     mm.download_applio_modules(callback or download_progreess)
 
 
+def wait_for_desktop_server(vcserver: VCServer, timeout: float = 30) -> None:
+    deadline = time.monotonic() + timeout
+    while not vcserver.server.started:
+        if AppStatus.get_instance().end_flag:
+            raise RuntimeError("Desktop startup was cancelled")
+        if not vcserver.server_thread.is_alive():
+            raise RuntimeError("Backend failed to listen; check whether the port is already in use")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Backend did not become ready within the startup timeout")
+        time.sleep(0.05)
+
+
 def start_server(
     host: str = "0.0.0.0",
     port: int = 18888,
     https: bool = False,
     launch_client: bool = True,
     allow_origins: str = "*",
+    desktop_control: bool = False,
     **_kwargs,
 ):
     https = parse_bool_arg(https)
     launch_client = parse_bool_arg(launch_client)
+    desktop_control = parse_bool_arg(desktop_control)
+    app_status = AppStatus.get_instance()
+    if desktop_control:
+        start_desktop_control(sys.stdin, app_status.stop_app)
+        launch_client = False
 
     logger.info(f"VCClient Version: {VERSION}")
     print(f"VCClient Version: {VERSION}")
@@ -94,10 +113,11 @@ def start_server(
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
     _cehck_and_download_initial_samples()
+    if app_status.end_flag:
+        return
 
     gpu_manager = GPUDeviceManager.get_instance()
     audio_manager = AudioDeviceManager.get_instance()
-    app_status = AppStatus.get_instance()
 
     vcserver = VCServer(
         host=host,
@@ -106,6 +126,13 @@ def start_server(
         allow_origins=[allow_origins] if allow_origins else None,
     )
     vcserver_port = vcserver.start()
+    if desktop_control:
+        try:
+            wait_for_desktop_server(vcserver)
+        except RuntimeError, TimeoutError:
+            vcserver.stop()
+            raise
+        print(f"VCCLIENT_DESKTOP_READY:{vcserver_port}", flush=True)
 
     base_url = resolve_base_url(https, vcserver_port)
     bold_green_start = "\x1b[1;32m"

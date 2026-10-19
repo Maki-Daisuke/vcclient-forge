@@ -16,6 +16,12 @@ Keep the scope local and single-user: one selected input, one main output, and o
 
 ## 2. Recommended Implementation Order
 
+### Current Priority: Establish the Desktop Baseline First
+
+The immediate priority is the Tauri v2 desktop shell around the **existing Python-served legacy UI**, before the Svelte migration and audio refactors below. Keep `src-tauri/` at the project root. Embed a small startup/error/retry page, supervise the local Python process, wait for its readiness notification, then navigate to its loopback URL. Preserve existing REST, Socket.IO, and audio workflows; validate native and Client Mode permissions separately before claiming upstream UX parity.
+
+Keep connection selection separate from local process ownership so future remote attachment need not start or stop a backend. Remote attachment is not part of the initial implementation. A Rust WebSocket client does not remove WebView microphone secure-context requirements; remote HTTP content must not receive broad native permissions. The initial portable desktop packaging target is Windows, retaining the entire PyInstaller onedir distribution and writable external state. See the [desktop development instructions](../README_dev.md#windows-desktop-host-tauri-v2).
+
 ### 1. Establish the Baseline and Confirm Remaining Cleanup
 
 - Record stage timings, queue age, allocations, underruns, and actual microphone-to-output latency with hardware, model, provider, and settings. Include speech/silence quality fixtures and continuous/silent-input runs of at least 30 minutes.
@@ -62,9 +68,9 @@ Keep the scope local and single-user: one selected input, one main output, and o
 
 ### 6. Package the Native Desktop Experience with Tauri v2
 
-- Integrate the Svelte UI with Tauri and the local Python backend; define backend process supervision/shutdown, loopback connectivity, capabilities/CSP, and OS/WebView permissions.
+- Establish the existing-UI desktop baseline first as described above, then reuse the shell when the Svelte UI replaces the legacy bundle. Keep the main UI Python-served and the startup page embedded.
 - Retain the self-contained PyInstaller backend and externally writable state. Validate relocation/startup and the complete edition-specific archive, including desktop-shell additions, against the strict under-2-GiB limit.
-- **Depends on**: A usable new native UI; packaging work may start during item 4. Neither browser audio nor Boost Mode is a prerequisite.
+- **Depends on**: The working legacy UI and self-contained Python backend for the initial shell; the later Svelte transition follows item 4. Neither protocol modernization nor Boost Mode is a prerequisite.
 - **Exit**: A usable packaged native desktop workflow with clean process lifecycle and measured distribution size/resource use on target platforms.
 - **Sources**: [Tauri plan](./frontend-architecture-and-roadmap.md#planned-desktop-packaging-tauri-v2), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 

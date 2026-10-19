@@ -33,6 +33,33 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast, deterministic Pytho
    sudo apt-get update && sudo apt-get install -y libportaudio2
    ```
 
+5. **Tauri v2 Desktop Toolchain (Windows only)**: Required by `npm run build`, `npm run build:desktop`, and `npm run dev:desktop` on Windows.
+   * **Rust and Cargo**: Install stable Rust with the MSVC toolchain (normally `x86_64-pc-windows-msvc`), not the GNU toolchain. Verify with `rustc --version` and `cargo --version`.
+   * **Visual Studio Build Tools 2022 or Visual Studio 2022**: Select **Desktop development with C++**, including the MSVC C++ build tools and a Windows 10 or Windows 11 SDK. Rust alone does not provide the required Windows linker and SDK.
+   * **Microsoft Edge WebView2 Runtime**: Required to run the desktop host during development and on end-user machines. It may already be installed; the portable package does not install it.
+   * **Tauri CLI**: Run `npm ci` from the repository root to install the project's locked `@tauri-apps/cli` dependency into `node_modules`. This does **not** install Rust, Visual Studio Build Tools, the Windows SDK, or WebView2; install those separately.
+   * After installing system tools, reopen VS Code/terminals so their updated `PATH` is available. Run `npm run tauri -- info` from the repository root to diagnose missing prerequisites.
+
+   For a new Windows x64 development environment, run these commands in PowerShell. The Build Tools installation can take several minutes and may request administrator approval:
+
+   ```powershell
+   winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --source winget --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+   winget install --id Rustlang.Rustup --exact --source winget
+   winget install --id Microsoft.EdgeWebView2Runtime --exact --source winget
+   ```
+
+   The Build Tools command selects the C++ workload and its recommended components, including MSVC and a Windows SDK. If Build Tools is already installed, `winget install` may skip it without adding the workload; open **Visual Studio Installer > Modify** and select **Desktop development with C++** and the components listed above. Skip the WebView2 command if its Runtime is already installed.
+
+   Reopen VS Code/PowerShell, then select the stable MSVC toolchain and verify it:
+
+   ```powershell
+   rustup default stable-msvc
+   rustc --version
+   cargo --version
+   ```
+
+   After cloning the repository and running `npm ci` as shown below, run `npm run tauri -- info` to check the desktop environment. See the [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/#windows) for further details.
+
 ### Clone and Build Environment
 
 Clone the repository and build the workspace for your target hardware accelerator:
@@ -40,15 +67,17 @@ Clone the repository and build the workspace for your target hardware accelerato
 ```bash
 git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
+npm ci
 
 # Choose ONE edition matching your development/testing target:
-npm run build:cuda    # NVIDIA GPU (Windows / Linux)
-npm run build:dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
-npm run build:mac     # macOS (Apple Silicon M-series CoreML)
-npm run build:cpu     # Generic CPU fallback
+npm run build -- --edition cuda    # NVIDIA GPU (Windows / Linux)
+npm run build -- --edition dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
+npm run build -- --edition mac     # macOS (Apple Silicon M-series CoreML)
+npm run build -- --edition cpu     # Generic CPU fallback
 ```
 
-* Builds frontend assets into `frontend/dist` and provisions the Python 3.14 virtual environment in one command.
+* `npm run build` builds all supported components (CPU by default): frontend assets in `frontend/dist`, the Python development environment, a frozen backend, and the release Tauri executable on Windows. Windows builds require the [desktop toolchain prerequisites](#prerequisites). Linux/macOS retain backend-only builds.
+* `npm run build -- --edition <edition>` selects the hardware edition. `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` freezes the backend rather than just synchronizing dependencies.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
 * Advanced: You can also synchronize the Python backend directly using `uv sync --project backend --extra <edition>`.
@@ -72,33 +101,58 @@ http://localhost:18888/
 
 Initial model assets are downloaded into `model_dir/` upon the first startup.
 
+### Windows Desktop Host (Tauri v2)
+
+The desktop host lives in `src-tauri/`. Complete the Windows Tauri toolchain setup under [Prerequisites](#prerequisites) before running these commands.
+
+```powershell
+npm ci
+uv sync --project backend --extra cpu   # Or cuda / dml; choose one hardware edition
+npm run dev:desktop
+```
+
+Tauri embeds only `src-tauri/bootstrap/`, displays startup status/logs, and launches `backend/.venv/Scripts/python.exe` directly. It waits for a readiness message from its own backend before navigating to `http://127.0.0.1:18888/`; the existing UI remains Python-served. A port conflict fails startup rather than attaching to an unrelated server. Initial model downloads can take time; startup has a ten-minute limit and failures offer retry.
+
+The backend's private `--desktop_control=True` option disables its old client launcher, watches piped standard input for `shutdown` or EOF, and enables the readiness message. Do not use this option for normal terminal/server startup. Closing Tauri requests graceful shutdown of its own child, with a fifteen-second forced-termination fallback. Remote attachment is not implemented, and Python-served pages receive no Tauri command permissions.
+
+`npm run test:desktop` tests the bootstrap states; `cargo test --locked --manifest-path src-tauri/Cargo.toml` tests Rust code. `npm run build:desktop` builds only the desktop executable, not a complete Python distribution. Bootstrap IPC, retry, navigation to the Python-served UI, and denial of native commands from that UI have been verified on Windows. Microphone permissions, native audio, and shutdown during conversion remain separate runtime checks.
+
 ---
 
 ## 3. Building Standalone Portable Packages
 
-The packaging script (`scripts/build_package.py`) builds a PyInstaller **onedir** distribution. PyInstaller bundles the Python interpreter, standard library, and required application dependencies from the edition-specific build environment, including CUDA/cuDNN libraries for the CUDA edition. The virtual environment directory itself is not shipped; its required runtime components are included in the distribution instead. Distribute the entire package directory, not just the executable:
+Build commands are defined once in `package.json`. `npm run build` uses `scripts/build.js` only to invoke `build:frontend`, `build:desktop` (Windows), and `build:backend` in order, forwarding edition/version arguments to the backend task. `scripts/build_backend.py` contains only the backend-specific environment and PyInstaller **onedir** steps; it does not invoke frontend or desktop builds. PyInstaller bundles Python, its standard library, and edition-specific dependencies, including CUDA/cuDNN for CUDA. `npm run package` runs the separate `scripts/build_package.py` to validate, copy, and optionally archive existing artifacts; it does not compile anything or synchronize Python dependencies. Distribute the entire package directory, not just the executable:
 
 ```bash
-# Recommended via npm:
-npm run build:package -- --edition cuda   # NVIDIA GPU (Windows / Linux)
-npm run build:package -- --edition dml    # Windows Universal GPU (DirectX 12)
-npm run build:package -- --edition mac    # Apple Silicon macOS
-npm run build:package -- --edition cpu    # Generic CPU
+# Build all components, then package the SAME edition:
+npm run build -- --edition cpu
+npm run package -- --edition cpu
 
-# Or directly via uv:
-uv run --project backend python scripts/build_package.py --edition cuda
+# CUDA example (or choose dml / mac for both commands):
+npm run build -- --edition cuda
+npm run package -- --edition cuda
+
+# Backend-only build and packaging CLI (frontend/desktop must already be built):
+uv run --no-project --python 3.14 python scripts/build_backend.py --edition cuda
+uv run --no-project --python 3.14 python scripts/build_package.py --edition cuda
 ```
 
 * `--edition <edition>`: Target edition (`cuda`, `dml`, `mac`, `cpu`, default: `cpu`).
 * `--output-dir <path>`: Destination directory for artifacts (default: `dist/`).
 * `--skip-archive`: Create the uncompressed package folder without archiving to `.7z`.
+* `--python-version <version>`: Build-environment version (default: `3.14`). Use the same value when building and packaging.
+
+Windows packages always include the **release** `src-tauri/target/release/vcclient-forge.exe`; a debug build from `dev:desktop` is not sufficient. Missing desktop/backend executables, runtime files, UI assets (including split JavaScript and images), launchers, or license/readme files abort packaging **before creating the output directory**. The backend build records file names and sizes in `backend-manifest.json`; missing or truncated recorded files require rebuilding. Existing pre-split build outputs without this manifest also need rebuilding. WebView2 Runtime must already be installed on the destination computer; the portable package does not install it.
 
 Build environments and PyInstaller analysis files live under `build/packaging/<platform>_<edition>_<python>/`. PyInstaller and its hooks are locked in the backend's `build` dependency group, separate from production and development dependencies. Build on each target operating system; PyInstaller does not cross-compile these distributions.
 
-Artifacts are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z`:
+Archives are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z` on all supported platforms:
+
+The version comes from the root `package.json`'s `version` field. An optional leading `v` is removed before constructing the name so the filename contains only one `v` prefix.
 
 ```text
 vcclient_<platform>_<edition>_v<VERSION>/
+   vcclient-forge.exe        # Windows desktop host (required on Windows)
    main.exe                 # main on Linux/macOS
    _internal/               # Python, stdlib, extension modules, shared libraries
    frontend/dist/           # Web UI and license listings
@@ -108,7 +162,7 @@ vcclient_<platform>_<edition>_v<VERSION>/
    README.md / LICENSE
 ```
 
-End users extract the **entire directory** and launch `main.exe`, `start.bat`, or `start.sh` without installing Python or CUDA toolkits. Frozen startup sets the working directory to the executable's directory, keeping downloaded models, settings, and logs beside the executable, outside `_internal`. The launchers run only the bundled executable (`main.exe` on Windows, `main` on Linux/macOS); developers use `npm start`.
+End users extract the **entire directory** and launch `vcclient-forge.exe` on Windows, without installing Python or CUDA toolkits. Backend-only entry points (`main.exe`, `start.bat`, or `start.sh`) remain available. Frozen startup sets the working directory to the executable's directory, keeping downloaded models, settings, and logs beside the executable, outside `_internal`. The launchers run only the bundled backend (`main.exe` on Windows, `main` on Linux/macOS); developers use `npm start`.
 
 Existing package folders and archives are never overwritten: use a new `--output-dir` for another build. Archive creation fails when the result is 2 GiB or larger. The Windows CUDA onedir archive measured on 2026-10-19 is **1,318,130,525 bytes (1.228 GiB)**, including Python and the selected CUDA libraries.
 
@@ -160,7 +214,8 @@ npm run format:check
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
 * **`ci.yml`**: Runs Ruff linting, formatting checks, and pytest on every push and pull request across Ubuntu, Windows, and macOS using Python 3.14 and Node.js 26.
-* **`release.yml`**: Automatically builds portable standalone packages across all hardware matrix editions when a new version tag (`v*`) is pushed, attaching the archives directly to GitHub Releases.
+* **`ci.yml` desktop job**: Tests bootstrap behavior, checks Rust formatting, runs Rust tests, and builds the Windows Tauri executable. It does not exercise real audio devices.
+* **`release.yml`**: Automatically builds portable standalone packages across all hardware matrix editions when a new version tag (`v*`) is pushed, attaching the archives directly to GitHub Releases. Windows editions include Tauri; Linux/macOS retain backend-only packaging.
 
 ---
 
@@ -184,8 +239,10 @@ voice-changer/
 ├── client/                     # Reference implementation A (frozen 2024 uncompiled React source)
 ├── okf/                        # Open Knowledge Format architectural documentation
 ├── scripts/
+│   ├── build.js                # Invokes component npm tasks without duplicating their commands
 │   ├── build_frontend.js       # Synchronizes web_front assets to frontend/dist
-│   ├── build_package.py        # Portable standalone package builder (sub-2GB target)
+│   ├── build_backend.py        # Builds backend artifacts with PyInstaller
+│   ├── build_package.py        # Validates and packages existing artifacts (sub-2GB target)
 │   └── clean.js                # Workspace cleaning script
 ├── package.json                # Root task runner (npm start, npm test, etc.)
 └── start.bat / start.sh        # Portable-package executable launchers

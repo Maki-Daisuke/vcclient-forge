@@ -44,6 +44,8 @@ dummy/
 
 # Node / Frontend
 node_modules/
+src-tauri/target/
+src-tauri/gen/
 frontend/dist/
 client/lib/dist
 client/lib/worklet/dist

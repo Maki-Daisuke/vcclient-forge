@@ -74,10 +74,10 @@ git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
 
 # Choose ONE edition matching your hardware (builds Web UI and syncs Python runtime):
-npm run build:cuda    # NVIDIA GPU (Windows / Linux)
-npm run build:dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
-npm run build:mac     # macOS (Apple Silicon M-series)
-npm run build:cpu     # Generic CPU fallback
+npm run build -- --edition cuda    # NVIDIA GPU (Windows / Linux)
+npm run build -- --edition dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
+npm run build -- --edition mac     # macOS (Apple Silicon M-series)
+npm run build -- --edition cpu     # Generic CPU fallback
 ```
 
 _(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)_

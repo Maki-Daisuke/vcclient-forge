@@ -6,6 +6,7 @@ from queue import Empty, Queue
 import numpy as np
 import sounddevice as sd
 
+from vcclient.app_status import AppStatus
 from vcclient.server.event_emitter_manager import EventEmitterManager
 
 from ...const import LOGGER_NAME
@@ -185,7 +186,7 @@ class LocalVoiceChangerInterface:
                         logging.getLogger(LOGGER_NAME).info(
                             f"Start Local Voice Changer(2way), sr:[{input_stream.samplerate}, {output_stream.samplerate}, {monitor_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}, {monitor_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}, {monitor_stream.dtype}]"
                         )
-                        while True:
+                        while not AppStatus.get_instance().end_flag:
                             time.sleep(local_voice_changer_loop_interval_sec)
                             stop_check_counter += 1
                             if self.local_voice_changer_enabled is False:
@@ -198,7 +199,7 @@ class LocalVoiceChangerInterface:
                     logging.getLogger(LOGGER_NAME).info(
                         f"Start Local Voice Changer(1way), sr:[{input_stream.samplerate}, {output_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}]"
                     )
-                    while True:
+                    while not AppStatus.get_instance().end_flag:
                         time.sleep(local_voice_changer_loop_interval_sec)
                         stop_check_counter += 1
                         if self.local_voice_changer_enabled is False:

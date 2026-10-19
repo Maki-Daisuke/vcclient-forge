@@ -202,6 +202,8 @@ flowchart TD
 
 ### Planned Desktop Packaging (Tauri v2)
 
+**Execution update (2026-10-19)**: Establish the desktop baseline with the existing legacy UI before implementing the Svelte migration. The root `src-tauri/` host embeds a separate startup/error/retry page, starts and supervises Python, and navigates to the Python-served UI after readiness. It does not embed a second copy of the main UI. Preserve REST/Socket.IO and current audio behavior for this step; actual WebView/audio compatibility remains a runtime acceptance gate. Initially build Windows portable packages with the full PyInstaller onedir backend. Future remote attachment is a separate extension, not implemented by this local startup path.
+
 Forge chooses **Tauri v2 (Rust + native OS WebView)** for two reasons:
 
 1. **Small Distribution Package**:

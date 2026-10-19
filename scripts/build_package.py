@@ -1,19 +1,16 @@
-"""VCClient Portable Distribution Builder.
-
-Builds a self-contained PyInstaller onedir distribution and optional 7z archive.
-Uses `uv` to provision edition-specific build dependencies locked by `uv.lock`.
-"""
+"""Validate and package existing application artifacts without building them."""
 
 import argparse
+import json
 import os
 import platform
 import shutil
 import subprocess
 from pathlib import Path
 
-VERSION = "2.0.78-beta"
 MAX_ARCHIVE_BYTES = 2 * 1024**3
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VERSION = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))["version"].removeprefix("v")
 
 
 def get_platform_tag() -> str:
@@ -50,108 +47,80 @@ def find_7z_binary() -> str:
     raise RuntimeError("7-Zip executable ('7z', '7za', or '7zz') was not found in PATH.")
 
 
+def get_build_dir(edition: str, python_version: str) -> Path:
+    return PROJECT_ROOT / "build" / "packaging" / f"{get_platform_tag()}_{edition}_{python_version}"
+
+
+def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path | None]:
+    build_dir = get_build_dir(edition, python_version)
+    frozen = build_dir / "dist" / "main"
+    manifest = build_dir / "backend-manifest.json"
+    missing: list[str] = []
+    executable = frozen / ("main.exe" if platform.system() == "Windows" else "main")
+    if not executable.is_file() or executable.stat().st_size == 0:
+        missing.append(str(executable))
+    if not (frozen / "_internal").is_dir():
+        missing.append(str(frozen / "_internal"))
+    if not manifest.is_file():
+        missing.append(str(manifest))
+    else:
+        files = json.loads(manifest.read_text(encoding="utf-8"))
+        if (
+            not isinstance(files, dict)
+            or not files
+            or not all(isinstance(size, int) and size >= 0 for size in files.values())
+            or not any(name.startswith("_internal/") for name in files)
+        ):
+            raise ValueError(f"Invalid backend build manifest: {manifest}; run npm run build -- --edition {edition}")
+        for name, size in files.items():
+            artifact = frozen / name
+            if not artifact.resolve().is_relative_to(frozen.resolve()):
+                raise ValueError(f"Invalid backend artifact path: {name}")
+            if not artifact.is_file() or artifact.stat().st_size != size:
+                missing.append(str(artifact))
+
+    frontend = PROJECT_ROOT / "frontend" / "dist"
+    source = PROJECT_ROOT / "web_front"
+    required_frontend = {Path("index.html"), Path("index.js")}
+    required_frontend.update(path.relative_to(source) for path in source.rglob("*") if path.is_file())
+    missing.extend(
+        str(frontend / relative) for relative in sorted(required_frontend) if not (frontend / relative).is_file()
+    )
+    desktop = None
+    if platform.system() == "Windows":
+        desktop = PROJECT_ROOT / "src-tauri" / "target" / "release" / "vcclient-forge.exe"
+        if not desktop.is_file() or desktop.stat().st_size == 0:
+            missing.append(str(desktop))
+    for name in ("start.bat", "start.sh", "README.md", "LICENSE"):
+        if not (PROJECT_ROOT / name).is_file():
+            missing.append(str(PROJECT_ROOT / name))
+    if missing:
+        raise FileNotFoundError(
+            "Missing or incomplete package artifacts:\n"
+            + "\n".join(missing)
+            + f"\nRun npm run build -- --edition {edition} before npm run package."
+        )
+    return frozen, desktop
+
+
 def build_package(
     edition: str,
     python_version: str = "3.14",
     output_dir: Path | None = None,
     skip_archive: bool = False,
 ) -> Path:
-    if output_dir is None:
-        output_dir = PROJECT_ROOT / "dist"
-    output_dir = output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    plat_tag = get_platform_tag()
-    package_name = f"vcclient_{plat_tag}_{edition}_v{VERSION}"
+    output_dir = (output_dir or PROJECT_ROOT / "dist").resolve()
+    package_name = f"vcclient_{get_platform_tag()}_{edition}_v{VERSION}"
     package_dir = output_dir / package_name
     archive_path = output_dir / f"{package_name}.7z"
-
     if package_dir.exists() or archive_path.exists():
         raise FileExistsError(f"Package already exists; choose a new --output-dir: {package_dir}")
+    frozen, desktop_executable = validate_artifacts(edition, python_version)
     seven_zip = None if skip_archive else find_7z_binary()
-    build_dir = PROJECT_ROOT / "build" / "packaging" / f"{plat_tag}_{edition}_{python_version}"
-    runtime_dir = build_dir / ".venv"
-    runtime_python = runtime_dir / ("Scripts/python.exe" if platform.system() == "Windows" else "bin/python")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(frozen, package_dir)
 
-    print("\n==========================================")
-    print(" Building VCClient Portable Package")
-    print(f" Package:  {package_name}")
-    print(f" Edition:  {edition}")
-    print(f" Python:   {python_version}")
-    print(f" Output:   {package_dir}")
-    print("==========================================\n")
-
-    if not runtime_dir.exists():
-        print(">>> 1. Creating isolated build environment with uv...")
-        run_cmd(["uv", "venv", str(runtime_dir), "--python", python_version])
-    else:
-        print(">>> 1. Reusing isolated build environment...")
-
-    print(f">>> 2. Installing build dependencies for edition '{edition}'...")
-    backend_dir = PROJECT_ROOT / "backend"
-    env = os.environ.copy()
-    env["VIRTUAL_ENV"] = str(runtime_dir.resolve())
-    run_cmd(
-        [
-            "uv",
-            "sync",
-            "--locked",
-            "--active",
-            "--extra",
-            edition,
-            "--no-dev",
-            "--group",
-            "build",
-            "--no-install-project",
-            "--python",
-            python_version,
-        ],
-        cwd=backend_dir,
-        env=env,
-    )
-
-    print(">>> 3. Preparing frontend distribution...")
-    run_cmd(["node", "scripts/build_frontend.js"], cwd=PROJECT_ROOT)
-
-    print(">>> 4. Freezing backend with PyInstaller (onedir)...")
-    freeze_command = [
-        str(runtime_python),
-        "-m",
-        "PyInstaller",
-        "--onedir",
-        "--noupx",
-        "--noconfirm",
-        "--name",
-        "main",
-        "--distpath",
-        str(build_dir / "dist"),
-        "--workpath",
-        str(build_dir / "work"),
-        "--specpath",
-        str(build_dir),
-        "--paths",
-        str(backend_dir),
-        "--add-data",
-        f"{backend_dir / 'vcclient' / 'version.txt'}:vcclient",
-        "--collect-submodules",
-        "uvicorn",
-        "--hidden-import",
-        "engineio.async_drivers.asgi",
-        "--hidden-import",
-        "vcclient.server.vcserver_socketio",
-    ]
-    if edition == "cuda":
-        for package in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cufft", "nvidia.cuda_runtime"):
-            freeze_command.extend(["--hidden-import", package, "--collect-binaries", package])
-    freeze_command.append(str(backend_dir / "main.py"))
-    run_cmd(
-        freeze_command,
-        cwd=PROJECT_ROOT,
-        env=env,
-    )
-    shutil.move(str(build_dir / "dist" / "main"), str(package_dir))
-
-    print(">>> 5. Copying distribution assets...")
+    print(">>> Copying validated distribution assets...")
     copy_targets = [
         "frontend/dist",
         "start.bat",
@@ -162,8 +131,6 @@ def build_package(
 
     for item in copy_targets:
         src = PROJECT_ROOT / item
-        if not src.exists():
-            continue
         dst = package_dir / item
         if src.is_dir():
             dst.parent.mkdir(parents=True, exist_ok=True)
@@ -187,12 +154,15 @@ def build_package(
     (package_dir / "modules").mkdir(exist_ok=True)
     (package_dir / "model_dir").mkdir(exist_ok=True)
 
+    if desktop_executable is not None:
+        shutil.copy2(desktop_executable, package_dir / desktop_executable.name)
+
     if skip_archive:
         print(f"\n[OK] Package directory created at: {package_dir}")
         return package_dir
 
     assert seven_zip is not None
-    print(f">>> 6. Creating 7z archive via {seven_zip} (multi-threaded LZMA2)...")
+    print(f">>> Creating 7z archive via {seven_zip} (multi-threaded LZMA2)...")
     # -mx=5: balanced high compression ratio and speed
     # -md=32m: 32MB dictionary size (keeps RAM usage safe <= ~1.5GB across threads)
     # -mmt=4: limit to 4 threads to prevent OOM on high-core-count machines
@@ -223,7 +193,7 @@ def build_package(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="VCClient Portable Distribution Builder")
+    parser = argparse.ArgumentParser(description="Validate and package an existing build")
     parser.add_argument(
         "--edition",
         type=str,

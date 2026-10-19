@@ -7,24 +7,27 @@
     "clean": "node scripts/clean.js",
     "start": "uv run --project backend python backend/main.py server",
     "dev:backend": "uv run --project backend python backend/main.py server",
+    "tauri": "tauri",
+    "dev:desktop": "tauri dev --no-dev-server",
+    "build:desktop": "tauri build --no-bundle -- --locked",
     "build:frontend": "node scripts/build_frontend.js",
-    "build:backend": "uv sync --project backend",
-    "build": "npm run build:frontend && npm run build:backend --",
-    "build:cuda": "npm run build -- --extra cuda",
-    "build:dml": "npm run build -- --extra dml",
-    "build:mac": "npm run build -- --extra mac",
-    "build:cpu": "npm run build -- --extra cpu",
+    "build:backend": "uv run --no-project --python 3.14 python scripts/build_backend.py",
+    "build": "node scripts/build.js",
     "test": "uv run --project backend pytest backend/tests",
+    "test:desktop": "node --test tests/desktop_bootstrap.test.cjs",
     "lint": "uv run --project backend ruff check backend",
     "lint:fix": "uv run --project backend ruff check --fix backend",
     "format": "uv run --project backend ruff format backend",
     "format:check": "uv run --project backend ruff format --check backend",
-    "build:package": "uv run --project backend python scripts/build_package.py"
+    "package": "uv run --no-project --python 3.14 python scripts/build_package.py"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Maki-Daisuke/vcclient-forge.git"
   },
   "author": "Daisuke (yanother) Maki",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3"
+  }
 }

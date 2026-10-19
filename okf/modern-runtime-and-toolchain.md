@@ -45,20 +45,24 @@ To bridge developer experience between the Node.js/Web frontend ecosystem and Py
 | `npm run format`        | Format code with Ruff                   | `uv run --project backend ruff format backend`              |
 | `npm run format:check`  | Check formatting without modifying      | `uv run --project backend ruff format --check backend`      |
 | `npm run clean`         | Clean build artifacts, venv, and caches | `node scripts/clean.js`                                     |
-| `npm run build:package` | Build portable distribution 7z          | `uv run --project backend python scripts/build_package.py`  |
+| `npm run build`         | Invoke frontend, desktop (Windows), and backend npm tasks | `node scripts/build.js` |
+| `npm run build:backend` | Build frozen backend only | `uv run --no-project --python 3.14 python scripts/build_backend.py` |
+| `npm run package`       | Validate and package existing artifacts | `uv run --no-project --python 3.14 python scripts/build_package.py` |
 
 ## 5. Portable Packaging Pipeline (`scripts/build_package.py`)
 
-A fully automated standalone distribution generator compiles portable bundles:
+Build artifacts first, then validate and package them without rebuilding:
 
 ```bash
-# Build standalone CPU package (default)
-npm run build:package
+# Build all CPU components (default), then package
+npm run build
+npm run package
 
 # Build standalone CUDA package (verified under 2GB)
-npm run build:package -- --edition cuda
+npm run build -- --edition cuda
+npm run package -- --edition cuda
 ```
 
-The build script uses `uv` to synchronize an edition-specific **build** environment under `build/packaging/`, then runs PyInstaller in **onedir** mode. The distribution contains `main.exe` (or `main`) and `_internal/` with Python, its standard library, and required dependencies; it does not ship a virtual environment. Frontend assets and writable model/settings directories stay beside the executable. The optional `.7z` archive is written to `dist/` and must be smaller than 2 GiB. Existing artifacts are protected; select a new `--output-dir` when rebuilding instead of cleaning user data.
+Build command definitions live only in `package.json`; `scripts/build.js` invokes the named component tasks rather than maintaining another set of frontend/Tauri commands in Python. The backend-only `scripts/build_backend.py` synchronizes an edition-specific **build** environment under `build/packaging/`, runs PyInstaller in **onedir** mode, and records a file inventory. The separate packaging script requires these existing artifacts and rejects missing or truncated backend files, missing frontend assets, and a missing Windows desktop executable before creating output. It never runs a compiler or installs application dependencies. The distribution contains `main.exe` (or `main`) and `_internal/` with Python, its standard library, and required dependencies; it does not ship a virtual environment. Frontend assets and writable model/settings directories stay beside the executable, with `vcclient-forge.exe` alongside them on Windows. The optional `.7z` archive is written to `dist/` and must be smaller than 2 GiB. Existing artifacts are protected; select a new `--output-dir` when repackaging instead of cleaning user data.
 
 For the full architectural analysis on achieving a sub-2GB CUDA portable distribution for direct GitHub Releases hosting, see **[Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md)**.
