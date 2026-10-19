@@ -85,7 +85,11 @@ jobs:
         timeout-minutes: 2
         run: |
           shopt -s nullglob
-          executables=(dist/*/main dist/*/main.exe)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            executables=(dist/*/main.exe)
+          else
+            executables=(dist/*/main)
+          fi
           test "${#executables[@]}" -eq 1
           "${executables[0]}" -- --help
 
