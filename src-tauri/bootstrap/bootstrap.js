@@ -16,9 +16,17 @@ async function refresh() {
     const status = await window.__TAURI__.core.invoke("startup_status");
     document.body.dataset.phase = status.phase;
     startup.setAttribute("aria-busy", String(status.phase === "starting"));
-    title.textContent = status.phase === "failed" ? "Connection failed" : status.phase === "ready" ? "Connected" : "Starting backend";
+    title.textContent =
+      status.phase === "failed"
+        ? "Connection failed"
+        : status.phase === "ready"
+          ? "Connected"
+          : "Starting backend";
     message.textContent = status.message;
+    const followLogs =
+      logs.scrollHeight - logs.scrollTop - logs.clientHeight <= 24;
     logs.textContent = status.logs.join("\n") || "Waiting for backend output.";
+    if (followLogs) logs.scrollTop = logs.scrollHeight;
     retry.hidden = status.phase !== "failed";
     elapsed.textContent = `${Math.floor((Date.now() - startedAt) / 1000)}s`;
   } catch (error) {

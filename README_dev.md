@@ -150,6 +150,8 @@ Archives are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z` on al
 
 The version comes from the root `package.json`'s `version` field. An optional leading `v` is removed before constructing the name so the filename contains only one `v` prefix.
 
+Tauri also reads the root manifest through `"version": "../package.json"` in `src-tauri/tauri.conf.json`. Update the root `version` field to change both the native app version and the distribution name; use SemVer without a leading `v`, and keep the root metadata in `package-lock.json` synchronized.
+
 ```text
 vcclient_<platform>_<edition>_v<VERSION>/
    vcclient-forge.exe        # Windows desktop host (required on Windows)

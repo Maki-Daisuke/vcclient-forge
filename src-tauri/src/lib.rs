@@ -24,7 +24,7 @@ pub fn run() {
             let window =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                     .title("VCClient Forge")
-                    .inner_size(1180.0, 800.0)
+                    .inner_size(1000.0, 800.0)
                     .min_inner_size(360.0, 480.0)
                     .on_navigation(backend::allowed_navigation)
                     .build()?;

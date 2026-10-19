@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read, Write};
+use std::num::NonZeroU16;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -101,18 +102,46 @@ fn backend_command() -> Result<Command, String> {
 fn read_output(
     stream: impl Read + Send + 'static,
     stdout: bool,
-    sender: mpsc::SyncSender<(bool, String)>,
+    sender: mpsc::SyncSender<(bool, Vec<u8>)>,
 ) {
     thread::spawn(move || {
-        for line in BufReader::new(stream).lines() {
-            let Ok(line) = line else { break };
-            if stdout && line.trim() == READY_MESSAGE {
-                let _ = sender.send((stdout, line));
-            } else {
-                let _ = sender.try_send((stdout, line));
+        if stdout {
+            for line in BufReader::new(stream).split(b'\n') {
+                let Ok(mut line) = line else { break };
+                let ready = String::from_utf8_lossy(&line).trim() == READY_MESSAGE;
+                line.push(b'\n');
+                let _ = sender.send((ready, line));
+            }
+        } else {
+            let mut stream = stream;
+            let mut buffer = [0; 4096];
+            while let Ok(count) = stream.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                let _ = sender.send((false, buffer[..count].to_vec()));
             }
         }
     });
+}
+
+fn log_terminal() -> vt100::Parser {
+    vt100::Parser::new(
+        NonZeroU16::new(40).unwrap(),
+        NonZeroU16::new(2000).unwrap(),
+        0,
+    )
+}
+
+fn process_log_output(terminal: &mut vt100::Parser, bytes: &[u8]) {
+    for segment in bytes.split_inclusive(|byte| *byte == b'\n') {
+        if let Some(line) = segment.strip_suffix(b"\n") {
+            terminal.process(line);
+            terminal.process(b"\r\n");
+        } else {
+            terminal.process(segment);
+        }
+    }
 }
 
 fn stop_backend(child: &mut Child) -> Result<(), String> {
@@ -151,6 +180,7 @@ fn supervise(app: &AppHandle, desktop: &Desktop) -> Result<(), String> {
     let (sender, output) = mpsc::sync_channel(128);
     read_output(child.stdout.take().unwrap(), true, sender.clone());
     read_output(child.stderr.take().unwrap(), false, sender);
+    let mut terminal = log_terminal();
     let deadline = Instant::now() + STARTUP_TIMEOUT;
     let mut ready = false;
     let result = loop {
@@ -167,15 +197,18 @@ fn supervise(app: &AppHandle, desktop: &Desktop) -> Result<(), String> {
         if !ready && Instant::now() >= deadline {
             break Err("Backend startup timed out after 10 minutes.".into());
         }
-        if let Ok((stdout, line)) = output.recv_timeout(Duration::from_millis(100)) {
+        if let Ok((ready_message, bytes)) = output.recv_timeout(Duration::from_millis(100)) {
+            process_log_output(&mut terminal, &bytes);
             {
                 let mut status = desktop.status.lock().unwrap();
-                status.logs.push_back(line.chars().take(2000).collect());
-                if status.logs.len() > 40 {
-                    status.logs.pop_front();
-                }
+                status.logs = terminal
+                    .screen()
+                    .contents()
+                    .lines()
+                    .map(str::to_owned)
+                    .collect();
             }
-            if !ready && stdout && line.trim() == READY_MESSAGE {
+            if !ready && ready_message {
                 let Some(window) = app.get_webview_window("main") else {
                     break Err("Application window is unavailable".into());
                 };
@@ -230,6 +263,67 @@ pub fn launch(app: AppHandle, desktop: Arc<Desktop>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn progress_updates_rewrite_existing_rows() {
+        let mut terminal = log_terminal();
+        process_log_output(&mut terminal, b"\rModule A: 10%\n\rModel B: 20%");
+        process_log_output(&mut terminal, b"\x1b[A\rModule A: 60%\x1b[B\rModel B: 90%");
+        assert_eq!(terminal.screen().contents(), "Module A: 60%\nModel B: 90%");
+    }
+
+    #[test]
+    fn ansi_and_utf8_can_span_read_boundaries() {
+        let mut terminal = log_terminal();
+        for byte in "\x1b[32mDownloading \u{2588} 50%\x1b[0m".as_bytes() {
+            process_log_output(&mut terminal, &[*byte]);
+        }
+        assert_eq!(terminal.screen().contents(), "Downloading \u{2588} 50%");
+    }
+
+    #[test]
+    fn piped_newlines_start_at_the_first_column() {
+        let mut terminal = log_terminal();
+        process_log_output(&mut terminal, b"first\nsecond\r\nthird\n");
+        assert_eq!(terminal.screen().contents(), "first\nsecond\nthird");
+    }
+
+    #[test]
+    fn readiness_is_only_reported_for_stdout() {
+        for stdout in [true, false] {
+            let (sender, output) = mpsc::sync_channel(4);
+            read_output(
+                std::io::Cursor::new(format!("{READY_MESSAGE}\n")),
+                stdout,
+                sender,
+            );
+            let (ready, _) = output.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert_eq!(ready, stdout);
+        }
+    }
+
+    #[test]
+    fn progress_is_forwarded_without_waiting_for_a_newline_or_eof() {
+        struct LiveOutput(mpsc::Receiver<Vec<u8>>);
+        impl Read for LiveOutput {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                let Ok(bytes) = self.0.recv() else {
+                    return Ok(0);
+                };
+                buffer[..bytes.len()].copy_from_slice(&bytes);
+                Ok(bytes.len())
+            }
+        }
+        let (input, chunks) = mpsc::channel();
+        let (sender, output) = mpsc::sync_channel(4);
+        read_output(LiveOutput(chunks), false, sender);
+        input.send(b"\rDownloading 40%".to_vec()).unwrap();
+        let (ready, bytes) = output.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(!ready);
+        let mut terminal = log_terminal();
+        process_log_output(&mut terminal, &bytes);
+        assert_eq!(terminal.screen().contents(), "Downloading 40%");
+    }
 
     #[test]
     fn navigation_is_limited_to_embedded_assets_and_our_loopback_server() {
