@@ -4,6 +4,7 @@ version: "0.1.0"
 okf_version: "0.2"
 description: "Open Knowledge Format bundle capturing architectural insights, reverse-engineering findings, and modernization decisions for VCClient Forge."
 entries:
+  - implementation-roadmap.md
   - origin-and-reverse-engineering.md
   - architectural-evolution.md
   - decompyle-plus-plus-traps-and-fixes.md
@@ -19,6 +20,8 @@ entries:
 # VCClient Forge Knowledge Base
 
 This knowledge bundle documents the reverse-engineering discoveries, historical architecture, bug fixes, and engineering decisions established during the development of **VCClient Forge** (a community-driven modernization and fork of `w-okada/voice-changer` v2.0.78-beta).
+
+For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. The articles below retain the detailed rationale and acceptance criteria.
 
 ## Knowledge Map
 
@@ -50,4 +53,4 @@ This knowledge bundle documents the reverse-engineering discoveries, historical 
    Why ngrok no longer belongs in Forge: Colab's restrictions have largely ended the historical free-Colab workflow, and remote audio round trips conflict with the project's local real-time purpose. Includes Tailscale Serve as optional, separately managed access to a user's own host.
 
 10. **[Server-First Audio Architecture & Static-Shape Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md)**
-   A roadmap toward local round-trip latency of 100 ms or less, built around native Server Mode, fixed-length inference, direct output delivery, and bounded buffering. Develops GPU optimization through IO Binding, pitch estimation + RVC integration, retrieval-free full integration, and ONNX retrieval evaluation, assessing CUDA Graph capture at applicable stages.
+    A roadmap toward local round-trip latency of 100 ms or less, built around native Server Mode, fixed-length inference, direct output delivery, and bounded buffering. Develops GPU optimization through IO Binding, pitch estimation + RVC integration, retrieval-free full integration, and ONNX retrieval evaluation, assessing CUDA Graph capture at applicable stages.
