@@ -20,6 +20,7 @@ if str(_here) not in sys.path:
 
 import fire
 import sounddevice as sd
+
 from vcclient.app_status import AppStatus
 from vcclient.client_launcher.client_launcher import ClientLauncher
 from vcclient.const import LOGGER_NAME, VERSION
