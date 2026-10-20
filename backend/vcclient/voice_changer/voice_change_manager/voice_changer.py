@@ -371,7 +371,7 @@ class VoiceChanger:
                 output = np.concatenate(converted_waveforms)
                 if accumulated_performance_data_num > 0:
                     for k, v in accumulated_performance_data.model_dump().items():
-                        setattr(accumulated_performance_data, k, v / out_ready_size)
+                        setattr(accumulated_performance_data, k, v / accumulated_performance_data_num)
                     accumulated_performance_data.data_num = accumulated_performance_data_num
                 else:
                     accumulated_performance_data = None
