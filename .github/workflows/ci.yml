@@ -46,8 +46,8 @@ jobs:
       - name: Lint code (Ruff)
         run: npm run lint
 
-      - name: Run test suite (pytest)
-        run: npm test
+      - name: Run test suite (mypy & pytest)
+        run: npm run test:backend
 
   desktop:
     name: Windows desktop host

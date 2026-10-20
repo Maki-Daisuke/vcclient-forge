@@ -176,11 +176,19 @@ For an import/startup check without starting a server or downloading models, use
 
 ### Running Tests
 
-Automated unit and integration tests are executed using pytest:
+Automated tests are divided into backend (type checking + pytest) and desktop suites, with a unified `npm test` runner:
 
 ```bash
+# Run all tests (backend typecheck, pytest, and desktop bootstrap):
 npm test
-# Or directly via uv:
+
+# Run backend tests only (mypy type checking + pytest):
+npm run test:backend
+
+# Run desktop bootstrap tests only:
+npm run test:desktop
+
+# Or run pytest directly via uv:
 uv run --project backend pytest backend/tests
 ```
 
@@ -190,6 +198,19 @@ Test coverage includes:
 * REST API endpoints (`/api/hello`, chunk conversion).
 * Web frontend static file delivery (`/`).
 * In-place ONNX export and pitch estimation pipelines (RMVPE, FCPE).
+* Desktop bootstrap IPC, retry lifecycle, and navigation security.
+
+### Static Type Checking
+
+Static type analysis is powered by [mypy](https://mypy.readthedocs.io/) configured via `backend/pyproject.toml` (targeting Python 3.14):
+
+```bash
+# Run type checks across configured modules
+npm run typecheck
+
+# Or directly via uv:
+uv run --project backend mypy --config-file backend/pyproject.toml
+```
 
 ### Linting & Formatting
 
@@ -215,7 +236,7 @@ npm run format:check
 
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
-* **`ci.yml`**: Runs Ruff linting, formatting checks, and pytest on every push and pull request across Ubuntu, Windows, and macOS using Python 3.14 and Node.js 26.
+* **`ci.yml`**: Runs Ruff linting, formatting checks, and backend test suite (`npm run test:backend`, including mypy type checking and pytest) on every push and pull request across Ubuntu, Windows, and macOS using Python 3.14 and Node.js 26.
 * **`ci.yml` desktop job**: Tests bootstrap behavior, checks Rust formatting, runs Rust tests, and builds the Windows Tauri executable. It does not exercise real audio devices.
 * **`release.yml`**: Automatically builds portable standalone packages across all hardware matrix editions when a new version tag (`v*`) is pushed, attaching the archives directly to GitHub Releases. Windows editions include Tauri; Linux/macOS retain backend-only packaging.
 
