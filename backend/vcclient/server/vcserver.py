@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import importlib.util
 import logging
@@ -13,11 +15,11 @@ from vcclient.server.vcserver_socketio_server import SocketIOServer
 
 
 class VCServer:
-    _instance = None
-
-    port = 0
-
+    _instance: VCServer | None = None
+    port: int = 0
     server_thread: threading.Thread | None = None
+    server: uvicorn.Server
+    loop: asyncio.AbstractEventLoop
 
     @classmethod
     def get_instance(
@@ -26,7 +28,7 @@ class VCServer:
         port: int | None = None,
         https: bool = False,
         allow_origins: list[str] | None = None,
-    ):
+    ) -> VCServer:
         if cls._instance is None:
             app_fastapi = VCServer(host=host, port=port, https=https, allow_origins=allow_origins)
             cls._instance = app_fastapi
@@ -64,7 +66,7 @@ class VCServer:
                 log_config=None,
                 ssl_keyfile=key,
                 ssl_certfile=cert,
-                timeout_graceful_shutdown=5.0,
+                timeout_graceful_shutdown=5,
             )
         else:
             config = uvicorn.Config(
@@ -73,7 +75,7 @@ class VCServer:
                 port=self.port,
                 log_level="info",
                 log_config=None,
-                timeout_graceful_shutdown=5.0,
+                timeout_graceful_shutdown=5,
             )
 
         self.server = uvicorn.Server(config)

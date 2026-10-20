@@ -112,6 +112,7 @@ check_untyped_defs = true
 files = [
     "backend/main.py",
     "backend/vcclient/logger.py",
+    "backend/vcclient/server",
     "backend/vcclient/voice_changer/auido_device_manager",
     "backend/vcclient/voice_changer/configuration_manager",
     "backend/vcclient/voice_changer/voice_change_manager/local_voice_changer_interface.py",

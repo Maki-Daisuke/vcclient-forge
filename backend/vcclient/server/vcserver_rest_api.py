@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import shutil
@@ -89,7 +91,9 @@ class RestAPI:
 
             def custom_swagger_ui_html():
                 logging.getLogger(LOGGER_NAME).info("CUSTOM UI")
-                return get_custom_swagger_ui_html(openapi_url=app_fastapi.openapi_url, title="VCClient API Docs")
+                return get_custom_swagger_ui_html(
+                    openapi_url=app_fastapi.openapi_url or "/openapi.json", title="VCClient API Docs"
+                )
 
             custom_swagger_ui_html = app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
             app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
