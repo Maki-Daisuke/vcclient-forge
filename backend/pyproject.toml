@@ -41,15 +41,9 @@ cuda = [
     "nvidia-cufft-cu12>=11.2.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
     "nvidia-cuda-runtime-cu12>=12.4.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
 ]
-dml = [
-    "onnxruntime-directml>=1.20.0",
-]
-cpu = [
-    "onnxruntime>=1.20.0",
-]
-mac = [
-    "onnxruntime>=1.20.0",
-]
+dml = ["onnxruntime-directml>=1.20.0"]
+cpu = ["onnxruntime>=1.20.0"]
+mac = ["onnxruntime>=1.20.0"]
 dev = [
     "ruff>=0.9.0",
     "pytest>=8.0.0",
@@ -58,9 +52,7 @@ dev = [
 ]
 
 [dependency-groups]
-build = [
-    "pyinstaller>=6.19.0,<7",
-]
+build = ["pyinstaller>=6.19.0,<7"]
 dev = [
     "ruff>=0.9.0",
     "pytest>=8.0.0",
@@ -83,9 +75,7 @@ conflicts = [
 onnxruntime-gpu = [
     { index = "onnxruntime-cuda-13", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
-torch = [
-    { index = "pytorch-cpu" },
-]
+torch = [{ index = "pytorch-cpu" }]
 
 [[tool.uv.index]]
 name = "onnxruntime-cuda-13"
@@ -100,14 +90,7 @@ explicit = true
 [tool.ruff]
 line-length = 120
 target-version = "py314"
-exclude = [
-    ".git",
-    ".venv",
-    "client",
-    "web_front",
-    "frontend",
-    "tools",
-]
+exclude = [".git", ".venv", "client", "web_front", "frontend", "tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
@@ -116,4 +99,3 @@ ignore = ["E501", "E402", "F841", "E712"]
 [tool.pytest.ini_options]
 pythonpath = [".", "backend"]
 testpaths = ["tests"]
-
