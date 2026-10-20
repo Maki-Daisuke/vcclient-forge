@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import time
 
@@ -16,32 +18,32 @@ from ..voice_chanager_const import ConfigFile
 
 
 class ConfigurationManager:
-    _instance = None
+    _instance: ConfigurationManager | None = None
+    voice_changer_configuration: VoiceChangerConfiguration
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> ConfigurationManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.reload()
         self.voice_changer_configuration.recording_started = False
 
-    def reload(self):
+    def reload(self) -> None:
         if os.path.exists(ConfigFile):
-            self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(
-                open(ConfigFile, encoding="utf-8").read()
-            )
+            with open(ConfigFile, "r", encoding="utf-8") as f:
+                self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(f.read())
             return None
 
         self.voice_changer_configuration = VoiceChangerConfiguration()
         self.save_voice_changer_configuration()
 
-    def get_voice_changer_configuration(self):
+    def get_voice_changer_configuration(self) -> VoiceChangerConfiguration:
         return self.voice_changer_configuration
 
-    def set_voice_changer_configuration(self, conf: VoiceChangerConfiguration):
+    def set_voice_changer_configuration(self, conf: VoiceChangerConfiguration) -> None:
         from ..voice_change_manager.local_voice_changer_interface import (
             LocalVoiceChangerInterface,
             local_voice_changer_loop_interval_sec,
@@ -127,5 +129,6 @@ class ConfigurationManager:
         self.voice_changer_configuration.monitor_sample_rate = monitor_sample_rate
         self.save_voice_changer_configuration()
 
-    def save_voice_changer_configuration(self):
-        open(ConfigFile, "w", encoding="utf-8").write(self.voice_changer_configuration.model_dump_json(indent=4))
+    def save_voice_changer_configuration(self) -> None:
+        with open(ConfigFile, "w", encoding="utf-8") as f:
+            f.write(self.voice_changer_configuration.model_dump_json(indent=4))

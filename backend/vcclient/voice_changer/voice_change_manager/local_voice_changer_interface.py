@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import logging
 import time
 import traceback
 from queue import Empty, Queue
+from typing import Any
 
 import numpy as np
 import sounddevice as sd
@@ -24,15 +27,31 @@ local_voice_changer_loop_interval_sec = 0.2
 
 
 class LocalVoiceChangerInterface:
-    _instance = None
+    _instance: LocalVoiceChangerInterface | None = None
+    stop_flag: bool
+    local_voice_changer_enabled: bool
+    out_queue: Queue[np.ndarray]
+    monitor_queue: Queue[np.ndarray]
+    waveform_rest_output: np.ndarray
+    waveform_rest_monitor: np.ndarray
+    split_length: int
+    audio_input_device_sample_rate: float
+    audio_output_device_sample_rate: float
+    audio_monitor_device_sample_rate: float
+    input_block_size: int
+    output_block_size: int
+    monitor_block_size: int
+    input_extra_settings: sd.WasapiSettings | None
+    output_extra_settings: sd.WasapiSettings | None
+    monitor_extra_settings: sd.WasapiSettings | None
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> LocalVoiceChangerInterface:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.stop_flag = True
         self.local_voice_changer_enabled = False
         self.out_queue = Queue()
@@ -41,7 +60,7 @@ class LocalVoiceChangerInterface:
         self.waveform_rest_monitor = np.array([], dtype=np.float32)
         self.split_length = 0
 
-    def start(self):
+    def start(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         if conf.audio_input_device_index == -1:
             raise VCClientError(ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED)
@@ -49,16 +68,16 @@ class LocalVoiceChangerInterface:
             raise VCClientError(ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED)
         self.local_voice_changer_enabled = True
 
-    def stop(self):
+    def stop(self) -> None:
         self.local_voice_changer_enabled = False
         self.vc = VoiceChanger.get_instance()
         self.vc.stop_convert_chunk_bulk()
 
-    def run(self):
+    def run(self) -> None:
         self.setup()
         self.launch_converter()
 
-    def setup(self):
+    def setup(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         if conf.audio_input_device_index == -1:
             raise VCClientError(ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED)
@@ -119,21 +138,13 @@ class LocalVoiceChangerInterface:
         logging.getLogger(LOGGER_NAME).info(f"wasapi_exclusive_enabled:{exclusive_mode}")
 
         input_audio_device = AudioDeviceManager.get_instance().get_audio_input_device(conf.audio_input_device_index)
-        if (
-            hasattr(input_audio_device, "host_api")
-            and "WASAPI" in input_audio_device.host_api
-            and exclusive_mode is True
-        ):
+        if input_audio_device is not None and "WASAPI" in input_audio_device.host_api and exclusive_mode is True:
             self.input_extra_settings = sd.WasapiSettings(exclusive=True)
         else:
             self.input_extra_settings = None
 
         output_audio_device = AudioDeviceManager.get_instance().get_audio_output_device(conf.audio_output_device_index)
-        if (
-            hasattr(output_audio_device, "host_api")
-            and "WASAPI" in output_audio_device.host_api
-            and exclusive_mode is True
-        ):
+        if output_audio_device is not None and "WASAPI" in output_audio_device.host_api and exclusive_mode is True:
             self.output_extra_settings = sd.WasapiSettings(exclusive=True)
         else:
             self.output_extra_settings = None
@@ -141,12 +152,7 @@ class LocalVoiceChangerInterface:
         monitor_audio_device = AudioDeviceManager.get_instance().get_audio_output_device(
             conf.audio_monitor_device_index
         )
-        if (
-            monitor_audio_device is not None
-            and hasattr(monitor_audio_device, "host_api")
-            and "WASAPI" in monitor_audio_device.host_api
-            and exclusive_mode is True
-        ):
+        if monitor_audio_device is not None and "WASAPI" in monitor_audio_device.host_api and exclusive_mode is True:
             self.monitor_extra_settings = sd.WasapiSettings(exclusive=True)
         else:
             self.monitor_extra_settings = None
@@ -156,7 +162,7 @@ class LocalVoiceChangerInterface:
         else:
             self.vc.set_monitor_enable(False)
 
-    def launch_converter(self):
+    def launch_converter(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         stop_check_counter = 0
         if self.audio_input_device_sample_rate < 0:
@@ -210,7 +216,7 @@ class LocalVoiceChangerInterface:
                             )
         logging.getLogger(LOGGER_NAME).info("Local Voice Changer main thread stopped")
 
-    def audio_input_callback(self, indata, frames, times, status):
+    def audio_input_callback(self, indata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
             indata = indata[:, 0].copy() * conf.audio_input_device_gain
@@ -254,7 +260,7 @@ class LocalVoiceChangerInterface:
             logging.getLogger(LOGGER_NAME).error(f"audio input callback ex:{e}")
             logging.getLogger(LOGGER_NAME).error(f"audio input {traceback.format_exc()}")
 
-    def audio_output_callback(self, outdata, frames, times, status):
+    def audio_output_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
             buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
@@ -292,7 +298,7 @@ class LocalVoiceChangerInterface:
             logging.getLogger(LOGGER_NAME).error(f"audio output callback ex:{e}")
             logging.getLogger(LOGGER_NAME).error(f"audio output {traceback.format_exc()}")
 
-    def audio_monitor_callback(self, outdata, frames, times, status):
+    def audio_monitor_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
             buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import warnings
@@ -30,19 +32,10 @@ class IgnoreConvertRequestFilter(logging.Filter):
         )
 
 
-def setup_logger(logger_name: str = None, filename: Path = None, level: int | None = None):
+def setup_logger(logger_name: str, filename: Path, level: int | None = None) -> logging.Logger:
     if level is None:
         level_str = os.environ.get("LOG_LEVEL", os.environ.get("VCCLIENT_LOG_LEVEL", "WARNING")).upper()
         level = getattr(logging, level_str, logging.WARNING)
-
-    if logger_name is None:
-        from .const import LOGGER_NAME
-
-        logger_name = LOGGER_NAME
-    if filename is None:
-        from .const import LOG_FILE
-
-        filename = LOG_FILE
 
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)
@@ -77,3 +70,4 @@ def setup_logger(logger_name: str = None, filename: Path = None, level: int | No
         sub_logger.addHandler(file_handler)
 
     logging.getLogger("uvicorn.access").addFilter(IgnoreConvertRequestFilter())
+    return logger

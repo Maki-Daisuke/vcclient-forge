@@ -23,7 +23,7 @@ import sounddevice as sd
 
 from vcclient.app_status import AppStatus
 from vcclient.client_launcher.client_launcher import ClientLauncher
-from vcclient.const import LOGGER_NAME, VERSION
+from vcclient.const import LOG_FILE, LOGGER_NAME, VERSION
 from vcclient.initializer import (
     _cehck_and_download_initial_samples,
     _check_and_convert_legacy_pth_models,
@@ -41,7 +41,7 @@ from vcclient.voice_changer.module_manager.module_manager import ModuleDownloadS
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
-setup_logger()
+setup_logger(LOGGER_NAME, LOG_FILE)
 logger = logging.getLogger(LOGGER_NAME)
 
 
@@ -83,7 +83,7 @@ def wait_for_desktop_server(vcserver: VCServer, timeout: float = 30) -> None:
     while not vcserver.server.started:
         if AppStatus.get_instance().end_flag:
             raise RuntimeError("Desktop startup was cancelled")
-        if not vcserver.server_thread.is_alive():
+        if vcserver.server_thread is not None and not vcserver.server_thread.is_alive():
             raise RuntimeError("Backend failed to listen; check whether the port is already in use")
         if time.monotonic() >= deadline:
             raise TimeoutError("Backend did not become ready within the startup timeout")
