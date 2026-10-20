@@ -86,6 +86,7 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert commands[1][commands[1].index("--group") + 1] == "build"
     freeze = next(cmd for cmd in commands if "PyInstaller" in cmd)
     assert "--onedir" in freeze
+    assert freeze[freeze.index("--optimize") + 1] == "1"
     assert not Path(freeze[0]).is_relative_to(package)
     assert str(tmp_path / "backend" / "vcclient" / "version.txt") + ":vcclient" in freeze
     assert "vcclient.server.vcserver_socketio" in freeze

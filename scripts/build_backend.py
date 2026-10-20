@@ -54,6 +54,8 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         "--onedir",
         "--noupx",
         "--noconfirm",
+        "--optimize",
+        "1",
         "--name",
         "main",
         "--distpath",
