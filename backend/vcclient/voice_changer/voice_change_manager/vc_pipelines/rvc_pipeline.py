@@ -13,7 +13,7 @@ from vcclient.voice_changer.voice_change_manager.device_manager.device_manager i
 from ....const import LOGGER_NAME
 from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo
-from ...data_types.voice_changer_data_types import RVCInferencerInfo, RVCPipelineInfo
+from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
 from ...voice_chanager_const import ModelDir, RVCInferencerOnnxVersion
 from ..embedders.embedder_manager import EmbedderManager
@@ -28,7 +28,8 @@ class RVCPipeline(VCPipeline):
     rvc: RVCInferencer
 
     def __init__(self, slot_info: RVCSlotInfo):
-        assert isinstance(slot_info, RVCSlotInfo)
+        if not isinstance(slot_info, RVCSlotInfo):
+            raise TypeError(f"slot_info must be RVCSlotInfo, got {type(slot_info).__name__}")
         self._slot_info = slot_info
         self.slot_index = slot_info.slot_index
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -41,7 +42,8 @@ class RVCPipeline(VCPipeline):
             slot_info.pitch_estimator, conf.gpu_device_id_int
         )
         self.embedder = EmbedderManager.get_embedder(slot_info.embedder, conf.gpu_device_id_int)
-        assert slot_info.model_file is not None
+        if slot_info.model_file is None:
+            raise ValueError(f"RVC slot {slot_info.slot_index} has no model file configured.")
         self.rvc = cast(
             RVCInferencer,
             InferencerManager.get_inferencer(
@@ -184,8 +186,12 @@ class RVCPipeline(VCPipeline):
         )
 
     def run(self, audio: np.ndarray, real_crossfade_sec: float):
-        assert audio.ndim == 1, "audio should be 1d."
-        assert audio.dtype in (np.float32, np.float64), f"audio should be float32 or float64. {audio.dtype}"
+        if not isinstance(audio, np.ndarray):
+            raise TypeError(f"audio must be a numpy array, got {type(audio).__name__}")
+        if audio.ndim != 1:
+            raise ValueError(f"audio should be 1d, got shape {audio.shape}.")
+        if audio.dtype not in (np.float32, np.float64):
+            raise TypeError(f"audio should be float32 or float64, got {audio.dtype}.")
         input_sample_num = audio.shape[0]
         slot_info = self.slot_info
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -242,7 +248,6 @@ class RVCPipeline(VCPipeline):
 
         feats = feats.transpose(0, 2, 1)
         feats = self.onnx_upscaler.run(["out"], {"in": feats, "scales": np.array([2], dtype=np.float32)})
-        assert isinstance(feats[0], np.ndarray)
         feats = feats[0].transpose(0, 2, 1)
 
         npy_offset = math.floor(extra_frame_sec * 16000) // 360
@@ -253,7 +258,11 @@ class RVCPipeline(VCPipeline):
 
         feats_len_np = np.array([feats.shape[1]], dtype=np.int64)
         sid = np.array([0], dtype=np.int64)
-        converted = self.rvc.infer(feats, feats_len_np, pitch_coarse, pitch, sid, convert_length=real_output_size)
+        pitch_coarse_input = pitch_coarse if pitch_coarse is not None else np.empty(0, dtype=np.int64)
+        pitchf_input = pitch if pitch is not None else np.empty(0, dtype=np.float32)
+        converted = self.rvc.infer(
+            feats, feats_len_np, pitch_coarse_input, pitchf_input, sid, convert_length=real_output_size
+        )
         converted = converted[-real_output_size:]
         self.pitchf_buffer = pitch
         self.feature_buffer = feats
@@ -278,7 +287,6 @@ class RVCPipeline(VCPipeline):
 
     def get_pipeline_info(self):
         inferencer_info = self.rvc.get_info()
-        assert isinstance(inferencer_info, RVCInferencerInfo)
         return RVCPipelineInfo(
             slot_index=self.slot_index,
             input_sample_rate=self.get_input_sample_rate(),

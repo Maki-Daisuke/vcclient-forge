@@ -103,6 +103,3 @@ class RVCSampleInfo(SampleInfo):
     inferencer_type: InferencerType
     f0: bool
     sample_rate: int
-
-
-SampleInfoMember = SampleInfo | RVCSampleInfo

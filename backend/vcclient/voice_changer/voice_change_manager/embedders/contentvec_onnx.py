@@ -46,7 +46,8 @@ class ContentvecOnnx(Embedder):
 
     def extract_features(self, audio: np.ndarray) -> np.ndarray:
         try:
-            assert isinstance(audio, np.ndarray)
+            if not isinstance(audio, np.ndarray):
+                raise TypeError(f"audio must be a numpy array, got {type(audio).__name__}")
             if audio.ndim != 1:
                 logging.getLogger(LOGGER_NAME).error(
                     f"Exeption in {self.__class__.__name__} audio.dim is not 1 (size :{audio.ndim}, {audio.shape})"

@@ -1,6 +1,6 @@
-from ..data_types.data_types import RVCSampleInfo, SampleInfoMember
+from ..data_types.data_types import RVCSampleInfo
 
-SAMPLE_RVC_ONNX: list[SampleInfoMember] = [
+SAMPLE_RVC_ONNX: list[RVCSampleInfo] = [
     RVCSampleInfo(
         id="KikotoKurage_o",
         voice_changer_type="RVC",

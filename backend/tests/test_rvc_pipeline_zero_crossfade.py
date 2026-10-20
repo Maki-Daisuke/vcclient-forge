@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
@@ -37,6 +38,15 @@ def _create_mock_pipeline(is_f0: bool = False, sample_rate: int = 16000) -> RVCP
     pipeline.rvc = MagicMock()
 
     return pipeline
+
+
+def test_pipeline_rejects_invalid_audio_contracts():
+    pipeline = _create_mock_pipeline()
+
+    with pytest.raises(ValueError, match="1d"):
+        pipeline.run(np.zeros((1, 8), dtype=np.float32), real_crossfade_sec=0)
+    with pytest.raises(TypeError, match="float32 or float64"):
+        pipeline.run(np.zeros(8, dtype=np.int16), real_crossfade_sec=0)
 
 
 def test_generate_inputs_zero_crossfade_overlap_produces_finite_volume():

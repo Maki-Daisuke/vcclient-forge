@@ -296,9 +296,9 @@ class VoiceChanger:
             raise VCClientError(ERROR_CODE_RECORDING_FAILED, f"Failed to save recording:{e}")
 
     waveform_rest = np.array([])
-    convert_chunk_bulk_queue_in: Queue = Queue()
-    convert_chunk_bulk_queue_out: Queue = Queue()
-    convert_chunk_bulk_queue_monitor: Queue = Queue()
+    convert_chunk_bulk_queue_in: Queue[np.ndarray] = Queue()
+    convert_chunk_bulk_queue_out: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
+    convert_chunk_bulk_queue_monitor: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
 
     def is_convert_chunk_bulk_started(self):
         return self.vc_info.bulk_process_start_flag
@@ -363,7 +363,6 @@ class VoiceChanger:
                     converted_waveform, performance_data = self.convert_chunk_bulk_queue_out.get()
                     converted_waveforms.append(converted_waveform)
                     if performance_data is not None:
-                        assert isinstance(performance_data, PerformanceData)
                         performance_dict = performance_data.model_dump()
                         for k, v in performance_dict.items():
                             setattr(accumulated_performance_data, k, getattr(accumulated_performance_data, k) + v)
@@ -410,9 +409,9 @@ class VoiceChanger:
                     return None
                 w = self.convert_chunk_bulk_queue_in.get(timeout=0.5)
                 converted, converted_for_monitor, performance_data = self.convert_chunk(w)
-                self.convert_chunk_bulk_queue_out.put([converted, performance_data])
+                self.convert_chunk_bulk_queue_out.put((converted, performance_data))
                 if converted_for_monitor is not None:
-                    self.convert_chunk_bulk_queue_monitor.put([converted_for_monitor, performance_data])
+                    self.convert_chunk_bulk_queue_monitor.put((converted_for_monitor, performance_data))
             except Empty:
                 pass
             except Exception as e:
@@ -423,7 +422,9 @@ class VoiceChanger:
                     f"Failed to convert_chunk_bulk_internal:{traceback.format_exc()}"
                 )
 
-    def convert_chunk(self, waveform, direct_from_server=None):
+    def convert_chunk(
+        self, waveform: np.ndarray, direct_from_server: bool | None = None
+    ) -> tuple[np.ndarray, np.ndarray | None, PerformanceData | None]:
         """Convert waveform.
 
         Args:

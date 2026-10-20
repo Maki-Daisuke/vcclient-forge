@@ -38,20 +38,12 @@ class RVCInferencerOnnxF0(RVCInferencer):
         self,
         feats: np.ndarray,
         pitch_length: np.ndarray,
-        pitch: np.ndarray | None,
-        pitchf: np.ndarray | None,
+        pitch: np.ndarray,
+        pitchf: np.ndarray,
         sid: np.ndarray,
         convert_length: int | None = None,
     ) -> np.ndarray:
         try:
-            assert (
-                isinstance(feats, np.ndarray)
-                and isinstance(pitch_length, np.ndarray)
-                and isinstance(pitch, np.ndarray)
-                and isinstance(pitchf, np.ndarray)
-                and isinstance(sid, np.ndarray)
-            )
-
             if feats.ndim != 3:
                 raise RuntimeError(
                     f"Exeption in {self.__class__.__name__} feats.ndim is not 3 (size :{feats.ndim}, {feats.shape})"
@@ -111,7 +103,7 @@ class RVCInferencerOnnxF0(RVCInferencer):
         except Exception as e:
             raise RuntimeError(f"Exeption in {self.__class__.__name__}", e)
 
-    def get_info(self):
+    def get_info(self) -> RVCInferencerInfo:
         return RVCInferencerInfo(
             inferencer_type="onnxRVC",
             model_file=self.file,

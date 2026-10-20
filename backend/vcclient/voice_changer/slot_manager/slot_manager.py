@@ -7,7 +7,9 @@ from pathlib import Path
 
 from ...const import LOGGER_NAME
 from ...exception import (
+    ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED,
     ERROR_CODE_SLOT_INDEX_NOT_FOUND,
+    ERROR_CODE_SLOT_STATE_CONFLICT,
     VCClientError,
 )
 from ..data_types.slot_manager_data_types import (
@@ -177,9 +179,11 @@ class SlotManager:
         if model_import_param.slot_index is None:
             model_import_param.slot_index = self.get_blank_slot_index()
         validate_slot_index(model_import_param.slot_index)
-        assert self.get_slot_info(model_import_param.slot_index).voice_changer_type is None, (
-            f"slot_index:{model_import_param.slot_index} is already exists."
-        )
+        if self.get_slot_info(model_import_param.slot_index).voice_changer_type is not None:
+            raise VCClientError(
+                ERROR_CODE_SLOT_STATE_CONFLICT,
+                f"slot_index:{model_import_param.slot_index} is already occupied.",
+            )
         logging.getLogger(LOGGER_NAME).info(f"set new slot: {model_import_param}")
         import_model(ModelDir, model_import_param, remove_src)
         self.reload()
@@ -195,7 +199,8 @@ class SlotManager:
         ※別の観点で、同じファイル名のサンプルが同時にダウンロードされると、uploadフォルダ内で上書きされてしまうが、それもまずは見てみなふりをする。
         """
         validate_slot_index(slot_index)
-        assert self.get_slot_info(slot_index).voice_changer_type is None, f"slot_index:{slot_index} is already exists."
+        if self.get_slot_info(slot_index).voice_changer_type is not None:
+            raise VCClientError(ERROR_CODE_SLOT_STATE_CONFLICT, f"slot_index:{slot_index} is already occupied.")
         import_param = ReservedForSampleModelImportParam(
             voice_changer_type="RESERVED_FOR_SAMPLE",
             name="RESERVED_FOR_SAMPLE",
@@ -207,9 +212,11 @@ class SlotManager:
 
     def update_slot_for_sample(self, slot_index: int, progress: float):
         slot_info = self.get_slot_info(slot_index)
-        assert slot_info.voice_changer_type == "RESERVED_FOR_SAMPLE", (
-            f"slot_index:{slot_index} is not reserved for sample."
-        )
+        if slot_info.voice_changer_type != "RESERVED_FOR_SAMPLE":
+            raise VCClientError(
+                ERROR_CODE_SLOT_STATE_CONFLICT,
+                f"slot_index:{slot_index} is not reserved for sample.",
+            )
         slot_info.progress = progress
 
     def release_slot_from_reseved_for_sample(self, slot_index: int):
@@ -238,13 +245,21 @@ class SlotManager:
         validate_slot_index(slot_info.slot_index)
         org_slot_info = self.get_slot_info(slot_info.slot_index)
         logging.getLogger(LOGGER_NAME).debug(f"updating slot info: org => {org_slot_info}")
-        assert org_slot_info.voice_changer_type is not None, f"src:{slot_info.slot_index} is not exist."
+        if org_slot_info.voice_changer_type is None:
+            raise VCClientError(
+                ERROR_CODE_SLOT_STATE_CONFLICT,
+                f"slot_index:{slot_info.slot_index} does not exist.",
+            )
         logging.getLogger(LOGGER_NAME).debug(f"updating slot info: new => {slot_info}")
         self.save_slot_info(slot_info)
 
     def find_legacy_pth_slots(self) -> list[tuple[int, Path]]:
         """スロットディレクトリを走査し、.pth が存在して .onnx が未生成のスロット一覧を返す。
-
+        if not isinstance(new_slot_info, RVCSlotInfo):
+            raise VCClientError(
+                ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED,
+                f"Converted model is not an RVC model: {onnx_file}",
+            )
         Returns:
             [(slot_index, pth_file_path), ...]
         """
@@ -293,7 +308,11 @@ class SlotManager:
 
         existing_info = self.get_slot_info(slot_index)
         new_slot_info = estimate_rvc_model(onnx_file)
-        assert isinstance(new_slot_info, RVCSlotInfo)
+        if not isinstance(new_slot_info, RVCSlotInfo):
+            raise VCClientError(
+                ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED,
+                f"Converted model is not an RVC model: {onnx_file}",
+            )
         new_slot_info.slot_index = slot_index
 
         if isinstance(existing_info, RVCSlotInfo):
@@ -328,8 +347,10 @@ class SlotManager:
     def move_model_slot(self, param: MoveModelParam):
         validate_slot_index(param.src, "src")
         validate_slot_index(param.dst, "dst")
-        assert self.get_slot_info(param.dst).voice_changer_type is None, f"dst:{param.dst} is already exists."
-        assert self.get_slot_info(param.src).voice_changer_type is not None, f"src:{param.src} is not exist."
+        if self.get_slot_info(param.dst).voice_changer_type is not None:
+            raise VCClientError(ERROR_CODE_SLOT_STATE_CONFLICT, f"dst:{param.dst} is already occupied.")
+        if self.get_slot_info(param.src).voice_changer_type is None:
+            raise VCClientError(ERROR_CODE_SLOT_STATE_CONFLICT, f"src:{param.src} does not exist.")
         slot_info = self.get_slot_info(param.src)
         slot_info.slot_index = param.dst
         src_path = ModelDir / str(param.src)
@@ -344,9 +365,13 @@ class SlotManager:
 
     def set_icon_file(self, param: SetIconParam):
         validate_slot_index(param.slot_index)
+        slot_info = self.get_slot_info(param.slot_index)
+        if slot_info.voice_changer_type is None:
+            raise VCClientError(
+                ERROR_CODE_SLOT_STATE_CONFLICT,
+                f"slot_index:{param.slot_index} does not exist.",
+            )
         icon_dst_path = ModelDir / f"{param.slot_index}" / param.icon_file.name
         shutil.move(param.icon_file, icon_dst_path)
-        slot_info = self.get_slot_info(param.slot_index)
-        assert slot_info is not None, f"slot_index:{param.slot_index} is not exists."
         slot_info.icon_file = Path(icon_dst_path.name)
         self.update_slot_info(slot_info)

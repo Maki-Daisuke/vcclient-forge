@@ -1,6 +1,14 @@
 from pathlib import Path
 
-from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
+import pytest
+
+from vcclient.exception import ERROR_CODE_SLOT_STATE_CONFLICT, VCClientError
+from vcclient.voice_changer.data_types.slot_manager_data_types import (
+    MoveModelParam,
+    RVCModelImportParam,
+    RVCSlotInfo,
+    SetIconParam,
+)
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager, reload_slot_infos
 from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
 
@@ -132,3 +140,56 @@ def test_delete_slot_with_readonly_attributes(monkeypatch, tmp_path: Path):
 
     # ディレクトリごと安全に削除されていること
     assert not slot_dir.exists()
+
+
+def test_slot_state_conflicts_are_rejected_without_overwriting_existing_model(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path)
+    slot_dir = tmp_path / "0"
+    slot_dir.mkdir()
+    params_file = slot_dir / SLOT_PARAM_FILE
+    existing_info = RVCSlotInfo(slot_index=0, name="Existing", model_file="existing.onnx")
+    params_file.write_text(existing_info.model_dump_json(), encoding="utf-8")
+    manager = SlotManager()
+
+    import_param = RVCModelImportParam(slot_index=0, name="Replacement", model_file=tmp_path / "new.onnx")
+    for operation in (lambda: manager.set_new_slot(import_param), lambda: manager.reserve_slot_for_sample(0)):
+        with pytest.raises(VCClientError) as error:
+            operation()
+        assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
+        assert RVCSlotInfo.model_validate_json(params_file.read_text(encoding="utf-8")).name == "Existing"
+
+
+def test_slot_updates_and_moves_reject_invalid_states(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path)
+    slot_dir = tmp_path / "0"
+    slot_dir.mkdir()
+    params_file = slot_dir / SLOT_PARAM_FILE
+    params_file.write_text(
+        RVCSlotInfo(slot_index=0, name="Existing", model_file="existing.onnx").model_dump_json(), encoding="utf-8"
+    )
+    manager = SlotManager()
+
+    invalid_operations = (
+        lambda: manager.update_slot_for_sample(0, 0.5),
+        lambda: manager.update_slot_info(RVCSlotInfo(slot_index=1, name="Missing", model_file="missing.onnx")),
+        lambda: manager.move_model_slot(MoveModelParam(src=0, dst=0)),
+        lambda: manager.move_model_slot(MoveModelParam(src=1, dst=2)),
+    )
+    for operation in invalid_operations:
+        with pytest.raises(VCClientError) as error:
+            operation()
+        assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
+    assert RVCSlotInfo.model_validate_json(params_file.read_text(encoding="utf-8")).name == "Existing"
+
+
+def test_set_icon_rejects_empty_slot_before_moving_upload(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path / "models")
+    manager = SlotManager()
+    icon_file = tmp_path / "icon.png"
+    icon_file.write_bytes(b"icon")
+
+    with pytest.raises(VCClientError) as error:
+        manager.set_icon_file(SetIconParam(slot_index=0, icon_file=icon_file))
+
+    assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
+    assert icon_file.exists()

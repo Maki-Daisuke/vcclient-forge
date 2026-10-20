@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -238,3 +240,44 @@ def test_import_model_auto_converts_pth(dummy_rvc_v2_f0_checkpoint: Path, tmp_pa
     assert data["is_onnx"] is True
     assert data["inferencer_type"] == "onnxRVC"
     assert data["model_file"] == onnx_file.name
+
+
+def test_model_import_requires_slot_index_before_creating_directory(tmp_path: Path):
+    from vcclient.exception import ERROR_CODE_IMPORT_MODEL_FAILED, VCClientError
+    from vcclient.voice_changer.data_types.slot_manager_data_types import ModelImportParam
+    from vcclient.voice_changer.slot_manager.model_importer.model_importer import import_model
+
+    with pytest.raises(VCClientError) as error:
+        import_model(tmp_path, ModelImportParam(voice_changer_type="RVC", name="Invalid"))
+
+    assert error.value.info.code == ERROR_CODE_IMPORT_MODEL_FAILED
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_invalid_model_architecture_is_rejected_with_optimization(tmp_path: Path):
+    script = """
+from vcclient.voice_changer.slot_manager.onnx_exporter.attentions import MultiHeadAttention
+from vcclient.voice_changer.slot_manager.onnx_exporter.modules import ConvReluNorm, ResidualCouplingLayer, WN
+
+invalid_models = {
+    "attention heads": lambda: MultiHeadAttention(3, 3, 2),
+    "layer count": lambda: ConvReluNorm(1, 1, 1, 3, 1, 0),
+    "kernel size": lambda: WN(1, 2, 1, 1),
+    "channel count": lambda: ResidualCouplingLayer(3, 1, 3, 1, 1),
+}
+for label, build in invalid_models.items():
+    try:
+        build()
+    except ValueError:
+        continue
+    raise RuntimeError(f"Invalid {label} was accepted")
+"""
+    result = subprocess.run(
+        [sys.executable, "-O", "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

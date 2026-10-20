@@ -10,7 +10,7 @@ import requests
 from ...const import LOGGER_NAME
 from ...exception import ERROR_CODE_SAMPLE_NOT_FOUND, VCClientError
 from ...server.server_const import UPLOAD_DIR
-from ..data_types.data_types import RVCSampleInfo, SampleInfoMember
+from ..data_types.data_types import RVCSampleInfo
 from ..data_types.sample_manager_data_types import SampleDownloadParam, SampleDownloadStatus
 from ..data_types.slot_manager_data_types import RVCModelImportParam
 from ..slot_manager.slot_manager import SlotManager
@@ -27,7 +27,7 @@ class SampleManager:
         return cls._instance
 
     def __init__(self):
-        self.sample_list = []
+        self.sample_list: list[RVCSampleInfo] = []
         self.reload()
 
     def reload(self):
@@ -40,38 +40,35 @@ class SampleManager:
     def _download(
         self,
         upload_dir: Path,
-        target_sample: SampleInfoMember,
+        target_sample: RVCSampleInfo,
         callback: Callable[[SampleDownloadStatus], None],
         rvc_skip_index: bool = False,
     ):
         upload_dir.mkdir(parents=True, exist_ok=True)
-        if target_sample.voice_changer_type == "RVC":
-            assert isinstance(target_sample, RVCSampleInfo)
-            download_urls = []
-            download_urls.append(target_sample.model_url)
-            if target_sample.index_url is not None and rvc_skip_index is False:
-                download_urls.append(target_sample.index_url)
-            if target_sample.icon_url is not None:
-                download_urls.append(target_sample.icon_url)
+        download_urls = [target_sample.model_url]
+        if target_sample.index_url is not None and rvc_skip_index is False:
+            download_urls.append(target_sample.index_url)
+        if target_sample.icon_url is not None:
+            download_urls.append(target_sample.icon_url)
 
-            for url_index, url in enumerate(download_urls):
-                req = requests.get(url, stream=True, allow_redirects=True)
-                content_length_header = req.headers.get("content-length")
-                if content_length_header is not None:
-                    content_length = int(content_length_header)
-                else:
-                    content_length = 1073741824
+        for url_index, url in enumerate(download_urls):
+            req = requests.get(url, stream=True, allow_redirects=True)
+            content_length_header = req.headers.get("content-length")
+            if content_length_header is not None:
+                content_length = int(content_length_header)
+            else:
+                content_length = 1073741824
 
-                chunk_size = 1048576
-                chunk_num = math.ceil(content_length / chunk_size)
-                save_to = upload_dir / url.split("/")[-1]
+            chunk_size = 1048576
+            chunk_num = math.ceil(content_length / chunk_size)
+            save_to = upload_dir / url.split("/")[-1]
 
-                with open(save_to, "wb") as f:
-                    for i, chunk in enumerate(req.iter_content(chunk_size=chunk_size)):
-                        f.write(chunk)
-                        file_progress = min(1, round((i + 1) / chunk_num, 2))
-                        progress = round((file_progress / len(download_urls)) + (1 / len(download_urls) * url_index), 2)
-                        callback(SampleDownloadStatus(id=target_sample.id, status="processing", progress=progress))
+            with open(save_to, "wb") as f:
+                for i, chunk in enumerate(req.iter_content(chunk_size=chunk_size)):
+                    f.write(chunk)
+                    file_progress = min(1, round((i + 1) / chunk_num, 2))
+                    progress = round((file_progress / len(download_urls)) + (1 / len(download_urls) * url_index), 2)
+                    callback(SampleDownloadStatus(id=target_sample.id, status="processing", progress=progress))
 
     def download(self, upload_dir: Path, param: SampleDownloadParam):
         slot_manager = SlotManager.get_instance()
@@ -87,18 +84,16 @@ class SampleManager:
 
         self._download(upload_dir, sample, callback)
 
-        if sample.voice_changer_type == "RVC":
-            assert isinstance(sample, RVCSampleInfo)
-            import_params = RVCModelImportParam(
-                slot_index=param.slot_index,
-                name=sample.name,
-                terms_of_use_url=sample.terms_of_use_url,
-                model_file=upload_dir / sample.model_url.split("/")[-1],
-                index_file=upload_dir / sample.index_url.split("/")[-1] if sample.index_url is not None else None,
-                icon_file=upload_dir / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
-            )
-            slot_manager.release_slot_from_reseved_for_sample(param.slot_index)
-            slot_manager.set_new_slot(import_params)
+        import_params = RVCModelImportParam(
+            slot_index=param.slot_index,
+            name=sample.name,
+            terms_of_use_url=sample.terms_of_use_url,
+            model_file=upload_dir / sample.model_url.split("/")[-1],
+            index_file=upload_dir / sample.index_url.split("/")[-1] if sample.index_url is not None else None,
+            icon_file=upload_dir / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
+        )
+        slot_manager.release_slot_from_reseved_for_sample(param.slot_index)
+        slot_manager.set_new_slot(import_params)
 
     def download_initial_samples(self, callback: Callable[[list[SampleDownloadStatus]], None] = None):
         if platform.system() == "Windows":
@@ -150,15 +145,13 @@ class SampleManager:
         logging.getLogger(LOGGER_NAME).debug("Sample download done.")
 
         for i, sample in enumerate(initial_samples):
-            if sample.voice_changer_type == "RVC":
-                assert isinstance(sample, RVCSampleInfo)
-                import_params = RVCModelImportParam(
-                    slot_index=i,
-                    name=sample.name,
-                    terms_of_use_url=sample.terms_of_use_url,
-                    model_file=UPLOAD_DIR / sample.model_url.split("/")[-1],
-                    index_file=None,
-                    icon_file=UPLOAD_DIR / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
-                )
-                slot_manager = SlotManager.get_instance()
-                slot_manager.set_new_slot(import_params, remove_src=True)
+            import_params = RVCModelImportParam(
+                slot_index=i,
+                name=sample.name,
+                terms_of_use_url=sample.terms_of_use_url,
+                model_file=UPLOAD_DIR / sample.model_url.split("/")[-1],
+                index_file=None,
+                icon_file=UPLOAD_DIR / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
+            )
+            slot_manager = SlotManager.get_instance()
+            slot_manager.set_new_slot(import_params, remove_src=True)

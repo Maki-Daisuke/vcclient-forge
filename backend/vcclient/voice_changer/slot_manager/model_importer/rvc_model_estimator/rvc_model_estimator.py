@@ -21,7 +21,8 @@ from ....data_types.slot_manager_data_types import RVCSlotInfo
 
 
 def estimate_rvc_model(model_path: Path):
-    assert model_path.exists(), f"Model file not found: {model_path}"
+    if not model_path.exists():
+        raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"Model file not found: {model_path}")
     if model_path.suffix == ".pth":
         return estimate_rvc_model_pytorch(model_path)
     elif model_path.suffix == ".onnx":

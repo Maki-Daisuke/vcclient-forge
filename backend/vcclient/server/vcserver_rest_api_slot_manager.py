@@ -86,7 +86,8 @@ class RestAPISlotManager:
         try:
             slot_manager = SlotManager.get_instance()
             if import_param.voice_changer_type == "RVC":
-                assert isinstance(import_param, RVCModelImportParam)
+                if not isinstance(import_param, RVCModelImportParam):
+                    raise HTTPException(status_code=400, detail="Invalid RVC model import parameters.")
                 import_param.model_file = UPLOAD_DIR / import_param.model_file
                 if import_param.index_file is not None:
                     import_param.index_file = UPLOAD_DIR / import_param.index_file

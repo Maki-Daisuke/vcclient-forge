@@ -31,6 +31,7 @@ ERROR_CODE_SLOT_INDEX_NOT_FOUND = 518
 ERROR_CODE_NO_BLANK_SLOT = 519
 ERROR_CODE_IMPORT_MODEL_FAILED = 520
 ERROR_CODE_FILENAME_TOO_LONG = 523
+ERROR_CODE_SLOT_STATE_CONFLICT = 524
 ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED = 600
 ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED = 601
 ERROR_CODE_RECORDING_FAILED = 700
@@ -138,6 +139,10 @@ ERROR_MESSAGES = {
     ERROR_CODE_FILENAME_TOO_LONG: {
         "reason": "Failed to import model because filename is too long.",
         "action": "Please rename file.",
+    },
+    ERROR_CODE_SLOT_STATE_CONFLICT: {
+        "reason": "Slot state does not allow this operation.",
+        "action": "Refresh the slot list and retry with a slot in the expected state.",
     },
     ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED: {
         "reason": "Audio input device is not selected.",

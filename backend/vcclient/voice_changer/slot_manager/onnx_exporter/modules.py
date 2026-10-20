@@ -44,7 +44,8 @@ class ConvReluNorm(nn.Module):
         self.kernel_size = kernel_size
         self.n_layers = n_layers
         self.p_dropout = p_dropout
-        assert n_layers > 1, "Number of layers should be larger than 0."
+        if n_layers <= 1:
+            raise ValueError("Number of layers must be greater than 1.")
 
         self.conv_layers = nn.ModuleList()
         self.norm_layers = nn.ModuleList()
@@ -135,7 +136,8 @@ class WN(torch.nn.Module):
         p_dropout=0,
     ):
         super(WN, self).__init__()
-        assert kernel_size % 2 == 1
+        if kernel_size <= 0 or kernel_size % 2 == 0:
+            raise ValueError("Kernel size must be a positive odd number.")
         self.hidden_channels = hidden_channels
         self.kernel_size = (kernel_size,)
         self.dilation_rate = dilation_rate
@@ -403,7 +405,8 @@ class ResidualCouplingLayer(nn.Module):
         gin_channels=0,
         mean_only=False,
     ):
-        assert channels % 2 == 0, "channels should be divisible by 2"
+        if channels <= 0 or channels % 2 != 0:
+            raise ValueError("Channels must be a positive even number.")
         super().__init__()
         self.channels = channels
         self.hidden_channels = hidden_channels
