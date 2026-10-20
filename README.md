@@ -33,6 +33,10 @@ Extract the archive to any folder and run:
 > [!NOTE]
 > Initial model assets will be downloaded automatically on first launch. This may take a few moments depending on your internet connection.
 
+### Migrating from w-okada VC (v2.0.78)
+
+To transfer your existing models and settings, simply copy the **`settings`** and **`model_dir`** folders from your original v2.0.78 directory into the extracted Forge folder.
+
 ### Linux only
 
 Linux requires the PortAudio system library for audio device I/O:
