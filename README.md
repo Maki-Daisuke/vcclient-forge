@@ -9,7 +9,42 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 
 ---
 
-## Project Goals
+## Quick Start
+
+### 1. Download the Release Package
+
+Download the standalone package matching your hardware from **[GitHub Releases](https://github.com/Maki-Daisuke/vcclient-forge/releases)**:
+
+If you have an NVIDIA GPU, download the package with the `cuda` edition for optimal performance; otherwise, the `cpu` edition is recommended.
+
+### 2. Launch
+
+Extract the archive to any folder and run:
+
+- **Windows Desktop App (Recommended)**:
+  Double-click **`vcclient-forge.exe`**.
+- **Web Browser Mode (Classic)**:
+  Double-click **`start.bat`** (Windows) or execute **`./start.sh`** (Linux / macOS).
+  Your default web browser will automatically open:
+  ```text
+  http://localhost:18888/
+  ```
+
+> [!NOTE]
+> Initial model assets will be downloaded automatically on first launch. This may take a few moments depending on your internet connection.
+
+### Linux only
+
+Linux requires the PortAudio system library for audio device I/O:
+
+```bash
+# Ubuntu / Debian
+sudo apt-get update && sudo apt-get install -y libportaudio2
+```
+
+---
+
+## Project Goals (Still on Our Way)
 
 - **Spiritual Successor to the Golden Standard (v2.0.78)**:
   Designed as a community-driven spiritual successor to the most widely adopted and beloved version (`v2.0.78`), honoring the original vision while breathing new life into the established ecosystem.
@@ -42,62 +77,6 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
   Consolidating pitch estimation exclusively to the gold standard (RMVPE) and a newer, ultra-fast alternative (FCPE) running torch-free via ONNX Runtime and NumPy. See [OKF Documentation](okf/streamlined-pitch-estimation-and-torch-free-pipeline.md) for details.
 - **Standalone Portable Packaging**:
   Automated bundling of isolated Python runtimes and Web UI assets into portable zip packages (`scripts/build_package.py`).
-
----
-
-## Quick Start
-
-### 1. Prerequisites
-
-- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**: Fast, deterministic Python environment and package manager.
-
-  ```bash
-  # Windows (PowerShell)
-  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-  # Linux & macOS
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
-
-- **[Node.js](https://nodejs.org/) & npm**: Task runner and frontend workspace manager (Node.js v24+ / v26 LTS recommended).
-- **System Audio Dependency (Linux only)**: Required by `sounddevice`:
-  ```bash
-  sudo apt-get update && sudo apt-get install -y libportaudio2
-  ```
-
-### 2. Clone and Setup Environment
-
-Clone the repository and build both frontend assets and backend runtime for your target hardware in one step:
-
-```bash
-git clone https://github.com/Maki-Daisuke/vcclient-forge.git
-cd vcclient-forge
-
-# Choose ONE edition matching your hardware (builds Web UI and syncs Python runtime):
-npm run build -- --edition cuda    # NVIDIA GPU (Windows / Linux)
-npm run build -- --edition dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
-npm run build -- --edition mac     # macOS (Apple Silicon M-series)
-npm run build -- --edition cpu     # Generic CPU fallback
-```
-
-_(Python 3.14 is automatically downloaded and isolated by `uv`—no system Python installation required!)_
-
-### 3. Launch
-
-Run from source using npm or the CLI:
-
-- **npm (Unified)**: Run `npm start`.
-- **CLI (Direct)**: Run `uv run --project backend python backend/main.py`.
-
-The `start.bat` and `start.sh` launchers are for extracted portable packages only; they run the bundled executable.
-
-Once started, open your web browser and navigate to:
-
-```text
-http://localhost:18888/
-```
-
-Initial model assets will be downloaded automatically on first launch.
 
 ---
 
