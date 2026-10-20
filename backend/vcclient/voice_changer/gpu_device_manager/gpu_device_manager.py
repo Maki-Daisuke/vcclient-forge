@@ -167,18 +167,26 @@ def get_driver_and_cuda_version() -> tuple[str | None, str | None]:
 
 
 class GPUDeviceManager:
-    _instance = None
+    _instance: GPUDeviceManager | None = None
+    gpu_info: list[GPUInfo]
+    cuda_info: list[GPUInfo]
+    cuda_available: bool
+    cuda_gpu_num: int
+    cuda_driver_version: str | None
+    cuda_version: str | None
+    cudnn_version: str | None
+    cuda_mps_enabled: bool
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> GPUDeviceManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.reload()
 
-    def reload(self):
+    def reload(self) -> list[GPUInfo]:
         logging.getLogger(LOGGER_NAME).info("Reloading GPU info")
 
         # 1. NVIDIA GPU の検出 (Windows / Linux 共通)

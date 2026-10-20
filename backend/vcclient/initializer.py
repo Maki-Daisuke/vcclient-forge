@@ -4,6 +4,8 @@ from tqdm import tqdm
 
 from vcclient.const import LOG_FILE, LOGGER_NAME
 from vcclient.logger import setup_logger
+from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
+from vcclient.voice_changer.data_types.sample_manager_data_types import SampleDownloadStatus
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
 from vcclient.voice_changer.sample_manager.sample_manager import SampleManager
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
@@ -11,15 +13,15 @@ from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 setup_logger(LOGGER_NAME, LOG_FILE)
 
 
-def _check_and_download_rvc_modules():
+def _check_and_download_rvc_modules() -> None:
     module_manager = ModuleManager.get_instance()
     if module_manager.is_rvc_ready() is False:
         logging.getLogger(LOGGER_NAME).info("RVC is not ready. Downloading RVC modules.")
         print("RVC is not ready. Downloading RVC modules.")
 
-        pbar_dict_module = {}
+        pbar_dict_module: dict[str, tqdm] = {}
 
-        def download_callback(status=None):
+        def download_callback(status: list[ModuleDownloadStatus]) -> None:
             position = 0
             for s in status:
                 if s.id not in pbar_dict_module:
@@ -38,7 +40,7 @@ def _check_and_download_rvc_modules():
         print("\n\nRVC is not ready. Downloading RVC modules. Done.")
 
 
-def _check_and_convert_legacy_pth_models():
+def _check_and_convert_legacy_pth_models() -> None:
     slot_manager = SlotManager.get_instance()
     legacy_slots = slot_manager.find_legacy_pth_slots()
     if not legacy_slots:
@@ -60,12 +62,12 @@ def _check_and_convert_legacy_pth_models():
     finally:
         pbar.close()
 
-    slot_manager.reload(use_log=False)
+    slot_manager.reload()
     logging.getLogger(LOGGER_NAME).info("Legacy .pth models conversion done.")
     print("Legacy .pth models conversion done.\n")
 
 
-def _cehck_and_download_initial_samples():
+def _cehck_and_download_initial_samples() -> None:
     slot_manager = SlotManager.get_instance()
     valid_slot_infos = [x for x in slot_manager.get_slot_infos() if x.voice_changer_type is not None]
     if len(valid_slot_infos) == 0:
@@ -73,9 +75,9 @@ def _cehck_and_download_initial_samples():
         print("Sample is not ready. Downloading initial samples.")
 
         sample_manager = SampleManager.get_instance()
-        pbar_dict_sample = {}
+        pbar_dict_sample: dict[str, tqdm] = {}
 
-        def download_callback(status=None):
+        def download_callback(status: list[SampleDownloadStatus]) -> None:
             position = 0
             for s in status:
                 if s.id not in pbar_dict_sample:

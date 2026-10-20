@@ -5,7 +5,7 @@ TERMINATE_FLAG = False
 HERE = Path(__file__).parent.absolute()
 
 
-def get_version():
+def get_version() -> str:
     with open(HERE / "version.txt", "r", encoding="utf-8") as f:
         return f.read().strip()
 

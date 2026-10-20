@@ -27,8 +27,7 @@ def _create_mock_pipeline() -> RVCPipeline:
     pipeline.audio_buffer = np.zeros(0, dtype=np.float32)
     pipeline.pitchf_buffer = None
     pipeline.feature_buffer = None
-    pipeline.index = None
-    pipeline.big_npy = None
+    pipeline.index_data = None
 
     pipeline.pitch_estimator = MagicMock()
     pipeline.pitch_estimator.estimate.return_value = (None, None)

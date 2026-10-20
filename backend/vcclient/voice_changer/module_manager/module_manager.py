@@ -1,9 +1,9 @@
 import hashlib
 import logging
 import math
+from collections.abc import Callable
 from pathlib import Path
 from threading import Thread
-from typing import Callable
 
 import requests
 
@@ -12,6 +12,9 @@ from ...exception import ERROR_CODE_MODULE_NOT_FOUND, VCClientError
 from ..data_types.data_types import ModuleInfo, ModuleStatus
 from ..data_types.module_manager_data_types import ModuleDownloadStatus
 from ..voice_chanager_const import ModuleDir
+
+ModuleDownloadCallback = Callable[[ModuleDownloadStatus], None]
+ModuleDownloadListCallback = Callable[[list[ModuleDownloadStatus]], None]
 
 REGISTERD_MODULES: list[ModuleInfo] = [
     ModuleInfo(
@@ -82,22 +85,23 @@ APPLIO_MODULES = ["applio_japanese_hubert_base.pt", "applio_chinese_hubert_base.
 
 
 class ModuleManager:
-    _instance = None
+    _instance: ModuleManager | None = None
     module_status_list: list[ModuleStatus] = []
+    threads: dict[str, Thread | None]
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> ModuleManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.module_status_list = []
         self.threads = {}
         self.reload()
         logging.getLogger(LOGGER_NAME).info(f"Initial module status: {self.module_status_list}")
 
-    def reload(self):
+    def reload(self) -> None:
         self.module_status_list = []
         for module_info in REGISTERD_MODULES:
             module_status = ModuleStatus(info=module_info, downloaded=False, valid=False)
@@ -107,10 +111,10 @@ class ModuleManager:
                     module_status.valid = True
             self.module_status_list.append(module_status)
 
-    def get_modules(self):
+    def get_modules(self) -> list[ModuleStatus]:
         return self.module_status_list
 
-    def _download(self, target_module=None, callback=None):
+    def _download(self, target_module: ModuleInfo, callback: ModuleDownloadCallback) -> None:
         target_module.save_to.parent.mkdir(parents=True, exist_ok=True)
         req = requests.get(target_module.url, stream=True, allow_redirects=True)
         content_length_header = req.headers.get("content-length")
@@ -151,7 +155,7 @@ class ModuleManager:
         except Exception as e:
             logging.getLogger(LOGGER_NAME).error(f"Failed to send completion callback for {target_module.id}: {e}")
 
-    def _get_target_module(self, id: str):
+    def _get_target_module(self, id: str) -> ModuleInfo | None:
         target_module = None
         for module in REGISTERD_MODULES:
             if module.id == id:
@@ -159,7 +163,7 @@ class ModuleManager:
                 return target_module
         return target_module
 
-    def download(self, id: str, callback: Callable[[ModuleDownloadStatus], None]):
+    def download(self, id: str, callback: ModuleDownloadCallback) -> None:
         logging.getLogger(LOGGER_NAME).info(f"Downloading module: {id}")
         target_module = self._get_target_module(id)
         if target_module is None:
@@ -188,7 +192,7 @@ class ModuleManager:
         t.start()
         self.threads[id] = t
 
-    def _check_hash(self, id: str):
+    def _check_hash(self, id: str) -> bool:
         target_module = self._get_target_module(id)
         if target_module is None:
             raise VCClientError(ERROR_CODE_MODULE_NOT_FOUND, f"Module {id} not found")
@@ -200,13 +204,13 @@ class ModuleManager:
                 return False
             return True
 
-    def get_module_filepath(self, id: str):
+    def get_module_filepath(self, id: str) -> Path | None:
         target_module = self._get_target_module(id)
         if target_module is None:
             return None
         return target_module.save_to
 
-    def is_rvc_ready(self):
+    def is_rvc_ready(self) -> bool:
         for module_id in RVC_REQUIRED_MODULES:
             module_status = [x for x in self.module_status_list if x.info.id == module_id]
             if len(module_status) == 1:
@@ -216,13 +220,13 @@ class ModuleManager:
                 return False
         return True
 
-    def download_rvc_modules(self, callback: Callable[[list[ModuleDownloadStatus]], None]):
+    def download_rvc_modules(self, callback: ModuleDownloadListCallback) -> None:
         rvc_modules = [x for x in self.get_modules() if x.valid is False]
         status_dict = {
             x.info.id: ModuleDownloadStatus(id=x.info.id, status="processing", progress=0) for x in rvc_modules
         }
 
-        def download_callback(status: ModuleDownloadStatus):
+        def download_callback(status: ModuleDownloadStatus) -> None:
             status_dict[status.id] = status
             callback(list(status_dict.values()))
 
@@ -234,19 +238,19 @@ class ModuleManager:
                 threads.join()
         print("module download fin!")
 
-    def applio_modules_ready(self):
+    def applio_modules_ready(self) -> bool:
         applio_modules = [x for x in self.get_modules() if x.info.id in APPLIO_MODULES and x.valid is False]
         if len(applio_modules) == 0:
             return True
         return False
 
-    def download_applio_modules(self, callback=None):
+    def download_applio_modules(self, callback: ModuleDownloadListCallback) -> None:
         applio_modules = [x for x in self.get_modules() if x.info.id in APPLIO_MODULES and x.valid is False]
         status_dict = {
             x.info.id: ModuleDownloadStatus(id=x.info.id, status="processing", progress=0) for x in applio_modules
         }
 
-        def download_callback(status=None):
+        def download_callback(status: ModuleDownloadStatus) -> None:
             status_dict[status.id] = status
             callback(list(status_dict.values()))
 

@@ -1,5 +1,6 @@
 import logging
 import math
+from pathlib import Path
 from typing import cast
 
 import faiss
@@ -12,10 +13,10 @@ from vcclient.voice_changer.voice_change_manager.device_manager.device_manager i
 
 from ....const import LOGGER_NAME
 from ...configuration_manager.configuration_manager import ConfigurationManager
-from ...data_types.slot_manager_data_types import RVCSlotInfo
+from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
-from ...voice_chanager_const import ModelDir, RVCInferencerOnnxVersion
+from ...voice_chanager_const import ModelDir, PitchEstimatorType, RVCInferencerOnnxVersion
 from ..embedders.embedder_manager import EmbedderManager
 from ..inferencer.inferrencer_manager import InferencerManager
 from ..inferencer.rvc_inferencer import RVCInferencer
@@ -26,8 +27,14 @@ from .vc_pipeline import VCPipeline
 class RVCPipeline(VCPipeline):
     processing_window: int = 160
     rvc: RVCInferencer
+    slot_index: int
+    gpu_device_id: int
+    pitch_estimator_type: PitchEstimatorType
+    index_data: tuple[faiss.Index, np.ndarray] | None
+    pitchf_buffer: np.ndarray | None
+    feature_buffer: np.ndarray
 
-    def __init__(self, slot_info: RVCSlotInfo):
+    def __init__(self, slot_info: SlotInfoMember) -> None:
         if not isinstance(slot_info, RVCSlotInfo):
             raise TypeError(f"slot_info must be RVCSlotInfo, got {type(slot_info).__name__}")
         self._slot_info = slot_info
@@ -54,11 +61,9 @@ class RVCPipeline(VCPipeline):
             ),
         )
         if slot_info.index_file is not None:
-            index, big_npy = self._load_index(ModelDir / str(slot_info.slot_index) / slot_info.index_file)
+            self.index_data = self._load_index(ModelDir / str(slot_info.slot_index) / slot_info.index_file)
         else:
-            index, big_npy = None, None
-        self.index = index
-        self.big_npy = big_npy
+            self.index_data = None
         if slot_info.embedder == "hubert_base_japanese_l9fp" or slot_info.embedder == "hubert_base_l9fp":
             embedder_dim_size = 256
         else:
@@ -82,19 +87,18 @@ class RVCPipeline(VCPipeline):
             pass
         return self._slot_info
 
-    def _load_index(self, index_file: str):
+    def _load_index(self, index_file: Path) -> tuple[faiss.Index, np.ndarray]:
         try:
             index = faiss.read_index(str(index_file))
         except Exception as e:
             logging.getLogger(LOGGER_NAME).error(f"load index failed. {index_file}")
             raise e
-        if index is not None:
-            big_npy = index.reconstruct_n(0, index.ntotal)
-        else:
-            big_npy = None
-        return (index, big_npy)
+        big_npy = index.reconstruct_n(0, index.ntotal)
+        return index, big_npy
 
-    def make_onnx_upscaler(self, dim_size, gpu_device_id_int, ir_version=9):
+    def make_onnx_upscaler(
+        self, dim_size: int, gpu_device_id_int: int, ir_version: int = 9
+    ) -> onnxruntime.InferenceSession:
         try:
             input = make_tensor_value_info("in", TensorProto.FLOAT, [1, dim_size, None])
             scales = make_tensor_value_info("scales", TensorProto.FLOAT, [None])
@@ -113,31 +117,31 @@ class RVCPipeline(VCPipeline):
             print("make_onnx_upscaler failed.", e)
             raise e
 
-    def get_input_sample_rate(self):
+    def get_input_sample_rate(self) -> int:
         return 16000
 
-    def get_output_sample_rate(self):
+    def get_output_sample_rate(self) -> int:
         return self.slot_info.sample_rate
 
-    def get_input_bitdepth(self):
+    def get_input_bitdepth(self) -> type[np.generic]:
         return np.float32
 
-    def get_output_bitdepth(self):
+    def get_output_bitdepth(self) -> type[np.generic]:
         return np.float32
 
-    def get_chunk_sec(self):
-        return SlotManager.get_instance().get_slot_info(self.slot_index).chunk_sec
+    def get_chunk_sec(self) -> float:
+        return self.slot_info.chunk_sec
 
-    def needs_crossfade(self):
+    def needs_crossfade(self) -> bool:
         return True
 
-    def get_pitch_estimator_type(self):
+    def get_pitch_estimator_type(self) -> PitchEstimatorType:
         return self.pitch_estimator_type
 
-    def get_gpu_device_id(self):
+    def get_gpu_device_id(self) -> int:
         return self.gpu_device_id
 
-    def set_pitch_estimator_type(self, pitch_estimator_type=None):
+    def set_pitch_estimator_type(self, pitch_estimator_type: PitchEstimatorType) -> None:
         logging.getLogger(LOGGER_NAME).info(
             f"pitch estimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"
         )
@@ -149,7 +153,7 @@ class RVCPipeline(VCPipeline):
 
     def _generate_inputs(
         self, audio: np.ndarray, crossfade_overlap_sec: float, sola_search_frame_sec: float, extra_frame_sec: float
-    ):
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray, int, float, int]:
         new_frame_size = audio.shape[0]
         crossfade_overlap_size = int(crossfade_overlap_sec * self.get_input_sample_rate())
         sola_search_frame_size = int(sola_search_frame_sec * self.get_input_sample_rate())
@@ -185,7 +189,7 @@ class RVCPipeline(VCPipeline):
             real_convert_size,
         )
 
-    def run(self, audio: np.ndarray, real_crossfade_sec: float):
+    def run(self, audio: np.ndarray, real_crossfade_sec: float) -> np.ndarray:
         if not isinstance(audio, np.ndarray):
             raise TypeError(f"audio must be a numpy array, got {type(audio).__name__}")
         if audio.ndim != 1:
@@ -198,7 +202,7 @@ class RVCPipeline(VCPipeline):
         crossfacde_overlap_sec = real_crossfade_sec
         sola_search_frame_sec = conf.sola_search_frame_sec
         extra_frame_sec = conf.extra_frame_sec
-        index_enabled = self.index is not None and self.big_npy is not None and slot_info.index_ratio > 0
+        index_data = self.index_data
 
         data = self._generate_inputs(audio, crossfacde_overlap_sec, sola_search_frame_sec, extra_frame_sec)
         audio, prev_pitch, prev_feature, convert_size, vol, real_output_size = data
@@ -227,7 +231,8 @@ class RVCPipeline(VCPipeline):
             pitch_coarse, pitch = None, None
 
         feats = self.embedder.extract_features(audio)
-        if index_enabled is True:
+        if index_data is not None and slot_info.index_ratio > 0:
+            index, big_npy = index_data
             new_feats = feats[0]
             feats_length = new_feats.shape[0]
             feats_channels = new_feats.shape[1]
@@ -235,8 +240,8 @@ class RVCPipeline(VCPipeline):
             new_feats = new_feats[-1 * latest_audio_feats_length :, :]
             if new_feats.dtype != np.float32:
                 new_feats = new_feats.astype("float32")
-            _, ix = self.index.search(new_feats, 1)
-            new_feats_retrieved = self.big_npy[ix.squeeze()]
+            _, ix = index.search(new_feats, 1)
+            new_feats_retrieved = big_npy[ix.squeeze()]
             new_feats_retrieved = np.concatenate(
                 [
                     np.zeros((feats_length, feats_channels), dtype=np.float32),
@@ -285,7 +290,7 @@ class RVCPipeline(VCPipeline):
         converted = np.nan_to_num(converted, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         return converted
 
-    def get_pipeline_info(self):
+    def get_pipeline_info(self) -> RVCPipelineInfo:
         inferencer_info = self.rvc.get_info()
         return RVCPipelineInfo(
             slot_index=self.slot_index,

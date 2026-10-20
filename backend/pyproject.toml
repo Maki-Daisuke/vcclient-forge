@@ -112,8 +112,18 @@ check_untyped_defs = true
 files = [
     "backend/main.py",
     "backend/vcclient/logger.py",
+    "backend/vcclient/app_status.py",
+    "backend/vcclient/const.py",
+    "backend/vcclient/initializer.py",
     "backend/vcclient/server",
     "backend/vcclient/voice_changer/auido_device_manager",
     "backend/vcclient/voice_changer/configuration_manager",
+    "backend/vcclient/voice_changer/data_types/slot_manager_data_types.py",
+    "backend/vcclient/voice_changer/gpu_device_manager",
+    "backend/vcclient/voice_changer/module_manager",
+    "backend/vcclient/voice_changer/sample_manager",
+    "backend/vcclient/voice_changer/slot_manager/slot_manager.py",
+    "backend/vcclient/voice_changer/voice_change_manager/vc_pipelines",
+    "backend/vcclient/voice_changer/voice_change_manager/voice_changer.py",
     "backend/vcclient/voice_changer/voice_change_manager/local_voice_changer_interface.py",
 ]

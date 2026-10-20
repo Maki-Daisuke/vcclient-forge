@@ -96,7 +96,7 @@ def test_get_blank_slot_index_and_out_of_range_lookup(monkeypatch, tmp_path: Pat
     with open(slot0_dir / SLOT_PARAM_FILE, "w", encoding="utf-8") as f:
         f.write(slot0_info.model_dump_json())
 
-    slot_mgr.reload(use_log=False)
+    slot_mgr.reload()
 
     # 次の空きインデックスは1
     assert slot_mgr.get_blank_slot_index() == 1
@@ -132,7 +132,7 @@ def test_delete_slot_with_readonly_attributes(monkeypatch, tmp_path: Path):
     os.chmod(dummy_model, stat.S_IREAD)
     os.chmod(slot_dir, stat.S_IREAD)
 
-    slot_mgr.reload(use_log=False)
+    slot_mgr.reload()
     assert slot_dir.exists()
 
     # 削除実行

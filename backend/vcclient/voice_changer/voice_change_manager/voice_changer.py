@@ -2,9 +2,10 @@ import logging
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from queue import Empty, Queue
-from typing import Tuple
+from typing import Any
 
 import numpy as np
 import samplerate as sr
@@ -15,41 +16,74 @@ try:
     from simple_performance_timer.Timer import Timer
 except ImportError:
 
-    class Timer:
-        def __init__(self, *args, **kwargs):
+    class Timer:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
 
-        def __enter__(self):
+        def __enter__(self) -> Timer:
             return self
 
-        def __exit__(self, *args):
+        def __exit__(self, *args: Any) -> None:
             pass
 
-        def record(self, *args):
+        def record(self, *args: Any) -> None:
             pass
 
 
 from ...const import LOGGER_NAME, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
-from ...exception import ERROR_CODE_MODEL_UPDATE_FAILED, ERROR_CODE_RECORDING_FAILED, VCClientError
+from ...exception import (
+    ERROR_CODE_MODEL_UPDATE_FAILED,
+    ERROR_CODE_PIPELINE_IS_NOT_INITIALIZED,
+    ERROR_CODE_RECORDING_FAILED,
+    VCClientError,
+)
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..data_types.data_types import PerformanceData
+from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
 from ..slot_manager.slot_manager import SlotManager
-from ..voice_chanager_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
+from ..voice_chanager_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE, PitchEstimatorType
 from .crossfade_processor import CrossfadeProcessor
 from .vc_pipelines.pipeline_manager import PipelineManager
+from .vc_pipelines.vc_pipeline import VCPipeline
+
+PerformanceListener = Callable[[PerformanceData], None]
 
 
 class VoiceChanger:
-    _instance = None
+    _instance: VoiceChanger | None = None
+
+    vc_info: VoiceChangerInformation
+    crossfade_processor: CrossfadeProcessor
+    bulk_process: threading.Thread | None
+    vc_pipeline: VCPipeline | None
+    performance_listener: PerformanceListener | None
+    input_record: list[np.ndarray]
+    output_record: list[np.ndarray]
+    monitor_record: list[np.ndarray]
+    resampler_in: sr.Resampler
+    resampler_out: sr.Resampler
+    resampler_monitor: sr.Resampler
+    # Set lazily once device rates, filters, or chunking are known; callers probe them with hasattr().
+    input_sample_rate: int
+    output_sample_rate: int
+    monitor_sample_rate: int
+    vc_chunk_sec: float
+    chunk_size: int
+    bh: np.ndarray
+    ah: np.ndarray
+    bl: np.ndarray
+    al: np.ndarray
+    bb: np.ndarray
+    ab: np.ndarray
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> VoiceChanger:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.initialize()
         self.performance_listener = None
         self.currentCrossFadeOffsetRate = 0
@@ -57,13 +91,13 @@ class VoiceChanger:
         self.currentCrossFadeOverlapSize = 0
         self.crossfadeSize = 0
 
-    def set_performance_listener(self, performance_listener=None):
+    def set_performance_listener(self, performance_listener: PerformanceListener | None = None) -> None:
         self.performance_listener = performance_listener
 
-    def remove_performance_listener(self):
+    def remove_performance_listener(self) -> None:
         self.performance_listener = None
 
-    def initialize(self):
+    def initialize(self) -> None:
         self.vc_info = VoiceChangerInformation()
         self.crossfade_processor = CrossfadeProcessor()
         self.bulk_process = None
@@ -75,15 +109,21 @@ class VoiceChanger:
         self.resampler_out = sr.Resampler("sinc_best", channels=1)
         self.resampler_monitor = sr.Resampler("sinc_best", channels=1)
 
-    def _update_model(self, slot_index: int):
+    def _require_pipeline(self) -> VCPipeline:
+        if self.vc_pipeline is None:
+            raise VCClientError(ERROR_CODE_PIPELINE_IS_NOT_INITIALIZED, "Voice changer pipeline is not initialized.")
+        return self.vc_pipeline
+
+    def _update_model(self, slot_index: int) -> None:
         try:
             slot_info = SlotManager.get_instance().get_slot_info(slot_index)
-            self.vc_pipeline = PipelineManager.get_pipeline(slot_info)
+            pipeline = PipelineManager.get_pipeline(slot_info)
+            self.vc_pipeline = pipeline
             self.vc_info.voice_changer_type = slot_info.voice_changer_type
-            self.vc_info.vc_input_sample_rate = self.vc_pipeline.get_input_sample_rate()
-            self.vc_info.vc_output_sample_rate = self.vc_pipeline.get_output_sample_rate()
-            self.vc_info.pitch_estimator_type = self.vc_pipeline.get_pitch_estimator_type()
-            self.vc_info.gpu_device_index = self.vc_pipeline.get_gpu_device_id()
+            self.vc_info.vc_input_sample_rate = pipeline.get_input_sample_rate()
+            self.vc_info.vc_output_sample_rate = pipeline.get_output_sample_rate()
+            self.vc_info.pitch_estimator_type = pipeline.get_pitch_estimator_type()
+            self.vc_info.gpu_device_index = pipeline.get_gpu_device_id()
             logging.getLogger(LOGGER_NAME).info(
                 f"slot_index Changed: {self.vc_info.slot_index}, gpu_device_index: {self.vc_info.gpu_device_index}"
             )
@@ -91,7 +131,7 @@ class VoiceChanger:
             logging.getLogger(LOGGER_NAME).warning(f"Failed to update model:{e}")
             raise VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, f"Failed to update model:{e}")
 
-    def _check_reload_model_is_required_and_update(self):
+    def _check_reload_model_is_required_and_update(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         slot_index = conf.current_slot_index
         if self.vc_info.slot_index != slot_index or (
@@ -117,12 +157,12 @@ class VoiceChanger:
             return None
         return None
 
-    def _set_pitch_estimator(self, pitch_estimator=None):
-        self.vc_pipeline.set_pitch_estimator_type(pitch_estimator)
+    def _set_pitch_estimator(self, pitch_estimator: PitchEstimatorType) -> None:
+        self._require_pipeline().set_pitch_estimator_type(pitch_estimator)
 
-    def _check_and_update_pitch_estimator(self):
+    def _check_and_update_pitch_estimator(self) -> None:
         slot_info = SlotManager.get_instance().get_slot_info(self.vc_info.slot_index)
-        if hasattr(slot_info, "pitch_estimator") is False:
+        if not isinstance(slot_info, RVCSlotInfo):
             return None
 
         if self.vc_info.pitch_estimator_type != slot_info.pitch_estimator:
@@ -130,7 +170,7 @@ class VoiceChanger:
             self._set_pitch_estimator(slot_info.pitch_estimator)
             return None
 
-    def _set_io_sample_rate(self):
+    def _set_io_sample_rate(self) -> None:
         if self.vc_info.input_sample_rate == -1 or self.vc_info.output_sample_rate == -1:
             logging.getLogger(LOGGER_NAME).warning("Input or output sample rate is not set")
             return None
@@ -172,7 +212,7 @@ class VoiceChanger:
 
         self.resampler_monitor = sr.Resampler("sinc_best", channels=1)
 
-    def _check_and_update_sample_rate(self):
+    def _check_and_update_sample_rate(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         input_sample_rate = conf.input_sample_rate
         output_sample_rate = conf.output_sample_rate
@@ -188,7 +228,7 @@ class VoiceChanger:
             self._set_io_sample_rate()
             return None
 
-    def _generate_filter(self):
+    def _generate_filter(self) -> None:
         if hasattr(self, "input_sample_rate") is False:
             return None
 
@@ -208,7 +248,7 @@ class VoiceChanger:
         self.bb = bb
         self.ab = ab
 
-    def _check_and_update_filter(self):
+    def _check_and_update_filter(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         if (
             self.vc_info.enable_high_pass_filter != conf.enable_high_pass_filter
@@ -223,35 +263,35 @@ class VoiceChanger:
             self._generate_filter()
             return None
 
-    def _exec_filter_in_high_pass(self, waveform):
+    def _exec_filter_in_high_pass(self, waveform: np.ndarray) -> np.ndarray:
         return signal.filtfilt(self.bh, self.ah, waveform)
 
-    def _exec_filter_in_low_pass(self, waveform):
+    def _exec_filter_in_low_pass(self, waveform: np.ndarray) -> np.ndarray:
         return signal.filtfilt(self.bl, self.al, waveform)
 
-    def _exec_filter_in_band_pass(self, waveform):
+    def _exec_filter_in_band_pass(self, waveform: np.ndarray) -> np.ndarray:
         return signal.filtfilt(self.bb, self.ab, waveform)
 
-    def _exec_resample_in(self, waveform):
+    def _exec_resample_in(self, waveform: np.ndarray) -> np.ndarray:
         return self.resampler_in.process(waveform, self.vc_info.resample_ratio_in, end_of_input=False)
 
-    def _exec_resample_out(self, waveform):
+    def _exec_resample_out(self, waveform: np.ndarray) -> np.ndarray:
         return self.resampler_out.process(waveform, self.vc_info.resample_ratio_out, end_of_input=False)
 
-    def _exec_resample_monitor(self, waveform):
+    def _exec_resample_monitor(self, waveform: np.ndarray) -> np.ndarray:
         return self.resampler_monitor.process(waveform, self.vc_info.resample_ratio_monitor, end_of_input=False)
 
-    def _exec_resample_pass_through_in_out(self, waveform):
+    def _exec_resample_pass_through_in_out(self, waveform: np.ndarray) -> np.ndarray:
         return self.resampler_monitor.process(
             waveform, self.vc_info.resample_ratio_pass_through_in_out, end_of_input=False
         )
 
-    def _exec_resample_pass_through_in_monitor(self, waveform):
+    def _exec_resample_pass_through_in_monitor(self, waveform: np.ndarray) -> np.ndarray:
         return self.resampler_monitor.process(
             waveform, self.vc_info.resample_ratio_pass_through_in_monitor, end_of_input=False
         )
 
-    def get_voice_changer_information(self):
+    def get_voice_changer_information(self) -> VoiceChangerInformation:
         self._check_reload_model_is_required_and_update()
         if self.vc_pipeline is None:
             logging.getLogger(LOGGER_NAME).warning("vc_pipeline is None, returning default vc_info")
@@ -260,15 +300,16 @@ class VoiceChanger:
         self._check_and_update_pitch_estimator()
         self._check_and_update_sample_rate()
         self._check_and_update_filter()
-        self.vc_info.chunk_sec = self.vc_pipeline.get_chunk_sec()
-        self.vc_info.pipeline_info = self.vc_pipeline.get_pipeline_info()
+        pipeline = self._require_pipeline()
+        self.vc_info.chunk_sec = pipeline.get_chunk_sec()
+        self.vc_info.pipeline_info = pipeline.get_pipeline_info()
         return self.vc_info
 
-    def set_monitor_enable(self, enable=None):
+    def set_monitor_enable(self, enable: bool) -> None:
         """ローカルマイクでのモニタリング。ブラウザ経由ではブラウザ上でやるので無視してよい。"""
         self.vc_info.monitor_enabled = enable
 
-    def start_recording(self):
+    def start_recording(self) -> None:
         if self.vc_info.recording_start_flag is True:
             logging.getLogger(LOGGER_NAME).warning("recording process is already started.")
             return None
@@ -277,14 +318,14 @@ class VoiceChanger:
         self.monitor_record = []
         self.vc_info.recording_start_flag = True
 
-    def stop_recording(self):
+    def stop_recording(self) -> None:
         if self.vc_info.recording_start_flag is False:
             logging.getLogger(LOGGER_NAME).warning("recording process is already stopped.")
             return None
         self.vc_info.recording_start_flag = False
         self._save_record()
 
-    def _save_record(self):
+    def _save_record(self) -> None:
         try:
             wavfile.write(SERVER_IO_RECORDING_FILE_IN, self.input_sample_rate, np.concatenate(self.input_record))
             wavfile.write(SERVER_IO_RECORDING_FILE_OUT, self.output_sample_rate, np.concatenate(self.output_record))
@@ -295,15 +336,15 @@ class VoiceChanger:
             logging.getLogger(LOGGER_NAME).warning(f"Failed to save recording:{traceback.format_exc()}")
             raise VCClientError(ERROR_CODE_RECORDING_FAILED, f"Failed to save recording:{e}")
 
-    waveform_rest = np.array([])
+    waveform_rest: np.ndarray = np.array([])
     convert_chunk_bulk_queue_in: Queue[np.ndarray] = Queue()
     convert_chunk_bulk_queue_out: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
     convert_chunk_bulk_queue_monitor: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
 
-    def is_convert_chunk_bulk_started(self):
+    def is_convert_chunk_bulk_started(self) -> bool:
         return self.vc_info.bulk_process_start_flag
 
-    def start_convert_chunk_bulk(self):
+    def start_convert_chunk_bulk(self) -> None:
         logging.getLogger(LOGGER_NAME).warning("start_convert_chunk_bulk called")
         if self.vc_info.bulk_process_start_flag is True:
             logging.getLogger(LOGGER_NAME).warning("bulk conversion process is already started.")
@@ -312,20 +353,20 @@ class VoiceChanger:
         self.bulk_process = threading.Thread(target=self.convert_chunk_bulk_internal)
         self.bulk_process.start()
 
-    def stop_convert_chunk_bulk(self):
+    def stop_convert_chunk_bulk(self) -> None:
         if self.vc_info.bulk_process_start_flag is False:
             logging.getLogger(LOGGER_NAME).debug("bulk conversion process is already stopped.") if logging.getLogger(
                 LOGGER_NAME
             ).isEnabledFor(logging.DEBUG) else None
             return None
         self.vc_info.bulk_process_start_flag = False
-        if self.bulk_process.is_alive():
+        if self.bulk_process is not None and self.bulk_process.is_alive():
             self.bulk_process.join()
             return None
 
     def convert_chunk_bulk(
         self, waveform: np.ndarray
-    ) -> Tuple[np.ndarray | None, np.ndarray | None, PerformanceData | None]:
+    ) -> tuple[np.ndarray | None, np.ndarray | None, PerformanceData | None]:
         self._check_reload_model_is_required_and_update()
         self._check_and_update_pitch_estimator()
         self._check_and_update_sample_rate()
@@ -340,7 +381,7 @@ class VoiceChanger:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)
             self.waveform_rest = np.concatenate([self.waveform_rest, waveform])
             self._check_reload_model_is_required_and_update()
-            self.vc_chunk_sec = self.vc_pipeline.get_chunk_sec()
+            self.vc_chunk_sec = self._require_pipeline().get_chunk_sec()
             self.chunk_size = int(round(self.input_sample_rate * self.vc_chunk_sec))
             splitted_waveforms = [
                 self.waveform_rest[i : i + self.chunk_size] for i in range(0, len(self.waveform_rest), self.chunk_size)
@@ -398,7 +439,7 @@ class VoiceChanger:
             logging.getLogger(LOGGER_NAME).warning(f"Failed to convert_chunk_bulk:{traceback.format_exc()}")
             raise e
 
-    def convert_chunk_bulk_internal(self):
+    def convert_chunk_bulk_internal(self) -> None:
         while True:
             try:
                 if self.vc_info.bulk_process_start_flag is False:
@@ -477,7 +518,9 @@ class VoiceChanger:
         (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
         return (output, monitor, None)
 
-    def _convert_chunk(self, waveform, direct_from_server=None):
+    def _convert_chunk(
+        self, waveform: np.ndarray, direct_from_server: bool | None = None
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         """Convert waveform.
 
         Args:
@@ -506,10 +549,11 @@ class VoiceChanger:
         self._check_and_update_sample_rate()
         self._check_and_update_filter()
 
-        vc_chunk_sec = self.vc_pipeline.get_chunk_sec()
-        vc_input_bitdepth = self.vc_pipeline.get_input_bitdepth()
-        vc_output_bitdepth = self.vc_pipeline.get_output_bitdepth()
-        vc_needs_crossfade = self.vc_pipeline.needs_crossfade()
+        pipeline = self._require_pipeline()
+        vc_chunk_sec = pipeline.get_chunk_sec()
+        vc_input_bitdepth = pipeline.get_input_bitdepth()
+        vc_output_bitdepth = pipeline.get_output_bitdepth()
+        vc_needs_crossfade = pipeline.needs_crossfade()
 
         if direct_from_server is True:
             input_size = int(self.vc_info.resample_ratio_in * waveform.shape[0])
@@ -552,7 +596,7 @@ class VoiceChanger:
             ) if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
 
         real_crossfade_sec = min(vc_chunk_sec, conf.crossfade_sec)
-        converted_waveform = self.vc_pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)
+        converted_waveform = pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)
         if vc_needs_crossfade is True:
             crossfade_frame = int(round(real_crossfade_sec * self.vc_info.vc_output_sample_rate))
             sola_search_frame = int(round(conf.sola_search_frame_sec * self.vc_info.vc_output_sample_rate))
@@ -572,6 +616,8 @@ class VoiceChanger:
         if self.vc_info.recording_start_flag is True:
             self.output_record.append(resampled_waveform_out)
 
+        # Read monitor_enabled once: another thread may toggle it during conversion.
+        resampled_waveform_monitor: np.ndarray | None = None
         if self.vc_info.monitor_enabled is True:
             resampled_waveform_monitor = self._exec_resample_monitor(crossfaded_waveform)
             if vc_output_bitdepth != input_data_type:
@@ -582,11 +628,9 @@ class VoiceChanger:
             if self.vc_info.recording_start_flag is True:
                 self.monitor_record.append(resampled_waveform_monitor)
 
-        if self.vc_info.monitor_enabled is False:
-            return (resampled_waveform_out, None)
         return (resampled_waveform_out, resampled_waveform_monitor)
 
-    def convert_file(self, input_file: str, output_file: str):
+    def convert_file(self, input_file: str, output_file: str) -> None:
         logging.getLogger(LOGGER_NAME).info(f"file convert starts: {input_file} -> {output_file}")
         input_path = Path(input_file)
         if input_path.exists() is False:
@@ -598,7 +642,7 @@ class VoiceChanger:
         configuration = ConfigurationManager.get_instance().get_voice_changer_configuration()
         configuration.input_sample_rate = src_sample_rate
         configuration.output_sample_rate = src_sample_rate
-        self.vc_chunk_sec = self.vc_pipeline.get_chunk_sec()
+        self.vc_chunk_sec = self._require_pipeline().get_chunk_sec()
         self.chunk_size = int(round(src_sample_rate * self.vc_chunk_sec))
         splitted_waveforms = [waveform[i : i + self.chunk_size] for i in range(0, len(waveform), self.chunk_size)]
         chunk_num = len(splitted_waveforms)
@@ -614,7 +658,7 @@ class VoiceChanger:
         wavfile.write(output_file, src_sample_rate, output_data)
         logging.getLogger(LOGGER_NAME).info(f"file convert done: {input_file} -> {output_file}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         logging.getLogger(LOGGER_NAME).info("VoiceChanger is deleting.")
         if self.vc_info.bulk_process_start_flag is True:
             logging.getLogger(LOGGER_NAME).info("bulk_process is stopping.")

@@ -1,9 +1,9 @@
 import logging
 import math
 import platform
+from collections.abc import Callable
 from pathlib import Path
 from threading import Thread
-from typing import Callable
 
 import requests
 
@@ -18,23 +18,24 @@ from .sample_rvc_onnx import SAMPLE_RVC_ONNX
 
 
 class SampleManager:
-    _instance = None
+    _instance: SampleManager | None = None
+    threads: dict[str, Thread]
 
     @classmethod
-    def get_instance(cls):
+    def get_instance(cls) -> SampleManager:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sample_list: list[RVCSampleInfo] = []
         self.reload()
 
-    def reload(self):
+    def reload(self) -> None:
         self.sample_list = []
         self.sample_list.extend(SAMPLE_RVC_ONNX)
 
-    def get_samples(self):
+    def get_samples(self) -> list[RVCSampleInfo]:
         return self.sample_list
 
     def _download(
@@ -43,7 +44,7 @@ class SampleManager:
         target_sample: RVCSampleInfo,
         callback: Callable[[SampleDownloadStatus], None],
         rvc_skip_index: bool = False,
-    ):
+    ) -> None:
         upload_dir.mkdir(parents=True, exist_ok=True)
         download_urls = [target_sample.model_url]
         if target_sample.index_url is not None and rvc_skip_index is False:
@@ -70,7 +71,7 @@ class SampleManager:
                     progress = round((file_progress / len(download_urls)) + (1 / len(download_urls) * url_index), 2)
                     callback(SampleDownloadStatus(id=target_sample.id, status="processing", progress=progress))
 
-    def download(self, upload_dir: Path, param: SampleDownloadParam):
+    def download(self, upload_dir: Path, param: SampleDownloadParam) -> None:
         slot_manager = SlotManager.get_instance()
         slot_manager.reserve_slot_for_sample(param.slot_index)
         samples = [x for x in self.sample_list if x.id == param.sample_id]
@@ -78,7 +79,7 @@ class SampleManager:
             raise VCClientError(ERROR_CODE_SAMPLE_NOT_FOUND, f"Sample {param.sample_id} not found.")
         sample = samples[0]
 
-        def callback(status: SampleDownloadStatus):
+        def callback(status: SampleDownloadStatus) -> None:
             logging.getLogger(LOGGER_NAME).debug(f"Download status: {status}")
             slot_manager.update_slot_for_sample(param.slot_index, status.progress)
 
@@ -95,7 +96,7 @@ class SampleManager:
         slot_manager.release_slot_from_reseved_for_sample(param.slot_index)
         slot_manager.set_new_slot(import_params)
 
-    def download_initial_samples(self, callback: Callable[[list[SampleDownloadStatus]], None] = None):
+    def download_initial_samples(self, callback: Callable[[list[SampleDownloadStatus]], None] | None = None) -> None:
         if platform.system() == "Windows":
             INITIAL_SAMPLES = [
                 "KikotoKurage_o",
@@ -127,7 +128,7 @@ class SampleManager:
         initial_samples = [x for x in self.sample_list if x.id in INITIAL_SAMPLES]
         status_dict = {x.id: SampleDownloadStatus(id=x.id, status="processing", progress=0) for x in initial_samples}
 
-        def download_callback(status: SampleDownloadStatus):
+        def download_callback(status: SampleDownloadStatus) -> None:
             status_dict[status.id] = status
             if callback is not None:
                 callback(list(status_dict.values()))

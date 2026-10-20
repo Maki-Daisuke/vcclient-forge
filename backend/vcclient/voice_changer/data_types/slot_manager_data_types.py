@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -47,9 +48,9 @@ class SlotInfo(BaseModel):
     icon_file: Path | None = None
     speakers: dict = {}
 
-    def update(self, **kwargs):
+    def update(self, **kwargs: Any) -> None:
         for key, value in kwargs.items():
-            if key in self.model_fields:
+            if key in type(self).model_fields:
                 setattr(self, key, value)
 
 
