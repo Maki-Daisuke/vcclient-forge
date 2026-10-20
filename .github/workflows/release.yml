@@ -23,9 +23,6 @@ jobs:
           - name: win-cpu-x64
             os: windows-latest
             edition: cpu
-          - name: win-cpu-arm64
-            os: windows-11-arm
-            edition: cpu
           - name: linux-cuda-x64
             os: ubuntu-latest
             edition: cuda
