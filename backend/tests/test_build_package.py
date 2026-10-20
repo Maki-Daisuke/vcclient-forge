@@ -93,6 +93,14 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
 
 
+def test_linux_arm64_cuda_uses_system_cuda_libraries(monkeypatch: pytest.MonkeyPatch) -> None:
+    freezer = load_builder("build_backend")
+    monkeypatch.setattr(freezer.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(freezer.platform, "machine", lambda: "aarch64")
+
+    assert not freezer.requires_nvidia_wheel_binaries("cuda")
+
+
 @pytest.mark.parametrize("existing_artifact", ["directory", "archive"])
 def test_existing_package_is_not_overwritten(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing_artifact: str

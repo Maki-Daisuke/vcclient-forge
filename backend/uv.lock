@@ -2,8 +2,17 @@ version = 1
 revision = 5
 requires-python = "==3.14.*"
 resolution-markers = [
-    "sys_platform != 'darwin'",
-    "sys_platform == 'darwin'",
+    "sys_platform != 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac'",
+    "sys_platform != 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac')",
+    "platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform != 'darwin' and extra == 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform != 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform == 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac'",
+    "sys_platform == 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform == 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform == 'darwin' and extra == 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform == 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
 ]
 conflicts = [[
     { package = "voice-changer", extra = "cpu" },
@@ -795,7 +804,7 @@ name = "nvidia-cublas-cu12"
 version = "12.9.2.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cuda-nvrtc-cu12" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f7/a2/c96163a0fff1839c0c9548bbdeae7b853b867009e33b9b9264adc238b1cf/nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:5572131a59c3eebeeb1c4c8144f772d49372c20124916e072a0e3fc30df421d5", size = 575012079, upload-time = "2026-04-08T18:51:47.303Z" },
@@ -828,7 +837,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.27.0.42"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e4/4b/26e6309b205085e9aa8074887e81fa3603da24c51fd75e0dcaaaff0b9e0f/nvidia_cudnn_cu12-9.27.0.42-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:5bc22243563107ea06aa60f9116ad800063d5f4617cc75bc6670d5db78d9f336", size = 772694764, upload-time = "2026-09-29T23:39:53.164Z" },
@@ -841,7 +850,7 @@ name = "nvidia-cufft-cu12"
 version = "11.4.1.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9b/2b/76445b0af890da61b501fde30650a1a4bd910607261b209cccb5235d3daa/nvidia_cufft_cu12-11.4.1.4-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:1a28c9b12260a1aa7a8fd12f5ebd82d027963d635ba82ff39a1acfa7c4c0fbcf", size = 200822453, upload-time = "2025-06-05T20:05:27.889Z" },
@@ -940,17 +949,42 @@ wheels = [
 name = "onnxruntime-gpu"
 version = "1.24.1"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux')",
+    "sys_platform == 'darwin'",
+]
 dependencies = [
-    { name = "flatbuffers" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "protobuf" },
-    { name = "sympy" },
+    { name = "flatbuffers", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "numpy", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "packaging", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "protobuf", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "sympy", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/b4/51ad0ab878ff1456a831a0566b4db982a904e22f138e4b2c5f021bac517f/onnxruntime_gpu-1.24.1-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ced66900b1f48bddb62b5233925c3b56f8e008e2c34ebf8c060b20cae5842bcf", size = 252629039, upload-time = "2026-02-05T17:24:43.551Z" },
     { url = "https://files.pythonhosted.org/packages/9c/46/336d4e09a6af66532eedde5c8f03a73eaa91a046b408522259ab6a604363/onnxruntime_gpu-1.24.1-cp314-cp314-win_amd64.whl", hash = "sha256:129f6ae8b331a6507759597cd317b23e94aed6ead1da951f803c3328f2990b0c", size = 209487551, upload-time = "2026-02-05T17:24:26.373Z" },
     { url = "https://files.pythonhosted.org/packages/6a/94/a3b20276261f5e64dbd72bda656af988282cff01f18c2685953600e2f810/onnxruntime_gpu-1.24.1-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:de2cee7e12b0f4813c62f9a48df83fd01d066cc970400c832252cf3c155a6957", size = 252633096, upload-time = "2026-02-05T17:24:53.248Z" },
+]
+
+[[package]]
+name = "onnxruntime-gpu"
+version = "1.31.0"
+source = { registry = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-13/pypi/simple/" }
+resolution-markers = [
+    "platform_machine == 'aarch64' and sys_platform == 'linux'",
+]
+dependencies = [
+    { name = "flatbuffers", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "numpy", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "packaging", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+    { name = "protobuf", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://aiinfra.pkgs.visualstudio.com/2692857e-05ef-43b4-ba9c-ccf1c22c437c/_packaging/62a612ee-4dee-42bc-8205-15b672eb4e4b/pypi/download/onnxruntime-gpu/1.31/onnxruntime_gpu-1.31.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:96bc2592727aa119a664b75cca9e842d67a98ab6e6b51b41404adbc40bf7cca6", size = 255574330, upload-time = "2026-10-09T03:16:10Z" },
+    { url = "https://aiinfra.pkgs.visualstudio.com/2692857e-05ef-43b4-ba9c-ccf1c22c437c/_packaging/62a612ee-4dee-42bc-8205-15b672eb4e4b/pypi/download/onnxruntime-gpu/1.31/onnxruntime_gpu-1.31.0-cp314-cp314-manylinux_2_34_aarch64.whl", hash = "sha256:085b6403f6ad690027320eab22d9c18362d32d132e4bb42a3a114cbb2d7c01db", size = 212353300, upload-time = "2026-10-09T03:16:44Z" },
+    { url = "https://aiinfra.pkgs.visualstudio.com/2692857e-05ef-43b4-ba9c-ccf1c22c437c/_packaging/62a612ee-4dee-42bc-8205-15b672eb4e4b/pypi/download/onnxruntime-gpu/1.31/onnxruntime_gpu-1.31.0-cp314-cp314-win_amd64.whl", hash = "sha256:71772c0c175e31c8f1806a9df27c7d7ccb70e4b1ec0bdcd271a7dc4f4ef149fe", size = 168765706, upload-time = "2026-10-09T03:18:30Z" },
+    { url = "https://aiinfra.pkgs.visualstudio.com/2692857e-05ef-43b4-ba9c-ccf1c22c437c/_packaging/62a612ee-4dee-42bc-8205-15b672eb4e4b/pypi/download/onnxruntime-gpu/1.31/onnxruntime_gpu-1.31.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:4eacb51b468a482f2276f8b728f7fca419fbdde3324075112594cc6c9521981f", size = 255568271, upload-time = "2026-10-09T03:15:31Z" },
+    { url = "https://aiinfra.pkgs.visualstudio.com/2692857e-05ef-43b4-ba9c-ccf1c22c437c/_packaging/62a612ee-4dee-42bc-8205-15b672eb4e4b/pypi/download/onnxruntime-gpu/1.31/onnxruntime_gpu-1.31.0-cp314-cp314t-manylinux_2_34_aarch64.whl", hash = "sha256:a8ec018034243c1903dde71c26b60c286f45318df0aee9eea733c1121230bc50", size = 212353184, upload-time = "2026-10-09T03:17:52Z" },
 ]
 
 [[package]]
@@ -1652,7 +1686,12 @@ name = "torch"
 version = "2.14.1+cpu"
 source = { registry = "https://download.pytorch.org/whl/cpu" }
 resolution-markers = [
-    "sys_platform != 'darwin'",
+    "sys_platform != 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac'",
+    "sys_platform != 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac') or (sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac')",
+    "platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform != 'darwin' and extra == 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
+    "sys_platform != 'darwin' and extra != 'extra-13-voice-changer-cpu' and extra != 'extra-13-voice-changer-cuda' and extra != 'extra-13-voice-changer-dml' and extra != 'extra-13-voice-changer-mac'",
 ]
 dependencies = [
     { name = "filelock", marker = "sys_platform != 'darwin' or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-dml') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-mac') or (extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml') or (extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-mac') or (extra == 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac')" },
@@ -1797,11 +1836,12 @@ cpu = [
     { name = "onnxruntime" },
 ]
 cuda = [
-    { name = "nvidia-cublas-cu12" },
-    { name = "nvidia-cuda-runtime-cu12" },
-    { name = "nvidia-cudnn-cu12" },
-    { name = "nvidia-cufft-cu12" },
-    { name = "onnxruntime-gpu" },
+    { name = "nvidia-cublas-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "nvidia-cudnn-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "nvidia-cufft-cu12", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" },
+    { name = "onnxruntime-gpu", version = "1.24.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'aarch64' and extra == 'extra-13-voice-changer-cuda') or (sys_platform != 'linux' and extra == 'extra-13-voice-changer-cuda') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-dml') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-mac') or (extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml') or (extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-mac') or (extra == 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac')" },
+    { name = "onnxruntime-gpu", version = "1.31.0", source = { registry = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-13/pypi/simple/" }, marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'extra-13-voice-changer-cuda') or (platform_machine != 'aarch64' and extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml') or (platform_machine != 'aarch64' and extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-mac') or (platform_machine != 'aarch64' and extra == 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac') or (sys_platform != 'linux' and extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml') or (sys_platform != 'linux' and extra == 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-mac') or (sys_platform != 'linux' and extra == 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-cuda') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-dml') or (extra == 'extra-13-voice-changer-cpu' and extra == 'extra-13-voice-changer-mac') or (extra != 'extra-13-voice-changer-cuda' and extra == 'extra-13-voice-changer-dml' and extra == 'extra-13-voice-changer-mac')" },
 ]
 dev = [
     { name = "httpx" },
@@ -1836,15 +1876,16 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "librosa", specifier = ">=0.10.0" },
     { name = "numpy", specifier = ">=2.0.0" },
-    { name = "nvidia-cublas-cu12", marker = "extra == 'cuda'", specifier = ">=12.4.0" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "extra == 'cuda'", specifier = ">=12.4.0" },
-    { name = "nvidia-cudnn-cu12", marker = "extra == 'cuda'", specifier = ">=9.1.0" },
-    { name = "nvidia-cufft-cu12", marker = "extra == 'cuda'", specifier = ">=11.2.0" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and extra == 'cuda') or (sys_platform != 'linux' and extra == 'cuda')", specifier = ">=12.4.0" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine != 'aarch64' and extra == 'cuda') or (sys_platform != 'linux' and extra == 'cuda')", specifier = ">=12.4.0" },
+    { name = "nvidia-cudnn-cu12", marker = "(platform_machine != 'aarch64' and extra == 'cuda') or (sys_platform != 'linux' and extra == 'cuda')", specifier = ">=9.1.0" },
+    { name = "nvidia-cufft-cu12", marker = "(platform_machine != 'aarch64' and extra == 'cuda') or (sys_platform != 'linux' and extra == 'cuda')", specifier = ">=11.2.0" },
     { name = "onnx", specifier = ">=1.16.0" },
     { name = "onnxruntime", marker = "extra == 'cpu'", specifier = ">=1.20.0" },
     { name = "onnxruntime", marker = "extra == 'mac'", specifier = ">=1.20.0" },
     { name = "onnxruntime-directml", marker = "extra == 'dml'", specifier = ">=1.20.0" },
-    { name = "onnxruntime-gpu", marker = "extra == 'cuda'", specifier = ">=1.20.0,<1.25.0" },
+    { name = "onnxruntime-gpu", marker = "platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=1.26.0,<1.32.0", index = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-13/pypi/simple/" },
+    { name = "onnxruntime-gpu", marker = "(platform_machine != 'aarch64' and extra == 'cuda') or (sys_platform != 'linux' and extra == 'cuda')", specifier = ">=1.20.0,<1.25.0" },
     { name = "onnxscript", specifier = ">=0.1.0" },
     { name = "portpicker", specifier = ">=1.6.0" },
     { name = "pydantic", specifier = ">=2.6.0" },

@@ -9,6 +9,11 @@ from pathlib import Path
 import build_package as package_tools
 
 
+def requires_nvidia_wheel_binaries(edition: str) -> bool:
+    machine = platform.machine().lower()
+    return edition == "cuda" and not (platform.system() == "Linux" and machine in ("aarch64", "arm64"))
+
+
 def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
     root = package_tools.PROJECT_ROOT
     build_dir = package_tools.get_build_dir(edition, python_version)
@@ -75,7 +80,7 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         "--hidden-import",
         "vcclient.server.vcserver_socketio",
     ]
-    if edition == "cuda":
+    if requires_nvidia_wheel_binaries(edition):
         for package in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cufft", "nvidia.cuda_runtime"):
             freeze_command.extend(["--hidden-import", package, "--collect-binaries", package])
     freeze_command.append(str(backend_dir / "main.py"))

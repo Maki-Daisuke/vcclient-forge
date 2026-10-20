@@ -34,11 +34,12 @@ dependencies = [
 
 [project.optional-dependencies]
 cuda = [
-    "onnxruntime-gpu>=1.20.0,<1.25.0",
-    "nvidia-cublas-cu12>=12.4.0",
-    "nvidia-cudnn-cu12>=9.1.0",
-    "nvidia-cufft-cu12>=11.2.0",
-    "nvidia-cuda-runtime-cu12>=12.4.0",
+    "onnxruntime-gpu>=1.20.0,<1.25.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "onnxruntime-gpu>=1.26.0,<1.32.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "nvidia-cublas-cu12>=12.4.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "nvidia-cudnn-cu12>=9.1.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "nvidia-cufft-cu12>=11.2.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
+    "nvidia-cuda-runtime-cu12>=12.4.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
 ]
 dml = [
     "onnxruntime-directml>=1.20.0",
@@ -79,9 +80,17 @@ conflicts = [
 ]
 
 [tool.uv.sources]
+onnxruntime-gpu = [
+    { index = "onnxruntime-cuda-13", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+]
 torch = [
     { index = "pytorch-cpu" },
 ]
+
+[[tool.uv.index]]
+name = "onnxruntime-cuda-13"
+url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-13/pypi/simple/"
+explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

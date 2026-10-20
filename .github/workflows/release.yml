@@ -14,22 +14,31 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - name: win-cuda
+          - name: win-cuda-x64
             os: windows-latest
             edition: cuda
-          - name: win-dml
+          - name: win-dml-x64
             os: windows-latest
             edition: dml
-          - name: win-cpu
+          - name: win-cpu-x64
             os: windows-latest
             edition: cpu
-          - name: linux-cuda
+          - name: win-cpu-arm64
+            os: windows-11-arm
+            edition: cpu
+          - name: linux-cuda-x64
             os: ubuntu-latest
             edition: cuda
-          - name: linux-cpu
+          - name: linux-cuda-arm64
+            os: ubuntu-24.04-arm
+            edition: cuda
+          - name: linux-cpu-x64
             os: ubuntu-latest
             edition: cpu
-          - name: mac-universal
+          - name: linux-cpu-arm64
+            os: ubuntu-24.04-arm
+            edition: cpu
+          - name: mac-arm64
             os: macos-latest
             edition: mac
 
