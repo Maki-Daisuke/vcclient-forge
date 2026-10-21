@@ -6,15 +6,15 @@ from vcclient.const import LOGGER_NAME
 
 
 class CrossfadeProcessor:
-    crossfade_size = 0
-    crossfade_offset = 0
-    crossfade_end = 1
-    np_prev_strength = np.array([0], dtype=np.float32)
-    np_cur_strength = np.array([0], dtype=np.float32)
-    np_prev_audio = np.array([0], dtype=np.float32)
-    prev_rest_buffer = np.array([0], dtype=np.float32)
+    crossfade_size: int = 0
+    crossfade_offset: float = 0.0
+    crossfade_end: float = 1.0
+    np_prev_strength: np.ndarray = np.array([0], dtype=np.float32)
+    np_cur_strength: np.ndarray = np.array([0], dtype=np.float32)
+    np_prev_audio: np.ndarray = np.array([0], dtype=np.float32)
+    prev_rest_buffer: np.ndarray = np.array([0], dtype=np.float32)
 
-    def _generate_strength(self, crossfade_size: int, crossfade_offset: float, crossfade_end: float):
+    def _generate_strength(self, crossfade_size: int, crossfade_offset: float, crossfade_end: float) -> None:
         self.crossfade_size = crossfade_size
         self.crossfade_offset = crossfade_offset
         self.crossfade_end = crossfade_end
@@ -59,7 +59,7 @@ class CrossfadeProcessor:
         crossfade_offset: float,
         crossfade_end: float,
         sola_search_frame: int,
-    ):
+    ) -> np.ndarray:
         if crossfade_size <= 0:
             self.crossfade_size = 0
             self.prev_rest_buffer = np.array([], dtype=np.float32)

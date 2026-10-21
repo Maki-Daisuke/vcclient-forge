@@ -10,7 +10,6 @@ from ....const import LOGGER_NAME
 
 class DeviceManager:
     _instance = None
-    force_tensor: bool = False
 
     @classmethod
     def get_instance(cls) -> "DeviceManager":
@@ -22,12 +21,12 @@ class DeviceManager:
         setup_cuda_env()
         logging.getLogger(LOGGER_NAME).info("DeviceManager initialized in pure-ONNX mode.")
 
-    def get_onnx_execution_provider(self, device_id: int | None = None) -> tuple[list[str], list[dict]]:
+    def get_onnx_execution_provider(self, device_id: int) -> tuple[list[str], list[dict]]:
         res = self._get_onnx_execution_provider(device_id)
         logging.getLogger(LOGGER_NAME).info(f"get_onnx_execution_provider: {res}")
         return res
 
-    def _get_onnx_execution_provider(self, device_id: int | None = None) -> tuple[list[str], list[dict]]:
+    def _get_onnx_execution_provider(self, device_id: int) -> tuple[list[str], list[dict]]:
         available_providers = onnxruntime.get_available_providers()
         logging.getLogger(LOGGER_NAME).info(f"available_providers: {available_providers}")
 
@@ -40,7 +39,7 @@ class DeviceManager:
 
         logging.getLogger(LOGGER_NAME).info(f"gpu_num: {gpu_num}, cuda_len: {cuda_len}, gpu_len: {gpu_len}")
 
-        if device_id is not None and device_id >= 0 and "CUDAExecutionProvider" in available_providers and gpu_num > 0:
+        if device_id >= 0 and "CUDAExecutionProvider" in available_providers and gpu_num > 0:
             if device_id < gpu_num:
                 return (["CUDAExecutionProvider"], [{"device_id": device_id}])
 
@@ -58,7 +57,7 @@ class DeviceManager:
                 ],
             )
 
-        if device_id is not None and device_id >= 0 and "DmlExecutionProvider" in available_providers:
+        if device_id >= 0 and "DmlExecutionProvider" in available_providers:
             return (["DmlExecutionProvider"], [{"device_id": device_id}])
 
         return (
@@ -71,6 +70,3 @@ class DeviceManager:
                 }
             ],
         )
-
-    def set_force_tensor(self, force_tensor: bool = False):
-        self.force_tensor = force_tensor

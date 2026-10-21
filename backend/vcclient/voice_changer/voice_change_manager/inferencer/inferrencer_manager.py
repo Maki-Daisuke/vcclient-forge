@@ -33,13 +33,12 @@ class InferencerManager:
         device_id: int,
         inferencer_type_version: RVCInferencerOnnxVersion | None = None,
     ) -> Inferencer:
+        inferencer: Inferencer
         if inferencer_type == "onnxRVC":
             inferencer = RVCInferencerOnnxF0()
-            inferencer.load_model(model_path, device_id, inferencer_type_version)
-            return inferencer
         elif inferencer_type == "onnxRVCNono":
             inferencer = RVCInferencerOnnxNoF0()
-            inferencer.load_model(model_path, device_id, inferencer_type_version)
-            return inferencer
         else:
             raise RuntimeError(f"Unknown InferencerType {inferencer_type}")
+        inferencer.load_model(model_path, device_id, inferencer_type_version)
+        return inferencer

@@ -155,21 +155,15 @@ class ModuleManager:
         except Exception as e:
             logging.getLogger(LOGGER_NAME).error(f"Failed to send completion callback for {target_module.id}: {e}")
 
-    def _get_target_module(self, id: str) -> ModuleInfo | None:
-        target_module = None
+    def _get_target_module(self, id: str) -> ModuleInfo:
         for module in REGISTERD_MODULES:
             if module.id == id:
-                target_module = module
-                return target_module
-        return target_module
+                return module
+        raise VCClientError(ERROR_CODE_MODULE_NOT_FOUND, f"Module {id} is not registered")
 
     def download(self, id: str, callback: ModuleDownloadCallback) -> None:
         logging.getLogger(LOGGER_NAME).info(f"Downloading module: {id}")
         target_module = self._get_target_module(id)
-        if target_module is None:
-            logging.getLogger(LOGGER_NAME).error(f"No such module: {id}")
-            callback(ModuleDownloadStatus(id=id, status="error", progress=1, error_message=f"module not found {id}"))
-            return None
 
         for exist_trehad_id, exist_thread in list(self.threads.items()):
             if exist_thread is None or exist_thread.is_alive():
@@ -194,8 +188,6 @@ class ModuleManager:
 
     def _check_hash(self, id: str) -> bool:
         target_module = self._get_target_module(id)
-        if target_module is None:
-            raise VCClientError(ERROR_CODE_MODULE_NOT_FOUND, f"Module {id} not found")
         with open(target_module.save_to, "rb") as f:
             data = f.read()
             hash = hashlib.sha256(data).hexdigest()
@@ -204,11 +196,8 @@ class ModuleManager:
                 return False
             return True
 
-    def get_module_filepath(self, id: str) -> Path | None:
-        target_module = self._get_target_module(id)
-        if target_module is None:
-            return None
-        return target_module.save_to
+    def get_module_filepath(self, id: str) -> Path:
+        return self._get_target_module(id).save_to
 
     def is_rvc_ready(self) -> bool:
         for module_id in RVC_REQUIRED_MODULES:

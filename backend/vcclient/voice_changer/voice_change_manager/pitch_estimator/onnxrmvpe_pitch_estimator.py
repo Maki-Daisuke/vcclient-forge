@@ -1,14 +1,16 @@
+from pathlib import Path
+
 import numpy as np
 import onnxruntime
 
-from vcclient.voice_changer.data_types.voice_changer_data_types import PitchEstimatorInfo
-
+from ...data_types.voice_changer_data_types import PitchEstimatorInfo
+from ...voice_chanager_const import PitchEstimatorType
 from ..device_manager.device_manager import DeviceManager
 from .pitch_estimator import PitchEstimator
 
 
 class RMVPEOnnxPitchEstimator(PitchEstimator):
-    def __init__(self, pitch_estimator_type: str, file: str, device_id: int):
+    def __init__(self, pitch_estimator_type: PitchEstimatorType, file: Path, device_id: int):
         super().__init__()
         self.device_id = device_id
         self.file = file

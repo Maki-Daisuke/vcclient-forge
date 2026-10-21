@@ -1,6 +1,9 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from vcclient.exception import ERROR_CODE_MODULE_NOT_FOUND, VCClientError
 from vcclient.voice_changer.data_types.data_types import ModuleInfo
 from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
@@ -130,3 +133,26 @@ def test_download_callback_failure_after_hash_match_keeps_file(tmp_path: Path, m
             manager._download(target_module=test_module, callback=failing_callback)
 
     assert save_path.exists(), "Valid file must be kept on disk even if completion callback raises an exception"
+
+
+def test_get_module_filepath_returns_registered_path_and_rejects_unknown_id(tmp_path: Path, monkeypatch):
+    """Registered IDs resolve to their path; an unregistered ID is a programming error, not None."""
+    manager = ModuleManager.__new__(ModuleManager)
+    save_path = tmp_path / "registered.onnx"
+    module = ModuleInfo(
+        id="registered.onnx",
+        display_name="Registered",
+        url="http://example.com/registered.onnx",
+        save_to=save_path,
+        hash="unused",
+    )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.module_manager.module_manager.REGISTERD_MODULES",
+        [module],
+    )
+
+    assert manager.get_module_filepath("registered.onnx") == save_path
+
+    with pytest.raises(VCClientError) as exc_info:
+        manager.get_module_filepath("unregistered.onnx")
+    assert exc_info.value.info.code == ERROR_CODE_MODULE_NOT_FOUND
