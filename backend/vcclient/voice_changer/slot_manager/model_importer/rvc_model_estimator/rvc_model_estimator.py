@@ -3,18 +3,12 @@ import logging
 from pathlib import Path
 
 import onnxruntime
-import torch
 
 from .....const import LOGGER_NAME
 from .....exception import (
     ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED,
-    ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH,
-    ERROR_CODE_RVC_INVALID_F0_VALUE,
     ERROR_CODE_RVC_INVALID_ONNX_MODEL,
     ERROR_CODE_RVC_INVALID_ONNX_MODEL_VERSION_VALUE,
-    ERROR_CODE_RVC_INVALID_TORCH_MODEL,
-    ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE,
-    ERROR_CODE_RVC_UNKNOWN_EMBEDDER,
     VCClientError,
 )
 from ....data_types.slot_manager_data_types import RVCSlotInfo
@@ -23,107 +17,11 @@ from ....data_types.slot_manager_data_types import RVCSlotInfo
 def estimate_rvc_model(model_path: Path):
     if not model_path.exists():
         raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"Model file not found: {model_path}")
-    if model_path.suffix == ".pth":
-        return estimate_rvc_model_pytorch(model_path)
-    elif model_path.suffix == ".onnx":
+    if model_path.suffix == ".onnx":
         return estimate_rvc_model_onnx(model_path)
-    else:
-        logging.getLogger(LOGGER_NAME).error(f"input file: {model_path}")
-        raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"input file: {model_path}")
-
-
-def estimate_rvc_model_pytorch(model_path: Path):
-    cpt = torch.load(model_path, map_location="cpu", weights_only=False)
-    config_len = len(cpt["config"])
-    version = cpt.get("version", "v1")
-    if version is None:
-        version = "v1"
-    sample_rate = cpt["config"][-1]
-
-    if config_len == 18:
-        training_by = "official"
-    elif config_len == 19:
-        training_by = "ddpn"
-    else:
-        logging.getLogger(LOGGER_NAME).error(f"config_len:{config_len}")
-        raise VCClientError(ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH, f"config_len:{config_len}")
-
-    if cpt["f0"] == 1:
-        is_f0 = True
-    elif cpt["f0"] == 0:
-        is_f0 = False
-    else:
-        logging.getLogger(LOGGER_NAME).error(f"Invalid f0 value: {cpt['f0']}")
-        raise VCClientError(ERROR_CODE_RVC_INVALID_F0_VALUE, f"Invalid f0 value: {cpt['f0']}")
-
-    if version == "v1":
-        torch_version = "v1"
-    elif version == "v2":
-        torch_version = "v2"
-    else:
-        logging.getLogger(LOGGER_NAME).error(f"Invalid torch version: {version}")
-        raise VCClientError(ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE, f"Invalid torch version: {version}")
-
-    inferencer_type = "onnxRVC" if is_f0 else "onnxRVCNono"
-    if training_by == "official" and torch_version == "v1":
-        embedder = "hubert_base_l9fp"
-    elif training_by == "official" and torch_version == "v2":
-        embedder = "hubert_base_l12"
-    elif training_by == "ddpn":
-        emb_channels = cpt["config"][17]
-        if cpt["embedder_name"] == "hubert_base" and emb_channels == 256:
-            embedder = "hubert_base_l9fp"
-        elif cpt["embedder_name"] == "contentvec" and emb_channels == 256:
-            embedder = "hubert_base_l9fp"
-        elif cpt["embedder_name"] == "hubert-base-japanese" and emb_channels == 256:
-            embedder = "hubert_base_japanese_l9fp"
-        elif cpt["embedder_name"] == "hubert_base" and emb_channels == 768:
-            embedder = "hubert_base_l12"
-        elif cpt["embedder_name"] == "contentvec" and emb_channels == 768:
-            embedder = "hubert_base_l12"
-        elif cpt["embedder_name"] == "hubert-base-japanese" and emb_channels == 768:
-            embedder = "hubert_base_japanese_l12"
-        else:
-            logging.getLogger(LOGGER_NAME).error(
-                f"Invalid embedder: {cpt['embedder_name']}, emb_channels: {emb_channels}"
-            )
-            raise VCClientError(
-                ERROR_CODE_RVC_UNKNOWN_EMBEDDER,
-                f"Invalid embedder: {cpt['embedder_name']}, emb_channels: {emb_channels}",
-            )
-    else:
-        logging.getLogger(LOGGER_NAME).error(
-            f"Invalid model: training_by {training_by}, is_f0 {is_f0}, torch_version {torch_version}"
-        )
-        raise VCClientError(
-            ERROR_CODE_RVC_INVALID_TORCH_MODEL,
-            f"Invalid model: training_by {training_by}, is_f0 {is_f0}, torch_version {torch_version}",
-        )
-
-    return RVCSlotInfo(
-        slot_index=-1,
-        name="",
-        description="",
-        credit="",
-        terms_of_use_url="",
-        icon_file=None,
-        speakers={},
-        model_file=Path(model_path.name),
-        index_file=None,
-        is_onnx=False,
-        inferencer_type=inferencer_type,
-        sample_rate=sample_rate,
-        is_f0=is_f0,
-        deprecated=False,
-        embedder=embedder,
-        pitch_estimator="rmvpe",
-        sample_id=None,
-        version=version,
-        chunk_sec=0.5,
-        pitch_shift=0,
-        index_ratio=0,
-        protect_ratio=0.5,
-    )
+    # .pth は推論対象外。PyTorch 推論は廃止済みで、.pth は import / 移行時に export_pth_to_onnx で ONNX 化してから渡す。
+    logging.getLogger(LOGGER_NAME).error(f"input file: {model_path}")
+    raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"input file: {model_path}")
 
 
 def estimate_rvc_model_onnx(model_path: Path):

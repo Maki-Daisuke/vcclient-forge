@@ -208,6 +208,15 @@ def test_export_pth_to_onnx_v1_nof0(dummy_rvc_v1_nof0_checkpoint: Path, tmp_path
     assert not np.isnan(audio).any()
 
 
+def test_estimate_rvc_model_rejects_pth(dummy_rvc_v2_f0_checkpoint: Path):
+    """estimate_rvc_model は .onnx のみを受理する。.pth は export 後に ONNX として渡す運用のため拒否する。"""
+    from vcclient.exception import ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, VCClientError
+
+    with pytest.raises(VCClientError) as exc_info:
+        estimate_rvc_model(dummy_rvc_v2_f0_checkpoint)
+    assert exc_info.value.info.code == ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED
+
+
 def test_import_model_auto_converts_pth(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path):
     """import_model に .pth を渡した際、自動的に .onnx に変換されて .pth が削除されることをテスト"""
     from vcclient.voice_changer.data_types.slot_manager_data_types import RVCModelImportParam
