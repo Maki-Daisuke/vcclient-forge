@@ -16,13 +16,14 @@ from ...data_types.slot_manager_data_types import (
     ReservedForSampleSlotInfo,
     RVCModelImportParam,
     RVCSlotInfo,
+    SlotInfo,
 )
 from ...voice_chanager_const import SLOT_PARAM_FILE
 from ..onnx_exporter import export_pth_to_onnx
 from .rvc_model_estimator.rvc_model_estimator import estimate_rvc_model
 
 
-def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, remove_src: bool = False):
+def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, remove_src: bool = False) -> None:
     if model_importer_param.slot_index is None:
         raise VCClientError(ERROR_CODE_IMPORT_MODEL_FAILED, "slot_index is required for model import.")
     if model_importer_param.voice_changer_type == "RESERVED_FOR_SAMPLE" and not isinstance(
@@ -35,6 +36,7 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
     slot_dir = model_dir / f"{model_importer_param.slot_index}"
     slot_dir.mkdir(parents=True, exist_ok=True)
     try:
+        slot_info: SlotInfo
         if model_importer_param.voice_changer_type == "RESERVED_FOR_SAMPLE":
             if not isinstance(model_importer_param, ReservedForSampleModelImportParam):
                 raise VCClientError(ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE, "Invalid reserved sample import parameters.")

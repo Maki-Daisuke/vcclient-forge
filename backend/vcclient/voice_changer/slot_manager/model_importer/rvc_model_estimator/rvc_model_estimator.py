@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import onnxruntime
 
@@ -12,9 +13,10 @@ from .....exception import (
     VCClientError,
 )
 from ....data_types.slot_manager_data_types import RVCSlotInfo
+from ....voice_chanager_const import EmbedderType, InferencerType
 
 
-def estimate_rvc_model(model_path: Path):
+def estimate_rvc_model(model_path: Path) -> RVCSlotInfo:
     if not model_path.exists():
         raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"Model file not found: {model_path}")
     if model_path.suffix == ".onnx":
@@ -24,7 +26,7 @@ def estimate_rvc_model(model_path: Path):
     raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"input file: {model_path}")
 
 
-def estimate_rvc_model_onnx(model_path: Path):
+def estimate_rvc_model_onnx(model_path: Path) -> RVCSlotInfo:
     tmp_onnx_session = onnxruntime.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
     modelmeta = tmp_onnx_session.get_modelmeta()
     input_shapes = []
@@ -47,7 +49,7 @@ def estimate_rvc_model_onnx(model_path: Path):
         raise VCClientError(ERROR_CODE_RVC_INVALID_ONNX_MODEL, f"Failed to load metadata: {e}")
 
 
-def onnx_v3_x(metadata: dict, model_path: Path):
+def onnx_v3_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
     if metadata["version"] == "3.0":
         version = "v3.0"
     else:
@@ -55,7 +57,7 @@ def onnx_v3_x(metadata: dict, model_path: Path):
         raise VCClientError(ERROR_CODE_RVC_INVALID_ONNX_MODEL_VERSION_VALUE, f"Invalid version: {metadata['version']}")
 
     is_f0 = True if metadata["f0"] == 1 else False
-    inferencer_type = "onnxRVC" if metadata["f0"] == 1 else "onnxRVCNono"
+    inferencer_type: InferencerType = "onnxRVC" if metadata["f0"] == 1 else "onnxRVCNono"
 
     return RVCSlotInfo(
         slot_index=-1,
@@ -72,7 +74,7 @@ def onnx_v3_x(metadata: dict, model_path: Path):
         sample_rate=metadata["samplingRate"],
         is_f0=is_f0,
         deprecated=False,
-        embedder=metadata["embedder"],
+        embedder=cast(EmbedderType, metadata["embedder"]),
         pitch_estimator="rmvpe",
         sample_id=None,
         version=version,
@@ -83,7 +85,8 @@ def onnx_v3_x(metadata: dict, model_path: Path):
     )
 
 
-def onnx_v2_x(metadata: dict, model_path: Path):
+def onnx_v2_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
+    embedder: EmbedderType
     if metadata["embChannels"] == 256 and metadata["embOutputLayer"] == 9 and metadata["useFinalProj"] is True:
         if metadata["embedder"] == "hubert-base-japanese":
             embedder = "hubert_base_japanese_l9fp"
@@ -96,16 +99,17 @@ def onnx_v2_x(metadata: dict, model_path: Path):
             embedder = "hubert_base_l12"
     else:
         logging.getLogger(LOGGER_NAME).error(
-            f"Invalid embedder: {metadata['embedder_name']}, emb_channels: {metadata['embChannels']}"
+            f"Invalid embedder: {metadata.get('embedder_name')}, emb_channels: {metadata.get('embChannels')}"
         )
         raise VCClientError(
             ERROR_CODE_RVC_INVALID_ONNX_MODEL,
-            f"Invalid embedder: {metadata['embedder_name']}, emb_channels: {metadata['embChannels']}",
+            f"Invalid embedder: {metadata.get('embedder_name')}, emb_channels: {metadata.get('embChannels')}",
         )
 
     embedder_legacy = metadata["embedder"]
     logging.getLogger(LOGGER_NAME).info(f"Trying to import onnx model ---------- embedder_legacy: {embedder_legacy}")
 
+    version = "v1"
     if metadata["embChannels"] == 256:
         if metadata["version"] == "2.1":
             version = "v1.1"
@@ -121,7 +125,7 @@ def onnx_v2_x(metadata: dict, model_path: Path):
         elif metadata["version"] == "2.2":
             version = "v2.2"
 
-    inferencer_type = "onnxRVC" if metadata["f0"] == 1 else "onnxRVCNono"
+    inferencer_type: InferencerType = "onnxRVC" if metadata["f0"] == 1 else "onnxRVCNono"
     is_f0 = True if metadata["f0"] == 1 else False
 
     return RVCSlotInfo(
