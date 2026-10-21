@@ -1,4 +1,5 @@
 import math
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -56,12 +57,16 @@ class TextEncoder(nn.Module):
         return m, logs, x_mask
 
 
-def TextEncoder256(*args, **kwargs):
-    return TextEncoder(*args, emb_channels=256, **kwargs)
+def TextEncoder256(*args: Any, **kwargs: Any) -> TextEncoder:
+    kw = dict(kwargs)
+    kw["emb_channels"] = 256
+    return TextEncoder(*args, **kw)
 
 
-def TextEncoder768(*args, **kwargs):
-    return TextEncoder(*args, emb_channels=768, **kwargs)
+def TextEncoder768(*args: Any, **kwargs: Any) -> TextEncoder:
+    kw = dict(kwargs)
+    kw["emb_channels"] = 768
+    return TextEncoder(*args, **kw)
 
 
 class ResidualCouplingBlock(nn.Module):
@@ -110,7 +115,7 @@ class ResidualCouplingBlock(nn.Module):
 
     def remove_weight_norm(self):
         for i in range(self.n_flows):
-            self.flows[i * 2].remove_weight_norm()
+            cast(Any, self.flows[i * 2]).remove_weight_norm()
 
 
 class PosteriorEncoder(nn.Module):
@@ -236,6 +241,7 @@ class Generator(torch.nn.Module):
                     xs = self.resblocks[i * self.num_kernels + j](x)
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
+            assert xs is not None
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -264,6 +270,7 @@ class Generator(torch.nn.Module):
                     xs = self.resblocks[i * self.num_kernels + j](x)
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
+            assert xs is not None
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -276,7 +283,7 @@ class Generator(torch.nn.Module):
         for layer in self.ups:
             remove_weight_norm(layer)
         for rb in self.resblocks:
-            rb.remove_weight_norm()
+            cast(Any, rb).remove_weight_norm()
 
 
 class SineGen(torch.nn.Module):
@@ -519,6 +526,7 @@ class GeneratorNSF(torch.nn.Module):
                     xs = self.resblocks[i * self.num_kernels + j](x)
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
+            assert xs is not None
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -554,6 +562,7 @@ class GeneratorNSF(torch.nn.Module):
                     xs = self.resblocks[i * self.num_kernels + j](x)
                 else:
                     xs += self.resblocks[i * self.num_kernels + j](x)
+            assert xs is not None
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
@@ -567,7 +576,7 @@ class GeneratorNSF(torch.nn.Module):
         for layer in self.ups:
             remove_weight_norm(layer)
         for rb in self.resblocks:
-            rb.remove_weight_norm()
+            cast(Any, rb).remove_weight_norm()
 
 
 sr2sr = {

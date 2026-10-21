@@ -200,7 +200,8 @@ class MultiHeadAttention(nn.Module):
         if proximal_init:
             with torch.no_grad():
                 self.conv_k.weight.copy_(self.conv_q.weight)
-                self.conv_k.bias.copy_(self.conv_q.bias)
+                if self.conv_k.bias is not None and self.conv_q.bias is not None:
+                    self.conv_k.bias.copy_(self.conv_q.bias)
 
     def forward(self, x, c, attn_mask=None):
         q = self.conv_q(x)
@@ -214,7 +215,8 @@ class MultiHeadAttention(nn.Module):
 
     def attention(self, query, key, value, mask=None):
         # reshape [b, d, t] -> [b, n_h, t, d_k]
-        b, d, t_s, t_t = (*key.size(), query.size(2))  # type: ignore
+        b, d, t_s = key.size(0), key.size(1), key.size(2)
+        t_t = query.size(2)
         query = query.view(b, self.n_heads, self.k_channels, t_t).transpose(2, 3)
         key = key.view(b, self.n_heads, self.k_channels, t_s).transpose(2, 3)
         value = value.view(b, self.n_heads, self.k_channels, t_s).transpose(2, 3)

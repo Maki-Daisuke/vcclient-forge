@@ -183,6 +183,7 @@ def export_pth_to_onnx(
                 "is_half": is_half,
             }
 
+        net_g: SynthesizerTrnF0 | SynthesizerTrnNoF0
         if is_f0:
             net_g = SynthesizerTrnF0(**model_kwargs)
         else:
@@ -203,6 +204,7 @@ def export_pth_to_onnx(
         p_len = torch.tensor([feats_len], device=dev, dtype=torch.int64)
         sid = torch.tensor([0], device=dev, dtype=torch.int64)
 
+        inputs: tuple[torch.Tensor, ...]
         if is_f0:
             pitch = torch.zeros(1, feats_len, device=dev, dtype=torch.int64)
             pitchf = torch.zeros(1, feats_len, device=dev, dtype=torch.float32)
@@ -227,7 +229,7 @@ def export_pth_to_onnx(
         )
 
         # ONNX エクスポート実行（PyTorch 2.9+ では dynamo=False で TorchScript エクスポーターを指定）
-        export_kwargs = {
+        export_kwargs: dict[str, Any] = {
             "input_names": input_names,
             "output_names": output_names,
             "dynamic_axes": dynamic_axes,

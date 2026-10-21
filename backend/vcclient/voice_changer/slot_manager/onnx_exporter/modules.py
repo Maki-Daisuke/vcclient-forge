@@ -64,6 +64,7 @@ class ConvReluNorm(nn.Module):
             self.norm_layers.append(LayerNorm(hidden_channels))
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
         self.proj.weight.data.zero_()
+        assert self.proj.bias is not None
         self.proj.bias.data.zero_()
 
     def forward(self, x, x_mask):
@@ -427,6 +428,7 @@ class ResidualCouplingLayer(nn.Module):
         )
         self.post = nn.Conv1d(hidden_channels, self.half_channels * (2 - mean_only), 1)
         self.post.weight.data.zero_()
+        assert self.post.bias is not None
         self.post.bias.data.zero_()
 
     def forward(self, x, x_mask, g=None, reverse=False):
@@ -477,6 +479,7 @@ class ConvFlow(nn.Module):
         self.convs = DDSConv(filter_channels, kernel_size, n_layers, p_dropout=0.0)
         self.proj = nn.Conv1d(filter_channels, self.half_channels * (num_bins * 3 - 1), 1)
         self.proj.weight.data.zero_()
+        assert self.proj.bias is not None
         self.proj.bias.data.zero_()
 
     def forward(self, x, x_mask, g=None, reverse=False):

@@ -4,15 +4,15 @@ import platform
 import subprocess
 import threading
 import webbrowser
-from typing import Callable
+from typing import Any, Callable
 
 from vcclient.const import LOGGER_NAME, NATIVE_CLIENT_FILE_MAC, NATIVE_CLIENT_FILE_WIN
 
 
 class ClientLauncher:
-    def __init__(self, terminate_callback: Callable = None):
+    def __init__(self, terminate_callback: Callable[[], Any]):
         self.terminate_callback = terminate_callback
-        self.process = None
+        self.process: subprocess.Popen[bytes] | None = None
 
     def launch(self, port: int, https: bool = False):
         threading.Thread(target=self._launch_client, args=(port, https), daemon=True).start()
@@ -51,8 +51,7 @@ class ClientLauncher:
 
                 return_code = self.process.wait()
                 logging.getLogger(LOGGER_NAME).info(f"native client closed. {return_code}")
-                if self.terminate_callback:
-                    self.terminate_callback()
+                self.terminate_callback()
             else:
                 # Fallback to standard web browser
                 logging.getLogger(LOGGER_NAME).info(f"Opening browser at {url}")
@@ -64,7 +63,7 @@ class ClientLauncher:
         if hasattr(self, "process") and self.process and self.process.poll() is None:
             self.process.terminate()
 
-    def read_output(self, pipe, log_function):
+    def read_output(self, pipe: Any, log_function: Callable[[str], Any]) -> None:
         with pipe:
             for line in iter(pipe.readline, b""):
                 log_function(line.decode("utf-8", errors="replace").strip())
