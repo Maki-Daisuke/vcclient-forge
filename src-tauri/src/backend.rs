@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::num::NonZeroU16;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -13,7 +13,6 @@ use tauri::{AppHandle, Manager, Url};
 const BACKEND_URL: &str = "http://127.0.0.1:18888/";
 const READY_MESSAGE: &str = "VCCLIENT_DESKTOP_READY:18888";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(600);
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Serialize)]
 pub struct StartupStatus {
@@ -76,19 +75,12 @@ fn backend_command() -> Result<Command, String> {
         command = Command::new(root.join(if cfg!(windows) { "main.exe" } else { "main" }));
         command.current_dir(root);
     }
-    command.args([
-        "server",
-        "--host=127.0.0.1",
-        "--port=18888",
-        "--https=False",
-        "--launch_client=False",
-        "--desktop_control=True",
-    ]);
+    command.args(["--host=127.0.0.1", "--port=18888"]);
     command
         .env("PYTHONUNBUFFERED", "1")
         .env("PYTHONIOENCODING", "utf-8");
     command
-        .stdin(Stdio::piped())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]
@@ -151,20 +143,6 @@ fn stop_backend(child: &mut Child) -> Result<(), String> {
         .is_some()
     {
         return Ok(());
-    }
-    if let Some(mut input) = child.stdin.take() {
-        let _ = input.write_all(b"shutdown\n");
-    }
-    let deadline = Instant::now() + SHUTDOWN_TIMEOUT;
-    while Instant::now() < deadline {
-        if child
-            .try_wait()
-            .map_err(|error| error.to_string())?
-            .is_some()
-        {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(50));
     }
     child
         .kill()

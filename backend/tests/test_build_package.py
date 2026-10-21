@@ -282,25 +282,24 @@ def test_failed_rebuild_invalidates_manifest(tmp_path: Path, monkeypatch: pytest
 
 
 @pytest.mark.parametrize(
-    "frozen, arguments, expected",
+    "arguments, expected_port",
     [
-        (True, ["main.exe"], ["server"]),
-        (True, ["main.exe", "--", "--help"], None),
-        (False, ["main.py"], None),
+        (["main.exe"], 18888),
+        (["main.exe", "server"], 18888),
+        (["main.py", "--port", "19999"], 19999),
     ],
 )
-def test_only_frozen_no_argument_start_defaults_to_server(
-    monkeypatch: pytest.MonkeyPatch, frozen: bool, arguments: list[str], expected: list[str] | None
+def test_main_starts_server_with_parsed_arguments(
+    monkeypatch: pytest.MonkeyPatch, arguments: list[str], expected_port: int
 ) -> None:
     import main as entrypoint
 
-    fire = Mock()
-    monkeypatch.setattr(entrypoint.fire, "Fire", fire)
+    start_server_mock = Mock()
+    monkeypatch.setattr(entrypoint, "start_server", start_server_mock)
     monkeypatch.setattr(entrypoint.mp, "freeze_support", Mock())
-    monkeypatch.setattr(entrypoint.sys, "frozen", frozen, raising=False)
     monkeypatch.setattr(entrypoint.sys, "argv", arguments)
 
     entrypoint.main()
 
-    fire.assert_called_once()
-    assert fire.call_args.kwargs["command"] == expected
+    start_server_mock.assert_called_once()
+    assert start_server_mock.call_args.kwargs["port"] == expected_port

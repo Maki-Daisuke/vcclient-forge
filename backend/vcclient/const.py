@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 TERMINATE_FLAG = False
@@ -20,10 +19,3 @@ SERVER_IO_RECORDING_FILE_IN = "input.wav"
 SERVER_IO_RECORDING_FILE_OUT = "output.wav"
 TOAST_TIMEOUT = 0.7
 MAX_SLOT_FOR_CUI = 10
-
-NATIVE_CLIENT_FILE_WIN = (
-    Path(sys._MEIPASS, "native_client", "voice-changer-native-client.exe")
-    if hasattr(sys, "_MEIPASS")
-    else Path("native_client", "voice-changer-native-client.exe")
-)
-NATIVE_CLIENT_FILE_MAC = Path("voice-changer-native-client.app", "Contents", "MacOS", "voice-changer-native-client")

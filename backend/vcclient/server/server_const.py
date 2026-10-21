@@ -37,5 +37,3 @@ os.makedirs(TMP_DIR, exist_ok=True)
 UPLOAD_DIR_STR = "upload_dir"
 UPLOAD_DIR = Path(UPLOAD_DIR_STR)
 UPLOAD_DIR.mkdir(exist_ok=True)
-
-SSL_KEY_DIR = Path("ssl_key")

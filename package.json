@@ -5,8 +5,8 @@
   "description": "VCClient Forge - Task Runner and Integration",
   "scripts": {
     "clean": "node scripts/clean.js",
-    "start": "uv run --project backend python backend/main.py server",
-    "dev:backend": "uv run --project backend python backend/main.py server",
+    "start": "uv run --project backend python backend/main.py",
+    "dev:backend": "uv run --project backend python backend/main.py",
     "tauri": "tauri",
     "dev:desktop": "tauri dev --no-dev-server",
     "build:desktop": "tauri build --no-bundle -- --locked",

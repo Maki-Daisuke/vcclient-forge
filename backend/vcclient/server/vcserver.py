@@ -10,7 +10,6 @@ import portpicker
 import uvicorn
 
 from vcclient.const import LOGGER_NAME
-from vcclient.server.key_generator import generate_self_signed_cert
 from vcclient.server.vcserver_socketio_server import SocketIOServer
 
 
@@ -26,11 +25,10 @@ class VCServer:
         cls,
         host: str = "127.0.0.1",
         port: int | None = None,
-        https: bool = False,
         allow_origins: list[str] | None = None,
     ) -> VCServer:
         if cls._instance is None:
-            app_fastapi = VCServer(host=host, port=port, https=https, allow_origins=allow_origins)
+            app_fastapi = VCServer(host=host, port=port, allow_origins=allow_origins)
             cls._instance = app_fastapi
         return cls._instance
 
@@ -38,13 +36,11 @@ class VCServer:
         self,
         host: str = "127.0.0.1",
         port: int | None = None,
-        https: bool = False,
         allow_origins: list[str] | None = None,
     ):
         super().__init__()
         self.host = host
-        self.https = https
-        self.allow_origins = allow_origins
+        self.allow_origins = allow_origins if allow_origins is not None else ["*"]
         if port is not None:
             self.port = port
             return
@@ -56,27 +52,14 @@ class VCServer:
             raise Exception("FastAPI instance is not initialized.")
 
         module_parent = this_modeule.parent
-        if self.https is True:
-            (cert, key) = generate_self_signed_cert()
-            config = uvicorn.Config(
-                f"{module_parent}.vcserver_socketio:serverio_app",
-                host=self.host,
-                port=self.port,
-                log_level="info",
-                log_config=None,
-                ssl_keyfile=key,
-                ssl_certfile=cert,
-                timeout_graceful_shutdown=5,
-            )
-        else:
-            config = uvicorn.Config(
-                f"{module_parent}.vcserver_socketio:serverio_app",
-                host=self.host,
-                port=self.port,
-                log_level="info",
-                log_config=None,
-                timeout_graceful_shutdown=5,
-            )
+        config = uvicorn.Config(
+            f"{module_parent}.vcserver_socketio:serverio_app",
+            host=self.host,
+            port=self.port,
+            log_level="info",
+            log_config=None,
+            timeout_graceful_shutdown=5,
+        )
 
         self.server = uvicorn.Server(config)
         self.server_thread = threading.Thread(target=self.start_server)

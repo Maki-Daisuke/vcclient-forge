@@ -1,7 +1,7 @@
+import argparse
 import logging
 import multiprocessing as mp
 import os
-import platform
 import signal
 import sys
 import time
@@ -18,11 +18,9 @@ _here = Path(__file__).parent.resolve()
 if str(_here) not in sys.path:
     sys.path.insert(0, str(_here))
 
-import fire
 import sounddevice as sd
 
 from vcclient.app_status import AppStatus
-from vcclient.client_launcher.client_launcher import ClientLauncher
 from vcclient.const import LOG_FILE, LOGGER_NAME, VERSION
 from vcclient.initializer import (
     _cehck_and_download_initial_samples,
@@ -31,13 +29,9 @@ from vcclient.initializer import (
 )
 from vcclient.logger import setup_logger
 from vcclient.server.vcserver import VCServer
-from vcclient.utils.desktop_control import start_desktop_control
-from vcclient.utils.parseBoolArg import parse_bool_arg
-from vcclient.utils.resolve_url import resolve_base_url
 from vcclient.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
-from vcclient.voice_changer.module_manager.module_manager import ModuleDownloadStatus, ModuleManager
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
@@ -45,67 +39,23 @@ setup_logger(LOGGER_NAME, LOG_FILE)
 logger = logging.getLogger(LOGGER_NAME)
 
 
-def gradient_text(text, start_color=(0, 255, 255), end_color=(255, 0, 255)):
-    lines = text.splitlines()
-    res = []
-    n = max(len(lines), 1)
-    for i, line in enumerate(lines):
-        r = int(start_color[0] + (end_color[0] - start_color[0]) * (i / n))
-        g = int(start_color[1] + (end_color[1] - start_color[1]) * (i / n))
-        b = int(start_color[2] + (end_color[2] - start_color[2]) * (i / n))
-        res.append(f"\033[38;2;{r};{g};{b}m{line}\033[0m")
-    return "\n".join(res)
-
-
-def ignore_ctrl_c():
-    if platform.system() == "Windows":
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-
-def download_progreess(status: list[ModuleDownloadStatus]):
-    for s in status:
-        if s.status == "done":
-            pass
-
-
-def module_download(callback=None):
-    mm = ModuleManager.get_instance()
-    mm.download_rvc_modules(callback or download_progreess)
-
-
-def download_applio_modules(callback=None):
-    mm = ModuleManager.get_instance()
-    mm.download_applio_modules(callback or download_progreess)
-
-
-def wait_for_desktop_server(vcserver: VCServer, timeout: float = 30) -> None:
-    deadline = time.monotonic() + timeout
-    while not vcserver.server.started:
-        if AppStatus.get_instance().end_flag:
-            raise RuntimeError("Desktop startup was cancelled")
-        if vcserver.server_thread is not None and not vcserver.server_thread.is_alive():
-            raise RuntimeError("Backend failed to listen; check whether the port is already in use")
-        if time.monotonic() >= deadline:
-            raise TimeoutError("Backend did not become ready within the startup timeout")
-        time.sleep(0.05)
-
-
 def start_server(
     host: str = "0.0.0.0",
     port: int = 18888,
-    https: bool = False,
-    launch_client: bool = True,
-    allow_origins: str = "*",
-    desktop_control: bool = False,
-    **_kwargs,
 ):
-    https = parse_bool_arg(https)
-    launch_client = parse_bool_arg(launch_client)
-    desktop_control = parse_bool_arg(desktop_control)
     app_status = AppStatus.get_instance()
-    if desktop_control:
-        start_desktop_control(sys.stdin, app_status.stop_app)
-        launch_client = False
+
+    def handle_shutdown_signal(signum, frame):
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, signal.SIG_DFL)
+        app_status.stop_app()
+
+    signal.signal(signal.SIGINT, handle_shutdown_signal)
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
+    if hasattr(signal, "SIGBREAK"):
+        signal.signal(signal.SIGBREAK, handle_shutdown_signal)
 
     logger.info(f"VCClient Version: {VERSION}")
     print(f"VCClient Version: {VERSION}")
@@ -122,19 +72,22 @@ def start_server(
     vcserver = VCServer(
         host=host,
         port=port,
-        https=https,
-        allow_origins=[allow_origins] if allow_origins else None,
     )
     vcserver_port = vcserver.start()
-    if desktop_control:
-        try:
-            wait_for_desktop_server(vcserver)
-        except RuntimeError, TimeoutError:
-            vcserver.stop()
-            raise
-        print(f"VCCLIENT_DESKTOP_READY:{vcserver_port}", flush=True)
 
-    base_url = resolve_base_url(https, vcserver_port)
+    deadline = time.monotonic() + 30
+    while not vcserver.server.started:
+        if app_status.end_flag:
+            return
+        if vcserver.server_thread is not None and not vcserver.server_thread.is_alive():
+            raise RuntimeError("Backend failed to listen; check whether the port is already in use")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Backend did not become ready within the startup timeout")
+        time.sleep(0.05)
+
+    print(f"VCCLIENT_DESKTOP_READY:{vcserver_port}", flush=True)
+
+    base_url = f"http://localhost:{vcserver_port}"
     bold_green_start = "\x1b[1;32m"
     bold_red_start = "\x1b[1;31m"
     reset = "\x1b[0m"
@@ -156,10 +109,6 @@ def start_server(
         print(f" {bold_green_start}{u[0].ljust(key_max_length)}{reset} | {u[1]} ")
     print("-" * box_width)
     print(f"{bold_green_start}Please press Ctrl+C once to exit vcclient.{reset}")
-
-    if launch_client:
-        client_launcher = ClientLauncher(app_status.stop_app)
-        client_launcher.launch(vcserver_port, https)
 
     err_msg = ""
     while not app_status.end_flag:
@@ -198,44 +147,29 @@ def start_server(
 
     bold_green_start = "\x1b[1;32m"
     reset = "\x1b[0m"
-    print(f"{bold_green_start}terminate vcclient...{reset}")
+    print(f"{bold_green_start}terminate vcclient... (press Ctrl+C again to force exit){reset}")
 
-    def ignore_ctrl_c(signum, frame):
-        pass
-
-    original_handler = signal.signal(signal.SIGINT, ignore_ctrl_c)
     try:
         app_status.stop_app()
         vcserver.stop()
         VoiceChanger.get_instance().stop_convert_chunk_bulk()
-    finally:
-        print("")
-        signal.signal(signal.SIGINT, original_handler)
-
-
-start_cui = start_server
-
-
-def rest_client():
-    print("REST Client interactive mode is currently not implemented.")
-
-
-def convert_file(src: str, dst: str, slot: int = 0):
-    print(f"Converting {src} -> {dst} using slot {slot}")
+    except KeyboardInterrupt:
+        print(f"\n{bold_green_start}force exit vcclient.{reset}")
+        os._exit(1)
 
 
 def main():
     mp.freeze_support()
-    fire.Fire(
-        {
-            "server": start_server,
-            "cui": start_cui,
-            "module_download": module_download,
-            "download_applio_modules": download_applio_modules,
-            "rest_client": rest_client,
-            "convert_file": convert_file,
-        },
-        command=["server"] if getattr(sys, "frozen", False) and len(sys.argv) == 1 else None,
+
+    parser = argparse.ArgumentParser(description=f"VCClient {VERSION} (pure-ONNX backend)")
+    parser.add_argument("command", nargs="?", default="server", help=argparse.SUPPRESS)
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Binding host address (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=18888, help="Server port (default: 18888)")
+    args: argparse.Namespace = parser.parse_args()
+
+    start_server(
+        host=args.host,
+        port=args.port,
     )
 
 
