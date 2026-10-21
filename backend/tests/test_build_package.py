@@ -88,7 +88,7 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert "--onedir" in freeze
     assert freeze[freeze.index("--optimize") + 1] == "1"
     assert not Path(freeze[0]).is_relative_to(package)
-    assert str(tmp_path / "backend" / "vcclient" / "version.txt") + ":vcclient" in freeze
+    assert str(tmp_path / "package.json") + ":vcclient" in freeze
     assert "vcclient.server.vcserver_socketio" in freeze
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
 
@@ -303,3 +303,14 @@ def test_main_starts_server_with_parsed_arguments(
 
     start_server_mock.assert_called_once()
     assert start_server_mock.call_args.kwargs["port"] == expected_port
+
+
+def test_const_get_version_reads_package_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from vcclient import const
+
+    package_json = tmp_path / "package.json"
+    package_json.write_text(json.dumps({"version": "9.9.9-test"}), encoding="utf-8")
+    monkeypatch.setattr(const, "HERE", tmp_path / "backend" / "vcclient")
+    (tmp_path / "backend" / "vcclient").mkdir(parents=True)
+
+    assert const.get_version() == "9.9.9-test"

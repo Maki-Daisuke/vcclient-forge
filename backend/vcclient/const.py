@@ -1,3 +1,5 @@
+import json
+import sys
 from pathlib import Path
 
 TERMINATE_FLAG = False
@@ -5,8 +7,20 @@ HERE = Path(__file__).parent.absolute()
 
 
 def get_version() -> str:
-    with open(HERE / "version.txt", "r", encoding="utf-8") as f:
-        return f.read().strip()
+    candidates = [
+        HERE / "package.json",
+        HERE.parent.parent / "package.json",
+        Path(sys.executable).parent / "package.json",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                if "version" in data and isinstance(data["version"], str):
+                    return data["version"].strip()
+            except Exception:
+                pass
+    return "unknown"
 
 
 APP_NAME = "VCClient CUI"

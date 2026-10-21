@@ -72,7 +72,7 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         "--paths",
         str(backend_dir),
         "--add-data",
-        f"{backend_dir / 'vcclient' / 'version.txt'}:vcclient",
+        f"{root / 'package.json'}:vcclient",
         "--collect-submodules",
         "uvicorn",
         "--hidden-import",
