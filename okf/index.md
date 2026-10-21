@@ -15,6 +15,7 @@ entries:
   - deprecating-and-removing-beatrice.md
   - deprecating-and-removing-ngrok.md
   - server-first-architecture-and-static-pipeline-roadmap.md
+  - inversion-of-control-and-process-lifecycle.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -54,3 +55,6 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 10. **[Server-First Audio Architecture & Static-Shape Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md)**
     A roadmap toward local round-trip latency of 100 ms or less, built around native Server Mode, fixed-length inference, direct output delivery, and bounded buffering. Develops GPU optimization through IO Binding, pitch estimation + RVC integration, retrieval-free full integration, and ONNX retrieval evaluation, assessing CUDA Graph capture at applicable stages.
+
+11. **[Inversion of Control: Client-Driven Architecture and Process Lifecycle](./inversion-of-control-and-process-lifecycle.md)**
+    How Forge inverts the legacy Python-centric master/slave model by isolating the Python backend to a pure HTTP/Socket.IO server, shifting UI and browser launching to client launchers (Tauri, shell scripts), and standardizing process lifecycle management via standard OS signals.
