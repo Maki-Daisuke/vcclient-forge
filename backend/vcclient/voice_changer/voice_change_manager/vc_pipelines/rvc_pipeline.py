@@ -145,10 +145,10 @@ class RVCPipeline(VCPipeline):
         logging.getLogger(LOGGER_NAME).info(
             f"pitch estimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"
         )
+        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type
-        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
         logging.getLogger(LOGGER_NAME).info("pitch estimator is changed: done")
 
     def _generate_inputs(

@@ -50,7 +50,7 @@ REGISTERD_MODULES: list[ModuleInfo] = [
         display_name="fcpe.onnx",
         url="https://huggingface.co/gzivdo/fcpe-onnx/resolve/main/fcpe.onnx",
         save_to=ModuleDir / Path("fcpe/fcpe.onnx"),
-        hash="acbe8d2e28c15372bd82248ce07827514730a19073f34269fd3b8a6c42324310",
+        hash="b7e4f3871b10641869b7ac5a2d56ed94deb37552c0336d77e17ad6e66760adf0",
     ),
     ModuleInfo(
         id="applio_japanese_hubert_base.pt",
@@ -79,6 +79,7 @@ RVC_REQUIRED_MODULES = [
     "contentvec-f.onnx",
     "rinna_hubert_base-f.onnx",
     "rmvpe_20231006.onnx",
+    "fcpe.onnx",
 ]
 
 APPLIO_MODULES = ["applio_japanese_hubert_base.pt", "applio_chinese_hubert_base.pt", "applio_korean_hubert_base.pt"]
@@ -210,7 +211,7 @@ class ModuleManager:
         return True
 
     def download_rvc_modules(self, callback: ModuleDownloadListCallback) -> None:
-        rvc_modules = [x for x in self.get_modules() if x.valid is False]
+        rvc_modules = [x for x in self.get_modules() if x.info.id in RVC_REQUIRED_MODULES and x.valid is False]
         status_dict = {
             x.info.id: ModuleDownloadStatus(id=x.info.id, status="processing", progress=0) for x in rvc_modules
         }
@@ -225,6 +226,7 @@ class ModuleManager:
         for threads in self.threads.values():
             if threads is not None:
                 threads.join()
+        self.reload()
         print("module download fin!")
 
     def applio_modules_ready(self) -> bool:

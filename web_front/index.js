@@ -77988,12 +77988,7 @@
             applio_korean_hubert_base_l12: "applio_korean_hubert_base_l12",
           },
           PitchEstimatorType = {
-            harvest: "harvest",
-            dio: "dio",
-            crepe_full: "crepe_full",
-            crepe_tiny: "crepe_tiny",
             rmvpe: "rmvpe",
-            rmvpe_onnx: "rmvpe_onnx",
             fcpe: "fcpe",
           },
           SampleRate = { 48e3: 48e3 },
