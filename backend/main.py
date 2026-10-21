@@ -57,8 +57,8 @@ def start_server(
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, handle_shutdown_signal)
 
-    logger.info(f"VCClient Version: {VERSION}")
-    print(f"VCClient Version: {VERSION}")
+    logger.info(f"VCClient Forge v{VERSION}")
+    print(f"VCClient Forge v{VERSION}")
 
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
@@ -85,30 +85,12 @@ def start_server(
             raise TimeoutError("Backend did not become ready within the startup timeout")
         time.sleep(0.05)
 
-    print(f"VCCLIENT_DESKTOP_READY:{vcserver_port}", flush=True)
-
     base_url = f"http://localhost:{vcserver_port}"
-    bold_green_start = "\x1b[1;32m"
-    bold_red_start = "\x1b[1;31m"
-    reset = "\x1b[0m"
-    urls = [
-        ["Application", base_url],
-        ["Log(rich)", f"{base_url}/?app_mode=LogViewer"],
-        ["Log(text)", f"{base_url}/vcclient.log"],
-        ["API", f"{base_url}/docs"],
-        ["License(js)", f"{base_url}/licenses-js.json"],
-        ["License(py)", f"{base_url}/licenses-py.json"],
-    ]
-
-    key_max_length = max(len(u[0]) for u in urls)
-    url_max_length = max(len(u[1]) for u in urls)
-    box_width = key_max_length + url_max_length + 5
-
-    print("-" * box_width)
-    for u in urls:
-        print(f" {bold_green_start}{u[0].ljust(key_max_length)}{reset} | {u[1]} ")
-    print("-" * box_width)
-    print(f"{bold_green_start}Please press Ctrl+C once to exit vcclient.{reset}")
+    print("-" * 50)
+    print(f" Application: {base_url}")
+    print(f" API Docs:    {base_url}/docs")
+    print("-" * 50)
+    print("Please press Ctrl+C once to exit vcclient.")
 
     err_msg = ""
     while not app_status.end_flag:
@@ -134,7 +116,7 @@ def start_server(
             )
             logging.getLogger(LOGGER_NAME).error(wasapi_not_supported_msg)
             print(err_msg)
-            print(f" {bold_red_start}{wasapi_not_supported_msg}{reset} ")
+            print(f" {wasapi_not_supported_msg} ")
             local_voice_changer_interface.stop()
             time.sleep(1)
         except Exception as e:
@@ -145,16 +127,14 @@ def start_server(
             local_voice_changer_interface.stop()
             time.sleep(1)
 
-    bold_green_start = "\x1b[1;32m"
-    reset = "\x1b[0m"
-    print(f"{bold_green_start}terminate vcclient... (press Ctrl+C again to force exit){reset}")
+    print("terminate vcclient... (press Ctrl+C again to force exit)")
 
     try:
         app_status.stop_app()
         vcserver.stop()
         VoiceChanger.get_instance().stop_convert_chunk_bulk()
     except KeyboardInterrupt:
-        print(f"\n{bold_green_start}force exit vcclient.{reset}")
+        print("\nforce exit vcclient.")
         os._exit(1)
 
 

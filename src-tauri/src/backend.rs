@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, Url};
 
 const BACKEND_URL: &str = "http://127.0.0.1:18888/";
-const READY_MESSAGE: &str = "VCCLIENT_DESKTOP_READY:18888";
+const READY_MESSAGE: &str = "Application: http://localhost:18888";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(600);
 
 #[derive(Clone, Serialize)]
@@ -100,7 +100,7 @@ fn read_output(
         if stdout {
             for line in BufReader::new(stream).split(b'\n') {
                 let Ok(mut line) = line else { break };
-                let ready = String::from_utf8_lossy(&line).trim() == READY_MESSAGE;
+                let ready = String::from_utf8_lossy(&line).contains(READY_MESSAGE);
                 line.push(b'\n');
                 let _ = sender.send((ready, line));
             }
