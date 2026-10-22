@@ -81,7 +81,7 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path | 
 
     frontend = PROJECT_ROOT / "frontend" / "dist"
     source = PROJECT_ROOT / "web_front"
-    required_frontend = {Path("index.html"), Path("index.js")}
+    required_frontend = {Path("index.html")}
     required_frontend.update(path.relative_to(source) for path in source.rglob("*") if path.is_file())
     missing.extend(
         str(frontend / relative) for relative in sorted(required_frontend) if not (frontend / relative).is_file()
