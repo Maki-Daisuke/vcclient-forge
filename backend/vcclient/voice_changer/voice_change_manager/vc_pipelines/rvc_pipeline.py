@@ -15,7 +15,7 @@ from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
-from ...voice_chanager_const import ModelDir, PitchEstimatorType, RVCInferencerOnnxVersion
+from ...voice_changer_const import ModelDir, PitchEstimatorType, RVCInferencerOnnxVersion
 from ..embedders.embedder_manager import EmbedderManager
 from ..inferencer.inferencer_manager import InferencerManager
 from ..inferencer.rvc_inferencer import RVCInferencer

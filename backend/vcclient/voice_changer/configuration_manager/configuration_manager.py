@@ -14,7 +14,7 @@ from ...exception import (
 )
 from ..audio_device_manager.audio_device_manager import AudioDeviceManager
 from ..data_types.data_types import VoiceChangerConfiguration
-from ..voice_chanager_const import ConfigFile
+from ..voice_changer_const import ConfigFile
 
 
 class ConfigurationManager:

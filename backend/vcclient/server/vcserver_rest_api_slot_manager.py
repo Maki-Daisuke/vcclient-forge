@@ -14,7 +14,7 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import (
     SlotInfoMember,
 )
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
-from vcclient.voice_changer.voice_chanager_const import MAX_SLOT_INDEX
+from vcclient.voice_changer.voice_changer_const import MAX_SLOT_INDEX
 
 
 async def detect_model(request: Request) -> ModelImportParamMember:

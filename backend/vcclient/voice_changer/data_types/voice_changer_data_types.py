@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ..voice_chanager_const import EmbedderType, InferencerType, PitchEstimatorType, VoiceChangerType
+from ..voice_changer_const import EmbedderType, InferencerType, PitchEstimatorType, VoiceChangerType
 
 
 class EmbedderInfo(BaseModel):

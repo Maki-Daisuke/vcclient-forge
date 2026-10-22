@@ -10,7 +10,7 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import (
     SetIconParam,
 )
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager, reload_slot_infos
-from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
+from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
 
 
 def test_reload_slot_infos_empty_dir(tmp_path: Path):

@@ -18,7 +18,7 @@ from ...data_types.slot_manager_data_types import (
     RVCSlotInfo,
     SlotInfo,
 )
-from ...voice_chanager_const import SLOT_PARAM_FILE
+from ...voice_changer_const import SLOT_PARAM_FILE
 from ..onnx_exporter import export_pth_to_onnx
 from .rvc_model_estimator.rvc_model_estimator import estimate_rvc_model
 

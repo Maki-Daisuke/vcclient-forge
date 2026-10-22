@@ -4,7 +4,7 @@ import numpy as np
 import onnxruntime
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
-from ...voice_chanager_const import PitchEstimatorType
+from ...voice_changer_const import PitchEstimatorType
 from ..device_manager.device_manager import DeviceManager
 from .pitch_estimator import PitchEstimator
 

@@ -221,7 +221,7 @@ def test_import_model_auto_converts_pth(dummy_rvc_v2_f0_checkpoint: Path, tmp_pa
     """import_model に .pth を渡した際、自動的に .onnx に変換されて .pth が削除されることをテスト"""
     from vcclient.voice_changer.data_types.slot_manager_data_types import RVCModelImportParam
     from vcclient.voice_changer.slot_manager.model_importer.model_importer import import_model
-    from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
+    from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
 
     model_dir = tmp_path / "models"
     slot_index = 0

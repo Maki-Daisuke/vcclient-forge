@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from ..voice_chanager_const import AudioDeviceType, ExtraSec, InferencerType, VoiceChangerInputMode, VoiceChangerType
+from ..voice_changer_const import AudioDeviceType, ExtraSec, InferencerType, VoiceChangerInputMode, VoiceChangerType
 
 
 class PerformanceData(BaseModel):

@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from ..voice_chanager_const import (
+from ..voice_changer_const import (
     EmbedderType,
     InferencerType,
     PitchEstimatorType,

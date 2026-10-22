@@ -24,7 +24,7 @@ from ..data_types.slot_manager_data_types import (
     SlotInfo,
     SlotInfoMember,
 )
-from ..voice_chanager_const import (
+from ..voice_changer_const import (
     MAX_SLOT_INDEX,
     SLOT_PARAM_FILE,
     ModelDir,

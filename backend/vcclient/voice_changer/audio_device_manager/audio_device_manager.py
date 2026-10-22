@@ -9,7 +9,7 @@ from vcclient.logger import logger
 
 from ...exception import ERROR_CODE_LOCAL_AUDIO_DEVICE_QUERY_FAILED, VCClientError
 from ..data_types.data_types import AudioDevice
-from ..voice_chanager_const import AudioDeviceType
+from ..voice_changer_const import AudioDeviceType
 
 lock = threading.Lock()
 

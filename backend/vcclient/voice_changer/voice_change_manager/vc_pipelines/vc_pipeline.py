@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from ...data_types.voice_changer_data_types import PipelineInfoMember
-from ...voice_chanager_const import PitchEstimatorType
+from ...voice_changer_const import PitchEstimatorType
 
 
 class VCPipeline(ABC):

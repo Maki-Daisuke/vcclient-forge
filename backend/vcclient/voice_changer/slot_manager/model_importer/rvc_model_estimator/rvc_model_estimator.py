@@ -13,7 +13,7 @@ from .....exception import (
     VCClientError,
 )
 from ....data_types.slot_manager_data_types import RVCSlotInfo
-from ....voice_chanager_const import EmbedderType, InferencerType
+from ....voice_changer_const import EmbedderType, InferencerType
 
 
 def estimate_rvc_model(model_path: Path) -> RVCSlotInfo:

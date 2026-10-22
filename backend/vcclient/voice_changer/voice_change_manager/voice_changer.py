@@ -42,7 +42,7 @@ from ..data_types.data_types import PerformanceData
 from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
 from ..slot_manager.slot_manager import SlotManager
-from ..voice_chanager_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE, PitchEstimatorType
+from ..voice_changer_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE, PitchEstimatorType
 from .crossfade_processor import CrossfadeProcessor
 from .vc_pipelines.pipeline_manager import PipelineManager
 from .vc_pipelines.vc_pipeline import VCPipeline

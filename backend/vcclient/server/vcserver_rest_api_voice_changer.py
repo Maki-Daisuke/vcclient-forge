@@ -114,7 +114,7 @@ class RestAPIVoiceChanger:
         vc.stop()
 
     def get_voice_changer_information(self) -> VoiceChangerManagerInfo:
-        voice_chanager_manager = VoiceChangerManager.get_instance()
-        info = voice_chanager_manager.get_info()
+        voice_changer_manager = VoiceChangerManager.get_instance()
+        info = voice_changer_manager.get_info()
         logger.info("get_voice_changer_information %s", info)
         return info

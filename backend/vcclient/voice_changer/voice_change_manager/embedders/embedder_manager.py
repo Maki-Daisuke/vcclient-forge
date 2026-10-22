@@ -1,7 +1,7 @@
 from vcclient.logger import logger
 
 from ...module_manager.module_manager import ModuleManager
-from ...voice_chanager_const import EmbedderType
+from ...voice_changer_const import EmbedderType
 from .contentvec_onnx import ContentvecOnnx
 from .embedder import Embedder
 

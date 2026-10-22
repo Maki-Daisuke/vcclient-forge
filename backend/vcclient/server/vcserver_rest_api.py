@@ -25,14 +25,14 @@ from vcclient.server.vcserver_rest_api_module_manager import RestAPIModuleManage
 from vcclient.server.vcserver_rest_api_sample_manager import RestAPISampleManager
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
 from vcclient.server.vcserver_rest_api_task_manager import RestAPITaskManager
-from vcclient.server.vcserver_rest_api_voice_changaer import RestAPIVoiceChanger
+from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.voice_changer.audio_device_manager.audio_device_manager import AudioDeviceManager
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
-from vcclient.voice_changer.voice_chanager_const import ConfigFile, ModelDir, ModuleDir
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
+from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir, ModuleDir
 
 
 def get_custom_swagger_ui_html(

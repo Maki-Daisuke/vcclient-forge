@@ -11,7 +11,7 @@ from vcclient.logger import logger
 from ...exception import ERROR_CODE_MODULE_NOT_FOUND, VCClientError
 from ..data_types.data_types import ModuleInfo, ModuleStatus
 from ..data_types.module_manager_data_types import ModuleDownloadStatus
-from ..voice_chanager_const import ModuleDir
+from ..voice_changer_const import ModuleDir
 
 ModuleDownloadCallback = Callable[[ModuleDownloadStatus], None]
 ModuleDownloadListCallback = Callable[[list[ModuleDownloadStatus]], None]

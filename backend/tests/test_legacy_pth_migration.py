@@ -9,7 +9,7 @@ from vcclient.initializer import _check_and_convert_legacy_pth_models
 from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
 from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
-from vcclient.voice_changer.voice_chanager_const import SLOT_PARAM_FILE
+from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
 
 
 @pytest.fixture
@@ -107,7 +107,7 @@ def test_migration_converts_legacy_pth_slot_with_params_json(dummy_rvc_pth: Path
 
     # ModelDir をモック
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
-    monkeypatch.setattr("vcclient.voice_changer.voice_chanager_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
 
     # SlotManager のシングルトンを再初期化
     SlotManager._instance = None
@@ -155,7 +155,7 @@ def test_migration_converts_legacy_pth_slot_without_params_json(dummy_rvc_pth: P
     # params.json は意図的に配置しない
 
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
-    monkeypatch.setattr("vcclient.voice_changer.voice_chanager_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
 
     SlotManager._instance = None
     slot_manager = SlotManager.get_instance()
@@ -201,7 +201,7 @@ def test_migration_skips_already_converted_slot(dummy_rvc_pth: Path, tmp_path: P
     (slot_dir / SLOT_PARAM_FILE).write_text(slot_info.model_dump_json(indent=4), encoding="utf-8")
 
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
-    monkeypatch.setattr("vcclient.voice_changer.voice_chanager_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
 
     SlotManager._instance = None
     slot_manager = SlotManager.get_instance()

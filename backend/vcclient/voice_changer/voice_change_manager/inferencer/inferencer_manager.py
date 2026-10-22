@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ...voice_chanager_const import InferencerType, RVCInferencerOnnxVersion
+from ...voice_changer_const import InferencerType, RVCInferencerOnnxVersion
 from .inferencer import Inferencer
 from .rvc_inferencer_onnx_f0 import RVCInferencerOnnxF0
 from .rvc_inferencer_onnx_nof0 import RVCInferencerOnnxNoF0

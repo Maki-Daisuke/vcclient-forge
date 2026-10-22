@@ -1,7 +1,7 @@
 from vcclient.logger import logger
 
 from ...module_manager.module_manager import ModuleManager
-from ...voice_chanager_const import PitchEstimatorType
+from ...voice_changer_const import PitchEstimatorType
 from .pitch_estimator import PitchEstimator
 
 
