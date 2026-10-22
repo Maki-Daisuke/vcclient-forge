@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
-from vcclient.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
+from vcclient.voice_changer.audio_device_manager.audio_device_manager import AudioDeviceManager
 
 
 class RestAPIAudioDeviceManager:

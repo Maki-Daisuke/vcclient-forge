@@ -16,10 +16,10 @@ class RestAPIModuleManager:
         )
 
     def get_modules(self, reload: bool = False):
-        moduele_manager = ModuleManager.get_instance()
+        module_manager = ModuleManager.get_instance()
         if reload:
-            moduele_manager.reload()
-        return moduele_manager.get_modules()
+            module_manager.reload()
+        return module_manager.get_modules()
 
     async def post_download_applio_modules(self):
         return None

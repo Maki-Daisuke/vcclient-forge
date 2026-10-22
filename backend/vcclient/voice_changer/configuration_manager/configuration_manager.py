@@ -12,7 +12,7 @@ from ...exception import (
     ERROR_CODE_LOCAL_VOICE_CHANGER_INTERFACE_ACTIVE,
     VCClientError,
 )
-from ..auido_device_manager.audio_device_manager import AudioDeviceManager
+from ..audio_device_manager.audio_device_manager import AudioDeviceManager
 from ..data_types.data_types import VoiceChangerConfiguration
 from ..voice_chanager_const import ConfigFile
 

@@ -16,7 +16,7 @@ from ...exception import (
     ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED,
     VCClientError,
 )
-from ..auido_device_manager.audio_device_manager import AudioDeviceManager
+from ..audio_device_manager.audio_device_manager import AudioDeviceManager
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from .voice_changer import VoiceChanger
 
