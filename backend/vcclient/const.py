@@ -23,11 +23,9 @@ def get_version() -> str:
     return "unknown"
 
 
-APP_NAME = "VCClient CUI"
 VERSION = get_version()
 LOGGER_NAME = "vcclient"
 LOG_FILE = Path("vcclient.log")
 SERVER_IO_RECORDING_FILE_IN = "input.wav"
 SERVER_IO_RECORDING_FILE_OUT = "output.wav"
 TOAST_TIMEOUT = 0.7
-MAX_SLOT_FOR_CUI = 10

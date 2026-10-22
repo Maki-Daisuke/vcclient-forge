@@ -62,7 +62,7 @@ def _check_and_convert_legacy_pth_models() -> None:
     print("Legacy .pth models conversion done.\n")
 
 
-def _cehck_and_download_initial_samples() -> None:
+def _check_and_download_initial_samples() -> None:
     slot_manager = SlotManager.get_instance()
     valid_slot_infos = [x for x in slot_manager.get_slot_infos() if x.voice_changer_type is not None]
     if len(valid_slot_infos) == 0:

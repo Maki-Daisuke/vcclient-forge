@@ -21,8 +21,8 @@ import sounddevice as sd
 from vcclient.app_status import AppStatus
 from vcclient.const import VERSION
 from vcclient.initializer import (
-    _cehck_and_download_initial_samples,
     _check_and_convert_legacy_pth_models,
+    _check_and_download_initial_samples,
     _check_and_download_rvc_modules,
 )
 from vcclient.logger import logger
@@ -57,7 +57,7 @@ def start_server(
 
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
-    _cehck_and_download_initial_samples()
+    _check_and_download_initial_samples()
     if app_status.end_flag:
         return
 
