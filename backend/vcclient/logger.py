@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 import os
 import warnings
-from pathlib import Path
+
+from vcclient.const import LOG_FILE, LOGGER_NAME
 
 warnings.filterwarnings("ignore", message="Duplicate Operation ID")
 
@@ -13,11 +14,6 @@ class CustomFormatter(logging.Formatter):
         record.name = record.name.ljust(10)[:10]
         record.module = record.module.ljust(20)[:20]
         return super().format(record)
-
-
-class LogSuppressFilter(logging.Filter):
-    def filter(self, record):
-        return False
 
 
 class IgnoreConvertRequestFilter(logging.Filter):
@@ -32,14 +28,13 @@ class IgnoreConvertRequestFilter(logging.Filter):
         )
 
 
-def setup_logger(logger_name: str, filename: Path, level: int | None = None) -> logging.Logger:
-    if level is None:
-        level_str = os.environ.get("LOG_LEVEL", os.environ.get("VCCLIENT_LOG_LEVEL", "WARNING")).upper()
-        level = getattr(logging, level_str, logging.WARNING)
+def _init_logger() -> logging.Logger:
+    level_str = os.environ.get("LOG_LEVEL", os.environ.get("VCCLIENT_LOG_LEVEL", "WARNING")).upper()
+    level = getattr(logging, level_str, logging.WARNING)
 
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(level)
-    logger.propagate = False
+    log = logging.getLogger(LOGGER_NAME)
+    log.setLevel(level)
+    log.propagate = False
 
     custom_datefmt = "%H:%M:%S"
     if level == logging.DEBUG:
@@ -52,22 +47,22 @@ def setup_logger(logger_name: str, filename: Path, level: int | None = None) -> 
             datefmt=custom_datefmt,
         )
 
-    file_handler = logging.FileHandler(filename, mode="w", encoding="utf-8")
+    file_handler = logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8")
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    log.addHandler(file_handler)
 
     for name in (
         "uvicorn",
         "uvicorn.error",
         "uvicorn.access",
-        "fairseq.tasks.text_to_speech",
-        "fairseq.tasks.hubert_pretraining",
-        "fairseq.models.hubert.hubert",
     ):
         sub_logger = logging.getLogger(name)
         sub_logger.propagate = False
         sub_logger.addHandler(file_handler)
 
     logging.getLogger("uvicorn.access").addFilter(IgnoreConvertRequestFilter())
-    return logger
+    return log
+
+
+logger: logging.Logger = _init_logger()

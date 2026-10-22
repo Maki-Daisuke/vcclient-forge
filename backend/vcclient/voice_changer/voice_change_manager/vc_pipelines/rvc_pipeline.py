@@ -1,4 +1,3 @@
-import logging
 import math
 from pathlib import Path
 from typing import cast
@@ -9,9 +8,9 @@ import onnxruntime
 from onnx import TensorProto
 from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_tensor_value_info
 
+from vcclient.logger import logger
 from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
 
-from ....const import LOGGER_NAME
 from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
@@ -42,8 +41,11 @@ class RVCPipeline(VCPipeline):
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         self.gpu_device_id = conf.gpu_device_id_int
         self.pitch_estimator_type = slot_info.pitch_estimator
-        logging.getLogger(LOGGER_NAME).info(
-            f"construct new pipelinepitch: slot_index:{self.slot_index}, gpu_device_id:{self.gpu_device_id} pitch_estimator: {self.pitch_estimator_type}"
+        logger.info(
+            "construct new pipelinepitch: slot_index:%s, gpu_device_id:%s pitch_estimator: %s",
+            self.slot_index,
+            self.gpu_device_id,
+            self.pitch_estimator_type,
         )
         self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(
             slot_info.pitch_estimator, conf.gpu_device_id_int
@@ -91,7 +93,7 @@ class RVCPipeline(VCPipeline):
         try:
             index = faiss.read_index(str(index_file))
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"load index failed. {index_file}")
+            logger.error("load index failed. %s", index_file)
             raise e
         big_npy = index.reconstruct_n(0, index.ntotal)
         return index, big_npy
@@ -113,7 +115,7 @@ class RVCPipeline(VCPipeline):
                 onnx_model.SerializeToString(), providers=onnx_providers, provider_options=onnx_provider_options
             )
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"make_onnx_upscaler failed. {e}")
+            logger.error("make_onnx_upscaler failed. %s", e)
             print("make_onnx_upscaler failed.", e)
             raise e
 
@@ -142,14 +144,12 @@ class RVCPipeline(VCPipeline):
         return self.gpu_device_id
 
     def set_pitch_estimator_type(self, pitch_estimator_type: PitchEstimatorType) -> None:
-        logging.getLogger(LOGGER_NAME).info(
-            f"pitch estimator is changed: {self.pitch_estimator_type} -> {pitch_estimator_type}"
-        )
+        logger.info("pitch estimator is changed: %s -> %s", self.pitch_estimator_type, pitch_estimator_type)
         self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type
-        logging.getLogger(LOGGER_NAME).info("pitch estimator is changed: done")
+        logger.info("pitch estimator is changed: done")
 
     def _generate_inputs(
         self, audio: np.ndarray, crossfade_overlap_sec: float, sola_search_frame_sec: float, extra_frame_sec: float
@@ -213,9 +213,7 @@ class RVCPipeline(VCPipeline):
         else:
             vol_db = 20 * np.log10(vol / reference_volume)
         if vol_db < conf.noise_gate:
-            logging.getLogger(LOGGER_NAME).debug(f"noise gate {vol_db} < {conf.noise_gate}") if logging.getLogger(
-                LOGGER_NAME
-            ).isEnabledFor(logging.DEBUG) else None
+            logger.debug("noise gate %s < %s", vol_db, conf.noise_gate)
             return np.zeros(real_output_size).astype(float)
 
         if slot_info.is_f0:

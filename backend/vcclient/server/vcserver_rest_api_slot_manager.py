@@ -1,9 +1,6 @@
-import logging
-import traceback
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.server_const import UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.data_types.slot_manager_data_types import (
@@ -27,7 +24,7 @@ async def detect_model(request: Request) -> ModelImportParamMember:
         if import_param.voice_changer_type == "RVC":
             return RVCModelImportParam.model_validate_json(body)
         else:
-            logging.getLogger(LOGGER_NAME).error(f"unknown voice_changer_type:{import_param.voice_changer_type}")
+            logger.error("unknown voice_changer_type: %s", import_param.voice_changer_type)
             raise HTTPException(status_code=400, detail="voice_changer_type must be 'RVC'")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -93,8 +90,7 @@ class RestAPISlotManager:
                     import_param.index_file = UPLOAD_DIR / import_param.index_file
             slot_manager.set_new_slot(import_param, remove_src=True)
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"Failed to set_new_slot: {e}")
-            logging.getLogger(LOGGER_NAME).error(f"Failed to set_new_slot: {traceback.format_exc()}")
+            logger.error("Failed to set_new_slot: %s", e, exc_info=True)
             raise HTTPException(status_code=400, detail=str(e))
 
     def post_set_icon_file(self, param: SetIconParam):

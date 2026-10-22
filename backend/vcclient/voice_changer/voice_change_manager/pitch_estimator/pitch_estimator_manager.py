@@ -1,6 +1,5 @@
-import logging
+from vcclient.logger import logger
 
-from ....const import LOGGER_NAME
 from ...module_manager.module_manager import ModuleManager
 from ...voice_chanager_const import PitchEstimatorType
 from .pitch_estimator import PitchEstimator
@@ -26,8 +25,8 @@ class PitchEstimatorManager:
             return FCPEOnnxPitchEstimator("fcpe", path, device_id)
 
         if pitch_estimator_type != "rmvpe":
-            logging.getLogger(LOGGER_NAME).warning(
-                f"Pitch estimator '{pitch_estimator_type}' is unimplemented or deprecated. Falling back to 'rmvpe'."
+            logger.warning(
+                "Pitch estimator '%s' is unimplemented or deprecated. Falling back to 'rmvpe'.", pitch_estimator_type
             )
         from .onnxrmvpe_pitch_estimator import RMVPEOnnxPitchEstimator
 

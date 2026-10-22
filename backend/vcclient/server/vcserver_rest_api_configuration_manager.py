@@ -1,8 +1,6 @@
-import logging
-
 from fastapi import APIRouter
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.configuration_manager.configuration_manager import (
     ConfigurationManager,
@@ -29,5 +27,5 @@ class RestAPIConfigurationManager:
         フィールドの型が異なる場合はエラーが出る。
         """
         configuration_manager = ConfigurationManager.get_instance()
-        logging.getLogger(LOGGER_NAME).info(f"Configuration updated: {configuration}")
+        logger.info("Configuration updated: %s", configuration)
         configuration_manager.set_voice_changer_configuration(configuration)

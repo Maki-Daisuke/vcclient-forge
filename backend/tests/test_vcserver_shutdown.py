@@ -13,7 +13,7 @@ import uvicorn
 from engineio.async_socket import AsyncSocket
 from starlette.applications import Starlette
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
 
 
@@ -136,7 +136,7 @@ def test_stop_reports_failure_if_thread_survives_timeout(caplog: pytest.LogCaptu
     server.server = SimpleNamespace(should_exit=False)
     server.server_thread = MagicMock()
     server.server_thread.is_alive.return_value = True
-    caplog.set_level(logging.INFO, logger=LOGGER_NAME)
+    caplog.set_level(logging.INFO, logger=logger.name)
 
     raised = False
     result = None

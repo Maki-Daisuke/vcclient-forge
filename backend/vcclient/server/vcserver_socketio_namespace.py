@@ -1,11 +1,10 @@
 import asyncio
-import logging
 import struct
 
 import numpy as np
 import socketio
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.event_emitter import EventEmitter
 from vcclient.server.event_emitter_manager import EventEmitterManager
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
@@ -38,7 +37,7 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
 
     def on_connect(self, sid, environ):
         self.sid = sid
-        logging.getLogger(LOGGER_NAME).info(f"connect sid: {sid}")
+        logger.info("connect sid: %s", sid)
 
     async def on_request_message(self, sid, msg):
         try:

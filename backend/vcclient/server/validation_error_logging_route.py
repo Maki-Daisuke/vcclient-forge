@@ -1,12 +1,13 @@
-import logging
+from __future__ import annotations
+
 from typing import Callable
 
 from fastapi import HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 
-from vcclient.const import LOGGER_NAME
 from vcclient.exception import VCClientError
+from vcclient.logger import logger
 
 
 class ValidationErrorLoggingRoute(APIRoute):
@@ -17,20 +18,17 @@ class ValidationErrorLoggingRoute(APIRoute):
             try:
                 return await original_route_handler(request)
             except RequestValidationError as exc:
-                logging.getLogger(LOGGER_NAME).error(f"RequestValidationError: {str(exc)}")
+                logger.error("RequestValidationError: %s", exc)
                 body = await request.body()
                 detail = {"errors": exc.errors(), "body": body.decode()}
                 raise HTTPException(status_code=422, detail=detail)
             except HTTPException as exc:
                 raise exc
             except VCClientError as exc:
-                logging.getLogger(LOGGER_NAME).error(f"VCClientError: {str(exc)}")
+                logger.error("VCClientError: %s", exc)
                 raise HTTPException(status_code=422, detail=str(exc))
             except Exception as exc:
-                import traceback
-
-                logging.getLogger(LOGGER_NAME).error(f"Exception: {str(exc)}")
-                logging.getLogger(LOGGER_NAME).error(f"Exception tb: {traceback.format_exc()}")
+                logger.error("Exception: %s", exc, exc_info=True)
                 try:
                     body = await request.body()
                     detail = {"errors": str(exc), "body": body.decode()}

@@ -1,8 +1,6 @@
-import logging
-
 import numpy as np
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 
 
 class CrossfadeProcessor:
@@ -46,8 +44,8 @@ class CrossfadeProcessor:
             [np.zeros(cf_offset), np_cur_strength, np.ones(crossfade_size - cf_offset - len(np_cur_strength))]
         )
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"""Generated Strengths: for prev:{self.np_prev_strength.shape}, for cur:{self.np_cur_strength.shape}"""
+        logger.info(
+            "Generated Strengths: for prev:%s, for cur:%s", self.np_prev_strength.shape, self.np_cur_strength.shape
         )
         self.prev_rest_buffer = np.zeros(crossfade_size, dtype=np.float32)
 

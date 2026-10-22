@@ -1,4 +1,3 @@
-import logging
 import math
 import platform
 from collections.abc import Callable
@@ -7,7 +6,8 @@ from threading import Thread
 
 import requests
 
-from ...const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ...exception import ERROR_CODE_SAMPLE_NOT_FOUND, VCClientError
 from ...server.server_const import UPLOAD_DIR
 from ..data_types.data_types import RVCSampleInfo
@@ -80,7 +80,7 @@ class SampleManager:
         sample = samples[0]
 
         def callback(status: SampleDownloadStatus) -> None:
-            logging.getLogger(LOGGER_NAME).debug(f"Download status: {status}")
+            logger.debug("Download status: %s", status)
             slot_manager.update_slot_for_sample(param.slot_index, status.progress)
 
         self._download(upload_dir, sample, callback)
@@ -116,7 +116,7 @@ class SampleManager:
         elif platform.system() == "Darwin":
             INITIAL_SAMPLES = ["Amitaro_t", "Tsukuyomi-chan_o"]
         else:
-            logging.getLogger(LOGGER_NAME).error(f"Unknown platform:{platform.system()}")
+            logger.error("Unknown platform: %s", platform.system())
             INITIAL_SAMPLES = [
                 "KikotoKurage_o",
                 "KikotoMahiro_o",
@@ -141,9 +141,9 @@ class SampleManager:
 
         for id, thread in self.threads.items():
             thread.join()
-            logging.getLogger(LOGGER_NAME).debug(f"Sample download status: {id} done.")
+            logger.debug("Sample download status: %s done.", id)
 
-        logging.getLogger(LOGGER_NAME).debug("Sample download done.")
+        logger.debug("Sample download done.")
 
         for i, sample in enumerate(initial_samples):
             import_params = RVCModelImportParam(

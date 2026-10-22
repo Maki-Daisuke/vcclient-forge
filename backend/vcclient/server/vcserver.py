@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import logging
 import os
 import threading
 
 import portpicker
 import uvicorn
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.vcserver_socketio_server import SocketIOServer
 
 
@@ -91,7 +90,7 @@ class VCServer:
             pass
 
     def start_server(self):
-        logging.getLogger(LOGGER_NAME).info(f"Starting VCServer on port {self.port}")
+        logger.info("Starting VCServer on port %s", self.port)
         if os.name == "nt":
             self.loop = asyncio.SelectorEventLoop()
         else:
@@ -118,13 +117,13 @@ class VCServer:
             self.loop.close()
 
     def stop(self):
-        logging.getLogger(LOGGER_NAME).info("wait vcserver to stop...")
+        logger.info("wait vcserver to stop...")
         if hasattr(self, "server") and self.server:
             self.server.should_exit = True
         if hasattr(self, "server_thread") and self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=10)
             if self.server_thread.is_alive():
-                logging.getLogger(LOGGER_NAME).error("Server thread failed to terminate within timeout")
+                logger.error("Server thread failed to terminate within timeout")
                 return False
-        logging.getLogger(LOGGER_NAME).info("wait vcserver to stop...done")
+        logger.info("wait vcserver to stop...done")
         return True

@@ -1,6 +1,5 @@
-import logging
+from vcclient.logger import logger
 
-from ....const import LOGGER_NAME
 from ...module_manager.module_manager import ModuleManager
 from ...voice_chanager_const import EmbedderType
 from .contentvec_onnx import ContentvecOnnx
@@ -16,7 +15,7 @@ class EmbedderManager:
             cls.current_embedder = cls.load_embedder(embedder_type, device_id)
             return cls.current_embedder
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"load embedder failed. {e}")
+            logger.error("load embedder failed. %s", e)
             raise RuntimeError(f"{e}")
 
     @classmethod

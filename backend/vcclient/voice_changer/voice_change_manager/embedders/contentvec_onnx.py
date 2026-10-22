@@ -1,11 +1,11 @@
-import logging
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnxruntime
 
-from ....const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ...data_types.voice_changer_data_types import EmbedderInfo
 from ..device_manager.device_manager import DeviceManager
 from .embedder import Embedder
@@ -59,8 +59,11 @@ class ContentvecOnnx(Embedder):
             if not isinstance(audio, np.ndarray):
                 raise TypeError(f"audio must be a numpy array, got {type(audio).__name__}")
             if audio.ndim != 1:
-                logging.getLogger(LOGGER_NAME).error(
-                    f"Exeption in {self.__class__.__name__} audio.dim is not 1 (size :{audio.ndim}, {audio.shape})"
+                logger.error(
+                    "Exception in %s audio.ndim is not 1 (size: %s, %s)",
+                    self.__class__.__name__,
+                    audio.ndim,
+                    audio.shape,
                 )
                 raise RuntimeError(
                     f"Exeption in {self.__class__.__name__} audio.ndim is not 1 (size :{audio.ndim}, {audio.shape})"

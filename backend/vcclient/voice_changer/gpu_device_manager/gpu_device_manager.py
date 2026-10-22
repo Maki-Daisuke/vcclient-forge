@@ -1,10 +1,10 @@
 import json
-import logging
 import platform
 import re
 import subprocess
 
-from ...const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ..data_types.data_types import GPUInfo
 
 
@@ -35,7 +35,7 @@ def _detect_nvidia_gpus() -> list[GPUInfo]:
                     )
                 )
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).debug(f"NVIDIA GPU detection skipped: {e}")
+        logger.debug("NVIDIA GPU detection skipped: %s", e)
     return gpu_list
 
 
@@ -72,7 +72,7 @@ def _detect_windows_gpus() -> list[GPUInfo]:
                     )
                 )
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).debug(f"Windows GPU detection skipped: {e}")
+        logger.debug("Windows GPU detection skipped: %s", e)
     return gpu_list
 
 
@@ -108,7 +108,7 @@ def _detect_macos_gpus() -> list[GPUInfo]:
                     )
                 )
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).debug(f"macOS GPU detection skipped: {e}")
+        logger.debug("macOS GPU detection skipped: %s", e)
     return gpu_list
 
 
@@ -139,7 +139,7 @@ def _detect_linux_gpus() -> list[GPUInfo]:
                     )
                     idx += 1
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).debug(f"Linux GPU detection skipped: {e}")
+        logger.debug("Linux GPU detection skipped: %s", e)
     return gpu_list
 
 
@@ -187,7 +187,7 @@ class GPUDeviceManager:
         self.reload()
 
     def reload(self) -> list[GPUInfo]:
-        logging.getLogger(LOGGER_NAME).info("Reloading GPU info")
+        logger.info("Reloading GPU info")
 
         # 1. NVIDIA GPU の検出 (Windows / Linux 共通)
         nvidia_gpus = _detect_nvidia_gpus()
@@ -225,11 +225,14 @@ class GPUDeviceManager:
         self.cudnn_version = None
         self.cuda_mps_enabled = system == "Darwin"
 
-        logging.getLogger(LOGGER_NAME).info(f"GPU[sys]: {self.gpu_info}")
-        logging.getLogger(LOGGER_NAME).info(
-            f"GPU[cuda]: available:{self.cuda_available}, num:{self.cuda_gpu_num}, driver_version:{self.cuda_driver_version}"
+        logger.info("GPU[sys]: %s", self.gpu_info)
+        logger.info(
+            "GPU[cuda]: available:%s, num:%s, driver_version:%s",
+            self.cuda_available,
+            self.cuda_gpu_num,
+            self.cuda_driver_version,
         )
-        logging.getLogger(LOGGER_NAME).info(f"GPU[cuda_info]: {self.cuda_info}")
+        logger.info("GPU[cuda_info]: %s", self.cuda_info)
         return self.gpu_info
 
     def get_gpu_info(self) -> list[GPUInfo]:

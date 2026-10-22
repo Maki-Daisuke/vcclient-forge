@@ -1,11 +1,11 @@
 import json
-import logging
 from pathlib import Path
 from typing import Any, cast
 
 import onnxruntime
 
-from .....const import LOGGER_NAME
+from vcclient.logger import logger
+
 from .....exception import (
     ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED,
     ERROR_CODE_RVC_INVALID_ONNX_MODEL,
@@ -22,7 +22,7 @@ def estimate_rvc_model(model_path: Path) -> RVCSlotInfo:
     if model_path.suffix == ".onnx":
         return estimate_rvc_model_onnx(model_path)
     # .pth は推論対象外。PyTorch 推論は廃止済みで、.pth は import / 移行時に export_pth_to_onnx で ONNX 化してから渡す。
-    logging.getLogger(LOGGER_NAME).error(f"input file: {model_path}")
+    logger.error("input file: %s", model_path)
     raise VCClientError(ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED, f"input file: {model_path}")
 
 
@@ -37,15 +37,15 @@ def estimate_rvc_model_onnx(model_path: Path) -> RVCSlotInfo:
         output_shapes.append(output_node.shape)
     try:
         metadata = json.loads(modelmeta.custom_metadata_map["metadata"])
-        logging.getLogger(LOGGER_NAME).info(f"Trying to import onnx model: {metadata}")
-        logging.getLogger(LOGGER_NAME).info(f"Input shapes: {input_shapes}")
-        logging.getLogger(LOGGER_NAME).info(f"Output shapes: {output_shapes}")
+        logger.info("Trying to import onnx model: %s", metadata)
+        logger.info("Input shapes: %s", input_shapes)
+        logger.info("Output shapes: %s", output_shapes)
         if metadata["version"] == "3.0":
             return onnx_v3_x(metadata, model_path)
         else:
             return onnx_v2_x(metadata, model_path)
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).error(f"Failed to load metadata: {e}")
+        logger.error("Failed to load metadata: %s", e)
         raise VCClientError(ERROR_CODE_RVC_INVALID_ONNX_MODEL, f"Failed to load metadata: {e}")
 
 
@@ -53,7 +53,7 @@ def onnx_v3_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
     if metadata["version"] == "3.0":
         version = "v3.0"
     else:
-        logging.getLogger(LOGGER_NAME).error(f"Invalid onnx model version: {metadata['version']}")
+        logger.error("Invalid onnx model version: %s", metadata["version"])
         raise VCClientError(ERROR_CODE_RVC_INVALID_ONNX_MODEL_VERSION_VALUE, f"Invalid version: {metadata['version']}")
 
     is_f0 = True if metadata["f0"] == 1 else False
@@ -98,8 +98,8 @@ def onnx_v2_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
         else:
             embedder = "hubert_base_l12"
     else:
-        logging.getLogger(LOGGER_NAME).error(
-            f"Invalid embedder: {metadata.get('embedder_name')}, emb_channels: {metadata.get('embChannels')}"
+        logger.error(
+            "Invalid embedder: %s, emb_channels: %s", metadata.get("embedder_name"), metadata.get("embChannels")
         )
         raise VCClientError(
             ERROR_CODE_RVC_INVALID_ONNX_MODEL,
@@ -107,7 +107,7 @@ def onnx_v2_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
         )
 
     embedder_legacy = metadata["embedder"]
-    logging.getLogger(LOGGER_NAME).info(f"Trying to import onnx model ---------- embedder_legacy: {embedder_legacy}")
+    logger.info("Trying to import onnx model ---------- embedder_legacy: %s", embedder_legacy)
 
     version = "v1"
     if metadata["embChannels"] == 256:

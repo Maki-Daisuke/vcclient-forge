@@ -26,9 +26,7 @@ def get_version() -> str:
 APP_NAME = "VCClient CUI"
 VERSION = get_version()
 LOGGER_NAME = "vcclient"
-LOGGER_NAME_LOCAL_AUDIO_DEVICE = "local_audio_device"
 LOG_FILE = Path("vcclient.log")
-LOG_FILE_LOCAL_AUDIO_DEVICE = Path("vcclient_local_audio_device.log")
 SERVER_IO_RECORDING_FILE_IN = "input.wav"
 SERVER_IO_RECORDING_FILE_OUT = "output.wav"
 TOAST_TIMEOUT = 0.7

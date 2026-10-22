@@ -1,7 +1,5 @@
-import logging
 import threading
 import time
-import traceback
 from collections.abc import Callable
 from pathlib import Path
 from queue import Empty, Queue
@@ -30,7 +28,9 @@ except ImportError:
             pass
 
 
-from ...const import LOGGER_NAME, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
+from vcclient.logger import logger
+
+from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
     ERROR_CODE_MODEL_UPDATE_FAILED,
     ERROR_CODE_PIPELINE_IS_NOT_INITIALIZED,
@@ -124,11 +124,13 @@ class VoiceChanger:
             self.vc_info.vc_output_sample_rate = pipeline.get_output_sample_rate()
             self.vc_info.pitch_estimator_type = pipeline.get_pitch_estimator_type()
             self.vc_info.gpu_device_index = pipeline.get_gpu_device_id()
-            logging.getLogger(LOGGER_NAME).info(
-                f"slot_index Changed: {self.vc_info.slot_index}, gpu_device_index: {self.vc_info.gpu_device_index}"
+            logger.info(
+                "slot_index Changed: %s, gpu_device_index: %s",
+                self.vc_info.slot_index,
+                self.vc_info.gpu_device_index,
             )
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).warning(f"Failed to update model:{e}")
+            logger.warning("Failed to update model: %s", e)
             raise VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, f"Failed to update model:{e}")
 
     def _check_reload_model_is_required_and_update(self) -> None:
@@ -138,8 +140,12 @@ class VoiceChanger:
             self.vc_info.gpu_device_index != conf.gpu_device_id_int
             and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
         ):
-            logging.getLogger(LOGGER_NAME).info(
-                f"slot_index: {self.vc_info.slot_index} -> {slot_index}, gpu_device_index: {self.vc_info.gpu_device_index} -> {conf.gpu_device_id_int}"
+            logger.info(
+                "slot_index: %s -> %s, gpu_device_index: %s -> %s",
+                self.vc_info.slot_index,
+                slot_index,
+                self.vc_info.gpu_device_index,
+                conf.gpu_device_id_int,
             )
             prev_slot_index = self.vc_info.slot_index
             prev_gpu_index = self.vc_info.gpu_device_index
@@ -149,7 +155,7 @@ class VoiceChanger:
                 self.vc_info.gpu_device_index = conf.gpu_device_id_int
                 self._set_io_sample_rate()
             except Exception as e:
-                logging.getLogger(LOGGER_NAME).error(f"Failed to switch model to slot {slot_index}: {e}")
+                logger.error("Failed to switch model to slot %s: %s", slot_index, e)
                 self.vc_info.slot_index = prev_slot_index
                 self.vc_info.gpu_device_index = prev_gpu_index
                 conf.current_slot_index = prev_slot_index
@@ -172,11 +178,11 @@ class VoiceChanger:
 
     def _set_io_sample_rate(self) -> None:
         if self.vc_info.input_sample_rate == -1 or self.vc_info.output_sample_rate == -1:
-            logging.getLogger(LOGGER_NAME).warning("Input or output sample rate is not set")
+            logger.warning("Input or output sample rate is not set")
             return None
 
         if self.vc_info.slot_index == -1:
-            logging.getLogger(LOGGER_NAME).warning("Slot index is not set")
+            logger.warning("Slot index is not set")
             return None
 
         self.input_sample_rate = self.vc_info.input_sample_rate
@@ -190,20 +196,29 @@ class VoiceChanger:
 
         self.vc_info.resample_ratio_pass_through_in_monitor = self.monitor_sample_rate / self.input_sample_rate
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"""resample_ratio_in:{self.vc_info.resample_ratio_in}, resample_ratio_out:{self.vc_info.resample_ratio_out}, resample_ratio_monitor:{self.vc_info.resample_ratio_monitor}"""
+        logger.info(
+            "resample_ratio_in:%s, resample_ratio_out:%s, resample_ratio_monitor:%s",
+            self.vc_info.resample_ratio_in,
+            self.vc_info.resample_ratio_out,
+            self.vc_info.resample_ratio_monitor,
         )
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"""  self.vc_info.vc_input_sample_rate:{self.vc_info.vc_input_sample_rate}, self.input_sample_rate:{self.input_sample_rate}"""
+        logger.info(
+            "  self.vc_info.vc_input_sample_rate:%s, self.input_sample_rate:%s",
+            self.vc_info.vc_input_sample_rate,
+            self.input_sample_rate,
         )
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"""  self.vc_info.vc_output_sample_rate:{self.vc_info.vc_output_sample_rate}, self.output_sample_rate:{self.output_sample_rate}"""
+        logger.info(
+            "  self.vc_info.vc_output_sample_rate:%s, self.output_sample_rate:%s",
+            self.vc_info.vc_output_sample_rate,
+            self.output_sample_rate,
         )
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"""  self.vc_monitor_sample_rate:{self.vc_info.vc_output_sample_rate}, self.monitor_sample_rate:{self.monitor_sample_rate}"""
+        logger.info(
+            "  self.vc_monitor_sample_rate:%s, self.monitor_sample_rate:%s",
+            self.vc_info.vc_output_sample_rate,
+            self.monitor_sample_rate,
         )
 
         self.resampler_in = sr.Resampler("sinc_best", channels=1)
@@ -294,7 +309,7 @@ class VoiceChanger:
     def get_voice_changer_information(self) -> VoiceChangerInformation:
         self._check_reload_model_is_required_and_update()
         if self.vc_pipeline is None:
-            logging.getLogger(LOGGER_NAME).warning("vc_pipeline is None, returning default vc_info")
+            logger.warning("vc_pipeline is None, returning default vc_info")
             return self.vc_info
 
         self._check_and_update_pitch_estimator()
@@ -311,7 +326,7 @@ class VoiceChanger:
 
     def start_recording(self) -> None:
         if self.vc_info.recording_start_flag is True:
-            logging.getLogger(LOGGER_NAME).warning("recording process is already started.")
+            logger.warning("recording process is already started.")
             return None
         self.input_record = []
         self.output_record = []
@@ -320,7 +335,7 @@ class VoiceChanger:
 
     def stop_recording(self) -> None:
         if self.vc_info.recording_start_flag is False:
-            logging.getLogger(LOGGER_NAME).warning("recording process is already stopped.")
+            logger.warning("recording process is already stopped.")
             return None
         self.vc_info.recording_start_flag = False
         self._save_record()
@@ -332,8 +347,7 @@ class VoiceChanger:
             if self.vc_info.monitor_enabled is True:
                 wavfile.write("monitor.wav", self.output_sample_rate, np.concatenate(self.monitor_record))
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).warning(f"Failed to save recording:{e}")
-            logging.getLogger(LOGGER_NAME).warning(f"Failed to save recording:{traceback.format_exc()}")
+            logger.warning("Failed to save recording: %s", e, exc_info=True)
             raise VCClientError(ERROR_CODE_RECORDING_FAILED, f"Failed to save recording:{e}")
 
     waveform_rest: np.ndarray = np.array([])
@@ -345,9 +359,9 @@ class VoiceChanger:
         return self.vc_info.bulk_process_start_flag
 
     def start_convert_chunk_bulk(self) -> None:
-        logging.getLogger(LOGGER_NAME).warning("start_convert_chunk_bulk called")
+        logger.warning("start_convert_chunk_bulk called")
         if self.vc_info.bulk_process_start_flag is True:
-            logging.getLogger(LOGGER_NAME).warning("bulk conversion process is already started.")
+            logger.warning("bulk conversion process is already started.")
             return None
         self.vc_info.bulk_process_start_flag = True
         self.bulk_process = threading.Thread(target=self.convert_chunk_bulk_internal)
@@ -355,9 +369,7 @@ class VoiceChanger:
 
     def stop_convert_chunk_bulk(self) -> None:
         if self.vc_info.bulk_process_start_flag is False:
-            logging.getLogger(LOGGER_NAME).debug("bulk conversion process is already stopped.") if logging.getLogger(
-                LOGGER_NAME
-            ).isEnabledFor(logging.DEBUG) else None
+            logger.debug("bulk conversion process is already stopped.")
             return None
         self.vc_info.bulk_process_start_flag = False
         if self.bulk_process is not None and self.bulk_process.is_alive():
@@ -373,9 +385,7 @@ class VoiceChanger:
         self._check_and_update_filter()
         try:
             if self.vc_info.bulk_process_start_flag is False:
-                logging.getLogger(LOGGER_NAME).debug("bulk conversion process is not started.") if logging.getLogger(
-                    LOGGER_NAME
-                ).isEnabledFor(logging.DEBUG) else None
+                logger.debug("bulk conversion process is not started.")
                 return (None, None, None)
             if self.waveform_rest.dtype != waveform.dtype:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)
@@ -433,17 +443,14 @@ class VoiceChanger:
                 return (output, None, accumulated_performance_data)
             return (output, monitor, accumulated_performance_data)
         except Exception as e:
-            import traceback
-
-            logging.getLogger(LOGGER_NAME).warning(f"Failed to convert_chunk_bulk:{e}")
-            logging.getLogger(LOGGER_NAME).warning(f"Failed to convert_chunk_bulk:{traceback.format_exc()}")
+            logger.warning("Failed to convert_chunk_bulk: %s", e, exc_info=True)
             raise e
 
     def convert_chunk_bulk_internal(self) -> None:
         while True:
             try:
                 if self.vc_info.bulk_process_start_flag is False:
-                    logging.getLogger(LOGGER_NAME).debug("bulk conversion process awared the stop operation.")
+                    logger.debug("bulk conversion process awared the stop operation.")
                     self.convert_chunk_bulk_queue_in = Queue()
                     self.convert_chunk_bulk_queue_out = Queue()
                     self.convert_chunk_bulk_queue_monitor = Queue()
@@ -456,12 +463,7 @@ class VoiceChanger:
             except Empty:
                 pass
             except Exception as e:
-                import traceback
-
-                logging.getLogger(LOGGER_NAME).warning(f"Failed to convert_chunk_bulk_internal:{e}")
-                logging.getLogger(LOGGER_NAME).warning(
-                    f"Failed to convert_chunk_bulk_internal:{traceback.format_exc()}"
-                )
+                logger.warning("Failed to convert_chunk_bulk_internal: %s", e, exc_info=True)
 
     def convert_chunk(
         self, waveform: np.ndarray, direct_from_server: bool | None = None
@@ -581,7 +583,7 @@ class VoiceChanger:
             else:
                 filtered_waveform = waveform
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).warning(f"Failed to filter_in(ignored): {e}")
+            logger.warning("Failed to filter_in(ignored): %s", e)
             filtered_waveform = waveform
 
         resampled_waveform = self._exec_resample_in(filtered_waveform)
@@ -591,9 +593,7 @@ class VoiceChanger:
                 [resampled_waveform, np.zeros(input_size - resampled_waveform.shape[0])]
             )
             padded_shape = resampled_waveform.shape
-            logging.getLogger(LOGGER_NAME).debug(
-                f"data type resampled is short. padded.:{original_shape}, shape:{padded_shape}"
-            ) if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
+            logger.debug("data type resampled is short. padded.: %s, shape: %s", original_shape, padded_shape)
 
         real_crossfade_sec = min(vc_chunk_sec, conf.crossfade_sec)
         converted_waveform = pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)
@@ -631,14 +631,14 @@ class VoiceChanger:
         return (resampled_waveform_out, resampled_waveform_monitor)
 
     def convert_file(self, input_file: str, output_file: str) -> None:
-        logging.getLogger(LOGGER_NAME).info(f"file convert starts: {input_file} -> {output_file}")
+        logger.info("file convert starts: %s -> %s", input_file, output_file)
         input_path = Path(input_file)
         if input_path.exists() is False:
             raise FileNotFoundError(f"Input file not found:{input_file}")
         src_sample_rate, waveform = wavfile.read(input_path)
         if waveform.dtype == np.float32 or waveform.dtype == np.float64:
             waveform = (waveform * 32768).astype(np.int16)
-        logging.getLogger(LOGGER_NAME).info(f"srcSampleRate:{src_sample_rate}, waveform:{waveform.shape}")
+        logger.info("srcSampleRate:%s, waveform:%s", src_sample_rate, waveform.shape)
         configuration = ConfigurationManager.get_instance().get_voice_changer_configuration()
         configuration.input_sample_rate = src_sample_rate
         configuration.output_sample_rate = src_sample_rate
@@ -646,7 +646,7 @@ class VoiceChanger:
         self.chunk_size = int(round(src_sample_rate * self.vc_chunk_sec))
         splitted_waveforms = [waveform[i : i + self.chunk_size] for i in range(0, len(waveform), self.chunk_size)]
         chunk_num = len(splitted_waveforms)
-        logging.getLogger(LOGGER_NAME).info(f"chunk_size:{self.chunk_size}, chunk_num:{chunk_num}")
+        logger.info("chunk_size:%s, chunk_num:%s", self.chunk_size, chunk_num)
         convertd_datas = []
         with Timer("converting", enable=False) as t:
             for i, splitted_waveform in enumerate(splitted_waveforms):
@@ -656,11 +656,11 @@ class VoiceChanger:
                 t.record(f"chunk-{i}")
         output_data = np.concatenate(convertd_datas)
         wavfile.write(output_file, src_sample_rate, output_data)
-        logging.getLogger(LOGGER_NAME).info(f"file convert done: {input_file} -> {output_file}")
+        logger.info("file convert done: %s -> %s", input_file, output_file)
 
     def __del__(self) -> None:
-        logging.getLogger(LOGGER_NAME).info("VoiceChanger is deleting.")
+        logger.info("VoiceChanger is deleting.")
         if self.vc_info.bulk_process_start_flag is True:
-            logging.getLogger(LOGGER_NAME).info("bulk_process is stopping.")
+            logger.info("bulk_process is stopping.")
             self.stop_convert_chunk_bulk()
-        logging.getLogger(LOGGER_NAME).info("VoiceChanger is deleted.")
+        logger.info("VoiceChanger is deleted.")

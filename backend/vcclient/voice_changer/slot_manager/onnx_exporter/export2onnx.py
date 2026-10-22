@@ -1,5 +1,4 @@
 import json
-import logging
 import warnings
 from pathlib import Path
 from typing import Any
@@ -7,7 +6,6 @@ from typing import Any
 import onnx
 import torch
 
-from vcclient.const import LOGGER_NAME
 from vcclient.exception import (
     ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH,
     ERROR_CODE_RVC_INVALID_F0_VALUE,
@@ -16,6 +14,7 @@ from vcclient.exception import (
     ERROR_CODE_RVC_UNKNOWN_EMBEDDER,
     VCClientError,
 )
+from vcclient.logger import logger
 
 from .models import SynthesizerTrnF0, SynthesizerTrnNoF0
 
@@ -24,7 +23,7 @@ def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
     """PyTorch チェックポイントからメタデータを解析・抽出する"""
     version = cpt.get("version", "v1") or "v1"
     if version not in ("v1", "v2"):
-        logging.getLogger(LOGGER_NAME).error(f"Invalid torch version: {version}")
+        logger.error("Invalid torch version: %s", version)
         raise VCClientError(ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE, f"Invalid torch version: {version}")
 
     f0_val = cpt.get("f0", 1)
@@ -33,7 +32,7 @@ def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
     elif f0_val == 0:
         is_f0 = False
     else:
-        logging.getLogger(LOGGER_NAME).error(f"Invalid f0 value: {f0_val}")
+        logger.error("Invalid f0 value: %s", f0_val)
         raise VCClientError(ERROR_CODE_RVC_INVALID_F0_VALUE, f"Invalid f0 value: {f0_val}")
 
     if "config" in cpt:
@@ -47,7 +46,7 @@ def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
             training_by = "ddpn"
             emb_channels = config[17]
         else:
-            logging.getLogger(LOGGER_NAME).error(f"config_len:{config_len}")
+            logger.error("config_len: %s", config_len)
             raise VCClientError(ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH, f"config_len:{config_len}")
     elif "params" in cpt:
         params = cpt["params"]
@@ -55,7 +54,7 @@ def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
         training_by = "webui"
         emb_channels = params.get("emb_channels", 256 if version == "v1" else 768)
     else:
-        logging.getLogger(LOGGER_NAME).error("Checkpoint missing both config and params")
+        logger.error("Checkpoint missing both config and params")
         raise VCClientError(ERROR_CODE_RVC_INVALID_TORCH_MODEL, "Checkpoint missing both config and params")
 
     if training_by == "official":
@@ -86,7 +85,7 @@ def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
             emb_output_layer = 12
             use_final_proj = False
         else:
-            logging.getLogger(LOGGER_NAME).error(f"Invalid embedder: {embedder_name}, emb_channels: {emb_channels}")
+            logger.error("Invalid embedder: %s, emb_channels: %s", embedder_name, emb_channels)
             raise VCClientError(
                 ERROR_CODE_RVC_UNKNOWN_EMBEDDER,
                 f"Invalid embedder: {embedder_name}, emb_channels: {emb_channels}",
@@ -224,8 +223,12 @@ def export_pth_to_onnx(
 
         output_names = ["audio"]
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"Exporting PyTorch model to ONNX: {pth_file} -> {out_file} (f0={is_f0}, emb_channels={emb_channels})"
+        logger.info(
+            "Exporting PyTorch model to ONNX: %s -> %s (f0=%s, emb_channels=%s)",
+            pth_file,
+            out_file,
+            is_f0,
+            emb_channels,
         )
 
         # ONNX エクスポート実行（PyTorch 2.9+ では dynamo=False で TorchScript エクスポーターを指定）
@@ -252,9 +255,9 @@ def export_pth_to_onnx(
             model_simp, check = onnxsim.simplify(model_onnx)
             if check:
                 model_onnx = model_simp
-                logging.getLogger(LOGGER_NAME).debug("ONNX model successfully simplified with onnxsim.")
+                logger.debug("ONNX model successfully simplified with onnxsim.")
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).debug(f"onnxsim simplification skipped: {e}")
+            logger.debug("onnxsim simplification skipped: %s", e)
 
         meta = model_onnx.metadata_props.add()
         meta.key = "metadata"
@@ -264,6 +267,6 @@ def export_pth_to_onnx(
 
         onnx.save(model_onnx, str(out_file))
 
-    logging.getLogger(LOGGER_NAME).info(f"Successfully exported ONNX model to {out_file}")
+    logger.info("Successfully exported ONNX model to %s", out_file)
 
     return out_file

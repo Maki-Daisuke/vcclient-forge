@@ -1,8 +1,7 @@
-import logging
-
 import socketio
 
-from vcclient.const import LOG_FILE, LOGGER_NAME, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
+from vcclient.const import LOG_FILE, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
+from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
 from vcclient.server.vcserver_rest_api import RestAPI
 
@@ -71,6 +70,6 @@ rest = RestAPI.get_instance(voice_changer_params)
 
 allow_origins = VCServer.get_instance().allow_origins
 
-logging.getLogger(LOGGER_NAME).info(f"""SocketIOApp Allow Origins {allow_origins}""")
+logger.info("SocketIOApp Allow Origins %s", allow_origins)
 
 serverio_app = SocketIOApp.get_instance(rest, allow_origins=allow_origins)

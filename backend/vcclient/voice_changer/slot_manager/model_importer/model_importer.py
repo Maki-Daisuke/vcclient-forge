@@ -1,9 +1,9 @@
-import logging
 import shutil
 from pathlib import Path
 from typing import cast
 
-from ....const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ....exception import (
     ERROR_CODE_FILENAME_TOO_LONG,
     ERROR_CODE_IMPORT_MODEL_FAILED,
@@ -57,16 +57,14 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
                         raise VCClientError(
                             ERROR_CODE_FILENAME_TOO_LONG, detail=f"filename is too long: {src.name} -> {dst.name}"
                         )
-                    logging.getLogger(LOGGER_NAME).debug(f"copy {src} to {dst}")
+                    logger.debug("copy %s to %s", src, dst)
                     shutil.copy(src, dst)
                     if remove_src is True:
                         src.unlink()
             model_file = slot_dir / model_importer_param.model_file.name
             if model_file.suffix == ".pth":
                 onnx_file = slot_dir / f"{model_file.stem}.onnx"
-                logging.getLogger(LOGGER_NAME).info(
-                    f"Auto-converting imported PyTorch model to ONNX: {model_file} -> {onnx_file}"
-                )
+                logger.info("Auto-converting imported PyTorch model to ONNX: %s -> %s", model_file, onnx_file)
                 export_pth_to_onnx(model_file, onnx_file)
                 model_file.unlink()
                 model_file = onnx_file
@@ -90,9 +88,7 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
             if model_importer_param.embedder is not None:
                 slot_info.embedder = model_importer_param.embedder
         else:
-            logging.getLogger(LOGGER_NAME).error(
-                f"Unknown voice changer type: {model_importer_param.voice_changer_type}"
-            )
+            logger.error("Unknown voice changer type: %s", model_importer_param.voice_changer_type)
             raise VCClientError(
                 ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE,
                 detail=f"Unknown voice changer type: {model_importer_param.voice_changer_type}",
@@ -101,7 +97,7 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
         shutil.rmtree(slot_dir)
         raise e
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).error(f"Failed to import model: {e}")
+        logger.error("Failed to import model: %s", e)
         shutil.rmtree(slot_dir)
         raise VCClientError(ERROR_CODE_IMPORT_MODEL_FAILED, detail=f"Failed to import model: {e}")
 

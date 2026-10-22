@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import logging
 import threading
 
 import numpy as np
 import sounddevice as sd
 
-from ...const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ...exception import ERROR_CODE_LOCAL_AUDIO_DEVICE_QUERY_FAILED, VCClientError
 from ..data_types.data_types import AudioDevice
 from ..voice_chanager_const import AudioDeviceType
@@ -68,7 +68,7 @@ def _check_sample_rate(device_id: int, desired_sampling_rate: int, type: AudioDe
                 pass
             return True
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"Failed to check_sampling_rate: {e}")
+            logger.error("Failed to check_sampling_rate: %s", e)
             return False
     else:
         try:
@@ -78,7 +78,7 @@ def _check_sample_rate(device_id: int, desired_sampling_rate: int, type: AudioDe
                 pass
             return True
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"Failed to check_sampling_rate: {e}")
+            logger.error("Failed to check_sampling_rate: %s", e)
             return False
 
 
@@ -92,7 +92,7 @@ def _get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
                 sample_rate = stream.samplerate
                 return sample_rate
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"Failed to get default sampling rate(input): {e}")
+            logger.error("Failed to get default sampling rate(input): %s", e)
             return -1
     else:
         try:
@@ -100,7 +100,7 @@ def _get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
                 sample_rate = stream.samplerate
                 return sample_rate
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"Failed to get default sampling rate(output): {e}")
+            logger.error("Failed to get default sampling rate(output): %s", e)
             return -1
 
 
@@ -119,10 +119,10 @@ class AudioDeviceManager:
         self.reload_device()
 
     def reload_device(self) -> None:
-        logging.getLogger(LOGGER_NAME).info("Reloading Audio Device info")
+        logger.info("Reloading Audio Device info")
         (self.audio_input_devices, self.audio_output_devices) = _list_device()
-        logging.getLogger(LOGGER_NAME).info(f"Audio(input):{self.audio_input_devices}")
-        logging.getLogger(LOGGER_NAME).info(f"Audio(output):{self.audio_output_devices}")
+        logger.info("Audio(input): %s", self.audio_input_devices)
+        logger.info("Audio(output): %s", self.audio_output_devices)
 
     def get_audio_input_devices(self) -> list[AudioDevice]:
         return self.audio_input_devices

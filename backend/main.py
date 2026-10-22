@@ -1,11 +1,9 @@
 import argparse
-import logging
 import multiprocessing as mp
 import os
 import signal
 import sys
 import time
-import traceback
 from pathlib import Path
 
 if __name__ == "__main__":
@@ -21,22 +19,19 @@ if str(_here) not in sys.path:
 import sounddevice as sd
 
 from vcclient.app_status import AppStatus
-from vcclient.const import LOG_FILE, LOGGER_NAME, VERSION
+from vcclient.const import VERSION
 from vcclient.initializer import (
     _cehck_and_download_initial_samples,
     _check_and_convert_legacy_pth_models,
     _check_and_download_rvc_modules,
 )
-from vcclient.logger import setup_logger
+from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
 from vcclient.voice_changer.auido_device_manager.audio_device_manager import AudioDeviceManager
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-
-setup_logger(LOGGER_NAME, LOG_FILE)
-logger = logging.getLogger(LOGGER_NAME)
 
 
 def start_server(
@@ -57,7 +52,7 @@ def start_server(
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, handle_shutdown_signal)
 
-    logger.info(f"VCClient Forge v{VERSION}")
+    logger.info("VCClient Forge v%s", VERSION)
     print(f"VCClient Forge v{VERSION}")
 
     _check_and_download_rvc_modules()
@@ -108,21 +103,19 @@ def start_server(
             break
         except sd.PortAudioError as e:
             err_msg = f"sound device error:{e}"
-            logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
-            logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
+            logger.error("sound device error: %s", e, exc_info=True)
             wasapi_not_supported_msg = (
                 "If you are using WASAPI or ASIO, your device might not be compatible with it. "
                 "Please try using MME instead."
             )
-            logging.getLogger(LOGGER_NAME).error(wasapi_not_supported_msg)
+            logger.error(wasapi_not_supported_msg)
             print(err_msg)
             print(f" {wasapi_not_supported_msg} ")
             local_voice_changer_interface.stop()
             time.sleep(1)
         except Exception as e:
             err_msg = f"Error:{e}"
-            logging.getLogger(LOGGER_NAME).error(f"Error:{e}")
-            logging.getLogger(LOGGER_NAME).error(f"traceback:{traceback.format_exc()}")
+            logger.error("Runtime error: %s", e, exc_info=True)
             print(err_msg)
             local_voice_changer_interface.stop()
             time.sleep(1)

@@ -1,5 +1,4 @@
 import hashlib
-import logging
 import math
 from collections.abc import Callable
 from pathlib import Path
@@ -7,7 +6,8 @@ from threading import Thread
 
 import requests
 
-from ...const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ...exception import ERROR_CODE_MODULE_NOT_FOUND, VCClientError
 from ..data_types.data_types import ModuleInfo, ModuleStatus
 from ..data_types.module_manager_data_types import ModuleDownloadStatus
@@ -100,7 +100,7 @@ class ModuleManager:
         self.module_status_list = []
         self.threads = {}
         self.reload()
-        logging.getLogger(LOGGER_NAME).info(f"Initial module status: {self.module_status_list}")
+        logger.info("Initial module status: %s", self.module_status_list)
 
     def reload(self) -> None:
         self.module_status_list = []
@@ -146,15 +146,15 @@ class ModuleManager:
         except Exception as e:
             if target_module.save_to.exists():
                 target_module.save_to.unlink(missing_ok=True)
-            logging.getLogger(LOGGER_NAME).error(f"Downloading error: {target_module.id}, {e}")
+            logger.error("Downloading error: %s, %s", target_module.id, e)
             callback(ModuleDownloadStatus(id=target_module.id, status="error", progress=1, error_message=str(e)))
             return
 
-        logging.getLogger(LOGGER_NAME).info(f"Downloading completed: {target_module.id}")
+        logger.info("Downloading completed: %s", target_module.id)
         try:
             callback(ModuleDownloadStatus(id=target_module.id, status="done", progress=1))
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"Failed to send completion callback for {target_module.id}: {e}")
+            logger.error("Failed to send completion callback for %s: %s", target_module.id, e)
 
     def _get_target_module(self, id: str) -> ModuleInfo:
         for module in REGISTERD_MODULES:
@@ -163,7 +163,7 @@ class ModuleManager:
         raise VCClientError(ERROR_CODE_MODULE_NOT_FOUND, f"Module {id} is not registered")
 
     def download(self, id: str, callback: ModuleDownloadCallback) -> None:
-        logging.getLogger(LOGGER_NAME).info(f"Downloading module: {id}")
+        logger.info("Downloading module: %s", id)
         target_module = self._get_target_module(id)
 
         for exist_trehad_id, exist_thread in list(self.threads.items()):
@@ -173,7 +173,7 @@ class ModuleManager:
             self.threads.pop(exist_trehad_id)
 
         if id in self.threads:
-            logging.getLogger(LOGGER_NAME).error(f"Already downloading: {id}")
+            logger.error("Already downloading: %s", id)
             callback(
                 ModuleDownloadStatus(
                     id=id, status="error", progress=1, error_message=f"module is already downloading {id}"
@@ -182,7 +182,7 @@ class ModuleManager:
             return None
 
         self.threads[id] = None
-        logging.getLogger(LOGGER_NAME).info(f"Start downloading: {id}")
+        logger.info("Start downloading: %s", id)
         t = Thread(target=self._download, args=(target_module, callback))
         t.start()
         self.threads[id] = t
@@ -193,7 +193,7 @@ class ModuleManager:
             data = f.read()
             hash = hashlib.sha256(data).hexdigest()
             if hash != target_module.hash:
-                logging.getLogger(LOGGER_NAME).error(f"hash is not valid: valid:{target_module.hash}, incoming:{hash}")
+                logger.error("hash is not valid: valid:%s, incoming:%s", target_module.hash, hash)
                 return False
             return True
 

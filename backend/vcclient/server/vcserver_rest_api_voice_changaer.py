@@ -1,11 +1,9 @@
-import logging
-
 import numpy as np
 from fastapi import APIRouter, File, Header, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.event_emitter_manager import EventEmitterManager
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
@@ -118,5 +116,5 @@ class RestAPIVoiceChanger:
     def get_voice_changer_information(self) -> VoiceChangerManagerInfo:
         voice_chanager_manager = VoiceChangerManager.get_instance()
         info = voice_chanager_manager.get_info()
-        logging.getLogger(LOGGER_NAME).info(f"get_voice_changer_information {info}")
+        logger.info("get_voice_changer_information %s", info)
         return info

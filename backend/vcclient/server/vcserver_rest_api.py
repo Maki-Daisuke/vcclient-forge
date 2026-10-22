@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import shutil
 import sys
 from typing import Any, Dict, Optional
@@ -14,7 +13,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
 from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
@@ -90,7 +89,7 @@ class RestAPI:
                 return await http_exception_handler(request, exc)
 
             def custom_swagger_ui_html():
-                logging.getLogger(LOGGER_NAME).info("CUSTOM UI")
+                logger.info("CUSTOM UI")
                 return get_custom_swagger_ui_html(
                     openapi_url=app_fastapi.openapi_url or "/openapi.json", title="VCClient API Docs"
                 )

@@ -1,9 +1,7 @@
-import logging
-
 import numpy as np
 import onnxruntime
 
-from vcclient.const import LOGGER_NAME
+from vcclient.logger import logger
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
 from ..device_manager.device_manager import DeviceManager
@@ -30,7 +28,7 @@ class RVCInferencerOnnxF0(RVCInferencer):
         else:
             self.isHalf = True
 
-        logging.getLogger(LOGGER_NAME).info(f"ONNX model loaded: {self.file}, first_input_type:{first_input_type}")
+        logger.info("ONNX model loaded: %s, first_input_type: %s", self.file, first_input_type)
         self.inferencer_type_version = inferencer_type_version
         return self
 

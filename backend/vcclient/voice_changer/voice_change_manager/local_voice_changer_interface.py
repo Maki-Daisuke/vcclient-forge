@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import logging
 import time
-import traceback
 from queue import Empty, Queue
 from typing import Any
 
@@ -10,9 +8,9 @@ import numpy as np
 import sounddevice as sd
 
 from vcclient.app_status import AppStatus
+from vcclient.logger import logger
 from vcclient.server.event_emitter_manager import EventEmitterManager
 
-from ...const import LOGGER_NAME
 from ...exception import (
     ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED,
     ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED,
@@ -109,14 +107,12 @@ class LocalVoiceChangerInterface:
         else:
             self.audio_monitor_device_sample_rate = conf.audio_monitor_device_sample_rate
 
-        logging.getLogger(LOGGER_NAME).info(
-            f"audio input device:{conf.audio_input_device_index}, sr:{self.audio_input_device_sample_rate}"
+        logger.info("audio input device:%s, sr:%s", conf.audio_input_device_index, self.audio_input_device_sample_rate)
+        logger.info(
+            "audio output device:%s, sr:%s", conf.audio_output_device_index, self.audio_output_device_sample_rate
         )
-        logging.getLogger(LOGGER_NAME).info(
-            f"audio output device:{conf.audio_output_device_index}, sr:{self.audio_output_device_sample_rate}"
-        )
-        logging.getLogger(LOGGER_NAME).info(
-            f"audio monitor device:{conf.audio_monitor_device_index}, sr:{self.audio_monitor_device_sample_rate}"
+        logger.info(
+            "audio monitor device:%s, sr:%s", conf.audio_monitor_device_index, self.audio_monitor_device_sample_rate
         )
 
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -130,12 +126,10 @@ class LocalVoiceChangerInterface:
         self.monitor_block_size = int(
             round(local_voice_changer_callback_chunk_sec * self.audio_monitor_device_sample_rate)
         )
-        logging.getLogger(LOGGER_NAME).info(
-            f"block size:{self.input_block_size}, {self.output_block_size}, {self.monitor_block_size}"
-        )
+        logger.info("block size:%s, %s, %s", self.input_block_size, self.output_block_size, self.monitor_block_size)
 
         exclusive_mode = getattr(conf, "wasapi_exclusive_enabled", getattr(conf, "wasapi_exclude_emabled", False))
-        logging.getLogger(LOGGER_NAME).info(f"wasapi_exclusive_enabled:{exclusive_mode}")
+        logger.info("wasapi_exclusive_enabled:%s", exclusive_mode)
 
         input_audio_device = AudioDeviceManager.get_instance().get_audio_input_device(conf.audio_input_device_index)
         if input_audio_device is not None and "WASAPI" in input_audio_device.host_api and exclusive_mode is True:
@@ -189,8 +183,17 @@ class LocalVoiceChangerInterface:
                         blocksize=self.monitor_block_size,
                         extra_settings=self.monitor_extra_settings,
                     ) as monitor_stream:
-                        logging.getLogger(LOGGER_NAME).info(
-                            f"Start Local Voice Changer(2way), sr:[{input_stream.samplerate}, {output_stream.samplerate}, {monitor_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}, {monitor_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}, {monitor_stream.dtype}]"
+                        logger.info(
+                            "Start Local Voice Changer(2way), sr:[%s, %s, %s], ch:[%s, %s, %s], depth:[%s, %s, %s]",
+                            input_stream.samplerate,
+                            output_stream.samplerate,
+                            monitor_stream.samplerate,
+                            input_stream.channels,
+                            output_stream.channels,
+                            monitor_stream.channels,
+                            input_stream.dtype,
+                            output_stream.dtype,
+                            monitor_stream.dtype,
                         )
                         while not AppStatus.get_instance().end_flag:
                             time.sleep(local_voice_changer_loop_interval_sec)
@@ -198,12 +201,28 @@ class LocalVoiceChangerInterface:
                             if self.local_voice_changer_enabled is False:
                                 break
                             if stop_check_counter % 100 == 0:
-                                logging.getLogger(LOGGER_NAME).debug(
-                                    f"Start Local Voice Changer(2way) counter:{stop_check_counter}, sr:[{input_stream.samplerate}, {output_stream.samplerate}, {monitor_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}, {monitor_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}, {monitor_stream.dtype}]"
-                                ) if logging.getLogger(LOGGER_NAME).isEnabledFor(logging.DEBUG) else None
+                                logger.debug(
+                                    "Start Local Voice Changer(2way) counter:%s, sr:[%s, %s, %s], ch:[%s, %s, %s], depth:[%s, %s, %s]",
+                                    stop_check_counter,
+                                    input_stream.samplerate,
+                                    output_stream.samplerate,
+                                    monitor_stream.samplerate,
+                                    input_stream.channels,
+                                    output_stream.channels,
+                                    monitor_stream.channels,
+                                    input_stream.dtype,
+                                    output_stream.dtype,
+                                    monitor_stream.dtype,
+                                )
                 else:
-                    logging.getLogger(LOGGER_NAME).info(
-                        f"Start Local Voice Changer(1way), sr:[{input_stream.samplerate}, {output_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}]"
+                    logger.info(
+                        "Start Local Voice Changer(1way), sr:[%s, %s], ch:[%s, %s], depth:[%s, %s]",
+                        input_stream.samplerate,
+                        output_stream.samplerate,
+                        input_stream.channels,
+                        output_stream.channels,
+                        input_stream.dtype,
+                        output_stream.dtype,
                     )
                     while not AppStatus.get_instance().end_flag:
                         time.sleep(local_voice_changer_loop_interval_sec)
@@ -211,10 +230,17 @@ class LocalVoiceChangerInterface:
                         if self.local_voice_changer_enabled is False:
                             break
                         if stop_check_counter % 100 == 0:
-                            logging.getLogger(LOGGER_NAME).info(
-                                f"Start Local Voice Changer(1way)  counter:{stop_check_counter}, sr:[{input_stream.samplerate}, {output_stream.samplerate}], ch:[{input_stream.channels}, {output_stream.channels}], depth:[{input_stream.dtype}, {output_stream.dtype}]"
+                            logger.info(
+                                "Start Local Voice Changer(1way) counter:%s, sr:[%s, %s], ch:[%s, %s], depth:[%s, %s]",
+                                stop_check_counter,
+                                input_stream.samplerate,
+                                output_stream.samplerate,
+                                input_stream.channels,
+                                output_stream.channels,
+                                input_stream.dtype,
+                                output_stream.dtype,
                             )
-        logging.getLogger(LOGGER_NAME).info("Local Voice Changer main thread stopped")
+        logger.info("Local Voice Changer main thread stopped")
 
     def audio_input_callback(self, indata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -257,8 +283,7 @@ class LocalVoiceChangerInterface:
                 for w in splitted_waveforms:
                     self.monitor_queue.put(w)
         except Exception as e:
-            logging.getLogger(LOGGER_NAME).error(f"audio input callback ex:{e}")
-            logging.getLogger(LOGGER_NAME).error(f"audio input {traceback.format_exc()}")
+            logger.error("audio input callback ex: %s", e, exc_info=True)
 
     def audio_output_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -268,7 +293,7 @@ class LocalVoiceChangerInterface:
 
             if self.out_queue.qsize() > self.split_length + buffer_for_trancate:
                 drop_count = self.out_queue.qsize()
-                logging.getLogger(LOGGER_NAME).info(f"audio_output_callback trancate queue: {drop_count}")
+                logger.info("audio_output_callback trancate queue: %s", drop_count)
                 out_wav = None
                 for _ in range(drop_count):
                     try:
@@ -295,8 +320,7 @@ class LocalVoiceChangerInterface:
             outdata.fill(0)
         except Exception as e:
             outdata.fill(0)
-            logging.getLogger(LOGGER_NAME).error(f"audio output callback ex:{e}")
-            logging.getLogger(LOGGER_NAME).error(f"audio output {traceback.format_exc()}")
+            logger.error("audio output callback ex: %s", e, exc_info=True)
 
     def audio_monitor_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -332,5 +356,4 @@ class LocalVoiceChangerInterface:
             outdata.fill(0)
         except Exception as e:
             outdata.fill(0)
-            logging.getLogger(LOGGER_NAME).error(f"audio monitor callback ex:{e}")
-            logging.getLogger(LOGGER_NAME).error(f"audio monitor {traceback.format_exc()}")
+            logger.error("audio monitor callback ex: %s", e, exc_info=True)

@@ -1,4 +1,3 @@
-import logging
 import os
 import shutil
 import stat
@@ -7,7 +6,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from ...const import LOGGER_NAME
+from vcclient.logger import logger
+
 from ...exception import (
     ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED,
     ERROR_CODE_SLOT_INDEX_NOT_FOUND,
@@ -55,7 +55,7 @@ def load_slot_info(model_dir: Path, slot_index: int) -> SlotInfoMember:
         slot_info.slot_index = slot_index
         return slot_info
     except Exception as e:
-        logging.getLogger(LOGGER_NAME).error(f"Error in loading slot info: {e}")
+        logger.error("Error in loading slot info: %s", e)
         broken = SlotInfo()
         broken.voice_changer_type = "BROKEN"
         broken.slot_index = slot_index
@@ -152,7 +152,7 @@ class SlotManager:
         self.reload()
 
     def reload(self) -> list[SlotInfoMember]:
-        logging.getLogger(LOGGER_NAME).debug("Reloading Slot info")
+        logger.debug("Reloading Slot info")
         self.slot_infos = reload_slot_infos(ModelDir)
         return self.slot_infos
 
@@ -185,7 +185,7 @@ class SlotManager:
                 ERROR_CODE_SLOT_STATE_CONFLICT,
                 f"slot_index:{model_import_param.slot_index} is already occupied.",
             )
-        logging.getLogger(LOGGER_NAME).info(f"set new slot: {model_import_param}")
+        logger.info("set new slot: %s", model_import_param)
         import_model(ModelDir, model_import_param, remove_src)
         self.reload()
 
@@ -245,13 +245,13 @@ class SlotManager:
     def update_slot_info(self, slot_info: SlotInfoMember) -> None:
         validate_slot_index(slot_info.slot_index)
         org_slot_info = self.get_slot_info(slot_info.slot_index)
-        logging.getLogger(LOGGER_NAME).debug(f"updating slot info: org => {org_slot_info}")
+        logger.debug("updating slot info: org => %s", org_slot_info)
         if org_slot_info.voice_changer_type is None:
             raise VCClientError(
                 ERROR_CODE_SLOT_STATE_CONFLICT,
                 f"slot_index:{slot_info.slot_index} does not exist.",
             )
-        logging.getLogger(LOGGER_NAME).debug(f"updating slot info: new => {slot_info}")
+        logger.debug("updating slot info: new => %s", slot_info)
         self.save_slot_info(slot_info)
 
     def find_legacy_pth_slots(self) -> list[tuple[int, Path]]:
@@ -298,8 +298,11 @@ class SlotManager:
         """指定スロットの .pth モデルを .onnx に変換し、スロット情報を更新する。"""
         slot_dir = ModelDir / str(slot_index)
         onnx_file = slot_dir / f"{pth_path.stem}.onnx"
-        logging.getLogger(LOGGER_NAME).info(
-            f"Converting legacy PyTorch model to ONNX for slot {slot_index}: {pth_path} -> {onnx_file}"
+        logger.info(
+            "Converting legacy PyTorch model to ONNX for slot %s: %s -> %s",
+            slot_index,
+            pth_path,
+            onnx_file,
         )
         export_pth_to_onnx(pth_path, onnx_file)
 
