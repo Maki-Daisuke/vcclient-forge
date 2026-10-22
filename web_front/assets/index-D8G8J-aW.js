@@ -34764,41 +34764,6 @@ const languageNativeNames = {
                 }),
               }),
             }),
-            jsxRuntimeExports.jsx(Tooltip, {
-              title: A("common.links.download_native_client"),
-              children: jsxRuntimeExports.jsx("a", {
-                href: "/native_client/voice-changer-native-client-win.exe",
-                download: "voice-changer-native-client-win.exe",
-                style: { textDecoration: "none" },
-                children: jsxRuntimeExports.jsx(IconButton, {
-                  color: "default",
-                  size: "small",
-                  sx: {
-                    px: 1.5,
-                    marginLeft: "10px",
-                    border: "2px solid",
-                    borderColor: "grey.300",
-                    borderRadius: "8px",
-                    "&:hover": { borderColor: "primary.main" },
-                    height: "32px",
-                  },
-                  children: jsxRuntimeExports.jsxs(Stack, {
-                    alignItems: "center",
-                    direction: "row",
-                    sx: { height: "18px" },
-                    children: [
-                      jsxRuntimeExports.jsx(DownloadIcon, {
-                        sx: { fontSize: "18px", marginRight: "5px" },
-                      }),
-                      jsxRuntimeExports.jsx("span", {
-                        style: { fontSize: "13px", whiteSpace: "nowrap" },
-                        children: A("common.links.download_native_client"),
-                      }),
-                    ],
-                  }),
-                }),
-              }),
-            }),
             jsxRuntimeExports.jsx(ConfirmationDialog, {
               isOpen: x,
               title: A("common.initialize.confirm_title"),
@@ -102331,7 +102296,7 @@ const AdvancedArea = () => {
       }),
       jsxRuntimeExports.jsx(Button, {
         size: "small",
-        onClick: () => te("https://github.com/w-okada/voice-changer"),
+        onClick: () => te("https://github.com/Maki-Daisuke/vcclient-forge"),
         children: S("common.advanced_area.github_repo"),
       }),
       jsxRuntimeExports.jsx(Button, {
@@ -102376,7 +102341,7 @@ function Demo() {
       children: [
         jsxRuntimeExports.jsxs("h2", {
           children: [
-            "Realtime Voice Changer Client",
+            "VCClient Forge",
             " ",
             jsxRuntimeExports.jsxs("span", {
               style: { fontSize: "1rem", color: "gray" },
