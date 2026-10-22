@@ -10,7 +10,6 @@ const { spawnSync } = require("child_process");
 const projectRoot = path.resolve(__dirname, "..");
 const srcDir = path.join(projectRoot, "web_front");
 const destDir = path.join(projectRoot, "frontend", "dist");
-const distGuiSettingsDir = path.join(destDir, "assets", "gui_settings");
 
 if (!fs.existsSync(srcDir)) {
   console.error(`[ERROR] Source directory does not exist: ${srcDir}`);
@@ -72,10 +71,19 @@ console.log(`[BUILD:FRONTEND] Syncing ${srcDir} -> ${destDir}...`);
 fs.rmSync(destDir, { recursive: true, force: true });
 fs.cpSync(srcDir, destDir, { recursive: true });
 
-// 4. Write generated version.txt and edition.txt ONLY under frontend/dist
-fs.mkdirSync(distGuiSettingsDir, { recursive: true });
-fs.writeFileSync(path.join(distGuiSettingsDir, "version.txt"), version, "utf8");
-fs.writeFileSync(path.join(distGuiSettingsDir, "edition.txt"), edition, "utf8");
+// 4. Write generated version.txt and edition.txt ONLY under frontend/dist UIs
+const targetSettingsDirs = [
+  path.join(destDir, "ui", "2.1.4", "assets", "gui_settings"),
+  path.join(destDir, "ui", "2.0.78", "assets", "gui_settings"),
+];
 
-console.log(`[BUILD:FRONTEND] Set frontend/dist version=${version}, edition=${edition}`);
+for (const dir of targetSettingsDirs) {
+  if (fs.existsSync(path.dirname(dir))) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "version.txt"), version, "utf8");
+    fs.writeFileSync(path.join(dir, "edition.txt"), edition, "utf8");
+  }
+}
+
+console.log(`[BUILD:FRONTEND] Injected version=${version}, edition=${edition} into dist UIs`);
 console.log(`[OK] frontend/dist successfully prepared from web_front`);

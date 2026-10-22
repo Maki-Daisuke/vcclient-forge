@@ -9,13 +9,13 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
-from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR
+from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR, get_frontend_path
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioDeviceManager
 from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
@@ -94,6 +94,14 @@ class RestAPI:
                 return get_custom_swagger_ui_html(
                     openapi_url=app_fastapi.openapi_url or "/openapi.json", title="VCClient API Docs"
                 )
+
+            frontend_ui_dir = get_frontend_path() / "ui"
+            if frontend_ui_dir.exists():
+                app_fastapi.mount("/ui", StaticFiles(directory=str(frontend_ui_dir), html=True), name="ui")
+
+            @app_fastapi.get("/", include_in_schema=False)
+            def root_redirect():
+                return RedirectResponse(url="/ui/2.1.4/", status_code=307)
 
             custom_swagger_ui_html = app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
             app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
