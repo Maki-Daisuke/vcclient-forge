@@ -1,11 +1,6 @@
-import asyncio
-
 from fastapi import APIRouter
-from tqdm import tqdm
 
-from vcclient.server.task_manager.task_manager import TaskManager
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
-from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
 
 
@@ -26,40 +21,5 @@ class RestAPIModuleManager:
             moduele_manager.reload()
         return moduele_manager.get_modules()
 
-    async def run_download(self, task_id: str):
-        module_manager = ModuleManager.get_instance()
-        task_manager = TaskManager.get_instance()
-        pbar_dict_module = {}
-
-        def download_callback(status: list[ModuleDownloadStatus]):
-            position = 0
-            for s in status:
-                if s.id not in pbar_dict_module:
-                    pbar_dict_module[s.id] = tqdm(
-                        total=100, unit="%", desc=f"Downloading {s.id[:10]}", leave=False, position=position
-                    )
-                    position += 1
-                pbar = pbar_dict_module[s.id]
-                pbar.n = int(s.progress * 100)
-                all_progress = sum([s.progress for s in status]) / len(status)
-                task_manager.update_task(task_id, "progress", all_progress, result="not finished")
-                pbar.refresh()
-                if s.status == "done":
-                    pbar.close()
-                    all_task_done = all([s.status == "done" for s in status])
-                    if all_task_done:
-                        task_manager.update_task(task_id, "done", progress=position / len(status), result="success")
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, module_manager.download_applio_modules, download_callback)
-
     async def post_download_applio_modules(self):
-        module_manager = ModuleManager.get_instance()
-        if module_manager.applio_modules_ready() is True:
-            return None
-        task_manager = TaskManager.get_instance()
-        task_id = task_manager.add_task()
-        task_manager.update_task(task_id, "progress", progress=0)
-        task = task_manager.get_task(task_id)
-        asyncio.create_task(self.run_download(task_id))
-        return task
+        return None

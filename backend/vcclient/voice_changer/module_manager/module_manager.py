@@ -18,13 +18,6 @@ ModuleDownloadListCallback = Callable[[list[ModuleDownloadStatus]], None]
 
 REGISTERD_MODULES: list[ModuleInfo] = [
     ModuleInfo(
-        id="hubert_base.pt",
-        display_name="hubert_base.pt",
-        url="https://huggingface.co/wok000/vcclient_modules/resolve/main/contentvec/hubert_base.pt",
-        save_to=ModuleDir / Path("contentvec/hubert_base.pt"),
-        hash="f54b40fd2802423a5643779c4861af1e9ee9c1564dc9d32f54f20b5ffba7db96",
-    ),
-    ModuleInfo(
         id="contentvec-f.onnx",
         display_name="contentvec-f.onnx",
         url="https://huggingface.co/wok000/vcclient_modules/resolve/main/contentvec/contentvec-f.onnx",
@@ -52,27 +45,6 @@ REGISTERD_MODULES: list[ModuleInfo] = [
         save_to=ModuleDir / Path("fcpe/fcpe.onnx"),
         hash="b7e4f3871b10641869b7ac5a2d56ed94deb37552c0336d77e17ad6e66760adf0",
     ),
-    ModuleInfo(
-        id="applio_japanese_hubert_base.pt",
-        display_name="applio_japanese_hubert_base.pt",
-        url="https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/japanese_hubert_base.pt",
-        save_to=ModuleDir / Path("applio/applio_japanese_hubert_base.pt"),
-        hash="dade3cf824ae0d214f7de8b73e70bae7c101e81f12d93577c4760bf516db4063",
-    ),
-    ModuleInfo(
-        id="applio_chinese_hubert_base.pt",
-        display_name="applio_chinese_hubert_base.pt",
-        url="https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/chinese_hubert_base.pt",
-        save_to=ModuleDir / Path("applio/applio_chinese_hubert_base.pt"),
-        hash="8cd5db6302ae2e79b5972cd02ae375a42a76170374d6e1952fa78d1fe4e4f756",
-    ),
-    ModuleInfo(
-        id="applio_korean_hubert_base.pt",
-        display_name="applio_korean_hubert_base.pt",
-        url="https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base.pt",
-        save_to=ModuleDir / Path("applio/applio_korean_hubert_base.pt"),
-        hash="6b42c8453b96b203198c1c280a8821158ea3fa8dbbc2a6220cad1c1489c3e65e",
-    ),
 ]
 
 RVC_REQUIRED_MODULES = [
@@ -81,8 +53,6 @@ RVC_REQUIRED_MODULES = [
     "rmvpe_20231006.onnx",
     "fcpe.onnx",
 ]
-
-APPLIO_MODULES = ["applio_japanese_hubert_base.pt", "applio_chinese_hubert_base.pt", "applio_korean_hubert_base.pt"]
 
 
 class ModuleManager:
@@ -166,11 +136,11 @@ class ModuleManager:
         logger.info("Downloading module: %s", id)
         target_module = self._get_target_module(id)
 
-        for exist_trehad_id, exist_thread in list(self.threads.items()):
+        for exist_thread_id, exist_thread in list(self.threads.items()):
             if exist_thread is None or exist_thread.is_alive():
                 continue
             exist_thread.join()
-            self.threads.pop(exist_trehad_id)
+            self.threads.pop(exist_thread_id)
 
         if id in self.threads:
             logger.error("Already downloading: %s", id)
@@ -227,29 +197,4 @@ class ModuleManager:
             if threads is not None:
                 threads.join()
         self.reload()
-        print("module download fin!")
-
-    def applio_modules_ready(self) -> bool:
-        applio_modules = [x for x in self.get_modules() if x.info.id in APPLIO_MODULES and x.valid is False]
-        if len(applio_modules) == 0:
-            return True
-        return False
-
-    def download_applio_modules(self, callback: ModuleDownloadListCallback) -> None:
-        applio_modules = [x for x in self.get_modules() if x.info.id in APPLIO_MODULES and x.valid is False]
-        status_dict = {
-            x.info.id: ModuleDownloadStatus(id=x.info.id, status="processing", progress=0) for x in applio_modules
-        }
-
-        def download_callback(status: ModuleDownloadStatus) -> None:
-            status_dict[status.id] = status
-            callback(list(status_dict.values()))
-
-        for module in applio_modules:
-            self.download(module.info.id, download_callback)
-
-        for threads in self.threads.values():
-            if threads is not None:
-                threads.join()
-
         print("module download fin!")
