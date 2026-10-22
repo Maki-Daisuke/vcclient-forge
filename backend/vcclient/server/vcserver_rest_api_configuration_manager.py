@@ -6,6 +6,7 @@ from vcclient.voice_changer.configuration_manager.configuration_manager import (
     ConfigurationManager,
     VoiceChangerConfiguration,
 )
+from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
 
 class RestAPIConfigurationManager:
@@ -14,6 +15,8 @@ class RestAPIConfigurationManager:
         self.router.route_class = ValidationErrorLoggingRoute
         self.router.add_api_route("/api/configuration-manager/configuration", self.get_configuration, methods=["GET"])
         self.router.add_api_route("/api/configuration-manager/configuration", self.put_configuration, methods=["PUT"])
+        self.router.add_api_route("/api_configuration-manager_configuration", self.get_configuration, methods=["GET"])
+        self.router.add_api_route("/api_configuration-manager_configuration", self.put_configuration, methods=["PUT"])
 
     def get_configuration(self, reload: bool = False):
         configuration_manager = ConfigurationManager.get_instance()
@@ -29,3 +32,4 @@ class RestAPIConfigurationManager:
         configuration_manager = ConfigurationManager.get_instance()
         logger.info("Configuration updated: %s", configuration)
         configuration_manager.set_voice_changer_configuration(configuration)
+        VoiceChanger.get_instance().check_and_update_pipeline()

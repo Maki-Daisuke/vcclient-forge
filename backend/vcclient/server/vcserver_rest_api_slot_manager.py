@@ -14,6 +14,7 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import (
     SlotInfoMember,
 )
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import MAX_SLOT_INDEX
 
 
@@ -103,6 +104,7 @@ class RestAPISlotManager:
         validate_slot_index(index)
         slot_manager = SlotManager.get_instance()
         slot_manager.update_slot_info(slot_info)
+        VoiceChanger.get_instance().check_and_update_pipeline()
 
     def delete_slot_info(self, index: int):
         validate_slot_index(index)

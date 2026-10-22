@@ -21,6 +21,7 @@ from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioD
 from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
 from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
 from vcclient.server.vcserver_rest_api_hello import RestHello
+from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
 from vcclient.server.vcserver_rest_api_module_manager import RestAPIModuleManager
 from vcclient.server.vcserver_rest_api_sample_manager import RestAPISampleManager
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
@@ -120,6 +121,8 @@ class RestAPI:
             app_fastapi.include_router(fileuploader.router)
             voice_changer = RestAPIVoiceChanger()
             app_fastapi.include_router(voice_changer.router)
+            local_voice_changer_interface = RestAPILocalVoiceChangerInterface()
+            app_fastapi.include_router(local_voice_changer_interface.router)
             task_manager = RestAPITaskManager()
             app_fastapi.include_router(task_manager.router)
 
