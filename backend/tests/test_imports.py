@@ -5,10 +5,10 @@ def test_import_server():
 
 
 def test_import_inferencers():
-    from vcclient.voice_changer.voice_change_manager.inferencer.rvc_inverencer_onnx_f0 import (
+    from vcclient.voice_changer.voice_change_manager.inferencer.rvc_inferencer_onnx_f0 import (
         RVCInferencerOnnxF0,
     )
-    from vcclient.voice_changer.voice_change_manager.inferencer.rvc_inverencer_onnx_nof0 import (
+    from vcclient.voice_changer.voice_change_manager.inferencer.rvc_inferencer_onnx_nof0 import (
         RVCInferencerOnnxNoF0,
     )
 

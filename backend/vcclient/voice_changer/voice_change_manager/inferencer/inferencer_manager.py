@@ -2,8 +2,8 @@ from pathlib import Path
 
 from ...voice_chanager_const import InferencerType, RVCInferencerOnnxVersion
 from .inferencer import Inferencer
-from .rvc_inverencer_onnx_f0 import RVCInferencerOnnxF0
-from .rvc_inverencer_onnx_nof0 import RVCInferencerOnnxNoF0
+from .rvc_inferencer_onnx_f0 import RVCInferencerOnnxF0
+from .rvc_inferencer_onnx_nof0 import RVCInferencerOnnxNoF0
 
 
 class InferencerManager:
