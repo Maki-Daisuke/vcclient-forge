@@ -16,7 +16,7 @@ from ..voice_changer_const import ModuleDir
 ModuleDownloadCallback = Callable[[ModuleDownloadStatus], None]
 ModuleDownloadListCallback = Callable[[list[ModuleDownloadStatus]], None]
 
-REGISTERD_MODULES: list[ModuleInfo] = [
+REGISTERED_MODULES: list[ModuleInfo] = [
     ModuleInfo(
         id="contentvec-f.onnx",
         display_name="contentvec-f.onnx",
@@ -74,7 +74,7 @@ class ModuleManager:
 
     def reload(self) -> None:
         self.module_status_list = []
-        for module_info in REGISTERD_MODULES:
+        for module_info in REGISTERED_MODULES:
             module_status = ModuleStatus(info=module_info, downloaded=False, valid=False)
             if module_info.save_to.exists():
                 module_status.downloaded = True
@@ -127,7 +127,7 @@ class ModuleManager:
             logger.error("Failed to send completion callback for %s: %s", target_module.id, e)
 
     def _get_target_module(self, id: str) -> ModuleInfo:
-        for module in REGISTERD_MODULES:
+        for module in REGISTERED_MODULES:
             if module.id == id:
                 return module
         raise VCClientError(ERROR_CODE_MODULE_NOT_FOUND, f"Module {id} is not registered")

@@ -10,7 +10,7 @@ ERROR_CODE_LOCAL_OUTPUT_DEVICE_CANNOT_BE_NONE = 205
 ERROR_CODE_MODULE_NOT_FOUND = 300
 ERROR_CODE_SAMPLE_NOT_FOUND = 400
 ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED = 500
-ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH = 501
+ERROR_CODE_RVC_INVALID_CONFIG_LENGTH = 501
 ERROR_CODE_RVC_INVALID_F0_VALUE = 502
 ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE = 503
 ERROR_CODE_RVC_UNKNOWN_EMBEDDER = 504
@@ -64,18 +64,18 @@ ERROR_MESSAGES = {
         "action": "Please check audio device setting",
     },
     ERROR_CODE_MODULE_NOT_FOUND: {
-        "reason": "Module is not found in registerd modules.",
-        "action": "Please check module status. Or initialize appliation maybe solve this problem.",
+        "reason": "Module is not found in registered modules.",
+        "action": "Please check module status. Or initialize application maybe solve this problem.",
     },
     ERROR_CODE_SAMPLE_NOT_FOUND: {
-        "reason": "Sample is not found in registerd samples.",
-        "action": "Please check sample status. Or initialize appliation maybe solve this problem.",
+        "reason": "Sample is not found in registered samples.",
+        "action": "Please check sample status. Or initialize application maybe solve this problem.",
     },
     ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED: {
         "reason": "Failed to estimate RVC model.",
         "action": "Please check model file extension. Model file must be a .pth or .onnx file",
     },
-    ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH: {
+    ERROR_CODE_RVC_INVALID_CONFIG_LENGTH: {
         "reason": "Invalid rvc model config length.",
         "action": "Please check the model file.",
     },
@@ -131,8 +131,8 @@ ERROR_MESSAGES = {
         "action": "Internal error. Please contact to support team.",
     },
     ERROR_CODE_SLOT_INDEX_NOT_FOUND: {
-        "reason": "Slot index is not found in registerd slots.",
-        "action": "Please check slot status. Or initialize appliation maybe solve this problem.",
+        "reason": "Slot index is not found in registered slots.",
+        "action": "Please check slot status. Or initialize application maybe solve this problem.",
     },
     ERROR_CODE_NO_BLANK_SLOT: {"reason": "No blank slot.", "action": "Please delete some slots."},
     ERROR_CODE_IMPORT_MODEL_FAILED: {"reason": "Failed to import model.", "action": "Please check logs."},

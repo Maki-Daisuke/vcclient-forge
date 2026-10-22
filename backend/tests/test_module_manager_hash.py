@@ -27,7 +27,7 @@ def test_download_hash_mismatch_reports_error_and_removes_corrupt_file(tmp_path:
     )
 
     monkeypatch.setattr(
-        "vcclient.voice_changer.module_manager.module_manager.REGISTERD_MODULES",
+        "vcclient.voice_changer.module_manager.module_manager.REGISTERED_MODULES",
         [test_module],
     )
 
@@ -74,7 +74,7 @@ def test_download_hash_match_reports_done_and_keeps_file(tmp_path: Path, monkeyp
     )
 
     monkeypatch.setattr(
-        "vcclient.voice_changer.module_manager.module_manager.REGISTERD_MODULES",
+        "vcclient.voice_changer.module_manager.module_manager.REGISTERED_MODULES",
         [test_module],
     )
 
@@ -115,7 +115,7 @@ def test_download_callback_failure_after_hash_match_keeps_file(tmp_path: Path, m
     )
 
     monkeypatch.setattr(
-        "vcclient.voice_changer.module_manager.module_manager.REGISTERD_MODULES",
+        "vcclient.voice_changer.module_manager.module_manager.REGISTERED_MODULES",
         [test_module],
     )
 
@@ -147,7 +147,7 @@ def test_get_module_filepath_returns_registered_path_and_rejects_unknown_id(tmp_
         hash="unused",
     )
     monkeypatch.setattr(
-        "vcclient.voice_changer.module_manager.module_manager.REGISTERD_MODULES",
+        "vcclient.voice_changer.module_manager.module_manager.REGISTERED_MODULES",
         [module],
     )
 

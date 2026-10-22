@@ -7,7 +7,7 @@ import onnx
 import torch
 
 from vcclient.exception import (
-    ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH,
+    ERROR_CODE_RVC_INVALID_CONFIG_LENGTH,
     ERROR_CODE_RVC_INVALID_F0_VALUE,
     ERROR_CODE_RVC_INVALID_TORCH_MODEL,
     ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE,
@@ -47,7 +47,7 @@ def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
             emb_channels = config[17]
         else:
             logger.error("config_len: %s", config_len)
-            raise VCClientError(ERROR_CODE_RVC_INVALID_CONFIG_LEGNTH, f"config_len:{config_len}")
+            raise VCClientError(ERROR_CODE_RVC_INVALID_CONFIG_LENGTH, f"config_len:{config_len}")
     elif "params" in cpt:
         params = cpt["params"]
         sample_rate = params.get("sr", 40000)
