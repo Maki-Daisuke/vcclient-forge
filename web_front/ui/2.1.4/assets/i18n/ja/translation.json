@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "このソフトウェアはProject Beatriceの許諾を受けてbeatrice.libを利用して作成されています。",
+            "beatrice_lib_license2": "この許諾は、Beatricejs及びBeatriceClientの開発に要する合理的な範囲での利用及び、Beatricejs及びBeatriceClientを改変せずに頒布・譲渡する行為のみを、その実施者に関わらず認めるものである。",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "免責事項",
+            "disclaimer_text": "本ソフトウェアは「現状有姿」で提供されており、明示黙示を問わずいかなる種類の保証もありません。著作権者または著作権者からライセンスされた者は、本ソフトウェアまたは本ソフトウェアの使用もしくはその他の取り扱いに起因または関連して生じたいかなる請求、損害その他の責任についても、契約行為、不法行為またはその他いかなる理由に基づくかを問わず、一切責任を負いません。"
+        },
+        "app_info": {
+            "unknown_version": "不明",
+            "unknown_edition": "不明"
+        },
+        "error_messages": {
+            "error_occurred": "エラーが発生しました:",
+            "rvc_model_file_required": "RVCモデルファイルが必要です",
+            "beatrice_v2_zip_file_required": "Beatrice_v2のZIPファイルが必要です",
+            "not_supported_voice_changer_type": "サポートされていないボイスチェンジャータイプです",
+            "unhandled_rejection_possible_cause": "[考えられる原因 1] 他のクライアントが実行中の場合にエラーが発生します。これは、データベースなどのリソースが排他的に扱われるためです。",
+            "use_app_root_context_error": "useAppRootはAppRootProvider内で使用する必要があります",
+            "use_app_state_context_error": "useAppStateはAppStateProvider内で使用する必要があります",
+            "use_hotkey_context_error": "useHotkeyはHotkeyProvider内で使用する必要があります",
+            "server_device_init_failed": "[voiceChangerClient] サーバデバイスの初期化に失敗しました。不正な値が使用されていないか確認してください。また、PortAudioの仕様によるエラーの可能性もあります。その場合は、別のデバイスを使用してください。",
+            "audio_output_device_not_found": "[voiceChangerClient] 音声出力デバイス {{device}} が見つかりません。",
+            "audio_monitor_device_not_found": "[voiceChangerClient] 音声モニターデバイス {{device}} が見つかりません。",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkIdがサポートされていません: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Beatrice.jsリポジトリ",
+            "vcclient_repo": "VCClientリポジトリ",
+            "screen_recorder": "画面録画",
+            "create_voice_model": "Beatriceの音声モデルを作る",
+            "download_native_client": "ネイティブクライアントをダウンロード",
+            "url_open_failed": "TauriコマンドでのURL開始に失敗しました。window.openにフォールバックします:"
+        },
+        "initialize": {
+            "button": "初期化",
+            "confirm_title": "初期化の確認",
+            "confirm_message": "保存されたデータがすべて削除されます。よろしいですか？",
+            "cancel": "キャンセル",
+            "confirm": "初期化"
+        },
+        "model": {
+            "list_title": "モデル一覧",
+            "slots_in_use": "スロット使用中",
+            "no_models": "モデルがまだ保存されていません。ZIPファイルをアップロードしてモデルを保存してください。",
+            "upload": {
+                "button": "アップロード",
+                "tooltip": "モデルをアップロード"
+            },
+            "edit": {
+                "button": "編集",
+                "tooltip": "モデルを編集"
+            },
+            "not_selected": "モデルが選択されていません"
+        },
+        "model_editor": {
+            "title": "モデル管理",
+            "slots_in_use": "使用中スロット: {{used}} / {{total}}",
+            "slot": "スロット {{number}}",
+            "empty_slot": "空のスロット",
+            "save": "保存",
+            "cancel": "キャンセル",
+            "move_model": "モデルを移動",
+            "moving": "移動中...",
+            "move": "移動",
+            "download_model": "モデルをダウンロード",
+            "download": "DL",
+            "delete_model": "モデルを削除",
+            "delete": "削除",
+            "upload_model": "モデルをアップロード",
+            "upload": "アップロード",
+            "move_here": "ここに移動",
+            "cancel_move": "移動をキャンセル",
+            "generate_onnx": "onnxを生成",
+            "generate_onnx_confirm_message": "このモデルからonnxを生成しますか？",
+            "generate_onnx_success": "onnxの生成に成功しました。",
+            "generate_onnx_failed": "onnxの生成に失敗しました。",
+            "sample_model": "サンプルモデル",
+            "select_slot": "出力スロット",
+            "icon_upload_success": "アイコンをアップロードしました。",
+            "icon_upload_failed": "アイコンのアップロードに失敗しました。",
+            "no_description": "説明なし",
+            "download_failed": "モデルのダウンロードに失敗しました",
+            "delete_confirm_message": "このモデルを削除しますか？",
+            "no_empty_slot": "空きスロットがありません",
+            "name_update_failed": "モデル名の更新に失敗しました",
+            "description_update_failed": "説明文の更新に失敗しました",
+            "downloading": "ダウンロード中..."
+        },
+        "model_upload": {
+            "title": "モデルアップロード",
+            "slot_info": "モデルをアップロードします。(スロット：{{slotNumber}})",
+            "select_zip": "Zipファイルを選択",
+            "upload_button": "アップロード",
+            "select_zip_error": "Zipファイルを選択してください",
+            "upload_error": "アップロード中にエラーが発生しました",
+            "upload_complete_title": "アップロード完了",
+            "upload_complete_message": "モデルのアップロードが完了しました。",
+            "select_model_file_error": "モデルファイルを選択してください",
+            "unsupported_voice_changer_type": "未対応のボイスチェンジャータイプです",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2はまだサポートされていません",
+            "voice_changer_type": "ボイスチェンジャータイプ",
+            "select_model_file": "モデルファイルを選択",
+            "select_index_file": "インデックスファイルを選択"
+        },
+        "sample_model_dialog": {
+            "title": "サンプルモデル一覧",
+            "slot_id": "スロットID: {{slotIndex}}",
+            "no_samples": "サンプルモデルがありません。",
+            "download_button": "ダウンロード",
+            "downloading_title": "モデルダウンロード中",
+            "downloading_wait_message": "ダウンロードが完了するまでお待ちください...",
+            "download_success": "サンプルモデルをダウンロードしました。",
+            "download_timeout": "ダウンロードがタイムアウトしました。",
+            "download_error": "サンプルモデルのダウンロードに失敗しました。"
+        },
+        "settings_dialog": {
+            "title": "設定",
+            "close": "×",
+            "input_device": "入力デバイス（マイク）",
+            "output_device": "出力デバイス（スピーカー）",
+            "monitor_device": "モニター用出力デバイス（スピーカー）",
+            "voice_changer_input_mode": "音声変換入力モード",
+            "client_mode": "クライアントモード",
+            "server_mode": "サーバモード",
+            "mode_switch_disabled": "音声変換中・録音中・パススルー中はモードを切り替えできません",
+            "audio_device_settings": "オーディオデバイス設定",
+            "gpu_settings": "GPU設定",
+            "unselected": "未選択",
+            "all_hosts": "全ホスト",
+            "auto": "自動",
+            "wasapi_exclusive_mode": "WASAPI排他モードを有効にする",
+            "noise_suppression": "ノイズ抑制",
+            "enable_echo_cancellation": "エコーキャンセルを有効にする",
+            "enable_noise_suppression": "ノイズサプレッションを有効にする",
+            "enable_noise_suppression2": "ノイズサプレッション2を有効にする",
+            "noise_gate": "ノイズゲート",
+            "enable_high_pass_filter": "ハイパスフィルタを有効にする",
+            "cutoff": "カットオフ",
+            "enable_low_pass_filter": "ローパスフィルタを有効にする",
+            "changing_device_settings": "デバイス設定を変更しています..."
+        },
+        "waiting_dialog": {
+            "default_message": "しばらくお待ちください..."
+        },
+        "voice": {
+            "character": "ボイスキャラクター",
+            "no_description": "説明なし",
+            "edit_tooltip": "ボイスキャラクターを編集"
+        },
+        "voice_character_editor": {
+            "title": "ボイスキャラクターの編集",
+            "name": "名前",
+            "description": "説明",
+            "select_icon": "アイコンを選択",
+            "cancel": "キャンセル",
+            "save": "保存",
+            "save_success": "保存しました",
+            "save_error": "保存に失敗しました"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "現在のアイコン",
+            "new_icon": "新しいアイコン"
+        },
+        "controls": {
+            "title": "コントロール",
+            "start": "開始",
+            "stop": "停止",
+            "passthrough": "パススルー",
+            "passthrough_enable": "パススルーを有効化",
+            "passthrough_disable": "パススルーを無効化",
+            "settings": "設定",
+            "input_type": "入力音声タイプ",
+            "microphone_input": "マイク入力",
+            "microphone": "マイク",
+            "file_input": "ファイル入力",
+            "file": "ファイル",
+            "screen_capture": "画面キャプチャ",
+            "capture": "キャプチャ",
+            "sample_input": "サンプル入力",
+            "sample": "サンプル",
+            "select_sample": "サンプルを選択",
+            "test_play": "テスト再生",
+            "send_sample": "送信",
+            "mic_device": "マイクデバイス",
+            "drop_files": "ここにクリックまたはファイルをドロップ",
+            "supported_formats": "対応形式: MP3, WAV, OGG",
+            "echoback_enable": "エコーバックを有効化",
+            "echoback_disable": "エコーバックを無効化",
+            "loop_enable": "ループ再生を有効化",
+            "loop_disable": "ループ再生を無効化",
+            "stop_capture": "キャプチャを停止",
+            "record": "録音",
+            "recording": "録音中",
+            "start_recording": "録音開始",
+            "stop_recording": "録音停止",
+            "volume_control": "音量コントロール",
+            "input_volume": "入力音量",
+            "input": "入力",
+            "output_volume": "出力音量",
+            "output1": "出力1",
+            "monitor_volume": "モニター音量",
+            "output2": "出力2",
+            "voice_control": "ボイスコントロール",
+            "pitch_adjust": "ピッチ調整",
+            "pitch": "ピッチ",
+            "formant_adjust": "フォルマント調整",
+            "formant": "フォルマント",
+            "index_adjust": "インデックス調整",
+            "index": "インデックス",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "サーバーモード",
+            "client_mode": "クライアントモード",
+            "no_device": "デバイスなし",
+            "device_not_selected_error": "入力デバイスまたは出力デバイスが選択されていません。設定画面でデバイスを選択してください。",
+            "device_none": "なし",
+            "device_file": "ファイル",
+            "device_system": "システム音声(Windowsのみ)",
+            "start_download_recording": "録音ファイルのダウンロードを開始します...",
+            "start_download_server_recording": "サーバー録音ファイルのダウンロードを開始します...",
+            "download_recording_failed": "録音ファイルのダウンロードに失敗しました:",
+            "server_recording_failed": "サーバー録音の処理に失敗しました:",
+            "sample_voices_load_failed": "サンプル音声の読み込みに失敗しました:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "audioエレメントがnullです",
+            "sample_send_failed": "サンプルの送信に失敗しました:",
+            "capture_error": "キャプチャエラー:",
+            "capture_no_media_stream": "キャプチャに失敗しました。メディアストリームがありません。",
+            "capture_no_audio_track": "キャプチャに失敗しました。オーディオトラックがありません。",
+            "test_audio_play_failed": "テスト音声の再生に失敗しました:",
+            "chunksec_adjust": "チャンク秒数",
+            "extraframe_adjust": "追加フレーム数"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "解析用録音を有効にする",
+            "record_for_analysis_description": "録音時にサーバ側でも録音を行い、解析用のファイルをダウンロードします",
+            "realtime_description": "小さくするとリアルタイム性が高くなりますが、CPU負荷が増加します",
+            "recording_settings": "録音設定",
+            "sample_audio_button": "サンプル音声ボタン",
+            "show_sample_audio_button": "サンプル音声ボタンを表示する",
+            "sample_audio_button_description": "入力音声タイプ選択でサンプル音声ボタンの表示/非表示を切り替えます。"
+        },
+        "advanced_settings_dialog": {
+            "title": "詳細設定",
+            "realtime_analysis_settings": "リアルタイム解析設定",
+            "enable_realtime_io_analysis": "リアルタイム入出力解析を有効にする",
+            "enable_realtime_voice_processing_analysis": "リアルタイム音声処理解析を有効にする",
+            "send_interval_seconds": "送信間隔(秒)"
+        },
+        "shortcut_settings": {
+            "title": "キー設定",
+            "cancel_tooltip": "キャンセル (Escapeキーでもキャンセル可能)",
+            "shortcuts_disabled_notice": "ℹ️ ショートカットキー設定中のため、ショートカットキーが一時的に無効になっています",
+            "usage_instructions": {
+                "title": "使用方法",
+                "instruction1": "• 設定したいショートカットキーの「編集」をクリック",
+                "instruction2": "• 設定したいキーの組み合わせを押すと自動的に保存されます",
+                "instruction3": "• 重複するキーの場合は警告が表示されます",
+                "instruction4": "• Escapeキーまたは×ボタンでキャンセル"
+            },
+            "config_load_success": "設定を読み込み:",
+            "config_load_failed": "設定の読み込みに失敗しました:",
+            "config_save_success": "設定を保存しました",
+            "config_save_failed": "設定の保存に失敗しました:",
+            "duplicate_key_error": "ショートカットキー '{{shortcut}}' は既に '{{displayName}}' で使用されています",
+            "slot_change_skip": "利用可能なスロットが1つ以下のため、スロット変更をスキップします",
+            "slot_changed_to_next": "スロットを {{from}} から {{to}} に変更しました",
+            "slot_changed_to_previous": "スロットを {{from}} から {{to}} に変更しました",
+            "voice_conversion_stopped": "音声変換を停止しました",
+            "voice_conversion_started": "音声変換を開始しました",
+            "passthrough_disabled": "パススルーを無効にしました",
+            "passthrough_enabled": "パススルーを有効にしました",
+            "input_volume_changed": "入力音量を {{volume}} に変更しました",
+            "output_volume_changed": "出力音量を {{volume}} に変更しました",
+            "monitor_volume_changed": "モニター音量を {{volume}} に変更しました",
+            "unknown_shortcut_action": "📢 未知のショートカットアクション: {{action}}",
+            "status": "ステータス",
+            "settings_load_error": "設定読み込みエラー:",
+            "settings_save_error": "設定保存エラー:",
+            "unknown_model": "Unknown Model",
+            "vcclient_notification": "VCClient Notification",
+            "show_status_action": "ShowStatusアクションが実行されました",
+            "previous_slot_action": "PreviousSlotアクションが実行されました",
+            "slot_changed_log": "スロットを {{from}} から {{to}} に変更しました",
+            "notification_window_error": "通知ウィンドウ表示エラー:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "ステータス表示",
+                    "description": "ステータス表示"
+                },
+                "toggleWindow": {
+                    "name": "ウィンドウ表示/非表示",
+                    "description": "メインウィンドウの表示/非表示を切り替えます"
+                },
+                "nextSlot": {
+                    "name": "次スロット",
+                    "description": "次スロットに切り替えます"
+                },
+                "previousSlot": {
+                    "name": "前スロット",
+                    "description": "前スロットに切り替えます"
+                },
+                "toggleVoiceConversion": {
+                    "name": "音声変換 開始/停止",
+                    "description": "音声変換の開始と停止を切り替えます"
+                },
+                "togglePassthrough": {
+                    "name": "パススルー ON/OFF",
+                    "description": "パススルーモードのオン/オフを切り替えます"
+                },
+                "increaseInputVolume": {
+                    "name": "入力音量 +",
+                    "description": "マイク入力の音量を増加させます"
+                },
+                "decreaseInputVolume": {
+                    "name": "入力音量 -",
+                    "description": "マイク入力の音量を低下させます"
+                },
+                "increaseOutputVolume": {
+                    "name": "出力音量 +",
+                    "description": "出力音声の音量を増加させます"
+                },
+                "decreaseOutputVolume": {
+                    "name": "出力音量 -",
+                    "description": "出力音声の音量を低下させます"
+                },
+                "increaseMonitorVolume": {
+                    "name": "モニタ音量 +",
+                    "description": "モニタ音声の音量を増加させます"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "モニタ音量 -",
+                    "description": "モニタ音声の音量を低下させます"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "設定を読み込み中...",
+            "enable_shortcuts": "ショートカットキーを有効にする",
+            "shortcut_settings": "ショートカット設定",
+            "press_key_placeholder": "キーを押してください",
+            "click_to_edit": "クリックして編集",
+            "not_set": "未設定",
+            "enable_shortcut_checkbox": "• ショートカットキーを有効にするチェックボックスをONにしてください",
+            "example": "例: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "クレジット:",
+            "language": "言語:",
+            "tags": "タグ:",
+            "terms_of_use": "利用規約"
+        },
+        "performance": {
+            "input_buffer": "入力バッファ",
+            "output_buffer": "出力バッファ",
+            "clear": "クリア",
+            "input_buffer_label": "入力バッファ: {{time}}s",
+            "output_buffer_label": "出力バッファ: {{time}}s",
+            "input_volume_level": "入力音量 Level 0.000",
+            "output_volume_level": "出力音量 Level 0.000",
+            "input_buffer_initial": "入力バッファ: 0",
+            "output_buffer_initial": "出力バッファ: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "ピッチ推定器",
+            "pitch_estimator": "ピッチ推定器",
+            "embedder_override_tooltip": "埋め込み器のオーバーライド",
+            "embedder": "埋め込み器",
+            "embedder_default": "デフォルト ({{embedder}})",
+            "embedder_change_title": "埋め込み器の変更",
+            "embedder_change_message": "埋め込み器は極めて重要なコンポーネントです。変更により音声変換ができなくなる場合があります。一般的には変更の必要はありません。あなたがどのような操作を行っているか理解していない場合は変更しないでください。",
+            "embedder_change_confirm": "変更する",
+            "embedder_change_cancel": "キャンセル"
+        },
+        "advanced_area": {
+            "log": "ログ",
+            "advanced_settings": "詳細設定",
+            "key_settings": "キー設定",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "サイトデータをクリアして再起動"
+        },
+        "dialog": {
+            "cancel": "キャンセル",
+            "confirm": "確認"
+        },
+        "clear_site_data_confirm": {
+            "title": "サイトデータクリアの確認",
+            "message": "この操作により、保存されたサイトデータが削除されアプリケーションが終了します。アプリケーションが終了したら手動で再起動してください。続行しますか？"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Autoload (Ctrl + r): {{status}}",
+        "on": "ON",
+        "off": "OFF",
+        "latest": "最新",
+        "items": "件",
+        "all_items": "全件（{{count, number}}件）",
+        "total_items": "{{count, number}}件",
+        "loading": "loading..."
+    }
+}

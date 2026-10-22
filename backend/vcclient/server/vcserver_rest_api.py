@@ -9,18 +9,19 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
-from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR
+from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR, get_frontend_path
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioDeviceManager
 from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
 from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
 from vcclient.server.vcserver_rest_api_hello import RestHello
+from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
 from vcclient.server.vcserver_rest_api_module_manager import RestAPIModuleManager
 from vcclient.server.vcserver_rest_api_sample_manager import RestAPISampleManager
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
@@ -94,6 +95,14 @@ class RestAPI:
                     openapi_url=app_fastapi.openapi_url or "/openapi.json", title="VCClient API Docs"
                 )
 
+            frontend_ui_dir = get_frontend_path() / "ui"
+            if frontend_ui_dir.exists():
+                app_fastapi.mount("/ui", StaticFiles(directory=str(frontend_ui_dir), html=True), name="ui")
+
+            @app_fastapi.get("/", include_in_schema=False)
+            def root_redirect():
+                return RedirectResponse(url="/ui/2.1.4/", status_code=307)
+
             custom_swagger_ui_html = app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
             app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
             app_fastapi.mount("/upload_dir", StaticFiles(directory=f"""{UPLOAD_DIR}"""), name="static")
@@ -120,6 +129,8 @@ class RestAPI:
             app_fastapi.include_router(fileuploader.router)
             voice_changer = RestAPIVoiceChanger()
             app_fastapi.include_router(voice_changer.router)
+            local_voice_changer_interface = RestAPILocalVoiceChangerInterface()
+            app_fastapi.include_router(local_voice_changer_interface.router)
             task_manager = RestAPITaskManager()
             app_fastapi.include_router(task_manager.router)
 

@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "غير معروف",
+            "unknown_edition": "غير معروف"
+        },
+        "error_messages": {
+            "error_occurred": "حدث خطأ:",
+            "rvc_model_file_required": "ملف نموذج RVC مطلوب",
+            "beatrice_v2_zip_file_required": "ملف ZIP لـ Beatrice_v2 مطلوب",
+            "not_supported_voice_changer_type": "نوع مغير الصوت غير مدعوم",
+            "unhandled_rejection_possible_cause": "[السبب المحتمل 1] يحدث خطأ عندما يكون عميل آخر قيد التشغيل. هذا لأن الموارد مثل قاعدة البيانات يتم التعامل معها حصريًا.",
+            "use_app_root_context_error": "يجب استخدام useAppRoot داخل AppRootProvider",
+            "use_app_state_context_error": "يجب استخدام useAppState داخل AppStateProvider",
+            "use_hotkey_context_error": "يجب استخدام useHotkey داخل HotkeyProvider",
+            "server_device_init_failed": "[voiceChangerClient] فشل في تهيئة جهاز الخادم. تأكد من عدم استخدام قيم غير صالحة. قد يكون أيضًا خطأ في مواصفات PortAudio. في هذه الحالة، استخدم جهازًا آخر.",
+            "audio_output_device_not_found": "[voiceChangerClient] جهاز إخراج الصوت {{device}} غير موجود.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] جهاز مراقبة الصوت {{device}} غير موجود.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId غير مدعوم: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "مستودع Beatrice.js",
+            "vcclient_repo": "مستودع VCClient",
+            "screen_recorder": "مسجل الشاشة",
+            "create_voice_model": "إنشاء نموذج صوتي Beatrice",
+            "download_native_client": "تنزيل العميل الأصلي",
+            "url_open_failed": "فشل في فتح الرابط باستخدام أمر Tauri. العودة إلى window.open:"
+        },
+        "initialize": {
+            "button": "تهيئة",
+            "confirm_title": "تأكيد التهيئة",
+            "confirm_message": "سيتم حذف جميع البيانات المحفوظة. هل أنت متأكد؟",
+            "cancel": "إلغاء",
+            "confirm": "تهيئة"
+        },
+        "model": {
+            "list_title": "قائمة النماذج",
+            "slots_in_use": "الفتحات المستخدمة",
+            "no_models": "لم يتم تخزين أي نماذج بعد. قم بتحميل ملف ZIP لتخزين نموذج.",
+            "upload": {
+                "button": "تحميل",
+                "tooltip": "تحميل نموذج"
+            },
+            "edit": {
+                "button": "تعديل",
+                "tooltip": "تعديل النموذج"
+            },
+            "not_selected": "لم يتم اختيار نموذج"
+        },
+        "model_editor": {
+            "title": "إدارة النماذج",
+            "slots_in_use": "الفتحات المستخدمة: {{used}} / {{total}}",
+            "slot": "فتحة {{number}}",
+            "empty_slot": "فتحة فارغة",
+            "save": "حفظ",
+            "cancel": "إلغاء",
+            "move_model": "نقل النموذج",
+            "moving": "جاري النقل...",
+            "move": "نقل",
+            "download_model": "تنزيل النموذج",
+            "download": "تنزيل",
+            "delete_model": "حذف النموذج",
+            "delete": "حذف",
+            "upload_model": "رفع نموذج",
+            "upload": "رفع",
+            "move_here": "نقل إلى هنا",
+            "cancel_move": "إلغاء النقل",
+            "generate_onnx": "إنشاء ONNX",
+            "generate_onnx_confirm_message": "إنشاء ONNX من هذا النموذج؟",
+            "generate_onnx_success": "تم إنشاء ONNX بنجاح.",
+            "generate_onnx_failed": "فشل في إنشاء ONNX.",
+            "sample_model": "نموذج عينة",
+            "select_slot": "فتحة الإخراج",
+            "icon_upload_success": "تم رفع الأيقونة بنجاح.",
+            "icon_upload_failed": "فشل في رفع الأيقونة.",
+            "no_description": "لا يوجد وصف",
+            "download_failed": "فشل تحميل النموذج",
+            "delete_confirm_message": "هل تريد حذف هذا النموذج؟",
+            "no_empty_slot": "لا توجد فتحات فارغة",
+            "name_update_failed": "فشل تحديث اسم النموذج",
+            "description_update_failed": "فشل تحديث الوصف",
+            "downloading": "جاري التحميل..."
+        },
+        "model_upload": {
+            "title": "تحميل النموذج",
+            "slot_info": "جاري تحميل النموذج. (الفتحة: {{slotNumber}})",
+            "select_zip": "اختر ملف ZIP",
+            "upload_button": "تحميل",
+            "select_zip_error": "يرجى اختيار ملف ZIP",
+            "upload_error": "خطأ أثناء التحميل",
+            "upload_complete_title": "تم التحميل",
+            "upload_complete_message": "تم تحميل النموذج بنجاح.",
+            "select_model_file_error": "يرجى اختيار ملف النموذج",
+            "unsupported_voice_changer_type": "نوع مغير الصوت غير مدعوم",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2 غير مدعوم بعد",
+            "voice_changer_type": "نوع مغير الصوت",
+            "select_model_file": "اختر ملف النموذج",
+            "select_index_file": "اختر ملف الفهرس"
+        },
+        "sample_model_dialog": {
+            "title": "قائمة النماذج العينة",
+            "slot_id": "معرف الفتحة: {{slotIndex}}",
+            "no_samples": "لا توجد نماذج عينة.",
+            "download_button": "تنزيل",
+            "downloading_title": "جاري تنزيل النموذج",
+            "downloading_wait_message": "يرجى الانتظار حتى يكتمل التنزيل...",
+            "download_success": "تم تنزيل النموذج العينة بنجاح.",
+            "download_timeout": "انتهت مهلة التنزيل.",
+            "download_error": "فشل تنزيل النموذج العينة."
+        },
+        "settings_dialog": {
+            "title": "الإعدادات",
+            "close": "×",
+            "input_device": "جهاز الإدخال (الميكروفون)",
+            "output_device": "جهاز الإخراج (السماعة)",
+            "monitor_device": "جهاز إخراج المراقبة (السماعة)",
+            "voice_changer_input_mode": "وضع إدخال مغير الصوت",
+            "client_mode": "وضع العميل",
+            "server_mode": "وضع الخادم",
+            "mode_switch_disabled": "لا يمكن تبديل الوضع أثناء تغيير الصوت أو التسجيل أو التمرير",
+            "audio_device_settings": "إعدادات الأجهزة الصوتية",
+            "gpu_settings": "إعدادات GPU",
+            "unselected": "غير محدد",
+            "all_hosts": "جميع المضيفين",
+            "auto": "تلقائي",
+            "wasapi_exclusive_mode": "تفعيل وضع WASAPI الحصري",
+            "noise_suppression": "قمع الضوضاء",
+            "enable_echo_cancellation": "تفعيل إلغاء الصدى",
+            "enable_noise_suppression": "تفعيل قمع الضوضاء",
+            "enable_noise_suppression2": "تفعيل قمع الضوضاء 2",
+            "noise_gate": "بوابة الضوضاء",
+            "enable_high_pass_filter": "تفعيل مرشح التمرير العالي",
+            "cutoff": "تردد القطع",
+            "enable_low_pass_filter": "تفعيل مرشح التمرير المنخفض",
+            "changing_device_settings": "جاري تغيير إعدادات الجهاز..."
+        },
+        "waiting_dialog": {
+            "default_message": "يرجى الانتظار..."
+        },
+        "voice": {
+            "character": "شخصية الصوت",
+            "no_description": "لا يوجد وصف متاح",
+            "edit_tooltip": "تعديل شخصية الصوت"
+        },
+        "voice_character_editor": {
+            "title": "تعديل شخصية الصوت",
+            "name": "الاسم",
+            "description": "الوصف",
+            "select_icon": "اختر الأيقونة",
+            "cancel": "إلغاء",
+            "save": "حفظ",
+            "save_success": "تم الحفظ",
+            "save_error": "فشل الحفظ"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "الأيقونة الحالية",
+            "new_icon": "الأيقونة الجديدة"
+        },
+        "controls": {
+            "title": "التحكم",
+            "start": "بدء",
+            "stop": "إيقاف",
+            "passthrough": "تمرير",
+            "passthrough_enable": "تفعيل التمرير",
+            "passthrough_disable": "تعطيل التمرير",
+            "settings": "الإعدادات",
+            "input_type": "نوع الإدخال الصوتي",
+            "microphone_input": "إدخال الميكروفون",
+            "microphone": "ميكروفون",
+            "file_input": "إدخال ملف",
+            "file": "ملف",
+            "screen_capture": "التقاط الشاشة",
+            "capture": "التقاط",
+            "sample_input": "إدخال عينة",
+            "sample": "عينة",
+            "select_sample": "اختر عينة",
+            "test_play": "تشغيل تجريبي",
+            "send_sample": "إرسال",
+            "mic_device": "جهاز الميكروفون",
+            "drop_files": "انقر أو اسحب الملفات هنا",
+            "supported_formats": "الصيغ المدعومة: MP3, WAV, OGG",
+            "echoback_enable": "تفعيل الصدى",
+            "echoback_disable": "تعطيل الصدى",
+            "loop_enable": "تفعيل التكرار",
+            "loop_disable": "تعطيل التكرار",
+            "stop_capture": "إيقاف الالتقاط",
+            "record": "تسجيل",
+            "recording": "جاري التسجيل",
+            "start_recording": "بدء التسجيل",
+            "stop_recording": "إيقاف التسجيل",
+            "volume_control": "التحكم بالصوت",
+            "input_volume": "مستوى الإدخال",
+            "input": "إدخال",
+            "output_volume": "مستوى الإخراج",
+            "output1": "إخراج 1",
+            "monitor_volume": "مستوى المراقبة",
+            "output2": "إخراج 2",
+            "voice_control": "ضبط الصوت",
+            "pitch_adjust": "ضبط النغمة",
+            "pitch": "النغمة",
+            "formant_adjust": "ضبط التشكيل",
+            "formant": "التشكيل",
+            "index_adjust": "ضبط الفهرس",
+            "index": "الفهرس",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "وضع الخادم",
+            "client_mode": "وضع العميل",
+            "no_device": "لا يوجد جهاز",
+            "device_not_selected_error": "جهاز الإدخال أو الإخراج غير محدد. يرجى تحديد جهاز في الإعدادات.",
+            "device_none": "لا شيء",
+            "device_file": "ملف",
+            "device_system": "صوت النظام (Windows فقط)",
+            "start_download_recording": "بدء تنزيل ملف التسجيل...",
+            "start_download_server_recording": "بدء تنزيل ملف تسجيل الخادم...",
+            "download_recording_failed": "فشل تنزيل ملف التسجيل:",
+            "server_recording_failed": "فشل معالجة تسجيل الخادم:",
+            "sample_voices_load_failed": "فشل تحميل الأصوات العينة:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "عنصر الصوت فارغ",
+            "sample_send_failed": "فشل إرسال العينة:",
+            "capture_error": "خطأ في الالتقاط:",
+            "capture_no_media_stream": "فشل الالتقاط. لا يوجد تدفق وسائط.",
+            "capture_no_audio_track": "فشل الالتقاط. لا يوجد مسار صوتي.",
+            "test_audio_play_failed": "فشل تشغيل الصوت التجريبي:",
+            "chunksec_adjust": "ضبط ثواني الجزء",
+            "extraframe_adjust": "ضبط الإطارات الإضافية"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "تفعيل التسجيل للتحليل",
+            "record_for_analysis_description": "أيضاً قم بالتسجيل من جانب الخادم أثناء التسجيل وتحميل ملفات التحليل",
+            "realtime_description": "القيم الأصغر تحسن الأداء في الوقت الفعلي لكنها تزيد من حمولة وحدة المعالجة المركزية",
+            "recording_settings": "إعدادات التسجيل",
+            "sample_audio_button": "زر الصوت العينة",
+            "show_sample_audio_button": "إظهار زر الصوت العينة",
+            "sample_audio_button_description": "تبديل عرض زر الصوت العينة في اختيار نوع الإدخال الصوتي."
+        },
+        "advanced_settings_dialog": {
+            "title": "الإعدادات المتقدمة",
+            "realtime_analysis_settings": "إعدادات التحليل في الوقت الفعلي",
+            "enable_realtime_io_analysis": "تفعيل تحليل الإدخال/الإخراج في الوقت الفعلي",
+            "enable_realtime_voice_processing_analysis": "تفعيل تحليل معالجة الصوت في الوقت الفعلي",
+            "send_interval_seconds": "فترة الإرسال (ثواني)"
+        },
+        "shortcut_settings": {
+            "title": "إعدادات المفاتيح",
+            "cancel_tooltip": "إلغاء (أيضاً ممكن بمفتاح Escape)",
+            "shortcuts_disabled_notice": "ℹ️ اختصارات لوحة المفاتيح معطلة مؤقتاً أثناء التكوين",
+            "usage_instructions": {
+                "title": "تعليمات الاستخدام",
+                "instruction1": "• انقر على \"تحرير\" للاختصار المراد تعيينه",
+                "instruction2": "• اضغط على مجموعة المفاتيح المراد تعيينها وسيتم الحفظ تلقائيًا",
+                "instruction3": "• سيتم عرض تحذير للمفاتيح المكررة",
+                "instruction4": "• الإلغاء بمفتاح Escape أو زر ×"
+            },
+            "config_load_success": "تم تحميل الإعدادات:",
+            "config_load_failed": "فشل تحميل الإعدادات:",
+            "config_save_success": "تم حفظ الإعدادات",
+            "config_save_failed": "فشل حفظ الإعدادات:",
+            "duplicate_key_error": "اختصار المفتاح '{{shortcut}}' مستخدم بالفعل في '{{displayName}}'",
+            "slot_change_skip": "تخطي تغيير الفتحة لأن الفتحات المتاحة 1 أو أقل",
+            "slot_changed_to_next": "تم تغيير الفتحة من {{from}} إلى {{to}}",
+            "slot_changed_to_previous": "تم تغيير الفتحة من {{from}} إلى {{to}}",
+            "voice_conversion_stopped": "تم إيقاف تحويل الصوت",
+            "voice_conversion_started": "تم بدء تحويل الصوت",
+            "passthrough_disabled": "تم تعطيل التمرير",
+            "passthrough_enabled": "تم تفعيل التمرير",
+            "input_volume_changed": "تم تغيير مستوى الإدخال إلى {{volume}}",
+            "output_volume_changed": "تم تغيير مستوى الإخراج إلى {{volume}}",
+            "monitor_volume_changed": "تم تغيير مستوى المراقبة إلى {{volume}}",
+            "unknown_shortcut_action": "📢 إجراء اختصار غير معروف: {{action}}",
+            "status": "الحالة",
+            "settings_load_error": "خطأ تحميل الإعدادات:",
+            "settings_save_error": "خطأ حفظ الإعدادات:",
+            "unknown_model": "نموذج غير معروف",
+            "vcclient_notification": "إشعار VCClient",
+            "show_status_action": "تم تنفيذ إجراء ShowStatus",
+            "previous_slot_action": "تم تنفيذ إجراء PreviousSlot",
+            "slot_changed_log": "تم تغيير الفتحة من {{from}} إلى {{to}}",
+            "notification_window_error": "خطأ عرض نافذة الإشعار:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "إظهار الحالة",
+                    "description": "إظهار الحالة"
+                },
+                "toggleWindow": {
+                    "name": "تبديل النافذة",
+                    "description": "تبديل رؤية النافذة الرئيسية"
+                },
+                "nextSlot": {
+                    "name": "الفتحة التالية",
+                    "description": "التبديل إلى الفتحة التالية"
+                },
+                "previousSlot": {
+                    "name": "الفتحة السابقة",
+                    "description": "التبديل إلى الفتحة السابقة"
+                },
+                "toggleVoiceConversion": {
+                    "name": "تبديل تحويل الصوت",
+                    "description": "تبديل بدء/إيقاف تحويل الصوت"
+                },
+                "togglePassthrough": {
+                    "name": "تبديل التمرير",
+                    "description": "تبديل تشغيل/إيقاف وضع التمرير"
+                },
+                "increaseInputVolume": {
+                    "name": "زيادة مستوى الإدخال",
+                    "description": "زيادة مستوى إدخال الميكروفون"
+                },
+                "decreaseInputVolume": {
+                    "name": "خفض مستوى الإدخال",
+                    "description": "خفض مستوى إدخال الميكروفون"
+                },
+                "increaseOutputVolume": {
+                    "name": "زيادة مستوى الإخراج",
+                    "description": "زيادة مستوى الصوت الخارج"
+                },
+                "decreaseOutputVolume": {
+                    "name": "خفض مستوى الإخراج",
+                    "description": "خفض مستوى الصوت الخارج"
+                },
+                "increaseMonitorVolume": {
+                    "name": "زيادة مستوى المراقبة",
+                    "description": "زيادة مستوى صوت المراقبة"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "خفض مستوى المراقبة",
+                    "description": "خفض مستوى صوت المراقبة"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "جاري تحميل الإعدادات...",
+            "enable_shortcuts": "تفعيل اختصارات المفاتيح",
+            "shortcut_settings": "إعدادات الاختصارات",
+            "press_key_placeholder": "اضغط على مفتاح",
+            "click_to_edit": "انقر للتحرير",
+            "not_set": "غير محدد",
+            "enable_shortcut_checkbox": "• يرجى تفعيل مربع اختيار اختصارات المفاتيح",
+            "example": "مثال: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "الائتمان:",
+            "language": "اللغة:",
+            "tags": "العلامات:",
+            "terms_of_use": "شروط الاستخدام"
+        },
+        "performance": {
+            "input_buffer": "مخزن الإدخال المؤقت",
+            "output_buffer": "مخزن الإخراج المؤقت",
+            "clear": "مسح",
+            "input_buffer_label": "مخزن الإدخال المؤقت: {{time}}s",
+            "output_buffer_label": "مخزن الإخراج المؤقت: {{time}}s",
+            "input_volume_level": "مستوى الإدخال Level 0.000",
+            "output_volume_level": "مستوى الإخراج Level 0.000",
+            "input_buffer_initial": "مخزن الإدخال المؤقت: 0",
+            "output_buffer_initial": "مخزن الإخراج المؤقت: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "مقدر النغمة",
+            "pitch_estimator": "مقدر النغمة",
+            "embedder_override_tooltip": "تجاوز المضمن",
+            "embedder": "المضمن",
+            "embedder_default": "افتراضي ({{embedder}})",
+            "embedder_change_title": "تغيير المضمن",
+            "embedder_change_message": "المضمن هو مكون مهم للغاية. قد يؤدي التغيير إلى عدم عمل تحويل الصوت. عادة لا حاجة للتغيير. إذا كنت لا تفهم ما تفعله، فلا تغير.",
+            "embedder_change_confirm": "تغيير",
+            "embedder_change_cancel": "إلغاء"
+        },
+        "advanced_area": {
+            "log": "السجل",
+            "advanced_settings": "الإعدادات المتقدمة",
+            "key_settings": "إعدادات المفاتيح",
+            "github_repo": "جيت هاب",
+            "clear_site_data_and_restart": "مسح بيانات الموقع وإعادة التشغيل"
+        },
+        "dialog": {
+            "cancel": "إلغاء",
+            "confirm": "تأكيد"
+        },
+        "clear_site_data_confirm": {
+            "title": "تأكيد مسح بيانات الموقع",
+            "message": "هذه العملية ستحذف جميع بيانات الموقع المحفوظة وستنهي التطبيق. يرجى إعادة تشغيل التطبيق يدوياً بعد انتهائه. هل تريد المتابعة؟"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "التحميل التلقائي (Ctrl + r): {{status}}",
+        "on": "تشغيل",
+        "off": "إيقاف",
+        "latest": "الأحدث",
+        "items": "عناصر",
+        "all_items": "جميع العناصر ({{count, number}} عنصر)",
+        "total_items": "{{count, number}} عنصر",
+        "loading": "جاري التحميل..."
+    }
+}

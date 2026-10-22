@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "Tidak diketahui",
+            "unknown_edition": "Tidak diketahui"
+        },
+        "error_messages": {
+            "error_occurred": "Ralat berlaku:",
+            "rvc_model_file_required": "Fail model RVC diperlukan",
+            "beatrice_v2_zip_file_required": "Fail ZIP Beatrice_v2 diperlukan",
+            "not_supported_voice_changer_type": "Jenis penukar suara tidak disokong",
+            "unhandled_rejection_possible_cause": "[Sebab yang mungkin 1] Ralat berlaku apabila klien lain sedang berjalan. Ini kerana sumber seperti pangkalan data dikendalikan secara eksklusif.",
+            "use_app_root_context_error": "useAppRoot mesti digunakan dalam AppRootProvider",
+            "use_app_state_context_error": "useAppState mesti digunakan dalam AppStateProvider",
+            "use_hotkey_context_error": "useHotkey mesti digunakan dalam HotkeyProvider",
+            "server_device_init_failed": "[voiceChangerClient] Permulaan peranti pelayan gagal. Sila periksa sama ada nilai tidak sah digunakan. Ini juga mungkin ralat spesifikasi PortAudio. Dalam kes ini, gunakan peranti lain.",
+            "audio_output_device_not_found": "[voiceChangerClient] Peranti output audio {{device}} tidak ditemui.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] Peranti monitor audio {{device}} tidak ditemui.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId tidak disokong: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Repositori Beatrice.js",
+            "vcclient_repo": "Repositori VCClient",
+            "screen_recorder": "Perekam Skrin",
+            "create_voice_model": "Cipta Model Suara Beatrice",
+            "download_native_client": "Muat turun Klien Asli",
+            "url_open_failed": "Gagal membuka URL dengan arahan Tauri. Kembali ke window.open:"
+        },
+        "initialize": {
+            "button": "Mulakan",
+            "confirm_title": "Sahkan Permulaan",
+            "confirm_message": "Semua data yang disimpan akan dipadamkan. Adakah anda pasti?",
+            "cancel": "Batal",
+            "confirm": "Mulakan"
+        },
+        "model": {
+            "list_title": "Senarai Model",
+            "slots_in_use": "Slot Digunakan",
+            "no_models": "Tiada model disimpan lagi. Muat naik fail ZIP untuk menyimpan model.",
+            "upload": {
+                "button": "Muat Naik",
+                "tooltip": "Muat Naik Model"
+            },
+            "edit": {
+                "button": "Sunting",
+                "tooltip": "Sunting Model"
+            },
+            "not_selected": "Tiada model dipilih"
+        },
+        "model_editor": {
+            "title": "Pengurusan Model",
+            "slots_in_use": "Slot digunakan: {{used}} / {{total}}",
+            "slot": "Slot {{number}}",
+            "empty_slot": "Slot kosong",
+            "save": "Simpan",
+            "cancel": "Batal",
+            "move_model": "Pindah Model",
+            "moving": "Memindahkan...",
+            "move": "Pindah",
+            "download_model": "Muat turun Model",
+            "download": "Muat turun",
+            "delete_model": "Padam Model",
+            "delete": "Padam",
+            "upload_model": "Muat naik Model",
+            "upload": "Muat naik",
+            "move_here": "Pindah Ke Sini",
+            "cancel_move": "Batal Pemindahan",
+            "generate_onnx": "Jana ONNX",
+            "generate_onnx_confirm_message": "Jana ONNX dari model ini?",
+            "generate_onnx_success": "ONNX berjaya dijana.",
+            "generate_onnx_failed": "Penjanaan ONNX gagal.",
+            "sample_model": "Model contoh",
+            "select_slot": "Slot output",
+            "icon_upload_success": "Ikon berjaya dimuat naik.",
+            "icon_upload_failed": "Muat naik ikon gagal.",
+            "no_description": "Tiada penerangan",
+            "download_failed": "Gagal memuat turun model",
+            "delete_confirm_message": "Adakah anda ingin memadamkan model ini?",
+            "no_empty_slot": "Tiada slot kosong tersedia",
+            "name_update_failed": "Gagal mengemas kini nama model",
+            "description_update_failed": "Gagal mengemas kini penerangan",
+            "downloading": "Memuat turun..."
+        },
+        "model_upload": {
+            "title": "Muat Naik Model",
+            "slot_info": "Memuat naik model. (Slot: {{slotNumber}})",
+            "select_zip": "Pilih fail ZIP",
+            "upload_button": "Muat Naik",
+            "select_zip_error": "Sila pilih fail ZIP",
+            "upload_error": "Ralat semasa memuat naik",
+            "upload_complete_title": "Muat naik selesai",
+            "upload_complete_message": "Model telah berjaya dimuat naik.",
+            "select_model_file_error": "Sila pilih fail model",
+            "unsupported_voice_changer_type": "Jenis penukar suara tidak disokong",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2 belum disokong lagi",
+            "voice_changer_type": "Jenis penukar suara",
+            "select_model_file": "Pilih fail model",
+            "select_index_file": "Pilih fail indeks"
+        },
+        "sample_model_dialog": {
+            "title": "Senarai Model Contoh",
+            "slot_id": "ID Slot: {{slotIndex}}",
+            "no_samples": "Tiada model contoh tersedia.",
+            "download_button": "Muat turun",
+            "downloading_title": "Memuat turun model",
+            "downloading_wait_message": "Sila tunggu sehingga muat turun selesai...",
+            "download_success": "Model contoh berjaya dimuat turun.",
+            "download_timeout": "Muat turun tamat masa.",
+            "download_error": "Muat turun model contoh gagal."
+        },
+        "settings_dialog": {
+            "title": "Tetapan",
+            "close": "×",
+            "input_device": "Peranti Input (Mikrofon)",
+            "output_device": "Peranti Output (Pembesar Suara)",
+            "monitor_device": "Peranti Output Monitor (Pembesar Suara)",
+            "voice_changer_input_mode": "Mod input penukar suara",
+            "client_mode": "Mod klien",
+            "server_mode": "Mod pelayan",
+            "mode_switch_disabled": "Tidak boleh tukar mod semasa menukar suara, merakam atau laluan terus",
+            "audio_device_settings": "Tetapan peranti audio",
+            "gpu_settings": "Tetapan GPU",
+            "unselected": "Tidak dipilih",
+            "all_hosts": "Semua hos",
+            "auto": "Auto",
+            "wasapi_exclusive_mode": "Dayakan mod eksklusif WASAPI",
+            "noise_suppression": "Penindasan bunyi",
+            "enable_echo_cancellation": "Dayakan pembatalan gema",
+            "enable_noise_suppression": "Dayakan penindasan bunyi",
+            "enable_noise_suppression2": "Dayakan penindasan bunyi 2",
+            "noise_gate": "Noise Gate",
+            "enable_high_pass_filter": "Dayakan penapis lulus tinggi",
+            "cutoff": "Cutoff",
+            "enable_low_pass_filter": "Dayakan penapis lulus rendah",
+            "changing_device_settings": "Menukar tetapan peranti..."
+        },
+        "waiting_dialog": {
+            "default_message": "Sila tunggu..."
+        },
+        "voice": {
+            "character": "Watak Suara",
+            "no_description": "Tiada penerangan tersedia",
+            "edit_tooltip": "Sunting Watak Suara"
+        },
+        "voice_character_editor": {
+            "title": "Sunting Watak Suara",
+            "name": "Nama",
+            "description": "Penerangan",
+            "select_icon": "Pilih ikon",
+            "cancel": "Batal",
+            "save": "Simpan",
+            "save_success": "Disimpan",
+            "save_error": "Gagal menyimpan"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "Ikon semasa",
+            "new_icon": "Ikon baru"
+        },
+        "controls": {
+            "title": "Kawalan",
+            "start": "Mula",
+            "stop": "Henti",
+            "passthrough": "Laluan terus",
+            "passthrough_enable": "Aktifkan laluan terus",
+            "passthrough_disable": "Nyahaktifkan laluan terus",
+            "settings": "Tetapan",
+            "input_type": "Jenis Input Audio",
+            "microphone_input": "Input Mikrofon",
+            "microphone": "Mikrofon",
+            "file_input": "Input Fail",
+            "file": "Fail",
+            "screen_capture": "Tangkap Skrin",
+            "capture": "Tangkap",
+            "sample_input": "Input contoh",
+            "sample": "Contoh",
+            "select_sample": "Pilih contoh",
+            "test_play": "Main ujian",
+            "send_sample": "Hantar",
+            "mic_device": "Peranti Mikrofon",
+            "drop_files": "Klik atau letakkan fail di sini",
+            "supported_formats": "Format yang disokong: MP3, WAV, OGG",
+            "echoback_enable": "Aktifkan gema",
+            "echoback_disable": "Nyahaktifkan gema",
+            "loop_enable": "Aktifkan gelung",
+            "loop_disable": "Nyahaktifkan gelung",
+            "stop_capture": "Hentikan tangkapan",
+            "record": "Rakam",
+            "recording": "Sedang merakam",
+            "start_recording": "Mula rakaman",
+            "stop_recording": "Hentikan rakaman",
+            "volume_control": "Kawalan Volum",
+            "input_volume": "Volum Input",
+            "input": "Input",
+            "output_volume": "Volum Output",
+            "output1": "Output 1",
+            "monitor_volume": "Volum Monitor",
+            "output2": "Output 2",
+            "voice_control": "Kawalan Suara",
+            "pitch_adjust": "Pelarasan Pic",
+            "pitch": "Pic",
+            "formant_adjust": "Pelarasan Formant",
+            "formant": "Formant",
+            "index_adjust": "Pelarasan indeks",
+            "index": "Indeks",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "Mod pelayan",
+            "client_mode": "Mod klien",
+            "no_device": "Tiada peranti",
+            "device_not_selected_error": "Peranti input atau output tidak dipilih. Sila pilih peranti dalam tetapan.",
+            "device_none": "Tiada",
+            "device_file": "Fail",
+            "device_system": "Bunyi sistem (Windows sahaja)",
+            "start_download_recording": "Memulakan muat turun fail rakaman...",
+            "start_download_server_recording": "Memulakan muat turun fail rakaman pelayan...",
+            "download_recording_failed": "Muat turun fail rakaman gagal:",
+            "server_recording_failed": "Pemprosesan rakaman pelayan gagal:",
+            "sample_voices_load_failed": "Memuatkan suara contoh gagal:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "Elemen audio adalah null",
+            "sample_send_failed": "Penghantaran contoh gagal:",
+            "capture_error": "Ralat tangkapan:",
+            "capture_no_media_stream": "Tangkapan gagal. Tiada strim media tersedia.",
+            "capture_no_audio_track": "Tangkapan gagal. Tiada trek audio tersedia.",
+            "test_audio_play_failed": "Main balik audio ujian gagal:",
+            "chunksec_adjust": "Saat chunk",
+            "extraframe_adjust": "Bilangan bingkai tambahan"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "Aktifkan rakaman untuk analisis",
+            "record_for_analysis_description": "Juga rakam dari sisi pelayan semasa rakaman dan muat turun fail analisis",
+            "realtime_description": "Nilai yang lebih kecil meningkatkan prestasi masa nyata tetapi meningkatkan beban CPU",
+            "recording_settings": "Tetapan rakaman",
+            "sample_audio_button": "Butang audio contoh",
+            "show_sample_audio_button": "Tunjukkan butang audio contoh",
+            "sample_audio_button_description": "Togol paparan butang audio contoh dalam pemilihan jenis input audio."
+        },
+        "advanced_settings_dialog": {
+            "title": "Tetapan Lanjutan",
+            "realtime_analysis_settings": "Tetapan Analisis Masa Nyata",
+            "enable_realtime_io_analysis": "Dayakan analisis I/O masa nyata",
+            "enable_realtime_voice_processing_analysis": "Dayakan analisis pemprosesan suara masa nyata",
+            "send_interval_seconds": "Selang penghantaran (saat)"
+        },
+        "shortcut_settings": {
+            "title": "Tetapan kekunci",
+            "cancel_tooltip": "Batal (Juga boleh dengan kekunci Escape)",
+            "shortcuts_disabled_notice": "ℹ️ Kekunci pintasan sementara dinyahaktifkan semasa konfigurasi",
+            "usage_instructions": {
+                "title": "Arahan penggunaan",
+                "instruction1": "• Klik 'Sunting' untuk kombinasi kekunci yang dikehendaki",
+                "instruction2": "• Tekan kombinasi kekunci yang dikehendaki, ia akan disimpan secara automatik",
+                "instruction3": "• Untuk kekunci pendua, amaran akan dipaparkan",
+                "instruction4": "• Kekunci Escape atau butang × untuk membatal"
+            },
+            "config_load_success": "Konfigurasi dimuatkan:",
+            "config_load_failed": "Gagal memuatkan konfigurasi:",
+            "config_save_success": "Konfigurasi berjaya disimpan",
+            "config_save_failed": "Gagal menyimpan konfigurasi:",
+            "duplicate_key_error": "Pintasan '{{shortcut}}' sudah digunakan oleh '{{displayName}}'",
+            "slot_change_skip": "Lompat pertukaran slot kerana hanya satu atau kurang slot tersedia",
+            "slot_changed_to_next": "Slot bertukar dari {{from}} ke {{to}}",
+            "slot_changed_to_previous": "Slot bertukar dari {{from}} ke {{to}}",
+            "voice_conversion_stopped": "Penukaran suara dihentikan",
+            "voice_conversion_started": "Penukaran suara dimulakan",
+            "passthrough_disabled": "Laluan terus dinyahaktifkan",
+            "passthrough_enabled": "Laluan terus diaktifkan",
+            "input_volume_changed": "Volum input ditukar ke {{volume}}",
+            "output_volume_changed": "Volum output ditukar ke {{volume}}",
+            "monitor_volume_changed": "Volum monitor ditukar ke {{volume}}",
+            "unknown_shortcut_action": "📢 Tindakan pintasan tidak diketahui: {{action}}",
+            "status": "Status",
+            "settings_load_error": "Ralat memuatkan tetapan:",
+            "settings_save_error": "Ralat menyimpan tetapan:",
+            "unknown_model": "Model Tidak Diketahui",
+            "vcclient_notification": "Notifikasi VCClient",
+            "show_status_action": "Tindakan ShowStatus telah dilaksanakan",
+            "previous_slot_action": "Tindakan PreviousSlot telah dilaksanakan",
+            "slot_changed_log": "Slot bertukar dari {{from}} ke {{to}}",
+            "notification_window_error": "Ralat paparan tetingkap notifikasi:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "Tunjukkan status",
+                    "description": "Tunjukkan status"
+                },
+                "toggleWindow": {
+                    "name": "Tukar tetingkap",
+                    "description": "Tukar keterlihatan tetingkap utama"
+                },
+                "nextSlot": {
+                    "name": "Slot seterusnya",
+                    "description": "Beralih ke slot seterusnya"
+                },
+                "previousSlot": {
+                    "name": "Slot sebelumnya",
+                    "description": "Beralih ke slot sebelumnya"
+                },
+                "toggleVoiceConversion": {
+                    "name": "Tukar penukaran suara",
+                    "description": "Tukar mula/henti penukaran suara"
+                },
+                "togglePassthrough": {
+                    "name": "Tukar laluan terus",
+                    "description": "Aktifkan/nyahaktifkan mod laluan terus"
+                },
+                "increaseInputVolume": {
+                    "name": "Tingkatkan volum input",
+                    "description": "Tingkatkan volum mikrofon"
+                },
+                "decreaseInputVolume": {
+                    "name": "Kurangkan volum input",
+                    "description": "Kurangkan volum mikrofon"
+                },
+                "increaseOutputVolume": {
+                    "name": "Tingkatkan volum output",
+                    "description": "Tingkatkan volum output"
+                },
+                "decreaseOutputVolume": {
+                    "name": "Kurangkan volum output",
+                    "description": "Kurangkan volum output"
+                },
+                "increaseMonitorVolume": {
+                    "name": "Tingkatkan volum monitor",
+                    "description": "Tingkatkan volum monitor"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "Kurangkan volum monitor",
+                    "description": "Kurangkan volum monitor"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "Memuatkan konfigurasi...",
+            "enable_shortcuts": "Dayakan pintasan",
+            "shortcut_settings": "Tetapan Pintasan",
+            "press_key_placeholder": "Tekan kekunci",
+            "click_to_edit": "Klik untuk sunting",
+            "not_set": "Tidak ditetapkan",
+            "enable_shortcut_checkbox": "• Aktifkan kotak semak untuk pintasan",
+            "example": "Contoh: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "Kredit:",
+            "language": "Bahasa:",
+            "tags": "Tag:",
+            "terms_of_use": "Terma penggunaan"
+        },
+        "performance": {
+            "input_buffer": "Buffer input",
+            "output_buffer": "Buffer output",
+            "clear": "Kosongkan",
+            "input_buffer_label": "Buffer input: {{time}}s",
+            "output_buffer_label": "Buffer output: {{time}}s",
+            "input_volume_level": "Aras Volum Input 0.000",
+            "output_volume_level": "Aras Volum Output 0.000",
+            "input_buffer_initial": "Buffer input: 0",
+            "output_buffer_initial": "Buffer output: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "Penganggar pic",
+            "pitch_estimator": "Penganggar pic",
+            "embedder_override_tooltip": "Gantian embedder",
+            "embedder": "Embedder",
+            "embedder_default": "Lalai ({{embedder}})",
+            "embedder_change_title": "Tukar embedder",
+            "embedder_change_message": "Embedder adalah komponen yang amat penting. Mengubahnya boleh menyebabkan penukaran suara tidak berfungsi. Secara umum, tidak perlu mengubahnya. Jangan ubah melainkan anda faham apa yang anda lakukan.",
+            "embedder_change_confirm": "Tukar",
+            "embedder_change_cancel": "Batal"
+        },
+        "advanced_area": {
+            "log": "Log",
+            "advanced_settings": "Tetapan Lanjutan",
+            "key_settings": "Tetapan Kekunci",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "Kosongkan data tapak dan mulakan semula"
+        },
+        "dialog": {
+            "cancel": "Batal",
+            "confirm": "Sahkan"
+        },
+        "clear_site_data_confirm": {
+            "title": "Sahkan kosongkan data tapak",
+            "message": "Operasi ini akan memadamkan semua data tapak yang disimpan dan menamatkan aplikasi. Sila mulakan semula aplikasi secara manual selepas ia ditamatkan. Adakah anda mahu meneruskan?"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Autoload (Ctrl + r): {{status}}",
+        "on": "ON",
+        "off": "OFF",
+        "latest": "Terkini",
+        "items": "item",
+        "all_items": "Semua item ({{count, number}} item)",
+        "total_items": "{{count, number}} item",
+        "loading": "loading..."
+    }
+} 

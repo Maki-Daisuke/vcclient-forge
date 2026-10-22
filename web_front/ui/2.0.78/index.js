@@ -117980,7 +117980,7 @@
                             case 0:
                               return (
                                 (e.next = 2),
-                                fetch("/assets/gui_settings/GUI.json", {
+                                fetch("./assets/gui_settings/GUI.json", {
                                   method: "GET",
                                 })
                               );
@@ -118012,7 +118012,7 @@
                             case 0:
                               return (
                                 (e.next = 2),
-                                fetch("/assets/gui_settings/version.txt", {
+                                fetch("./assets/gui_settings/version.txt", {
                                   method: "GET",
                                 })
                               );
@@ -118044,7 +118044,7 @@
                             case 0:
                               return (
                                 (e.next = 2),
-                                fetch("/assets/gui_settings/edition.txt", {
+                                fetch("./assets/gui_settings/edition.txt", {
                                   method: "GET",
                                 })
                               );
@@ -120393,8 +120393,8 @@
           })();
         t =
           null == e.iconUrl
-            ? "/assets/icons/noimage.png"
-            : "model_dir/" +
+            ? "./assets/icons/noimage.png"
+            : "/model_dir/" +
               e.slotIndex +
               "/" +
               e.iconUrl.split(/[\/\\]/).pop();
@@ -120585,7 +120585,7 @@
                         }
                         return t.abrupt("return");
                       case 21:
-                        ((p = "model_dir/" + e.slotIndex + "/" + n),
+                        ((p = "/model_dir/" + e.slotIndex + "/" + n),
                           w.getLogger().info("downloadpath:", p),
                           ((m = document.createElement("a")).href = p),
                           (m.download = n.replace(/^.*[\\\/]/, "")),
@@ -121781,7 +121781,7 @@
         return (
           (t =
             null == e.sampleInfo.icon_url
-              ? "/assets/icons/noimage.png"
+              ? "./assets/icons/noimage.png"
               : e.sampleInfo.icon_url),
           n.createElement(
             "div",
@@ -125733,7 +125733,7 @@
                 n.createElement(
                   "span",
                   { className: "_1fwpqca2" },
-                  "Realtime Voice Changer Client Forge",
+                  "VCClient Forge",
                 ),
                 n.createElement("span", null),
                 n.createElement("span", { className: f }, c.version),
@@ -125969,7 +125969,7 @@
                             : e.name,
                         c =
                           null != e.icon_file
-                            ? "model_dir/" +
+                            ? "/model_dir/" +
                               e.slot_index +
                               "/" +
                               e.icon_file.split(/[\/\\]/).pop()
@@ -126169,7 +126169,7 @@
               if (!e) return n.createElement(n.Fragment, null);
               var t =
                 null != e.icon_file
-                  ? "model_dir/" +
+                  ? "/model_dir/" +
                     e.slot_index +
                     "/" +
                     e.icon_file.split(/[\/\\]/).pop()
@@ -132996,7 +132996,7 @@
       .use(Ka)
       .use(ft)
       .init({
-        backend: { loadPath: "/assets/i18n/{{lng}}/{{ns}}.json" },
+        backend: { loadPath: "./assets/i18n/{{lng}}/{{ns}}.json" },
         fallbackLng: "en",
         interpolation: { escapeValue: !1 },
       });

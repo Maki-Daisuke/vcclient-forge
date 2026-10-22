@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "Неизвестно",
+            "unknown_edition": "Неизвестно"
+        },
+        "error_messages": {
+            "error_occurred": "Произошла ошибка:",
+            "rvc_model_file_required": "Требуется файл модели RVC",
+            "beatrice_v2_zip_file_required": "Требуется ZIP-файл Beatrice_v2",
+            "not_supported_voice_changer_type": "Неподдерживаемый тип изменителя голоса",
+            "unhandled_rejection_possible_cause": "[Возможная причина 1] Ошибка возникает при работе другого клиента. Это происходит из-за эксклюзивной обработки ресурсов, таких как база данных.",
+            "use_app_root_context_error": "useAppRoot должен использоваться внутри AppRootProvider",
+            "use_app_state_context_error": "useAppState должен использоваться внутри AppStateProvider",
+            "use_hotkey_context_error": "useHotkey должен использоваться внутри HotkeyProvider",
+            "server_device_init_failed": "[voiceChangerClient] Инициализация серверного устройства не удалась. Убедитесь, что не используются недопустимые значения. Также может быть ошибка спецификации PortAudio. В этом случае используйте другое устройство.",
+            "audio_output_device_not_found": "[voiceChangerClient] Устройство вывода аудио {{device}} не найдено.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] Устройство мониторинга аудио {{device}} не найдено.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId не поддерживается: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Репозиторий Beatrice.js",
+            "vcclient_repo": "Репозиторий VCClient",
+            "screen_recorder": "Запись экрана",
+            "create_voice_model": "Создать голосовую модель Beatrice",
+            "download_native_client": "Скачать нативный клиент",
+            "url_open_failed": "Не удалось открыть URL с помощью команды Tauri. Переход к window.open:"
+        },
+        "initialize": {
+            "button": "Инициализировать",
+            "confirm_title": "Подтверждение Инициализации",
+            "confirm_message": "Все сохраненные данные будут удалены. Вы уверены?",
+            "cancel": "Отмена",
+            "confirm": "Инициализировать"
+        },
+        "model": {
+            "list_title": "Список Моделей",
+            "slots_in_use": "Используемые слоты",
+            "no_models": "Пока нет сохраненных моделей. Загрузите ZIP-файл для сохранения модели.",
+            "upload": {
+                "button": "Загрузить",
+                "tooltip": "Загрузить Модель"
+            },
+            "edit": {
+                "button": "Редактировать",
+                "tooltip": "Редактировать Модель"
+            },
+            "not_selected": "Модель не выбрана"
+        },
+        "model_editor": {
+            "title": "Управление моделями",
+            "slots_in_use": "Используемые слоты: {{used}} / {{total}}",
+            "slot": "Слот {{number}}",
+            "empty_slot": "Пустой слот",
+            "save": "Сохранить",
+            "cancel": "Отмена",
+            "move_model": "Переместить модель",
+            "moving": "Перемещение...",
+            "move": "Переместить",
+            "download_model": "Скачать модель",
+            "download": "Скачать",
+            "delete_model": "Удалить модель",
+            "delete": "Удалить",
+            "upload_model": "Загрузить модель",
+            "upload": "Загрузить",
+            "move_here": "Переместить сюда",
+            "cancel_move": "Отменить перемещение",
+            "generate_onnx": "Создать ONNX",
+            "generate_onnx_confirm_message": "Создать ONNX из этой модели?",
+            "generate_onnx_success": "ONNX успешно создан.",
+            "generate_onnx_failed": "Создание ONNX не удалось.",
+            "sample_model": "Образец модели",
+            "select_slot": "Слот вывода",
+            "icon_upload_success": "Иконка успешно загружена.",
+            "icon_upload_failed": "Загрузка иконки не удалась.",
+            "no_description": "Описание отсутствует",
+            "download_failed": "Не удалось загрузить модель",
+            "delete_confirm_message": "Вы хотите удалить эту модель?",
+            "no_empty_slot": "Нет доступных пустых слотов",
+            "name_update_failed": "Не удалось обновить имя модели",
+            "description_update_failed": "Не удалось обновить описание",
+            "downloading": "Загрузка..."
+        },
+        "model_upload": {
+            "title": "Загрузить Модель",
+            "slot_info": "Загрузка модели. (Слот: {{slotNumber}})",
+            "select_zip": "Выберите ZIP-файл",
+            "upload_button": "Загрузить",
+            "select_zip_error": "Пожалуйста, выберите ZIP-файл",
+            "upload_error": "Ошибка при загрузке",
+            "upload_complete_title": "Загрузка завершена",
+            "upload_complete_message": "Модель успешно загружена.",
+            "select_model_file_error": "Пожалуйста, выберите файл модели",
+            "unsupported_voice_changer_type": "Неподдерживаемый тип изменителя голоса",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2 пока не поддерживается",
+            "voice_changer_type": "Тип изменителя голоса",
+            "select_model_file": "Выберите файл модели",
+            "select_index_file": "Выберите файл индекса"
+        },
+        "sample_model_dialog": {
+            "title": "Список образцов моделей",
+            "slot_id": "ID слота: {{slotIndex}}",
+            "no_samples": "Нет образцов моделей.",
+            "download_button": "Скачать",
+            "downloading_title": "Загрузка модели",
+            "downloading_wait_message": "Пожалуйста, подождите завершения загрузки...",
+            "download_success": "Загрузка образца модели завершена.",
+            "download_timeout": "Истекло время загрузки.",
+            "download_error": "Загрузка образца модели не удалась."
+        },
+        "settings_dialog": {
+            "title": "Настройки",
+            "close": "×",
+            "input_device": "Устройство ввода (Микрофон)",
+            "output_device": "Устройство вывода (Динамик)",
+            "monitor_device": "Устройство вывода для мониторинга (Динамик)",
+            "voice_changer_input_mode": "Режим ввода изменителя голоса",
+            "client_mode": "Клиентский режим",
+            "server_mode": "Серверный режим",
+            "mode_switch_disabled": "Невозможно переключить режим во время изменения голоса, записи или прямого прохода",
+            "audio_device_settings": "Настройки аудиоустройств",
+            "gpu_settings": "Настройки GPU",
+            "unselected": "Не выбрано",
+            "all_hosts": "Все хосты",
+            "auto": "Автоматически",
+            "wasapi_exclusive_mode": "Включить эксклюзивный режим WASAPI",
+            "noise_suppression": "Подавление шума",
+            "enable_echo_cancellation": "Включить подавление эха",
+            "enable_noise_suppression": "Включить подавление шума",
+            "enable_noise_suppression2": "Включить подавление шума 2",
+            "noise_gate": "Шумовые ворота",
+            "enable_high_pass_filter": "Включить фильтр высоких частот",
+            "cutoff": "Частота среза",
+            "enable_low_pass_filter": "Включить фильтр низких частот",
+            "changing_device_settings": "Изменение настроек устройства..."
+        },
+        "waiting_dialog": {
+            "default_message": "Пожалуйста, подождите..."
+        },
+        "voice": {
+            "character": "Голосовой Персонаж",
+            "no_description": "Описание отсутствует",
+            "edit_tooltip": "Редактировать Голосовой Персонаж"
+        },
+        "voice_character_editor": {
+            "title": "Редактировать Голосовой Персонаж",
+            "name": "Имя",
+            "description": "Описание",
+            "select_icon": "Выбрать иконку",
+            "cancel": "Отмена",
+            "save": "Сохранить",
+            "save_success": "Сохранено",
+            "save_error": "Ошибка сохранения"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "Текущая иконка",
+            "new_icon": "Новая иконка"
+        },
+        "controls": {
+            "title": "Управление",
+            "start": "Старт",
+            "stop": "Стоп",
+            "passthrough": "Прямой проход",
+            "passthrough_enable": "Включить прямой проход",
+            "passthrough_disable": "Отключить прямой проход",
+            "settings": "Настройки",
+            "input_type": "Тип входного аудио",
+            "microphone_input": "Вход с микрофона",
+            "microphone": "Микрофон",
+            "file_input": "Вход из файла",
+            "file": "Файл",
+            "screen_capture": "Захват экрана",
+            "capture": "Захват",
+            "sample_input": "Образец ввода",
+            "sample": "Образец",
+            "select_sample": "Выбрать образец",
+            "test_play": "Тестовое воспроизведение",
+            "send_sample": "Отправить",
+            "mic_device": "Устройство микрофона",
+            "drop_files": "Нажмите или перетащите файлы сюда",
+            "supported_formats": "Поддерживаемые форматы: MP3, WAV, OGG",
+            "echoback_enable": "Включить эхо",
+            "echoback_disable": "Отключить эхо",
+            "loop_enable": "Включить цикл",
+            "loop_disable": "Отключить цикл",
+            "stop_capture": "Остановить захват",
+            "record": "Запись",
+            "recording": "Запись идет",
+            "start_recording": "Начать запись",
+            "stop_recording": "Остановить запись",
+            "volume_control": "Регулировка громкости",
+            "input_volume": "Громкость входа",
+            "input": "Вход",
+            "output_volume": "Громкость выхода",
+            "output1": "Выход 1",
+            "monitor_volume": "Громкость монитора",
+            "output2": "Выход 2",
+            "voice_control": "Управление голосом",
+            "pitch_adjust": "Регулировка высоты тона",
+            "pitch": "Высота тона",
+            "formant_adjust": "Регулировка форманты",
+            "formant": "Форманта",
+            "index_adjust": "Регулировка индекса",
+            "index": "Индекс",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "Серверный режим",
+            "client_mode": "Клиентский режим",
+            "no_device": "Нет устройства",
+            "device_not_selected_error": "Устройство ввода или вывода не выбрано. Пожалуйста, выберите устройство в настройках.",
+            "device_none": "Нет",
+            "device_file": "Файл",
+            "device_system": "Системный звук (только Windows)",
+            "start_download_recording": "Начать загрузку файла записи...",
+            "start_download_server_recording": "Начать загрузку файла записи сервера...",
+            "download_recording_failed": "Загрузка файла записи не удалась:",
+            "server_recording_failed": "Обработка записи сервера не удалась:",
+            "sample_voices_load_failed": "Загрузка образцов голосов не удалась:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "Аудиоэлемент пуст",
+            "sample_send_failed": "Отправка образца не удалась:",
+            "capture_error": "Ошибка захвата:",
+            "capture_no_media_stream": "Захват не удался. Нет медиапотока.",
+            "capture_no_audio_track": "Захват не удался. Нет аудиодорожки.",
+            "test_audio_play_failed": "Тестовое воспроизведение аудио не удалось:",
+            "chunksec_adjust": "Регулировка секунд блока",
+            "extraframe_adjust": "Регулировка дополнительных кадров"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "Включить запись для анализа",
+            "record_for_analysis_description": "Также записывать на стороне сервера во время записи и скачивать файлы анализа",
+            "realtime_description": "Меньшие значения улучшают производительность в реальном времени, но увеличивают нагрузку на CPU",
+            "recording_settings": "Настройки записи",
+            "sample_audio_button": "Кнопка образца аудио",
+            "show_sample_audio_button": "Показать кнопку образца аудио",
+            "sample_audio_button_description": "Переключить отображение кнопки образца аудио в выборе типа входного аудио."
+        },
+        "advanced_settings_dialog": {
+            "title": "Расширенные настройки",
+            "realtime_analysis_settings": "Настройки анализа в реальном времени",
+            "enable_realtime_io_analysis": "Включить анализ ввода/вывода в реальном времени",
+            "enable_realtime_voice_processing_analysis": "Включить анализ обработки голоса в реальном времени",
+            "send_interval_seconds": "Интервал отправки (секунды)"
+        },
+        "shortcut_settings": {
+            "title": "Настройки клавиш",
+            "cancel_tooltip": "Отмена (Также возможно клавишей Escape)",
+            "shortcuts_disabled_notice": "ℹ️ Горячие клавиши временно отключены во время настройки",
+            "usage_instructions": {
+                "title": "Инструкции по использованию",
+                "instruction1": "• Нажмите \"Редактировать\" для горячей клавиши, которую хотите назначить",
+                "instruction2": "• Нажмите комбинацию клавиш для назначения, она будет автоматически сохранена",
+                "instruction3": "• Будет показано предупреждение для дублирующихся клавиш",
+                "instruction4": "• Отмена клавишей Escape или кнопкой ×"
+            },
+            "config_load_success": "Настройки загружены:",
+            "config_load_failed": "Загрузка настроек не удалась:",
+            "config_save_success": "Настройки сохранены",
+            "config_save_failed": "Сохранение настроек не удалось:",
+            "duplicate_key_error": "Горячая клавиша '{{shortcut}}' уже используется в '{{displayName}}'",
+            "slot_change_skip": "Пропуск смены слота, так как доступных слотов 1 или меньше",
+            "slot_changed_to_next": "Слот изменен с {{from}} на {{to}}",
+            "slot_changed_to_previous": "Слот изменен с {{from}} на {{to}}",
+            "voice_conversion_stopped": "Преобразование голоса остановлено",
+            "voice_conversion_started": "Преобразование голоса запущено",
+            "passthrough_disabled": "Прямой проход отключен",
+            "passthrough_enabled": "Прямой проход включен",
+            "input_volume_changed": "Громкость входа изменена на {{volume}}",
+            "output_volume_changed": "Громкость выхода изменена на {{volume}}",
+            "monitor_volume_changed": "Громкость монитора изменена на {{volume}}",
+            "unknown_shortcut_action": "📢 Неизвестное действие горячей клавиши: {{action}}",
+            "status": "Статус",
+            "settings_load_error": "Ошибка загрузки настроек:",
+            "settings_save_error": "Ошибка сохранения настроек:",
+            "unknown_model": "Неизвестная модель",
+            "vcclient_notification": "Уведомление VCClient",
+            "show_status_action": "Выполнено действие ShowStatus",
+            "previous_slot_action": "Выполнено действие PreviousSlot",
+            "slot_changed_log": "Слот изменен с {{from}} на {{to}}",
+            "notification_window_error": "Ошибка отображения окна уведомления:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "Показать статус",
+                    "description": "Показать статус"
+                },
+                "toggleWindow": {
+                    "name": "Переключить окно",
+                    "description": "Переключить видимость главного окна"
+                },
+                "nextSlot": {
+                    "name": "Следующий слот",
+                    "description": "Переключиться на следующий слот"
+                },
+                "previousSlot": {
+                    "name": "Предыдущий слот",
+                    "description": "Переключиться на предыдущий слот"
+                },
+                "toggleVoiceConversion": {
+                    "name": "Переключить преобразование голоса",
+                    "description": "Переключить запуск/остановку преобразования голоса"
+                },
+                "togglePassthrough": {
+                    "name": "Переключить прямой проход",
+                    "description": "Включить/отключить режим прямого прохода"
+                },
+                "increaseInputVolume": {
+                    "name": "Увеличить громкость входа",
+                    "description": "Увеличить громкость микрофона"
+                },
+                "decreaseInputVolume": {
+                    "name": "Уменьшить громкость входа",
+                    "description": "Уменьшить громкость микрофона"
+                },
+                "increaseOutputVolume": {
+                    "name": "Увеличить громкость выхода",
+                    "description": "Увеличить громкость выхода"
+                },
+                "decreaseOutputVolume": {
+                    "name": "Уменьшить громкость выхода",
+                    "description": "Уменьшить громкость выхода"
+                },
+                "increaseMonitorVolume": {
+                    "name": "Увеличить громкость монитора",
+                    "description": "Увеличить громкость монитора"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "Уменьшить громкость монитора",
+                    "description": "Уменьшить громкость монитора"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "Загрузка настроек...",
+            "enable_shortcuts": "Включить горячие клавиши",
+            "shortcut_settings": "Настройки горячих клавиш",
+            "press_key_placeholder": "Нажмите клавишу",
+            "click_to_edit": "Нажмите для редактирования",
+            "not_set": "Не установлено",
+            "enable_shortcut_checkbox": "• Пожалуйста, включите флажок горячих клавиш",
+            "example": "Пример: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "Авторство:",
+            "language": "Язык:",
+            "tags": "Теги:",
+            "terms_of_use": "Условия использования"
+        },
+        "performance": {
+            "input_buffer": "Входной буфер",
+            "output_buffer": "Выходной буфер",
+            "clear": "Очистить",
+            "input_buffer_label": "Входной буфер: {{time}}s",
+            "output_buffer_label": "Выходной буфер: {{time}}s",
+            "input_volume_level": "Уровень входа Level 0.000",
+            "output_volume_level": "Уровень выхода Level 0.000",
+            "input_buffer_initial": "Входной буфер: 0",
+            "output_buffer_initial": "Выходной буфер: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "Оценщик высоты тона",
+            "pitch_estimator": "Оценщик высоты тона",
+            "embedder_override_tooltip": "Переопределение встраивателя",
+            "embedder": "Встраиватель",
+            "embedder_default": "По умолчанию ({{embedder}})",
+            "embedder_change_title": "Изменить встраиватель",
+            "embedder_change_message": "Встраиватель - чрезвычайно важный компонент. Изменение может привести к неработоспособности преобразования голоса. Обычно изменение не требуется. Если вы не понимаете, что делаете, не изменяйте.",
+            "embedder_change_confirm": "Изменить",
+            "embedder_change_cancel": "Отмена"
+        },
+        "advanced_area": {
+            "log": "Журнал",
+            "advanced_settings": "Расширенные настройки",
+            "key_settings": "Настройки клавиш",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "Очистить данные сайта и перезапустить"
+        },
+        "dialog": {
+            "cancel": "Отмена",
+            "confirm": "Подтвердить"
+        },
+        "clear_site_data_confirm": {
+            "title": "Подтвердить очистку данных сайта",
+            "message": "Эта операция удалит все сохраненные данные сайта и завершит приложение. Пожалуйста, перезапустите приложение вручную после завершения. Хотите продолжить?"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Автозагрузка (Ctrl + r): {{status}}",
+        "on": "Вкл",
+        "off": "Выкл",
+        "latest": "Последние",
+        "items": "элементы",
+        "all_items": "Все элементы ({{count, number}} элементов)",
+        "total_items": "{{count, number}} элементов",
+        "loading": "Загрузка..."
+    }
+}

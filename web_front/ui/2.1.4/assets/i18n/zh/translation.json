@@ -1,0 +1,408 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "此软件使用由Project Beatrice授权的beatrice.lib创建。",
+            "beatrice_lib_license2": "此许可证仅允许在Beatricejs和BeatriceClient开发所需的合理范围内使用，以及在不修改的情况下分发和转让Beatricejs和BeatriceClient，无论实施者是谁。",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "免责声明",
+            "disclaimer_text": "本软件按\"现状\"提供，不提供任何明示或暗示的保证。在任何情况下，作者或版权持有人均不对因本软件或本软件的使用或其他处理而产生或相关的任何索赔、损害或其他责任承担责任，无论是合同行为、侵权行为还是其他原因。"
+        },
+        "app_info": {
+            "unknown_version": "未知",
+            "unknown_edition": "未知"
+        },
+        "error_messages": {
+            "error_occurred": "发生错误：",
+            "rvc_model_file_required": "需要RVC模型文件",
+            "beatrice_v2_zip_file_required": "需要Beatrice_v2的ZIP文件",
+            "not_supported_voice_changer_type": "不支持的变声器类型",
+            "unhandled_rejection_possible_cause": "[可能原因1] 当其他客户端正在运行时会发生错误。这是因为数据库等资源被独占处理。",
+            "use_app_root_context_error": "useAppRoot必须在AppRootProvider内使用",
+            "use_app_state_context_error": "useAppState必须在AppStateProvider内使用",
+            "use_hotkey_context_error": "useHotkey必须在HotkeyProvider内使用",
+            "server_device_init_failed": "[voiceChangerClient] 服务器设备初始化失败。请确认是否使用了无效值。也可能是PortAudio规范错误。在这种情况下，请使用其他设备。",
+            "audio_output_device_not_found": "[voiceChangerClient] 未找到音频输出设备 {{device}}。",
+            "audio_monitor_device_not_found": "[voiceChangerClient] 未找到音频监控设备 {{device}}。",
+            "set_sink_id_not_supported": "[voiceChangerClient] 不支持setSinkId：{{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Beatrice.js 仓库",
+            "vcclient_repo": "VCClient 仓库",
+            "screen_recorder": "屏幕录制",
+            "create_voice_model": "创建 Beatrice 语音模型",
+            "download_native_client": "下载原生客户端",
+            "url_open_failed": "Tauri 命令打开 URL 失败。回退到 window.open:"
+        },
+        "initialize": {
+            "button": "初始化",
+            "confirm_title": "确认初始化",
+            "confirm_message": "所有保存的数据将被删除。确定吗？",
+            "cancel": "取消",
+            "confirm": "初始化"
+        },
+        "model": {
+            "list_title": "模型列表",
+            "slots_in_use": "使用中的插槽",
+            "no_models": "尚未存储模型。请上传ZIP文件来存储模型。",
+            "upload": {
+                "button": "上传",
+                "tooltip": "上传模型"
+            },
+            "edit": {
+                "button": "编辑",
+                "tooltip": "编辑模型"
+            },
+            "not_selected": "未选择模型"
+        },
+        "model_editor": {
+            "title": "模型管理",
+            "slots_in_use": "使用中插槽：{{used}} / {{total}}",
+            "slot": "插槽 {{number}}",
+            "empty_slot": "空插槽",
+            "save": "保存",
+            "cancel": "取消",
+            "move_model": "移动模型",
+            "moving": "移动中...",
+            "move": "移动",
+            "download_model": "下载模型",
+            "download": "下载",
+            "delete_model": "删除模型",
+            "delete": "删除",
+            "upload_model": "上传模型",
+            "upload": "上传",
+            "move_here": "移动到此处",
+            "cancel_move": "取消移动",
+            "generate_onnx": "生成onnx",
+            "generate_onnx_confirm_message": "从此模型生成onnx吗？",
+            "generate_onnx_success": "onnx生成成功。",
+            "generate_onnx_failed": "onnx生成失败。",
+            "sample_model": "示例模型",
+            "select_slot": "输出插槽",
+            "icon_upload_success": "图标上传成功。",
+            "icon_upload_failed": "图标上传失败。",
+            "no_description": "无描述",
+            "download_failed": "模型下载失败",
+            "delete_confirm_message": "您想删除这个模型吗？",
+            "no_empty_slot": "没有可用的空槽位",
+            "name_update_failed": "模型名称更新失败",
+            "description_update_failed": "描述更新失败",
+            "downloading": "下载中..."
+        },
+        "model_upload": {
+            "title": "模型上传",
+            "slot_info": "上传模型。（插槽：{{slotNumber}}）",
+            "select_zip": "选择ZIP文件",
+            "upload_button": "上传",
+            "select_zip_error": "请选择ZIP文件",
+            "upload_error": "上传过程中发生错误",
+            "upload_complete_title": "上传完成",
+            "upload_complete_message": "模型上传完成。",
+            "select_model_file_error": "请选择模型文件",
+            "unsupported_voice_changer_type": "不支持的变声器类型",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2尚未支持",
+            "voice_changer_type": "变声器类型",
+            "select_model_file": "选择模型文件",
+            "select_index_file": "选择索引文件"
+        },
+        "sample_model_dialog": {
+            "title": "示例模型列表",
+            "slot_id": "插槽ID：{{slotIndex}}",
+            "no_samples": "没有示例模型。",
+            "download_button": "下载",
+            "downloading_title": "正在下载模型",
+            "downloading_wait_message": "请等待下载完成...",
+            "download_success": "示例模型下载完成。",
+            "download_timeout": "下载超时。",
+            "download_error": "示例模型下载失败。"
+        },
+        "settings_dialog": {
+            "title": "设置",
+            "close": "×",
+            "input_device": "输入设备（麦克风）",
+            "output_device": "输出设备（扬声器）",
+            "monitor_device": "监控输出设备（扬声器）",
+            "voice_changer_input_mode": "变声器输入模式",
+            "client_mode": "客户端模式",
+            "server_mode": "服务器模式",
+            "mode_switch_disabled": "变声中、录音中、直通中无法切换模式",
+            "audio_device_settings": "音频设备设置",
+            "gpu_settings": "GPU设置",
+            "unselected": "未选择",
+            "all_hosts": "所有主机",
+            "auto": "自动",
+            "wasapi_exclusive_mode": "启用WASAPI独占模式",
+            "noise_suppression": "噪声抑制",
+            "enable_echo_cancellation": "启用回声消除",
+            "enable_noise_suppression": "启用噪声抑制",
+            "enable_noise_suppression2": "启用噪声抑制2",
+            "noise_gate": "噪声门",
+            "enable_high_pass_filter": "启用高通滤波器",
+            "cutoff": "截止频率",
+            "enable_low_pass_filter": "启用低通滤波器",
+            "changing_device_settings": "正在更改设备设置..."
+        },
+        "waiting_dialog": {
+            "default_message": "请稍候..."
+        },
+        "voice": {
+            "character": "语音角色",
+            "no_description": "无描述",
+            "edit_tooltip": "编辑语音角色"
+        },
+        "voice_character_editor": {
+            "title": "编辑语音角色",
+            "name": "名称",
+            "description": "描述",
+            "select_icon": "选择图标",
+            "cancel": "取消",
+            "save": "保存",
+            "save_success": "保存成功",
+            "save_error": "保存失败"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "当前图标",
+            "new_icon": "新图标"
+        },
+        "controls": {
+            "title": "控制",
+            "start": "开始",
+            "stop": "停止",
+            "passthrough": "直通",
+            "passthrough_enable": "启用直通",
+            "passthrough_disable": "禁用直通",
+            "settings": "设置",
+            "input_type": "输入音频类型",
+            "microphone_input": "麦克风输入",
+            "microphone": "麦克风",
+            "file_input": "文件输入",
+            "file": "文件",
+            "screen_capture": "屏幕捕获",
+            "capture": "捕获",
+            "sample_input": "示例输入",
+            "sample": "示例",
+            "select_sample": "选择示例",
+            "test_play": "测试播放",
+            "send_sample": "发送",
+            "mic_device": "麦克风设备",
+            "drop_files": "点击或拖放文件到此处",
+            "supported_formats": "支持格式：MP3、WAV、OGG",
+            "echoback_enable": "启用回声",
+            "echoback_disable": "禁用回声",
+            "loop_enable": "启用循环播放",
+            "loop_disable": "禁用循环播放",
+            "stop_capture": "停止捕获",
+            "record": "录音",
+            "recording": "录音中",
+            "start_recording": "开始录音",
+            "stop_recording": "停止录音",
+            "volume_control": "音量控制",
+            "input_volume": "输入音量",
+            "input": "输入",
+            "output_volume": "输出音量",
+            "output1": "输出1",
+            "monitor_volume": "监控音量",
+            "output2": "输出2",
+            "voice_control": "语音控制",
+            "pitch_adjust": "音调调整",
+            "pitch": "音调",
+            "formant_adjust": "共振峰调整",
+            "formant": "共振峰",
+            "index_adjust": "索引调整",
+            "index": "索引",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "服务器模式",
+            "client_mode": "客户端模式",
+            "no_device": "无设备",
+            "device_not_selected_error": "未选择输入设备或输出设备。请在设置界面选择设备。",
+            "device_none": "无",
+            "device_file": "文件",
+            "device_system": "系统音频（仅Windows）",
+            "start_download_recording": "开始下载录音文件...",
+            "start_download_server_recording": "开始下载服务器录音文件...",
+            "download_recording_failed": "录音文件下载失败：",
+            "server_recording_failed": "服务器录音处理失败：",
+            "sample_voices_load_failed": "示例音频加载失败：",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "音频元素为空",
+            "sample_send_failed": "示例发送失败：",
+            "capture_error": "捕获错误：",
+            "capture_no_media_stream": "捕获失败。没有媒体流。",
+            "capture_no_audio_track": "捕获失败。没有音频轨道。",
+            "test_audio_play_failed": "测试音频播放失败：",
+            "chunksec_adjust": "块秒数",
+            "extraframe_adjust": "额外帧数"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "启用分析录音",
+            "record_for_analysis_description": "录音时在服务器端也进行录音，下载分析文件",
+            "realtime_description": "减小可提高实时性，但会增加CPU负载",
+            "recording_settings": "录音设置",
+            "sample_audio_button": "示例音频按钮",
+            "show_sample_audio_button": "显示示例音频按钮",
+            "sample_audio_button_description": "在输入音频类型选择中切换示例音频按钮的显示/隐藏。"
+        },
+        "advanced_settings_dialog": {
+            "title": "高级设置",
+            "realtime_analysis_settings": "实时分析设置",
+            "enable_realtime_io_analysis": "启用实时输入输出分析",
+            "enable_realtime_voice_processing_analysis": "启用实时语音处理分析",
+            "send_interval_seconds": "发送间隔（秒）"
+        },
+        "shortcut_settings": {
+            "title": "按键设置",
+            "cancel_tooltip": "取消（也可以用Escape键取消）",
+            "shortcuts_disabled_notice": "ℹ️ 快捷键设置中，快捷键暂时禁用",
+            "usage_instructions": {
+                "title": "使用方法",
+                "instruction1": "• 点击要设置的快捷键的\"编辑\"",
+                "instruction2": "• 按下要设置的键组合，将自动保存",
+                "instruction3": "• 重复键时会显示警告",
+                "instruction4": "• 用Escape键或×按钮取消"
+            },
+            "config_load_success": "加载设置：",
+            "config_load_failed": "设置加载失败：",
+            "config_save_success": "设置已保存",
+            "config_save_failed": "设置保存失败：",
+            "duplicate_key_error": "快捷键'{{shortcut}}'已被'{{displayName}}'使用",
+            "slot_change_skip": "可用插槽只有1个或更少，跳过插槽更改",
+            "slot_changed_to_next": "插槽从{{from}}更改为{{to}}",
+            "slot_changed_to_previous": "插槽从{{from}}更改为{{to}}",
+            "voice_conversion_stopped": "语音转换已停止",
+            "voice_conversion_started": "语音转换已开始",
+            "passthrough_disabled": "直通已禁用",
+            "passthrough_enabled": "直通已启用",
+            "input_volume_changed": "输入音量更改为{{volume}}",
+            "output_volume_changed": "输出音量更改为{{volume}}",
+            "monitor_volume_changed": "监控音量更改为{{volume}}",
+            "unknown_shortcut_action": "📢 未知快捷键操作：{{action}}",
+            "status": "状态",
+            "settings_load_error": "设置加载错误：",
+            "settings_save_error": "设置保存错误：",
+            "unknown_model": "未知模型",
+            "vcclient_notification": "VCClient通知",
+            "show_status_action": "ShowStatus操作已执行",
+            "previous_slot_action": "PreviousSlot操作已执行",
+            "slot_changed_log": "插槽从{{from}}更改为{{to}}",
+            "notification_window_error": "通知窗口显示错误：",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "显示状态",
+                    "description": "显示状态"
+                },
+                "toggleWindow": {
+                    "name": "切换窗口",
+                    "description": "切换主窗口的显示/隐藏"
+                },
+                "nextSlot": {
+                    "name": "下一个插槽",
+                    "description": "切换到下一个插槽"
+                },
+                "previousSlot": {
+                    "name": "上一个插槽",
+                    "description": "切换到上一个插槽"
+                },
+                "toggleVoiceConversion": {
+                    "name": "切换语音转换",
+                    "description": "切换语音转换的开始/停止"
+                },
+                "togglePassthrough": {
+                    "name": "切换直通",
+                    "description": "启用/禁用直通模式"
+                },
+                "increaseInputVolume": {
+                    "name": "增加输入音量",
+                    "description": "增加麦克风音量"
+                },
+                "decreaseInputVolume": {
+                    "name": "减少输入音量",
+                    "description": "减少麦克风音量"
+                },
+                "increaseOutputVolume": {
+                    "name": "增加输出音量",
+                    "description": "增加输出音量"
+                },
+                "decreaseOutputVolume": {
+                    "name": "减少输出音量",
+                    "description": "减少输出音量"
+                },
+                "increaseMonitorVolume": {
+                    "name": "增加监控音量",
+                    "description": "增加监控音量"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "减少监控音量",
+                    "description": "减少监控音量"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "正在加载设置...",
+            "enable_shortcuts": "启用快捷键",
+            "shortcut_settings": "快捷键设置",
+            "press_key_placeholder": "请按键",
+            "click_to_edit": "点击编辑",
+            "not_set": "未设置",
+            "enable_shortcut_checkbox": "• 请启用快捷键复选框",
+            "example": "示例：Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "制作者：",
+            "language": "语言：",
+            "tags": "标签：",
+            "terms_of_use": "使用条款"
+        },
+        "performance": {
+            "input_buffer": "输入缓冲",
+            "output_buffer": "输出缓冲",
+            "clear": "清除",
+            "input_buffer_label": "输入缓冲：{{time}}s",
+            "output_buffer_label": "输出缓冲：{{time}}s",
+            "input_volume_level": "输入音量 Level 0.000",
+            "output_volume_level": "输出音量 Level 0.000",
+            "input_buffer_initial": "输入缓冲：0",
+            "output_buffer_initial": "输出缓冲：0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "音调估计器",
+            "pitch_estimator": "音调估计器",
+            "embedder_override_tooltip": "嵌入器覆盖",
+            "embedder": "嵌入器",
+            "embedder_default": "默认（{{embedder}}）",
+            "embedder_change_title": "更改嵌入器",
+            "embedder_change_message": "嵌入器是极其重要的组件。更改可能导致语音转换无法工作。通常不需要更改。如果您不了解正在执行的操作，请不要更改。",
+            "embedder_change_confirm": "更改",
+            "embedder_change_cancel": "取消"
+        },
+        "advanced_area": {
+            "log": "日志",
+            "advanced_settings": "高级设置",
+            "key_settings": "按键设置",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "清除站点数据并重启"
+        },
+        "dialog": {
+            "cancel": "取消",
+            "confirm": "确认"
+        },
+        "clear_site_data_confirm": {
+            "title": "确认清除站点数据",
+            "message": "此操作将删除所有保存的站点数据并终止应用程序。请在应用程序终止后手动重新启动。是否继续？"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "自动加载 (Ctrl + r)：{{status}}",
+        "on": "开",
+        "off": "关",
+        "latest": "最新",
+        "items": "项",
+        "all_items": "全部项目（{{count, number}}项）",
+        "total_items": "{{count, number}}项",
+        "loading": "加载中..."
+    }
+}
+

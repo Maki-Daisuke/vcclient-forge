@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "Desconocido",
+            "unknown_edition": "Desconocido"
+        },
+        "error_messages": {
+            "error_occurred": "Ocurrió un error:",
+            "rvc_model_file_required": "Se requiere archivo de modelo RVC",
+            "beatrice_v2_zip_file_required": "Se requiere archivo ZIP de Beatrice_v2",
+            "not_supported_voice_changer_type": "Tipo de cambiador de voz no compatible",
+            "unhandled_rejection_possible_cause": "[Causa posible 1] Error cuando se ejecuta otro cliente. Esto se debe al procesamiento exclusivo de recursos como la base de datos.",
+            "use_app_root_context_error": "useAppRoot debe usarse dentro de AppRootProvider",
+            "use_app_state_context_error": "useAppState debe usarse dentro de AppStateProvider",
+            "use_hotkey_context_error": "useHotkey debe usarse dentro de HotkeyProvider",
+            "server_device_init_failed": "[voiceChangerClient] Falló la inicialización del dispositivo del servidor. Asegúrese de que no se estén usando valores inválidos. También puede ser un error de especificación de PortAudio. En este caso, use otro dispositivo.",
+            "audio_output_device_not_found": "[voiceChangerClient] No se encontró el dispositivo de salida de audio {{device}}.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] No se encontró el dispositivo de monitoreo de audio {{device}}.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId no es compatible: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Repositorio Beatrice.js",
+            "vcclient_repo": "Repositorio VCClient",
+            "screen_recorder": "Grabador de pantalla",
+            "create_voice_model": "Crear modelo de voz Beatrice",
+            "download_native_client": "Descargar cliente nativo",
+            "url_open_failed": "Error al abrir URL con comando Tauri. Recurriendo a window.open:"
+        },
+        "initialize": {
+            "button": "Inicializar",
+            "confirm_title": "Confirmación de Inicialización",
+            "confirm_message": "Todos los datos guardados serán eliminados. ¿Está seguro?",
+            "cancel": "Cancelar",
+            "confirm": "Inicializar"
+        },
+        "model": {
+            "list_title": "Lista de Modelos",
+            "slots_in_use": "Slots en uso",
+            "no_models": "No hay modelos guardados aún. Sube un archivo ZIP para guardar un modelo.",
+            "upload": {
+                "button": "Subir",
+                "tooltip": "Subir Modelo"
+            },
+            "edit": {
+                "button": "Editar",
+                "tooltip": "Editar Modelo"
+            },
+            "not_selected": "Modelo no seleccionado"
+        },
+        "model_editor": {
+            "title": "Gestión de Modelos",
+            "slots_in_use": "Slots en uso: {{used}} / {{total}}",
+            "slot": "Slot {{number}}",
+            "empty_slot": "Slot vacío",
+            "save": "Guardar",
+            "cancel": "Cancelar",
+            "move_model": "Mover Modelo",
+            "moving": "Moviendo...",
+            "move": "Mover",
+            "download_model": "Descargar Modelo",
+            "download": "Descargar",
+            "delete_model": "Eliminar Modelo",
+            "delete": "Eliminar",
+            "upload_model": "Subir Modelo",
+            "upload": "Subir",
+            "move_here": "Mover Aquí",
+            "cancel_move": "Cancelar Movimiento",
+            "generate_onnx": "Generar ONNX",
+            "generate_onnx_confirm_message": "¿Generar ONNX de este modelo?",
+            "generate_onnx_success": "ONNX generado exitosamente.",
+            "generate_onnx_failed": "Falló la generación de ONNX.",
+            "sample_model": "Modelo de Muestra",
+            "select_slot": "Slot de Salida",
+            "icon_upload_success": "Icono subido exitosamente.",
+            "icon_upload_failed": "Falló la subida del icono.",
+            "no_description": "Sin descripción",
+            "download_failed": "Error al descargar el modelo",
+            "delete_confirm_message": "¿Desea eliminar este modelo?",
+            "no_empty_slot": "No hay ranuras vacías disponibles",
+            "name_update_failed": "Error al actualizar el nombre del modelo",
+            "description_update_failed": "Error al actualizar la descripción",
+            "downloading": "Descargando..."
+        },
+        "model_upload": {
+            "title": "Subir Modelo",
+            "slot_info": "Subiendo modelo. (Slot: {{slotNumber}})",
+            "select_zip": "Seleccionar archivo ZIP",
+            "upload_button": "Subir",
+            "select_zip_error": "Por favor seleccione un archivo ZIP",
+            "upload_error": "Error al subir",
+            "upload_complete_title": "Subida completada",
+            "upload_complete_message": "El modelo se subió exitosamente.",
+            "select_model_file_error": "Por favor seleccione un archivo de modelo",
+            "unsupported_voice_changer_type": "Tipo de cambiador de voz no compatible",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2 aún no es compatible",
+            "voice_changer_type": "Tipo de cambiador de voz",
+            "select_model_file": "Seleccionar archivo de modelo",
+            "select_index_file": "Seleccionar archivo de índice"
+        },
+        "sample_model_dialog": {
+            "title": "Lista de modelos de muestra",
+            "slot_id": "ID de slot: {{slotIndex}}",
+            "no_samples": "No hay modelos de muestra.",
+            "download_button": "Descargar",
+            "downloading_title": "Descargando modelo",
+            "downloading_wait_message": "Por favor espere a que se complete la descarga...",
+            "download_success": "Descarga del modelo de muestra completada.",
+            "download_timeout": "Tiempo de descarga agotado.",
+            "download_error": "Falló la descarga del modelo de muestra."
+        },
+        "settings_dialog": {
+            "title": "Configuración",
+            "close": "×",
+            "input_device": "Dispositivo de entrada (Micrófono)",
+            "output_device": "Dispositivo de salida (Altavoz)",
+            "monitor_device": "Dispositivo de salida de monitoreo (Altavoz)",
+            "voice_changer_input_mode": "Modo de entrada del cambiador de voz",
+            "client_mode": "Modo cliente",
+            "server_mode": "Modo servidor",
+            "mode_switch_disabled": "No se puede cambiar el modo durante el cambio de voz, grabación o passthrough",
+            "audio_device_settings": "Configuración de dispositivos de audio",
+            "gpu_settings": "Configuración de GPU",
+            "unselected": "No seleccionado",
+            "all_hosts": "Todos los hosts",
+            "auto": "Automático",
+            "wasapi_exclusive_mode": "Habilitar modo exclusivo WASAPI",
+            "noise_suppression": "Supresión de ruido",
+            "enable_echo_cancellation": "Habilitar cancelación de eco",
+            "enable_noise_suppression": "Habilitar supresión de ruido",
+            "enable_noise_suppression2": "Habilitar supresión de ruido 2",
+            "noise_gate": "Puerta de ruido",
+            "enable_high_pass_filter": "Habilitar filtro pasa altos",
+            "cutoff": "Frecuencia de corte",
+            "enable_low_pass_filter": "Habilitar filtro pasa bajos",
+            "changing_device_settings": "Cambiando configuración de dispositivo..."
+        },
+        "waiting_dialog": {
+            "default_message": "Por favor espere..."
+        },
+        "voice": {
+            "character": "Personaje de Voz",
+            "no_description": "Sin descripción disponible",
+            "edit_tooltip": "Editar Personaje de Voz"
+        },
+        "voice_character_editor": {
+            "title": "Editar Personaje de Voz",
+            "name": "Nombre",
+            "description": "Descripción",
+            "select_icon": "Seleccionar icono",
+            "cancel": "Cancelar",
+            "save": "Guardar",
+            "save_success": "Guardado",
+            "save_error": "Error al guardar"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "Icono actual",
+            "new_icon": "Nuevo icono"
+        },
+        "controls": {
+            "title": "Controles",
+            "start": "Iniciar",
+            "stop": "Detener",
+            "passthrough": "Passthrough",
+            "passthrough_enable": "Habilitar Passthrough",
+            "passthrough_disable": "Deshabilitar Passthrough",
+            "settings": "Configuración",
+            "input_type": "Tipo de Entrada de Audio",
+            "microphone_input": "Entrada de Micrófono",
+            "microphone": "Micrófono",
+            "file_input": "Entrada de Archivo",
+            "file": "Archivo",
+            "screen_capture": "Captura de Pantalla",
+            "capture": "Capturar",
+            "sample_input": "Entrada de muestra",
+            "sample": "Muestra",
+            "select_sample": "Seleccionar muestra",
+            "test_play": "Reproducción de prueba",
+            "send_sample": "Enviar",
+            "mic_device": "Dispositivo de Micrófono",
+            "drop_files": "Haga clic o arrastre archivos aquí",
+            "supported_formats": "Formatos soportados: MP3, WAV, OGG",
+            "echoback_enable": "Habilitar Eco",
+            "echoback_disable": "Deshabilitar Eco",
+            "loop_enable": "Habilitar bucle",
+            "loop_disable": "Deshabilitar bucle",
+            "stop_capture": "Detener Captura",
+            "record": "Grabar",
+            "recording": "Grabando",
+            "start_recording": "Iniciar Grabación",
+            "stop_recording": "Detener Grabación",
+            "volume_control": "Control de Volumen",
+            "input_volume": "Volumen de Entrada",
+            "input": "Entrada",
+            "output_volume": "Volumen de Salida",
+            "output1": "Salida 1",
+            "monitor_volume": "Volumen de Monitor",
+            "output2": "Salida 2",
+            "voice_control": "Control de Voz",
+            "pitch_adjust": "Ajuste de Tono",
+            "pitch": "Tono",
+            "formant_adjust": "Ajuste de Formante",
+            "formant": "Formante",
+            "index_adjust": "Ajuste de índice",
+            "index": "Índice",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "Modo servidor",
+            "client_mode": "Modo cliente",
+            "no_device": "Sin dispositivo",
+            "device_not_selected_error": "Dispositivo de entrada o salida no seleccionado. Por favor seleccione un dispositivo en la configuración.",
+            "device_none": "Ninguno",
+            "device_file": "Archivo",
+            "device_system": "Sonido del sistema (solo Windows)",
+            "start_download_recording": "Iniciando descarga del archivo de grabación...",
+            "start_download_server_recording": "Iniciando descarga del archivo de grabación del servidor...",
+            "download_recording_failed": "Falló la descarga del archivo de grabación:",
+            "server_recording_failed": "Falló el procesamiento de grabación del servidor:",
+            "sample_voices_load_failed": "Falló la carga de voces de muestra:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "El elemento de audio es nulo",
+            "sample_send_failed": "Falló el envío de muestra:",
+            "capture_error": "Error de captura:",
+            "capture_no_media_stream": "Falló la captura. Sin flujo de medios.",
+            "capture_no_audio_track": "Falló la captura. Sin pista de audio.",
+            "test_audio_play_failed": "Falló la reproducción de prueba de audio:",
+            "chunksec_adjust": "Ajuste de segundos de chunk",
+            "extraframe_adjust": "Ajuste de frame extra"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "Habilitar grabación para análisis",
+            "record_for_analysis_description": "También grabar del lado del servidor durante la grabación y descargar archivos de análisis",
+            "realtime_description": "Valores más pequeños mejoran el rendimiento en tiempo real pero aumentan la carga de CPU",
+            "recording_settings": "Configuración de grabación",
+            "sample_audio_button": "Botón de audio de muestra",
+            "show_sample_audio_button": "Mostrar botón de audio de muestra",
+            "sample_audio_button_description": "Alternar la visualización del botón de audio de muestra en la selección de tipo de entrada de audio."
+        },
+        "advanced_settings_dialog": {
+            "title": "Configuración avanzada",
+            "realtime_analysis_settings": "Configuración de análisis en tiempo real",
+            "enable_realtime_io_analysis": "Habilitar análisis de entrada/salida en tiempo real",
+            "enable_realtime_voice_processing_analysis": "Habilitar análisis de procesamiento de voz en tiempo real",
+            "send_interval_seconds": "Intervalo de envío (segundos)"
+        },
+        "shortcut_settings": {
+            "title": "Configuración de teclas",
+            "cancel_tooltip": "Cancelar (También posible con tecla Escape)",
+            "shortcuts_disabled_notice": "ℹ️ Los atajos están temporalmente deshabilitados durante la configuración",
+            "usage_instructions": {
+                "title": "Instrucciones de uso",
+                "instruction1": "• Haga clic en \"Editar\" para el atajo que desea configurar",
+                "instruction2": "• Presione la combinación de teclas que desea configurar y se guardará automáticamente",
+                "instruction3": "• Se mostrará una advertencia para teclas duplicadas",
+                "instruction4": "• Cancelar con tecla Escape o botón ×"
+            },
+            "config_load_success": "Configuración cargada:",
+            "config_load_failed": "Falló la carga de configuración:",
+            "config_save_success": "Configuración guardada",
+            "config_save_failed": "Falló el guardado de configuración:",
+            "duplicate_key_error": "El atajo '{{shortcut}}' ya está siendo usado por '{{displayName}}'",
+            "slot_change_skip": "Saltando cambio de slot ya que los slots disponibles son 1 o menos",
+            "slot_changed_to_next": "Slot cambiado de {{from}} a {{to}}",
+            "slot_changed_to_previous": "Slot cambiado de {{from}} a {{to}}",
+            "voice_conversion_stopped": "Conversión de voz detenida",
+            "voice_conversion_started": "Conversión de voz iniciada",
+            "passthrough_disabled": "Passthrough deshabilitado",
+            "passthrough_enabled": "Passthrough habilitado",
+            "input_volume_changed": "Volumen de entrada cambiado a {{volume}}",
+            "output_volume_changed": "Volumen de salida cambiado a {{volume}}",
+            "monitor_volume_changed": "Volumen de monitor cambiado a {{volume}}",
+            "unknown_shortcut_action": "📢 Acción de atajo desconocida: {{action}}",
+            "status": "Estado",
+            "settings_load_error": "Error al cargar configuración:",
+            "settings_save_error": "Error al guardar configuración:",
+            "unknown_model": "Modelo desconocido",
+            "vcclient_notification": "Notificación VCClient",
+            "show_status_action": "Acción ShowStatus ejecutada",
+            "previous_slot_action": "Acción PreviousSlot ejecutada",
+            "slot_changed_log": "Slot cambiado de {{from}} a {{to}}",
+            "notification_window_error": "Error al mostrar ventana de notificación:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "Mostrar estado",
+                    "description": "Mostrar estado"
+                },
+                "toggleWindow": {
+                    "name": "Alternar ventana",
+                    "description": "Alternar visibilidad de la ventana principal"
+                },
+                "nextSlot": {
+                    "name": "Siguiente slot",
+                    "description": "Cambiar al siguiente slot"
+                },
+                "previousSlot": {
+                    "name": "Slot anterior",
+                    "description": "Cambiar al slot anterior"
+                },
+                "toggleVoiceConversion": {
+                    "name": "Alternar conversión de voz",
+                    "description": "Alternar inicio/parada de conversión de voz"
+                },
+                "togglePassthrough": {
+                    "name": "Alternar passthrough",
+                    "description": "Activar/desactivar modo passthrough"
+                },
+                "increaseInputVolume": {
+                    "name": "Aumentar volumen de entrada",
+                    "description": "Aumentar volumen del micrófono"
+                },
+                "decreaseInputVolume": {
+                    "name": "Disminuir volumen de entrada",
+                    "description": "Disminuir volumen del micrófono"
+                },
+                "increaseOutputVolume": {
+                    "name": "Aumentar volumen de salida",
+                    "description": "Aumentar volumen de salida"
+                },
+                "decreaseOutputVolume": {
+                    "name": "Disminuir volumen de salida",
+                    "description": "Disminuir volumen de salida"
+                },
+                "increaseMonitorVolume": {
+                    "name": "Aumentar volumen de monitor",
+                    "description": "Aumentar volumen de monitor"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "Disminuir volumen de monitor",
+                    "description": "Disminuir volumen de monitor"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "Cargando configuración...",
+            "enable_shortcuts": "Habilitar atajos",
+            "shortcut_settings": "Configuración de atajos",
+            "press_key_placeholder": "Presionar tecla",
+            "click_to_edit": "Hacer clic para editar",
+            "not_set": "No configurado",
+            "enable_shortcut_checkbox": "• Por favor habilite la casilla de atajos",
+            "example": "Ejemplo: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "Crédito:",
+            "language": "Idioma:",
+            "tags": "Etiquetas:",
+            "terms_of_use": "Términos de uso"
+        },
+        "performance": {
+            "input_buffer": "Buffer de entrada",
+            "output_buffer": "Buffer de salida",
+            "clear": "Limpiar",
+            "input_buffer_label": "Buffer de entrada: {{time}}s",
+            "output_buffer_label": "Buffer de salida: {{time}}s",
+            "input_volume_level": "Nivel de volumen de entrada Level 0.000",
+            "output_volume_level": "Nivel de volumen de salida Level 0.000",
+            "input_buffer_initial": "Buffer de entrada: 0",
+            "output_buffer_initial": "Buffer de salida: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "Estimador de tono",
+            "pitch_estimator": "Estimador de tono",
+            "embedder_override_tooltip": "Anulación de embedder",
+            "embedder": "Embedder",
+            "embedder_default": "Por defecto ({{embedder}})",
+            "embedder_change_title": "Cambiar embedder",
+            "embedder_change_message": "El embedder es un componente extremadamente importante. Cambiarlo puede causar mal funcionamiento de la conversión de voz. Normalmente no se requiere cambio. Si no entiendes lo que estás haciendo, no cambies.",
+            "embedder_change_confirm": "Cambiar",
+            "embedder_change_cancel": "Cancelar"
+        },
+        "advanced_area": {
+            "log": "Registro",
+            "advanced_settings": "Configuración avanzada",
+            "key_settings": "Configuración de teclas",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "Limpiar datos del sitio y reiniciar"
+        },
+        "dialog": {
+            "cancel": "Cancelar",
+            "confirm": "Confirmar"
+        },
+        "clear_site_data_confirm": {
+            "title": "Confirmar limpieza de datos del sitio",
+            "message": "Esta operación eliminará todos los datos guardados del sitio y terminará la aplicación. Por favor reinicie la aplicación manualmente después de que termine. ¿Desea continuar?"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Carga automática (Ctrl + r): {{status}}",
+        "on": "Activado",
+        "off": "Desactivado",
+        "latest": "Últimos",
+        "items": "elementos",
+        "all_items": "Todos los elementos ({{count, number}} elementos)",
+        "total_items": "{{count, number}} elementos",
+        "loading": "Cargando..."
+    }
+}

@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "Άγνωστο",
+            "unknown_edition": "Άγνωστο"
+        },
+        "error_messages": {
+            "error_occurred": "Προέκυψε σφάλμα:",
+            "rvc_model_file_required": "Απαιτείται αρχείο μοντέλου RVC",
+            "beatrice_v2_zip_file_required": "Απαιτείται αρχείο ZIP του Beatrice_v2",
+            "not_supported_voice_changer_type": "Μη υποστηριζόμενος τύπος αλλαγής φωνής",
+            "unhandled_rejection_possible_cause": "[Πιθανή αιτία 1] Σφάλμα όταν εκτελείται άλλος πελάτης. Αυτό οφείλεται στην αποκλειστική επεξεργασία πόρων όπως η βάση δεδομένων.",
+            "use_app_root_context_error": "Το useAppRoot πρέπει να χρησιμοποιείται μέσα στο AppRootProvider",
+            "use_app_state_context_error": "Το useAppState πρέπει να χρησιμοποιείται μέσα στο AppStateProvider",
+            "use_hotkey_context_error": "Το useHotkey πρέπει να χρησιμοποιείται μέσα στο HotkeyProvider",
+            "server_device_init_failed": "[voiceChangerClient] Η αρχικοποίηση της συσκευής διακομιστή απέτυχε. Βεβαιωθείτε ότι δεν χρησιμοποιούνται μη έγκυρες τιμές. Μπορεί επίσης να είναι σφάλμα προδιαγραφής PortAudio. Σε αυτή την περίπτωση, χρησιμοποιήστε άλλη συσκευή.",
+            "audio_output_device_not_found": "[voiceChangerClient] Η συσκευή εξόδου ήχου {{device}} δεν βρέθηκε.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] Η συσκευή παρακολούθησης ήχου {{device}} δεν βρέθηκε.",
+            "set_sink_id_not_supported": "[voiceChangerClient] Το setSinkId δεν υποστηρίζεται: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Αποθετήριο Beatrice.js",
+            "vcclient_repo": "Αποθετήριο VCClient",
+            "screen_recorder": "Εγγραφή Οθόνης",
+            "create_voice_model": "Δημιουργία Μοντέλου Φωνής Beatrice",
+            "download_native_client": "Λήψη εγγενούς πελάτη",
+            "url_open_failed": "Αποτυχία ανοίγματος URL με εντολή Tauri. Επιστροφή στο window.open:"
+        },
+        "initialize": {
+            "button": "Αρχικοποίηση",
+            "confirm_title": "Επιβεβαίωση Αρχικοποίησης",
+            "confirm_message": "Όλα τα αποθηκευμένα δεδομένα θα διαγραφούν. Είστε σίγουροι;",
+            "cancel": "Ακύρωση",
+            "confirm": "Αρχικοποίηση"
+        },
+        "model": {
+            "list_title": "Λίστα Μοντέλων",
+            "slots_in_use": "Θέσεις σε χρήση",
+            "no_models": "Δεν έχουν αποθηκευτεί μοντέλα ακόμα. Ανεβάστε ένα αρχείο ZIP για να αποθηκεύσετε ένα μοντέλο.",
+            "upload": {
+                "button": "Μεταφόρτωση",
+                "tooltip": "Μεταφόρτωση Μοντέλου"
+            },
+            "edit": {
+                "button": "Επεξεργασία",
+                "tooltip": "Επεξεργασία Μοντέλου"
+            },
+            "not_selected": "Δεν έχει επιλεγεί μοντέλο"
+        },
+        "model_editor": {
+            "title": "Διαχείριση Μοντέλων",
+            "slots_in_use": "Υποδοχές σε χρήση: {{used}} / {{total}}",
+            "slot": "Υποδοχή {{number}}",
+            "empty_slot": "Κενή υποδοχή",
+            "save": "Αποθήκευση",
+            "cancel": "Ακύρωση",
+            "move_model": "Μετακίνηση Μοντέλου",
+            "moving": "Μετακίνηση...",
+            "move": "Μετακίνηση",
+            "download_model": "Λήψη Μοντέλου",
+            "download": "Λήψη",
+            "delete_model": "Διαγραφή Μοντέλου",
+            "delete": "Διαγραφή",
+            "upload_model": "Μεταφόρτωση Μοντέλου",
+            "upload": "Μεταφόρτωση",
+            "move_here": "Μετακίνηση Εδώ",
+            "cancel_move": "Ακύρωση Μετακίνησης",
+            "generate_onnx": "Δημιουργία ONNX",
+            "generate_onnx_confirm_message": "Δημιουργία ONNX από αυτό το μοντέλο;",
+            "generate_onnx_success": "Επιτυχής δημιουργία ONNX.",
+            "generate_onnx_failed": "Αποτυχία δημιουργίας ONNX.",
+            "sample_model": "Δείγμα Μοντέλου",
+            "select_slot": "Θέση Εξόδου",
+            "icon_upload_success": "Επιτυχής μεταφόρτωση εικονιδίου.",
+            "icon_upload_failed": "Αποτυχία μεταφόρτωσης εικονιδίου.",
+            "no_description": "Δεν υπάρχει περιγραφή",
+            "download_failed": "Η λήψη του μοντέλου απέτυχε",
+            "delete_confirm_message": "Θέλετε να διαγράψετε αυτό το μοντέλο;",
+            "no_empty_slot": "Δεν υπάρχουν διαθέσιμες κενές υποδοχές",
+            "name_update_failed": "Η ενημέρωση του ονόματος του μοντέλου απέτυχε",
+            "description_update_failed": "Η ενημέρωση της περιγραφής απέτυχε",
+            "downloading": "Γίνεται λήψη..."
+        },
+        "model_upload": {
+            "title": "Μεταφόρτωση Μοντέλου",
+            "slot_info": "Μεταφόρτωση μοντέλου. (Θέση: {{slotNumber}})",
+            "select_zip": "Επιλογή αρχείου ZIP",
+            "upload_button": "Μεταφόρτωση",
+            "select_zip_error": "Παρακαλώ επιλέξτε ένα αρχείο ZIP",
+            "upload_error": "Σφάλμα κατά τη μεταφόρτωση",
+            "upload_complete_title": "Μεταφόρτωση ολοκληρώθηκε",
+            "upload_complete_message": "Το μοντέλο μεταφορτώθηκε επιτυχώς.",
+            "select_model_file_error": "Παρακαλώ επιλέξτε αρχείο μοντέλου",
+            "unsupported_voice_changer_type": "Μη υποστηριζόμενος τύπος αλλαγής φωνής",
+            "beatrice_v2_not_supported_yet": "Το Beatrice_v2 δεν υποστηρίζεται ακόμα",
+            "voice_changer_type": "Τύπος αλλαγής φωνής",
+            "select_model_file": "Επιλογή αρχείου μοντέλου",
+            "select_index_file": "Επιλογή αρχείου ευρετηρίου"
+        },
+        "sample_model_dialog": {
+            "title": "Λίστα δειγμάτων μοντέλων",
+            "slot_id": "ID υποδοχής: {{slotIndex}}",
+            "no_samples": "Δεν υπάρχουν δείγματα μοντέλων.",
+            "download_button": "Λήψη",
+            "downloading_title": "Λήψη μοντέλου",
+            "downloading_wait_message": "Παρακαλώ περιμένετε να ολοκληρωθεί η λήψη...",
+            "download_success": "Η λήψη του δείγματος μοντέλου ολοκληρώθηκε.",
+            "download_timeout": "Λήξη χρονικού ορίου λήψης.",
+            "download_error": "Η λήψη του δείγματος μοντέλου απέτυχε."
+        },
+        "settings_dialog": {
+            "title": "Ρυθμίσεις",
+            "close": "×",
+            "input_device": "Συσκευή εισόδου (Μικρόφωνο)",
+            "output_device": "Συσκευή εξόδου (Ηχείο)",
+            "monitor_device": "Συσκευή εξόδου παρακολούθησης (Ηχείο)",
+            "voice_changer_input_mode": "Λειτουργία εισόδου αλλαγής φωνής",
+            "client_mode": "Λειτουργία πελάτη",
+            "server_mode": "Λειτουργία διακομιστή",
+            "mode_switch_disabled": "Η λειτουργία δεν μπορεί να αλλάξει κατά την αλλαγή φωνής, εγγραφή ή διέλευση",
+            "audio_device_settings": "Ρυθμίσεις συσκευής ήχου",
+            "gpu_settings": "Ρυθμίσεις GPU",
+            "unselected": "Μη επιλεγμένο",
+            "all_hosts": "Όλοι οι κεντρικοί υπολογιστές",
+            "auto": "Αυτόματο",
+            "wasapi_exclusive_mode": "Ενεργοποίηση αποκλειστικής λειτουργίας WASAPI",
+            "noise_suppression": "Καταστολή θορύβου",
+            "enable_echo_cancellation": "Ενεργοποίηση ακύρωσης ηχούς",
+            "enable_noise_suppression": "Ενεργοποίηση καταστολής θορύβου",
+            "enable_noise_suppression2": "Ενεργοποίηση καταστολής θορύβου 2",
+            "noise_gate": "Πύλη θορύβου",
+            "enable_high_pass_filter": "Ενεργοποίηση φίλτρου υψηλών συχνοτήτων",
+            "cutoff": "Συχνότητα αποκοπής",
+            "enable_low_pass_filter": "Ενεργοποίηση φίλτρου χαμηλών συχνοτήτων",
+            "changing_device_settings": "Αλλαγή ρυθμίσεων συσκευής..."
+        },
+        "waiting_dialog": {
+            "default_message": "Παρακαλώ περιμένετε..."
+        },
+        "voice": {
+            "character": "Χαρακτήρας Φωνής",
+            "no_description": "Δεν υπάρχει διαθέσιμη περιγραφή",
+            "edit_tooltip": "Επεξεργασία Χαρακτήρα Φωνής"
+        },
+        "voice_character_editor": {
+            "title": "Επεξεργασία Χαρακτήρα Φωνής",
+            "name": "Όνομα",
+            "description": "Περιγραφή",
+            "select_icon": "Επιλογή εικονιδίου",
+            "cancel": "Ακύρωση",
+            "save": "Αποθήκευση",
+            "save_success": "Αποθηκεύτηκε",
+            "save_error": "Αποτυχία αποθήκευσης"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "Τρέχον εικονίδιο",
+            "new_icon": "Νέο εικονίδιο"
+        },
+        "controls": {
+            "title": "Έλεγχοι",
+            "start": "Έναρξη",
+            "stop": "Διακοπή",
+            "passthrough": "Διέλευση",
+            "passthrough_enable": "Ενεργοποίηση Διέλευσης",
+            "passthrough_disable": "Απενεργοποίηση Διέλευσης",
+            "settings": "Ρυθμίσεις",
+            "input_type": "Τύπος Εισόδου Ήχου",
+            "microphone_input": "Είσοδος Μικροφώνου",
+            "microphone": "Μικρόφωνο",
+            "file_input": "Είσοδος Αρχείου",
+            "file": "Αρχείο",
+            "screen_capture": "Καταγραφή Οθόνης",
+            "capture": "Καταγραφή",
+            "sample_input": "Είσοδος δείγματος",
+            "sample": "Δείγμα",
+            "select_sample": "Επιλογή δείγματος",
+            "test_play": "Δοκιμαστική αναπαραγωγή",
+            "send_sample": "Αποστολή",
+            "mic_device": "Συσκευή Μικροφώνου",
+            "drop_files": "Κάντε κλικ ή σύρετε αρχεία εδώ",
+            "supported_formats": "Υποστηριζόμενες μορφές: MP3, WAV, OGG",
+            "echoback_enable": "Ενεργοποίηση Αντήχησης",
+            "echoback_disable": "Απενεργοποίηση Αντήχησης",
+            "loop_enable": "Ενεργοποίηση βρόχου",
+            "loop_disable": "Απενεργοποίηση βρόχου",
+            "stop_capture": "Διακοπή Καταγραφής",
+            "record": "Εγγραφή",
+            "recording": "Γίνεται Εγγραφή",
+            "start_recording": "Έναρξη Εγγραφής",
+            "stop_recording": "Διακοπή Εγγραφής",
+            "volume_control": "Έλεγχος Έντασης",
+            "input_volume": "Ένταση Εισόδου",
+            "input": "Είσοδος",
+            "output_volume": "Ένταση Εξόδου",
+            "output1": "Έξοδος 1",
+            "monitor_volume": "Ένταση Παρακολούθησης",
+            "output2": "Έξοδος 2",
+            "voice_control": "Έλεγχος Φωνής",
+            "pitch_adjust": "Ρύθμιση Τόνου",
+            "pitch": "Τόνος",
+            "formant_adjust": "Ρύθμιση Διαμορφωτή",
+            "formant": "Διαμορφωτής",
+            "index_adjust": "Ρύθμιση ευρετηρίου",
+            "index": "Ευρετήριο",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "Λειτουργία διακομιστή",
+            "client_mode": "Λειτουργία πελάτη",
+            "no_device": "Καμία συσκευή",
+            "device_not_selected_error": "Δεν έχει επιλεγεί συσκευή εισόδου ή εξόδου. Παρακαλώ επιλέξτε συσκευή από τις ρυθμίσεις.",
+            "device_none": "Καμία",
+            "device_file": "Αρχείο",
+            "device_system": "Ήχος συστήματος (μόνο Windows)",
+            "start_download_recording": "Έναρξη λήψης αρχείου εγγραφής...",
+            "start_download_server_recording": "Έναρξη λήψης αρχείου εγγραφής διακομιστή...",
+            "download_recording_failed": "Αποτυχία λήψης αρχείου εγγραφής:",
+            "server_recording_failed": "Αποτυχία επεξεργασίας εγγραφής διακομιστή:",
+            "sample_voices_load_failed": "Αποτυχία φόρτωσης δειγμάτων φωνών:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "Το στοιχείο ήχου είναι κενό",
+            "sample_send_failed": "Αποτυχία αποστολής δείγματος:",
+            "capture_error": "Σφάλμα καταγραφής:",
+            "capture_no_media_stream": "Αποτυχία καταγραφής. Δεν υπάρχει ροή μέσων.",
+            "capture_no_audio_track": "Αποτυχία καταγραφής. Δεν υπάρχει κομμάτι ήχου.",
+            "test_audio_play_failed": "Αποτυχία δοκιμαστικής αναπαραγωγής ήχου:",
+            "chunksec_adjust": "Ρύθμιση δευτερολέπτων τμήματος",
+            "extraframe_adjust": "Ρύθμιση επιπλέον καρέ"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "Ενεργοποίηση εγγραφής για ανάλυση",
+            "record_for_analysis_description": "Εγγραφή και από την πλευρά του διακομιστή κατά την εγγραφή και λήψη αρχείων ανάλυσης",
+            "realtime_description": "Μικρότερες τιμές αυξάνουν την απόδοση σε πραγματικό χρόνο αλλά αυξάνουν το φορτίο CPU",
+            "recording_settings": "Ρυθμίσεις εγγραφής",
+            "sample_audio_button": "Κουμπί δείγματος ήχου",
+            "show_sample_audio_button": "Εμφάνιση κουμπιού δείγματος ήχου",
+            "sample_audio_button_description": "Αλλάζει την εμφάνιση του κουμπιού δείγματος ήχου στην επιλογή τύπου εισόδου ήχου."
+        },
+        "advanced_settings_dialog": {
+            "title": "Προηγμένες ρυθμίσεις",
+            "realtime_analysis_settings": "Ρυθμίσεις ανάλυσης πραγματικού χρόνου",
+            "enable_realtime_io_analysis": "Ενεργοποίηση ανάλυσης εισόδου/εξόδου πραγματικού χρόνου",
+            "enable_realtime_voice_processing_analysis": "Ενεργοποίηση ανάλυσης επεξεργασίας φωνής πραγματικού χρόνου",
+            "send_interval_seconds": "Διάστημα αποστολής (δευτερόλεπτα)"
+        },
+        "shortcut_settings": {
+            "title": "Ρυθμίσεις πλήκτρων",
+            "cancel_tooltip": "Ακύρωση (Επίσης δυνατό με πλήκτρο Escape)",
+            "shortcuts_disabled_notice": "ℹ️ Τα πλήκτρα συντόμευσης είναι προσωρινά απενεργοποιημένα κατά τη ρύθμιση",
+            "usage_instructions": {
+                "title": "Οδηγίες χρήσης",
+                "instruction1": "• Κάντε κλικ στο \"Επεξεργασία\" για τη συντόμευση που θέλετε να ορίσετε",
+                "instruction2": "• Πατήστε τον συνδυασμό πλήκτρων που θέλετε να ορίσετε και θα αποθηκευτεί αυτόματα",
+                "instruction3": "• Θα εμφανιστεί προειδοποίηση για διπλότυπα πλήκτρα",
+                "instruction4": "• Ακύρωση με πλήκτρο Escape ή κουμπί ×"
+            },
+            "config_load_success": "Ρυθμίσεις φορτώθηκαν:",
+            "config_load_failed": "Αποτυχία φόρτωσης ρυθμίσεων:",
+            "config_save_success": "Ρυθμίσεις αποθηκεύτηκαν",
+            "config_save_failed": "Αποτυχία αποθήκευσης ρυθμίσεων:",
+            "duplicate_key_error": "Η συντόμευση '{{shortcut}}' χρησιμοποιείται ήδη από το '{{displayName}}'",
+            "slot_change_skip": "Παράλειψη αλλαγής υποδοχής καθώς οι διαθέσιμες υποδοχές είναι 1 ή λιγότερες",
+            "slot_changed_to_next": "Η υποδοχή άλλαξε από {{from}} σε {{to}}",
+            "slot_changed_to_previous": "Η υποδοχή άλλαξε από {{from}} σε {{to}}",
+            "voice_conversion_stopped": "Η μετατροπή φωνής διακόπηκε",
+            "voice_conversion_started": "Η μετατροπή φωνής ξεκίνησε",
+            "passthrough_disabled": "Η διέλευση απενεργοποιήθηκε",
+            "passthrough_enabled": "Η διέλευση ενεργοποιήθηκε",
+            "input_volume_changed": "Η ένταση εισόδου άλλαξε σε {{volume}}",
+            "output_volume_changed": "Η ένταση εξόδου άλλαξε σε {{volume}}",
+            "monitor_volume_changed": "Η ένταση παρακολούθησης άλλαξε σε {{volume}}",
+            "unknown_shortcut_action": "📢 Άγνωστη ενέργεια συντόμευσης: {{action}}",
+            "status": "Κατάσταση",
+            "settings_load_error": "Σφάλμα φόρτωσης ρυθμίσεων:",
+            "settings_save_error": "Σφάλμα αποθήκευσης ρυθμίσεων:",
+            "unknown_model": "Άγνωστο μοντέλο",
+            "vcclient_notification": "Ειδοποίηση VCClient",
+            "show_status_action": "Εκτελέστηκε ενέργεια ShowStatus",
+            "previous_slot_action": "Εκτελέστηκε ενέργεια PreviousSlot",
+            "slot_changed_log": "Η υποδοχή άλλαξε από {{from}} σε {{to}}",
+            "notification_window_error": "Σφάλμα εμφάνισης παραθύρου ειδοποίησης:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "Εμφάνιση κατάστασης",
+                    "description": "Εμφάνιση κατάστασης"
+                },
+                "toggleWindow": {
+                    "name": "Εναλλαγή παραθύρου",
+                    "description": "Εναλλαγή ορατότητας κύριου παραθύρου"
+                },
+                "nextSlot": {
+                    "name": "Επόμενη υποδοχή",
+                    "description": "Μετάβαση στην επόμενη υποδοχή"
+                },
+                "previousSlot": {
+                    "name": "Προηγούμενη υποδοχή",
+                    "description": "Μετάβαση στην προηγούμενη υποδοχή"
+                },
+                "toggleVoiceConversion": {
+                    "name": "Εναλλαγή μετατροπής φωνής",
+                    "description": "Εναλλαγή έναρξης/διακοπής μετατροπής φωνής"
+                },
+                "togglePassthrough": {
+                    "name": "Εναλλαγή διέλευσης",
+                    "description": "Ενεργοποίηση/απενεργοποίηση λειτουργίας διέλευσης"
+                },
+                "increaseInputVolume": {
+                    "name": "Αύξηση έντασης εισόδου",
+                    "description": "Αύξηση έντασης μικροφώνου"
+                },
+                "decreaseInputVolume": {
+                    "name": "Μείωση έντασης εισόδου",
+                    "description": "Μείωση έντασης μικροφώνου"
+                },
+                "increaseOutputVolume": {
+                    "name": "Αύξηση έντασης εξόδου",
+                    "description": "Αύξηση έντασης εξόδου"
+                },
+                "decreaseOutputVolume": {
+                    "name": "Μείωση έντασης εξόδου",
+                    "description": "Μείωση έντασης εξόδου"
+                },
+                "increaseMonitorVolume": {
+                    "name": "Αύξηση έντασης παρακολούθησης",
+                    "description": "Αύξηση έντασης παρακολούθησης"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "Μείωση έντασης παρακολούθησης",
+                    "description": "Μείωση έντασης παρακολούθησης"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "Φόρτωση ρυθμίσεων...",
+            "enable_shortcuts": "Ενεργοποίηση συντομεύσεων",
+            "shortcut_settings": "Ρυθμίσεις συντομεύσεων",
+            "press_key_placeholder": "Πατήστε πλήκτρο",
+            "click_to_edit": "Κάντε κλικ για επεξεργασία",
+            "not_set": "Δεν έχει οριστεί",
+            "enable_shortcut_checkbox": "• Παρακαλώ ενεργοποιήστε το πλαίσιο ελέγχου συντομεύσεων",
+            "example": "Παράδειγμα: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "Πίστωση:",
+            "language": "Γλώσσα:",
+            "tags": "Ετικέτες:",
+            "terms_of_use": "Όροι χρήσης"
+        },
+        "performance": {
+            "input_buffer": "Ενδιάμεση μνήμη εισόδου",
+            "output_buffer": "Ενδιάμεση μνήμη εξόδου",
+            "clear": "Εκκαθάριση",
+            "input_buffer_label": "Ενδιάμεση μνήμη εισόδου: {{time}}s",
+            "output_buffer_label": "Ενδιάμεση μνήμη εξόδου: {{time}}s",
+            "input_volume_level": "Επίπεδο έντασης εισόδου Level 0.000",
+            "output_volume_level": "Επίπεδο έντασης εξόδου Level 0.000",
+            "input_buffer_initial": "Ενδιάμεση μνήμη εισόδου: 0",
+            "output_buffer_initial": "Ενδιάμεση μνήμη εξόδου: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "Εκτιμητής τόνου",
+            "pitch_estimator": "Εκτιμητής τόνου",
+            "embedder_override_tooltip": "Παράκαμψη ενσωματωτή",
+            "embedder": "Ενσωματωτής",
+            "embedder_default": "Προεπιλογή ({{embedder}})",
+            "embedder_change_title": "Αλλαγή ενσωματωτή",
+            "embedder_change_message": "Ο ενσωματωτής είναι εξαιρετικά σημαντικό στοιχείο. Η αλλαγή μπορεί να προκαλέσει δυσλειτουργία της μετατροπής φωνής. Συνήθως δεν χρειάζεται αλλαγή. Εάν δεν κατανοείτε τι κάνετε, μην αλλάξετε.",
+            "embedder_change_confirm": "Αλλαγή",
+            "embedder_change_cancel": "Ακύρωση"
+        },
+        "advanced_area": {
+            "log": "Αρχείο καταγραφής",
+            "advanced_settings": "Προηγμένες ρυθμίσεις",
+            "key_settings": "Ρυθμίσεις πλήκτρων",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "Διαγραφή δεδομένων ιστοτόπου και επανεκκίνηση"
+        },
+        "dialog": {
+            "cancel": "Ακύρωση",
+            "confirm": "Επιβεβαίωση"
+        },
+        "clear_site_data_confirm": {
+            "title": "Επιβεβαίωση διαγραφής δεδομένων ιστοτόπου",
+            "message": "Αυτή η λειτουργία θα διαγράψει όλα τα αποθηκευμένα δεδομένα ιστοτόπου και θα τερματίσει την εφαρμογή. Παρακαλώ επανεκκινήστε την εφαρμογή χειροκίνητα μετά την τερματισμό. Θέλετε να συνεχίσετε;"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Αυτόματη φόρτωση (Ctrl + r): {{status}}",
+        "on": "Ενεργό",
+        "off": "Ανενεργό",
+        "latest": "Τελευταία",
+        "items": "στοιχεία",
+        "all_items": "Όλα τα στοιχεία ({{count, number}} στοιχεία)",
+        "total_items": "{{count, number}} στοιχεία",
+        "loading": "Φόρτωση..."
+    }
+}

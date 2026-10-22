@@ -29,6 +29,7 @@ except ImportError:
 
 
 from vcclient.logger import logger
+from vcclient.server.event_emitter_manager import EventEmitterManager
 
 from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
@@ -81,7 +82,15 @@ class VoiceChanger:
     def get_instance(cls) -> VoiceChanger:
         if cls._instance is None:
             cls._instance = cls()
+        cls._instance.check_and_update_pipeline()
         return cls._instance
+
+    def check_and_update_pipeline(self) -> None:
+        logger.info("[check_and_update_pipeline]")
+        self._check_reload_model_is_required_and_update()
+        self._check_and_update_pitch_estimator()
+        self._check_and_update_sample_rate()
+        self._check_and_update_filter()
 
     def __init__(self) -> None:
         self.initialize()
@@ -90,6 +99,7 @@ class VoiceChanger:
         self.currentCrossFadeEndRate = 0
         self.currentCrossFadeOverlapSize = 0
         self.crossfadeSize = 0
+        self.realtime_process_status_send_counter = 0
 
     def set_performance_listener(self, performance_listener: PerformanceListener | None = None) -> None:
         self.performance_listener = performance_listener
@@ -167,6 +177,8 @@ class VoiceChanger:
         self._require_pipeline().set_pitch_estimator_type(pitch_estimator)
 
     def _check_and_update_pitch_estimator(self) -> None:
+        if self.vc_info.slot_index < 0:
+            return None
         slot_info = SlotManager.get_instance().get_slot_info(self.vc_info.slot_index)
         if not isinstance(slot_info, RVCSlotInfo):
             return None
@@ -252,7 +264,7 @@ class VoiceChanger:
         self.bh = bh
         self.ah = ah
 
-        low_pass_filter_cutoff = min(conf.low_pass_filter_cutoff, self.input_sample_rate / 2) - 1
+        low_pass_filter_cutoff = min(conf.low_pass_filter_cutoff, (self.input_sample_rate / 2) * 0.9)
         (bl, al) = signal.butter(N=5, Wn=low_pass_filter_cutoff, btype="low", fs=self.input_sample_rate)
         self.bl = bl
         self.al = al
@@ -297,9 +309,7 @@ class VoiceChanger:
         return self.resampler_monitor.process(waveform, self.vc_info.resample_ratio_monitor, end_of_input=False)
 
     def _exec_resample_pass_through_in_out(self, waveform: np.ndarray) -> np.ndarray:
-        return self.resampler_monitor.process(
-            waveform, self.vc_info.resample_ratio_pass_through_in_out, end_of_input=False
-        )
+        return self.resampler_out.process(waveform, self.vc_info.resample_ratio_pass_through_in_out, end_of_input=False)
 
     def _exec_resample_pass_through_in_monitor(self, waveform: np.ndarray) -> np.ndarray:
         return self.resampler_monitor.process(
@@ -363,6 +373,7 @@ class VoiceChanger:
         if self.vc_info.bulk_process_start_flag is True:
             logger.warning("bulk conversion process is already started.")
             return None
+        self.check_and_update_pipeline()
         self.vc_info.bulk_process_start_flag = True
         self.bulk_process = threading.Thread(target=self.convert_chunk_bulk_internal)
         self.bulk_process.start()
@@ -379,10 +390,6 @@ class VoiceChanger:
     def convert_chunk_bulk(
         self, waveform: np.ndarray
     ) -> tuple[np.ndarray | None, np.ndarray | None, PerformanceData | None]:
-        self._check_reload_model_is_required_and_update()
-        self._check_and_update_pitch_estimator()
-        self._check_and_update_sample_rate()
-        self._check_and_update_filter()
         try:
             if self.vc_info.bulk_process_start_flag is False:
                 logger.debug("bulk conversion process is not started.")
@@ -390,7 +397,6 @@ class VoiceChanger:
             if self.waveform_rest.dtype != waveform.dtype:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)
             self.waveform_rest = np.concatenate([self.waveform_rest, waveform])
-            self._check_reload_model_is_required_and_update()
             self.vc_chunk_sec = self._require_pipeline().get_chunk_sec()
             self.chunk_size = int(round(self.input_sample_rate * self.vc_chunk_sec))
             splitted_waveforms = [
@@ -478,44 +484,58 @@ class VoiceChanger:
             np.ndarray: converted waveform for monitor. int16 or float32. shape: (n,)
         """
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        if conf.enable_performance_monitor is True:
-            start_time = time.time()
+        perf_enabled = conf.realtime_process_status_enabled and conf.enable_performance_monitor
+        if perf_enabled is True:
+            self.realtime_process_status_send_counter += 1
+            chunk_sec = self.vc_chunk_sec if hasattr(self, "vc_chunk_sec") and self.vc_chunk_sec > 0 else 0.1
+            if self.realtime_process_status_send_counter >= conf.realtime_process_status_send_interval_sec / chunk_sec:
+                self.realtime_process_status_send_counter = 0
+                start_time = time.time()
+                (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
+                end_time = time.time()
+                elapsed_time = round(end_time - start_time, 3)
+                input_size = len(waveform)
+                output_size = len(output)
+                in_qsize = (
+                    self.convert_chunk_bulk_queue_in.qsize() if hasattr(self, "convert_chunk_bulk_queue_in") else 0
+                )
+                chunk_sz = self.chunk_size if hasattr(self, "chunk_size") and self.chunk_size > 0 else input_size
+                rest_len = len(self.waveform_rest) if hasattr(self, "waveform_rest") else 0
+                input_buffer_size = rest_len + in_qsize * chunk_sz
+
+                output_sec = (
+                    self.vc_chunk_sec
+                    if hasattr(self, "vc_chunk_sec") and self.vc_chunk_sec > 0
+                    else (
+                        len(waveform) / self.input_sample_rate
+                        if hasattr(self, "input_sample_rate") and self.input_sample_rate > 0
+                        else 0.1
+                    )
+                )
+
+                performance_data = PerformanceData(
+                    inputBufferSize=input_buffer_size,
+                    inputSize=input_size,
+                    inputSec=output_sec,
+                    outputSize=output_size,
+                    outputSec=output_sec,
+                    elapsedTime=elapsed_time,
+                    dataNum=1,
+                )
+
+                if self.performance_listener is not None:
+                    self.performance_listener(performance_data)
+
+                event_emitter = EventEmitterManager.get_instance().get_event_emitter()
+                if event_emitter is not None:
+                    event_emitter.emit_coroutine(
+                        "data", ["realtime_process_status", performance_data.model_dump_json()]
+                    )
+
+                return (output, monitor, performance_data)
+
             (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
-            end_time = time.time()
-            elapsed_time = round(end_time - start_time, 3)
-            input_size = len(waveform)
-            output_size = len(output)
-            reference_volume = 1
-
-            input_volume = np.sqrt(np.mean(waveform**2))
-            if input_volume < 1e-06:
-                input_volume_db = -(np.inf)
-            else:
-                input_volume_db = 20 * np.log10(input_volume / reference_volume)
-            input_volume_db = round(input_volume_db, 2)
-
-            output_volume = np.sqrt(np.mean(output**2))
-            if output_volume < 1e-06:
-                output_volume_db = -(np.inf)
-            else:
-                output_volume_db = 20 * np.log10(output_volume / reference_volume)
-            output_volume_db = round(output_volume_db, 2)
-
-            performance_data = PerformanceData(
-                input_size=input_size,
-                input_sec=self.vc_chunk_sec if hasattr(self, "vc_chunk_sec") else 0,
-                output_size=output_size,
-                output_sec=self.vc_chunk_sec if hasattr(self, "vc_chunk_sec") else 0,
-                elapsed_time=elapsed_time,
-                input_volume_db=input_volume_db,
-                output_volume_db=output_volume_db,
-                data_num=1,
-            )
-
-            if self.performance_listener is not None:
-                self.performance_listener(performance_data)
-
-            return (output, monitor, performance_data)
+            return (output, monitor, None)
 
         (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
         return (output, monitor, None)
@@ -535,7 +555,6 @@ class VoiceChanger:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
 
         if conf.pass_through is True or getattr(self, "vc_pipeline", None) is None:
-            self._check_and_update_sample_rate()
             waveform_out = self._exec_resample_pass_through_in_out(waveform)
             if self.vc_info.recording_start_flag is True:
                 self.output_record.append(waveform_out)
@@ -545,11 +564,6 @@ class VoiceChanger:
                     self.monitor_record.append(waveform_monitor)
                 return (waveform_out, waveform_monitor)
             return (waveform_out, None)
-
-        self._check_reload_model_is_required_and_update()
-        self._check_and_update_pitch_estimator()
-        self._check_and_update_sample_rate()
-        self._check_and_update_filter()
 
         pipeline = self._require_pipeline()
         vc_chunk_sec = pipeline.get_chunk_sec()

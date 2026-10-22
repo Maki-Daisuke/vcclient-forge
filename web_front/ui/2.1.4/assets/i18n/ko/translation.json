@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "이 소프트웨어는 Project Beatrice의 허가를 받아 beatrice.lib를 이용하여 작성되었습니다.",
+            "beatrice_lib_license2": "이 허가는 Beatricejs 및 BeatriceClient의 개발에 필요한 합리적인 범위에서의 이용 및 Beatricejs 및 BeatriceClient를 개변하지 않고 배포·양도하는 행위만을 그 실시자에 관계없이 인정하는 것입니다.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "면책사항",
+            "disclaimer_text": "본 소프트웨어는 '현재 상태'로 제공되며, 명시적 또는 묵시적으로 어떠한 종류의 보증도 제공하지 않습니다. 저작권자 또는 저작권자로부터 라이선스를 받은 자는 본 소프트웨어 또는 본 소프트웨어의 사용이나 기타 취급에 기인하거나 관련하여 발생한 어떠한 청구, 손해 기타 책임에 대해서도 계약 행위, 불법 행위 또는 기타 어떠한 이유에 기반하는지를 불문하고 일체 책임을 지지 않습니다."
+        },
+        "app_info": {
+            "unknown_version": "알 수 없음",
+            "unknown_edition": "알 수 없음"
+        },
+        "error_messages": {
+            "error_occurred": "오류가 발생했습니다:",
+            "rvc_model_file_required": "RVC 모델 파일이 필요합니다",
+            "beatrice_v2_zip_file_required": "Beatrice_v2 ZIP 파일이 필요합니다",
+            "not_supported_voice_changer_type": "지원되지 않는 보이스 체인저 타입입니다",
+            "unhandled_rejection_possible_cause": "[가능한 원인 1] 다른 클라이언트가 실행 중일 때 오류가 발생합니다. 이는 데이터베이스 등의 리소스가 배타적으로 처리되기 때문입니다.",
+            "use_app_root_context_error": "useAppRoot는 AppRootProvider 내에서 사용해야 합니다",
+            "use_app_state_context_error": "useAppState는 AppStateProvider 내에서 사용해야 합니다",
+            "use_hotkey_context_error": "useHotkey는 HotkeyProvider 내에서 사용해야 합니다",
+            "server_device_init_failed": "[voiceChangerClient] 서버 장치 초기화에 실패했습니다. 잘못된 값이 사용되지 않았는지 확인하세요. 또한 PortAudio 사양에 의한 오류일 가능성도 있습니다. 그 경우 다른 장치를 사용하세요.",
+            "audio_output_device_not_found": "[voiceChangerClient] 오디오 출력 장치 {{device}}를 찾을 수 없습니다.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] 오디오 모니터 장치 {{device}}를 찾을 수 없습니다.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId가 지원되지 않습니다: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Beatrice.js 저장소",
+            "vcclient_repo": "VCClient 저장소",
+            "screen_recorder": "화면 녹화",
+            "create_voice_model": "Beatrice 음성 모델 만들기",
+            "download_native_client": "네이티브 클라이언트 다운로드",
+            "url_open_failed": "Tauri 명령으로 URL 열기 실패. window.open으로 폴백:"
+        },
+        "initialize": {
+            "button": "초기화",
+            "confirm_title": "초기화 확인",
+            "confirm_message": "저장된 데이터가 모두 삭제됩니다. 정말로 하시겠습니까?",
+            "cancel": "취소",
+            "confirm": "초기화"
+        },
+        "model": {
+            "list_title": "모델 목록",
+            "slots_in_use": "슬롯 사용 중",
+            "no_models": "아직 저장된 모델이 없습니다. ZIP 파일을 업로드하여 모델을 저장하세요.",
+            "upload": {
+                "button": "업로드",
+                "tooltip": "모델 업로드"
+            },
+            "edit": {
+                "button": "편집",
+                "tooltip": "모델 편집"
+            },
+            "not_selected": "모델이 선택되지 않았습니다"
+        },
+        "model_editor": {
+            "title": "모델 관리",
+            "slots_in_use": "사용 중인 슬롯: {{used}} / {{total}}",
+            "slot": "슬롯 {{number}}",
+            "empty_slot": "빈 슬롯",
+            "save": "저장",
+            "cancel": "취소",
+            "move_model": "모델 이동",
+            "moving": "이동 중...",
+            "move": "이동",
+            "download_model": "모델 다운로드",
+            "download": "DL",
+            "delete_model": "모델 삭제",
+            "delete": "삭제",
+            "upload_model": "모델 업로드",
+            "upload": "업로드",
+            "move_here": "여기로 이동",
+            "cancel_move": "이동 취소",
+            "generate_onnx": "ONNX 생성",
+            "generate_onnx_confirm_message": "이 모델에서 ONNX를 생성하시겠습니까?",
+            "generate_onnx_success": "ONNX 생성에 성공했습니다.",
+            "generate_onnx_failed": "ONNX 생성에 실패했습니다.",
+            "sample_model": "샘플 모델",
+            "select_slot": "출력 슬롯",
+            "icon_upload_success": "아이콘을 업로드했습니다.",
+            "icon_upload_failed": "아이콘 업로드에 실패했습니다.",
+            "no_description": "설명 없음",
+            "download_failed": "모델 다운로드 실패",
+            "delete_confirm_message": "이 모델을 삭제하시겠습니까?",
+            "no_empty_slot": "사용 가능한 빈 슬롯이 없습니다",
+            "name_update_failed": "모델 이름 업데이트 실패",
+            "description_update_failed": "설명 업데이트 실패",
+            "downloading": "다운로드 중..."
+        },
+        "model_upload": {
+            "title": "모델 업로드",
+            "slot_info": "모델을 업로드합니다. (슬롯: {{slotNumber}})",
+            "select_zip": "ZIP 파일 선택",
+            "upload_button": "업로드",
+            "select_zip_error": "ZIP 파일을 선택해주세요",
+            "upload_error": "업로드 중 오류가 발생했습니다",
+            "upload_complete_title": "업로드 완료",
+            "upload_complete_message": "모델 업로드가 완료되었습니다.",
+            "select_model_file_error": "모델 파일을 선택해주세요",
+            "unsupported_voice_changer_type": "지원되지 않는 보이스 체인저 타입입니다",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2는 아직 지원되지 않습니다",
+            "voice_changer_type": "보이스 체인저 타입",
+            "select_model_file": "모델 파일 선택",
+            "select_index_file": "인덱스 파일 선택"
+        },
+        "sample_model_dialog": {
+            "title": "샘플 모델 목록",
+            "slot_id": "슬롯 ID: {{slotIndex}}",
+            "no_samples": "샘플 모델이 없습니다.",
+            "download_button": "다운로드",
+            "downloading_title": "모델 다운로드 중",
+            "downloading_wait_message": "다운로드가 완료될 때까지 기다려주세요...",
+            "download_success": "샘플 모델을 다운로드했습니다.",
+            "download_timeout": "다운로드가 타임아웃되었습니다.",
+            "download_error": "샘플 모델 다운로드에 실패했습니다."
+        },
+        "settings_dialog": {
+            "title": "설정",
+            "close": "×",
+            "input_device": "입력 장치(마이크)",
+            "output_device": "출력 장치(스피커)",
+            "monitor_device": "모니터용 출력 장치(스피커)",
+            "voice_changer_input_mode": "음성 변환 입력 모드",
+            "client_mode": "클라이언트 모드",
+            "server_mode": "서버 모드",
+            "mode_switch_disabled": "음성 변환 중·녹음 중·패스스루 중에는 모드를 전환할 수 없습니다",
+            "audio_device_settings": "오디오 장치 설정",
+            "gpu_settings": "GPU 설정",
+            "unselected": "선택 안 됨",
+            "all_hosts": "모든 호스트",
+            "auto": "자동",
+            "wasapi_exclusive_mode": "WASAPI 배타 모드를 활성화",
+            "noise_suppression": "노이즈 억제",
+            "enable_echo_cancellation": "에코 캔슬레이션을 활성화",
+            "enable_noise_suppression": "노이즈 서프레션을 활성화",
+            "enable_noise_suppression2": "노이즈 서프레션2를 활성화",
+            "noise_gate": "노이즈 게이트",
+            "enable_high_pass_filter": "하이패스 필터를 활성화",
+            "cutoff": "컷오프",
+            "enable_low_pass_filter": "로우패스 필터를 활성화",
+            "changing_device_settings": "장치 설정을 변경하고 있습니다..."
+        },
+        "waiting_dialog": {
+            "default_message": "잠시만 기다려주세요..."
+        },
+        "voice": {
+            "character": "보이스 캐릭터",
+            "no_description": "설명 없음",
+            "edit_tooltip": "보이스 캐릭터 편집"
+        },
+        "voice_character_editor": {
+            "title": "보이스 캐릭터 편집",
+            "name": "이름",
+            "description": "설명",
+            "select_icon": "아이콘 선택",
+            "cancel": "취소",
+            "save": "저장",
+            "save_success": "저장했습니다",
+            "save_error": "저장에 실패했습니다"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "현재 아이콘",
+            "new_icon": "새 아이콘"
+        },
+        "controls": {
+            "title": "컨트롤",
+            "start": "시작",
+            "stop": "정지",
+            "passthrough": "패스스루",
+            "passthrough_enable": "패스스루 활성화",
+            "passthrough_disable": "패스스루 비활성화",
+            "settings": "설정",
+            "input_type": "입력 음성 타입",
+            "microphone_input": "마이크 입력",
+            "microphone": "마이크",
+            "file_input": "파일 입력",
+            "file": "파일",
+            "screen_capture": "화면 캡처",
+            "capture": "캡처",
+            "sample_input": "샘플 입력",
+            "sample": "샘플",
+            "select_sample": "샘플 선택",
+            "test_play": "테스트 재생",
+            "send_sample": "전송",
+            "mic_device": "마이크 장치",
+            "drop_files": "여기를 클릭하거나 파일을 드롭하세요",
+            "supported_formats": "지원 형식: MP3, WAV, OGG",
+            "echoback_enable": "에코백 활성화",
+            "echoback_disable": "에코백 비활성화",
+            "loop_enable": "루프 재생 활성화",
+            "loop_disable": "루프 재생 비활성화",
+            "stop_capture": "캡처 정지",
+            "record": "녹음",
+            "recording": "녹음 중",
+            "start_recording": "녹음 시작",
+            "stop_recording": "녹음 정지",
+            "volume_control": "음량 컨트롤",
+            "input_volume": "입력 음량",
+            "input": "입력",
+            "output_volume": "출력 음량",
+            "output1": "출력 1",
+            "monitor_volume": "모니터 음량",
+            "output2": "출력 2",
+            "voice_control": "보이스 컨트롤",
+            "pitch_adjust": "피치 조정",
+            "pitch": "피치",
+            "formant_adjust": "포르만트 조정",
+            "formant": "포르만트",
+            "index_adjust": "인덱스 조정",
+            "index": "인덱스",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "서버 모드",
+            "client_mode": "클라이언트 모드",
+            "no_device": "장치 없음",
+            "device_not_selected_error": "입력 장치 또는 출력 장치가 선택되지 않았습니다. 설정 화면에서 장치를 선택해주세요.",
+            "device_none": "없음",
+            "device_file": "파일",
+            "device_system": "시스템 음성(Windows만)",
+            "start_download_recording": "녹음 파일 다운로드를 시작합니다...",
+            "start_download_server_recording": "서버 녹음 파일 다운로드를 시작합니다...",
+            "download_recording_failed": "녹음 파일 다운로드에 실패했습니다:",
+            "server_recording_failed": "서버 녹음 처리에 실패했습니다:",
+            "sample_voices_load_failed": "샘플 음성 로드에 실패했습니다:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "오디오 엘리먼트가 null입니다",
+            "sample_send_failed": "샘플 전송에 실패했습니다:",
+            "capture_error": "캡처 오류:",
+            "capture_no_media_stream": "캡처에 실패했습니다. 미디어 스트림이 없습니다.",
+            "capture_no_audio_track": "캡처에 실패했습니다. 오디오 트랙이 없습니다.",
+            "test_audio_play_failed": "테스트 음성 재생에 실패했습니다:",
+            "chunksec_adjust": "청크 초 수",
+            "extraframe_adjust": "추가 프레임 수"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "분석용 녹음을 활성화",
+            "record_for_analysis_description": "녹음 시 서버 측에서도 녹음을 수행하여 분석용 파일을 다운로드합니다",
+            "realtime_description": "작게 하면 실시간성이 향상되지만 CPU 부하가 증가합니다",
+            "recording_settings": "녹음 설정",
+            "sample_audio_button": "샘플 음성 버튼",
+            "show_sample_audio_button": "샘플 음성 버튼 표시",
+            "sample_audio_button_description": "입력 음성 타입 선택에서 샘플 음성 버튼의 표시/숨김을 전환합니다."
+        },
+        "advanced_settings_dialog": {
+            "title": "상세 설정",
+            "realtime_analysis_settings": "실시간 분석 설정",
+            "enable_realtime_io_analysis": "실시간 입출력 분석을 활성화",
+            "enable_realtime_voice_processing_analysis": "실시간 음성 처리 분석을 활성화",
+            "send_interval_seconds": "전송 간격(초)"
+        },
+        "shortcut_settings": {
+            "title": "키 설정",
+            "cancel_tooltip": "취소 (Escape 키로도 취소 가능)",
+            "shortcuts_disabled_notice": "ℹ️ 단축키 설정 중이므로 단축키가 일시적으로 비활성화되어 있습니다",
+            "usage_instructions": {
+                "title": "사용법",
+                "instruction1": "• 설정하고 싶은 단축키의 '편집'을 클릭",
+                "instruction2": "• 설정하고 싶은 키 조합을 누르면 자동으로 저장됩니다",
+                "instruction3": "• 중복되는 키의 경우 경고가 표시됩니다",
+                "instruction4": "• Escape키 또는 ×버튼으로 취소"
+            },
+            "config_load_success": "설정을 읽어왔습니다:",
+            "config_load_failed": "설정 읽기에 실패했습니다:",
+            "config_save_success": "설정을 저장했습니다",
+            "config_save_failed": "설정 저장에 실패했습니다:",
+            "duplicate_key_error": "단축키 '{{shortcut}}'는 이미 '{{displayName}}'에서 사용 중입니다",
+            "slot_change_skip": "사용 가능한 슬롯이 1개 이하이므로 슬롯 변경을 건너뜁니다",
+            "slot_changed_to_next": "슬롯을 {{from}}에서 {{to}}로 변경했습니다",
+            "slot_changed_to_previous": "슬롯을 {{from}}에서 {{to}}로 변경했습니다",
+            "voice_conversion_stopped": "음성 변환을 정지했습니다",
+            "voice_conversion_started": "음성 변환을 시작했습니다",
+            "passthrough_disabled": "패스스루를 비활성화했습니다",
+            "passthrough_enabled": "패스스루를 활성화했습니다",
+            "input_volume_changed": "입력 음량을 {{volume}}로 변경했습니다",
+            "output_volume_changed": "출력 음량을 {{volume}}로 변경했습니다",
+            "monitor_volume_changed": "모니터 음량을 {{volume}}로 변경했습니다",
+            "unknown_shortcut_action": "📢 알 수 없는 단축키 액션: {{action}}",
+            "status": "상태",
+            "settings_load_error": "설정 로드 오류:",
+            "settings_save_error": "설정 저장 오류:",
+            "unknown_model": "Unknown Model",
+            "vcclient_notification": "VCClient 알림",
+            "show_status_action": "ShowStatus 액션이 실행되었습니다",
+            "previous_slot_action": "PreviousSlot 액션이 실행되었습니다",
+            "slot_changed_log": "슬롯을 {{from}}에서 {{to}}로 변경했습니다",
+            "notification_window_error": "알림 창 표시 오류:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "상태 표시",
+                    "description": "상태 표시"
+                },
+                "toggleWindow": {
+                    "name": "창 전환",
+                    "description": "메인 창의 표시/숨김 전환"
+                },
+                "nextSlot": {
+                    "name": "다음 슬롯",
+                    "description": "다음 슬롯으로 전환"
+                },
+                "previousSlot": {
+                    "name": "이전 슬롯",
+                    "description": "이전 슬롯으로 전환"
+                },
+                "toggleVoiceConversion": {
+                    "name": "음성 변환 전환",
+                    "description": "음성 변환 시작/정지 전환"
+                },
+                "togglePassthrough": {
+                    "name": "패스스루 전환",
+                    "description": "패스스루 모드 활성화/비활성화"
+                },
+                "increaseInputVolume": {
+                    "name": "입력 음량 증가",
+                    "description": "마이크 음량 증가"
+                },
+                "decreaseInputVolume": {
+                    "name": "입력 음량 감소",
+                    "description": "마이크 음량 감소"
+                },
+                "increaseOutputVolume": {
+                    "name": "출력 음량 증가",
+                    "description": "출력 음량 증가"
+                },
+                "decreaseOutputVolume": {
+                    "name": "출력 음량 감소",
+                    "description": "출력 음량 감소"
+                },
+                "increaseMonitorVolume": {
+                    "name": "모니터 음량 증가",
+                    "description": "모니터 음량 증가"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "모니터 음량 감소",
+                    "description": "모니터 음량 감소"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "설정을 읽어오는 중...",
+            "enable_shortcuts": "단축키를 활성화",
+            "shortcut_settings": "단축키 설정",
+            "press_key_placeholder": "키를 눌러주세요",
+            "click_to_edit": "클릭하여 편집",
+            "not_set": "설정 안 됨",
+            "enable_shortcut_checkbox": "• 단축키를 활성화하는 체크박스를 ON으로 해주세요",
+            "example": "예: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "크레딧:",
+            "language": "언어:",
+            "tags": "태그:",
+            "terms_of_use": "이용약관"
+        },
+        "performance": {
+            "input_buffer": "입력 버퍼",
+            "output_buffer": "출력 버퍼",
+            "clear": "클리어",
+            "input_buffer_label": "입력 버퍼: {{time}}s",
+            "output_buffer_label": "출력 버퍼: {{time}}s",
+            "input_volume_level": "입력 음량 Level 0.000",
+            "output_volume_level": "출력 음량 Level 0.000",
+            "input_buffer_initial": "입력 버퍼: 0",
+            "output_buffer_initial": "출력 버퍼: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "피치 추정기",
+            "pitch_estimator": "피치 추정기",
+            "embedder_override_tooltip": "임베더 오버라이드",
+            "embedder": "임베더",
+            "embedder_default": "기본값 ({{embedder}})",
+            "embedder_change_title": "임베더 변경",
+            "embedder_change_message": "임베더는 극히 중요한 컴포넌트입니다. 변경하면 음성 변환이 작동하지 않을 수 있습니다. 일반적으로는 변경할 필요가 없습니다. 어떤 작업을 수행하고 있는지 이해하지 못하는 경우 변경하지 마세요.",
+            "embedder_change_confirm": "변경",
+            "embedder_change_cancel": "취소"
+        },
+        "advanced_area": {
+            "log": "로그",
+            "advanced_settings": "상세 설정",
+            "key_settings": "키 설정",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "사이트 데이터 지우기 및 재시작"
+        },
+        "dialog": {
+            "cancel": "취소",
+            "confirm": "확인"
+        },
+        "clear_site_data_confirm": {
+            "title": "사이트 데이터 지우기 확인",
+            "message": "이 작업은 저장된 모든 사이트 데이터를 삭제하고 애플리케이션을 종료합니다. 애플리케이션이 종료된 후 수동으로 다시 시작해주세요. 계속하시겠습니까?"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "자동로드 (Ctrl + r): {{status}}",
+        "on": "ON",
+        "off": "OFF",
+        "latest": "최신",
+        "items": "건",
+        "all_items": "전체（{{count, number}}건）",
+        "total_items": "{{count, number}}건",
+        "loading": "loading..."
+    }
+}

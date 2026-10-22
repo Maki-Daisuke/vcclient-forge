@@ -61,6 +61,7 @@ PipelineInfoMember = PipelineInfo | RVCPipelineInfo
 
 class VoiceChangerInformation(BaseModel):
     slot_index: int = -1
+    override_embedder: EmbedderType | None = None
     pitch_estimator_type: PitchEstimatorType | None = None
     gpu_device_index: int = -1
     input_sample_rate: int = -1
@@ -88,3 +89,7 @@ class VoiceChangerInformation(BaseModel):
 class VoiceChangerManagerInfo(BaseModel):
     local_voice_changer_interface_active: bool
     voice_changer_information: VoiceChangerInformation
+
+
+class LocalVoiceChangerInterfaceInfo(BaseModel):
+    local_voice_changer_interface_active: bool = False

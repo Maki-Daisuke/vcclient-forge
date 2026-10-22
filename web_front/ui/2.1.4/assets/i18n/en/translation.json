@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "Unknown",
+            "unknown_edition": "Unknown"
+        },
+        "error_messages": {
+            "error_occurred": "An error occurred:",
+            "rvc_model_file_required": "RVC model file is required",
+            "beatrice_v2_zip_file_required": "Beatrice_v2 ZIP file is required",
+            "not_supported_voice_changer_type": "Unsupported voice changer type",
+            "unhandled_rejection_possible_cause": "[Possible cause 1] An error occurs when another client is running. This is because resources such as databases are handled exclusively.",
+            "use_app_root_context_error": "useAppRoot must be used within AppRootProvider",
+            "use_app_state_context_error": "useAppState must be used within AppStateProvider",
+            "use_hotkey_context_error": "useHotkey must be used within HotkeyProvider",
+            "server_device_init_failed": "[voiceChangerClient] Server device initialization failed. Please check if invalid values are being used. This could also be a PortAudio specification error. In that case, please use a different device.",
+            "audio_output_device_not_found": "[voiceChangerClient] Audio output device {{device}} not found.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] Audio monitor device {{device}} not found.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId not supported: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Beatrice.js Repository",
+            "vcclient_repo": "VCClient Repository",
+            "screen_recorder": "Screen Recorder",
+            "create_voice_model": "Create Beatrice Voice Model",
+            "download_native_client": "Download Native Client",
+            "url_open_failed": "Failed to open URL with Tauri command. Falling back to window.open:"
+        },
+        "initialize": {
+            "button": "Initialize",
+            "confirm_title": "Confirm Initialization",
+            "confirm_message": "All saved data will be deleted. Are you sure?",
+            "cancel": "Cancel",
+            "confirm": "Initialize"
+        },
+        "model": {
+            "list_title": "Model List",
+            "slots_in_use": "Slots in Use",
+            "no_models": "No models stored yet. Upload a ZIP file to store a model.",
+            "upload": {
+                "button": "Upload",
+                "tooltip": "Upload Model"
+            },
+            "edit": {
+                "button": "Edit",
+                "tooltip": "Edit Model"
+            },
+            "not_selected": "No model selected"
+        },
+        "model_editor": {
+            "title": "Model Management",
+            "slots_in_use": "Slots in use: {{used}} / {{total}}",
+            "slot": "Slot {{number}}",
+            "empty_slot": "Empty Slot",
+            "save": "Save",
+            "cancel": "Cancel",
+            "move_model": "Move Model",
+            "moving": "Moving...",
+            "move": "Move",
+            "download_model": "Download Model",
+            "download": "Download",
+            "delete_model": "Delete Model",
+            "delete": "Delete",
+            "upload_model": "Upload Model",
+            "upload": "Upload",
+            "move_here": "Move Here",
+            "cancel_move": "Cancel Move",
+            "generate_onnx": "Generate ONNX",
+            "generate_onnx_confirm_message": "Do you want to generate ONNX from this model?",
+            "generate_onnx_success": "ONNX generation successful.",
+            "generate_onnx_failed": "ONNX generation failed.",
+            "sample_model": "Sample Model",
+            "select_slot": "Output Slot",
+            "icon_upload_success": "Icon uploaded successfully.",
+            "icon_upload_failed": "Icon upload failed.",
+            "no_description": "No description",
+            "download_failed": "Failed to download model",
+            "delete_confirm_message": "Do you want to delete this model?",
+            "no_empty_slot": "No empty slots available",
+            "name_update_failed": "Failed to update model name",
+            "description_update_failed": "Failed to update description",
+            "downloading": "Downloading..."
+        },
+        "model_upload": {
+            "title": "Model Upload",
+            "slot_info": "Upload model. (Slot: {{slotNumber}})",
+            "select_zip": "Select ZIP File",
+            "upload_button": "Upload",
+            "select_zip_error": "Please select a ZIP file",
+            "upload_error": "An error occurred during upload",
+            "upload_complete_title": "Upload Complete",
+            "upload_complete_message": "Model upload completed successfully.",
+            "select_model_file_error": "Please select a model file",
+            "unsupported_voice_changer_type": "Unsupported voice changer type",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2 is not supported yet",
+            "voice_changer_type": "Voice Changer Type",
+            "select_model_file": "Select Model File",
+            "select_index_file": "Select Index File"
+        },
+        "sample_model_dialog": {
+            "title": "Sample Model List",
+            "slot_id": "Slot ID: {{slotIndex}}",
+            "no_samples": "No sample models available.",
+            "download_button": "Download",
+            "downloading_title": "Downloading Model",
+            "downloading_wait_message": "Please wait until download completes...",
+            "download_success": "Sample model downloaded successfully.",
+            "download_timeout": "Download timed out.",
+            "download_error": "Sample model download failed."
+        },
+        "settings_dialog": {
+            "title": "Settings",
+            "close": "×",
+            "input_device": "Input Device (Microphone)",
+            "output_device": "Output Device (Speaker)",
+            "monitor_device": "Monitor Output Device (Speaker)",
+            "voice_changer_input_mode": "Voice Changer Input Mode",
+            "client_mode": "Client Mode",
+            "server_mode": "Server Mode",
+            "mode_switch_disabled": "Cannot switch mode during voice changing, recording, or passthrough",
+            "audio_device_settings": "Audio Device Settings",
+            "gpu_settings": "GPU Settings",
+            "unselected": "Unselected",
+            "all_hosts": "All Hosts",
+            "auto": "Auto",
+            "wasapi_exclusive_mode": "Enable WASAPI Exclusive Mode",
+            "noise_suppression": "Noise Suppression",
+            "enable_echo_cancellation": "Enable Echo Cancellation",
+            "enable_noise_suppression": "Enable Noise Suppression",
+            "enable_noise_suppression2": "Enable Noise Suppression 2",
+            "noise_gate": "Noise Gate",
+            "enable_high_pass_filter": "Enable High Pass Filter",
+            "cutoff": "Cutoff Frequency",
+            "enable_low_pass_filter": "Enable Low Pass Filter",
+            "changing_device_settings": "Changing device settings..."
+        },
+        "waiting_dialog": {
+            "default_message": "Please wait..."
+        },
+        "voice": {
+            "character": "Voice Character",
+            "no_description": "No description",
+            "edit_tooltip": "Edit Voice Character"
+        },
+        "voice_character_editor": {
+            "title": "Edit Voice Character",
+            "name": "Name",
+            "description": "Description",
+            "select_icon": "Select Icon",
+            "cancel": "Cancel",
+            "save": "Save",
+            "save_success": "Saved successfully",
+            "save_error": "Save failed"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "Current Icon",
+            "new_icon": "New Icon"
+        },
+        "controls": {
+            "title": "Controls",
+            "start": "Start",
+            "stop": "Stop",
+            "passthrough": "Passthrough",
+            "passthrough_enable": "Enable Passthrough",
+            "passthrough_disable": "Disable Passthrough",
+            "settings": "Settings",
+            "input_type": "Input Audio Type",
+            "microphone_input": "Microphone Input",
+            "microphone": "Microphone",
+            "file_input": "File Input",
+            "file": "File",
+            "screen_capture": "Screen Capture",
+            "capture": "Capture",
+            "sample_input": "Sample Input",
+            "sample": "Sample",
+            "select_sample": "Select Sample",
+            "test_play": "Test Play",
+            "send_sample": "Send",
+            "mic_device": "Microphone Device",
+            "drop_files": "Click or drop files here",
+            "supported_formats": "Supported formats: MP3, WAV, OGG",
+            "echoback_enable": "Enable Echoback",
+            "echoback_disable": "Disable Echoback",
+            "loop_enable": "Enable Loop Playback",
+            "loop_disable": "Disable Loop Playback",
+            "stop_capture": "Stop Capture",
+            "record": "Record",
+            "recording": "Recording",
+            "start_recording": "Start Recording",
+            "stop_recording": "Stop Recording",
+            "volume_control": "Volume Control",
+            "input_volume": "Input Volume",
+            "input": "Input",
+            "output_volume": "Output Volume",
+            "output1": "Output 1",
+            "monitor_volume": "Monitor Volume",
+            "output2": "Output 2",
+            "voice_control": "Voice Control",
+            "pitch_adjust": "Pitch Adjustment",
+            "pitch": "Pitch",
+            "formant_adjust": "Formant Adjustment",
+            "formant": "Formant",
+            "index_adjust": "Index Adjustment",
+            "index": "Index",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "Server Mode",
+            "client_mode": "Client Mode",
+            "no_device": "No Device",
+            "device_not_selected_error": "Input device or output device is not selected. Please select devices in the settings screen.",
+            "device_none": "None",
+            "device_file": "File",
+            "device_system": "System Audio (Windows only)",
+            "start_download_recording": "Starting recording file download...",
+            "start_download_server_recording": "Starting server recording file download...",
+            "download_recording_failed": "Recording file download failed:",
+            "server_recording_failed": "Server recording processing failed:",
+            "sample_voices_load_failed": "Sample voices loading failed:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "Audio element is null",
+            "sample_send_failed": "Sample sending failed:",
+            "capture_error": "Capture error:",
+            "capture_no_media_stream": "Capture failed. No media stream available.",
+            "capture_no_audio_track": "Capture failed. No audio track available.",
+            "test_audio_play_failed": "Test audio playback failed:",
+            "chunksec_adjust": "Chunk Seconds",
+            "extraframe_adjust": "Extra Frame Count"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "Enable recording for analysis",
+            "record_for_analysis_description": "Record on the server side during recording and download analysis files",
+            "realtime_description": "Smaller values increase real-time performance but increase CPU load",
+            "recording_settings": "Recording Settings",
+            "sample_audio_button": "Sample Audio Button",
+            "show_sample_audio_button": "Show sample audio button",
+            "sample_audio_button_description": "Toggle display/hide of the sample audio button in input audio type selection."
+        },
+        "advanced_settings_dialog": {
+            "title": "Advanced Settings",
+            "realtime_analysis_settings": "Real-time Analysis Settings",
+            "enable_realtime_io_analysis": "Enable real-time I/O analysis",
+            "enable_realtime_voice_processing_analysis": "Enable real-time voice processing analysis",
+            "send_interval_seconds": "Send Interval (seconds)"
+        },
+        "shortcut_settings": {
+            "title": "Key Settings",
+            "cancel_tooltip": "Cancel (Can also cancel with Escape key)",
+            "shortcuts_disabled_notice": "ℹ️ Shortcut keys are temporarily disabled while setting shortcut keys",
+            "usage_instructions": {
+                "title": "Usage",
+                "instruction1": "• Click 'Edit' for the shortcut key you want to set",
+                "instruction2": "• Press the key combination you want to set and it will be automatically saved",
+                "instruction3": "• A warning will be displayed for duplicate keys",
+                "instruction4": "• Cancel with Escape key or × button"
+            },
+            "config_load_success": "Configuration loaded:",
+            "config_load_failed": "Configuration loading failed:",
+            "config_save_success": "Configuration saved successfully",
+            "config_save_failed": "Configuration saving failed:",
+            "duplicate_key_error": "Shortcut key '{{shortcut}}' is already used by '{{displayName}}'",
+            "slot_change_skip": "Skipping slot change because there is only one or fewer available slots",
+            "slot_changed_to_next": "Changed slot from {{from}} to {{to}}",
+            "slot_changed_to_previous": "Changed slot from {{from}} to {{to}}",
+            "voice_conversion_stopped": "Voice conversion stopped",
+            "voice_conversion_started": "Voice conversion started",
+            "passthrough_disabled": "Passthrough disabled",
+            "passthrough_enabled": "Passthrough enabled",
+            "input_volume_changed": "Input volume changed to {{volume}}",
+            "output_volume_changed": "Output volume changed to {{volume}}",
+            "monitor_volume_changed": "Monitor volume changed to {{volume}}",
+            "unknown_shortcut_action": "📢 Unknown shortcut action: {{action}}",
+            "status": "Status",
+            "settings_load_error": "Settings load error:",
+            "settings_save_error": "Settings save error:",
+            "unknown_model": "Unknown Model",
+            "vcclient_notification": "VCClient Notification",
+            "show_status_action": "ShowStatus action was executed",
+            "previous_slot_action": "PreviousSlot action was executed",
+            "slot_changed_log": "Changed slot from {{from}} to {{to}}",
+            "notification_window_error": "Notification window display error:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "Show Status",
+                    "description": "Show Status"
+                },
+                "toggleWindow": {
+                    "name": "Toggle Window",
+                    "description": "Toggle main window visibility"
+                },
+                "nextSlot": {
+                    "name": "Next Slot",
+                    "description": "Switch to next slot"
+                },
+                "previousSlot": {
+                    "name": "Previous Slot",
+                    "description": "Switch to previous slot"
+                },
+                "toggleVoiceConversion": {
+                    "name": "Toggle Voice Conversion",
+                    "description": "Toggle voice conversion start/stop"
+                },
+                "togglePassthrough": {
+                    "name": "Toggle Passthrough",
+                    "description": "Toggle passthrough mode on/off"
+                },
+                "increaseInputVolume": {
+                    "name": "Increase Input Volume",
+                    "description": "Increase microphone input volume"
+                },
+                "decreaseInputVolume": {
+                    "name": "Decrease Input Volume",
+                    "description": "Decrease microphone input volume"
+                },
+                "increaseOutputVolume": {
+                    "name": "Increase Output Volume",
+                    "description": "Increase output audio volume"
+                },
+                "decreaseOutputVolume": {
+                    "name": "Decrease Output Volume",
+                    "description": "Decrease output audio volume"
+                },
+                "increaseMonitorVolume": {
+                    "name": "Increase Monitor Volume",
+                    "description": "Increase monitor audio volume"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "Decrease Monitor Volume",
+                    "description": "Decrease monitor audio volume"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "Loading configuration...",
+            "enable_shortcuts": "Enable shortcut keys",
+            "shortcut_settings": "Shortcut Settings",
+            "press_key_placeholder": "Press key",
+            "click_to_edit": "Click to edit",
+            "not_set": "Not set",
+            "enable_shortcut_checkbox": "• Enable the shortcut keys checkbox",
+            "example": "Example: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "Credit:",
+            "language": "Language:",
+            "tags": "Tags:",
+            "terms_of_use": "Terms of Use"
+        },
+        "performance": {
+            "input_buffer": "Input Buffer",
+            "output_buffer": "Output Buffer",
+            "clear": "Clear",
+            "input_buffer_label": "Input Buffer: {{time}}s",
+            "output_buffer_label": "Output Buffer: {{time}}s",
+            "input_volume_level": "Input Volume Level 0.000",
+            "output_volume_level": "Output Volume Level 0.000",
+            "input_buffer_initial": "Input Buffer: 0",
+            "output_buffer_initial": "Output Buffer: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "Pitch Estimator",
+            "pitch_estimator": "Pitch Estimator",
+            "embedder_override_tooltip": "Embedder Override",
+            "embedder": "Embedder",
+            "embedder_default": "Default ({{embedder}})",
+            "embedder_change_title": "Change Embedder",
+            "embedder_change_message": "The embedder is an extremely important component. Changing it may prevent voice conversion from working. Generally, there is no need to change it. Do not change it unless you understand what you are doing.",
+            "embedder_change_confirm": "Change",
+            "embedder_change_cancel": "Cancel"
+        },
+        "advanced_area": {
+            "log": "Log",
+            "advanced_settings": "Advanced Settings",
+            "key_settings": "Key Settings",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "Clear site data and restart"
+        },
+        "dialog": {
+            "cancel": "Cancel",
+            "confirm": "Confirm"
+        },
+        "clear_site_data_confirm": {
+            "title": "Confirm Clear Site Data",
+            "message": "This operation will delete all saved site data and terminate the application. Please restart the application manually after it terminates. Do you want to continue?"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Autoload (Ctrl + r): {{status}}",
+        "on": "ON",
+        "off": "OFF",
+        "latest": "Latest",
+        "items": "items",
+        "all_items": "All items ({{count, number}} items)",
+        "total_items": "{{count, number}} items",
+        "loading": "loading..."
+    }
+}

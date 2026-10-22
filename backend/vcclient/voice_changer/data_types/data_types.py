@@ -1,19 +1,78 @@
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..voice_changer_const import AudioDeviceType, ExtraSec, InferencerType, VoiceChangerInputMode, VoiceChangerType
 
 
 class PerformanceData(BaseModel):
-    input_size: float = 0
-    input_sec: float = 0
-    output_size: float = 0
-    output_sec: float = 0
-    elapsed_time: float = 0
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    input_buffer_size: float = Field(default=0, alias="inputBufferSize")
+    input_size: float = Field(default=0, alias="inputSize")
+    input_sec: float = Field(default=0, alias="inputSec")
+    output_size: float = Field(default=0, alias="outputSize")
+    output_sec: float = Field(default=0, alias="outputSec")
+    elapsed_time: float = Field(default=0, alias="elapsedTime")
     input_volume_db: float = 0
     output_volume_db: float = 0
-    data_num: int = 0
+    data_num: int = Field(default=0, alias="dataNum")
+
+    @property
+    def inputBufferSize(self) -> float:
+        return self.input_buffer_size
+
+    @inputBufferSize.setter
+    def inputBufferSize(self, val: float) -> None:
+        self.input_buffer_size = val
+
+    @property
+    def inputSize(self) -> float:
+        return self.input_size
+
+    @inputSize.setter
+    def inputSize(self, val: float) -> None:
+        self.input_size = val
+
+    @property
+    def inputSec(self) -> float:
+        return self.input_sec
+
+    @inputSec.setter
+    def inputSec(self, val: float) -> None:
+        self.input_sec = val
+
+    @property
+    def outputSize(self) -> float:
+        return self.output_size
+
+    @outputSize.setter
+    def outputSize(self, val: float) -> None:
+        self.output_size = val
+
+    @property
+    def outputSec(self) -> float:
+        return self.output_sec
+
+    @outputSec.setter
+    def outputSec(self, val: float) -> None:
+        self.output_sec = val
+
+    @property
+    def elapsedTime(self) -> float:
+        return self.elapsed_time
+
+    @elapsedTime.setter
+    def elapsedTime(self, val: float) -> None:
+        self.elapsed_time = val
+
+    @property
+    def dataNum(self) -> int:
+        return self.data_num
+
+    @dataNum.setter
+    def dataNum(self, val: int) -> None:
+        self.data_num = val
 
 
 class AudioDevice(BaseModel):
@@ -50,6 +109,10 @@ class VoiceChangerConfiguration(BaseModel):
     audio_output_device_gain: float = 1
     audio_monitor_device_gain: float = 1
     server_device_trancate_buffer_ratio: float = 1
+    realtime_process_status_enabled: bool = True
+    realtime_process_status_send_interval_sec: float = 1.0
+    realtime_output_status_enabled: bool = True
+    realtime_output_status_send_interval_sec: float = 0.2
     noise_gate: float = -100
     extra_frame_sec: float = ExtraSec[0]
     crossfade_sec: float = 0.05

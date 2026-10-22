@@ -52,11 +52,94 @@ class LocalVoiceChangerInterface:
     def __init__(self) -> None:
         self.stop_flag = True
         self.local_voice_changer_enabled = False
+        self.dummy_input_queue: Queue[np.ndarray] = Queue()
         self.out_queue = Queue()
         self.monitor_queue = Queue()
         self.waveform_rest_output = np.array([], dtype=np.float32)
         self.waveform_rest_monitor = np.array([], dtype=np.float32)
         self.split_length = 0
+        self.input_volume: float = 0.0
+        self.input_volume_calculation_buffer: list[np.ndarray] = []
+        self.output_volume: float = 0.0
+        self.output_volume_calculation_buffer: list[np.ndarray] = []
+        self.process_call_counter: int = 0
+
+    def truncate_output_buffer(self) -> None:
+        for _ in range(self.out_queue.qsize()):
+            try:
+                _ = self.out_queue.get_nowait()
+            except Empty:
+                break
+        for _ in range(self.monitor_queue.qsize()):
+            try:
+                _ = self.monitor_queue.get_nowait()
+            except Empty:
+                break
+
+    def set_dummy_input(self, url: str) -> None:
+        if not hasattr(self, "audio_input_device_sample_rate") or not self.audio_input_device_sample_rate:
+            logger.error("audio_input_device_sample_rate is not set")
+            return
+        try:
+            import io
+
+            import requests
+            import soundfile as sf
+            import soxr
+
+            response = requests.get(url)
+            response.raise_for_status()
+            waveform, sample_rate = sf.read(io.BytesIO(response.content), dtype="float32")
+            if waveform.ndim > 1:
+                waveform = waveform[:, 0]
+            if sample_rate != int(self.audio_input_device_sample_rate):
+                waveform = soxr.resample(waveform, sample_rate, int(self.audio_input_device_sample_rate))
+
+            block_size = (
+                self.input_block_size if hasattr(self, "input_block_size") and self.input_block_size > 0 else 1024
+            )
+            for i in range(0, len(waveform), block_size):
+                chunk = waveform[i : i + block_size]
+                if len(chunk) < block_size:
+                    chunk = np.pad(chunk, (0, block_size - len(chunk)))
+                self.dummy_input_queue.put(chunk)
+        except Exception as e:
+            logger.error("Failed to set dummy input from url %s: %s", url, e, exc_info=True)
+
+    def calc_vol(self, data: np.ndarray, prev_vol: float) -> float:
+        if len(data) == 0:
+            return prev_vol
+        sum_val = float(np.sum(data * data))
+        rms = float(np.sqrt(sum_val / len(data)))
+        return max(rms, prev_vol * 0.95)
+
+    def calculate_and_send_realtime_output_status(self) -> None:
+        if len(self.input_volume_calculation_buffer) == 0 or len(self.output_volume_calculation_buffer) == 0:
+            return
+
+        input_combined_data = np.concatenate(self.input_volume_calculation_buffer)
+        output_combined_data = np.concatenate(self.output_volume_calculation_buffer)
+
+        self.input_volume = self.calc_vol(input_combined_data, self.input_volume)
+        self.output_volume = self.calc_vol(output_combined_data, self.output_volume)
+
+        event_emitter = EventEmitterManager.get_instance().get_event_emitter()
+        if event_emitter is not None:
+            import json
+
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            realtime_output_status_data = {
+                "realtimeOutputStatusSendIntervalSec": conf.realtime_output_status_send_interval_sec,
+                "realtimeOutputStatusSendInterval": conf.realtime_output_status_send_interval_sec
+                / local_voice_changer_callback_chunk_sec,
+                "outputBufferSize": self.out_queue.qsize() * getattr(self, "output_block_size", 0),
+                "inputRms": float(self.input_volume),
+                "outputRms": float(self.output_volume),
+            }
+            event_emitter.emit_coroutine("data", ["realtime_output_status", json.dumps(realtime_output_status_data)])
+
+        self.input_volume_calculation_buffer = []
+        self.output_volume_calculation_buffer = []
 
     def start(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -245,7 +328,13 @@ class LocalVoiceChangerInterface:
     def audio_input_callback(self, indata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
-            indata = indata[:, 0].copy() * conf.audio_input_device_gain
+            if not self.dummy_input_queue.empty():
+                indata = self.dummy_input_queue.get()
+            else:
+                indata = indata[:, 0].copy()
+            indata = indata * conf.audio_input_device_gain
+            if conf.realtime_output_status_enabled:
+                self.input_volume_calculation_buffer.append(indata)
             converted, converted_for_monitor, performance_data = self.vc.convert_chunk_bulk(indata)
             event_emitter = EventEmitterManager.get_instance().get_event_emitter()
             if event_emitter is not None and performance_data is not None:
@@ -321,6 +410,15 @@ class LocalVoiceChangerInterface:
         except Exception as e:
             outdata.fill(0)
             logger.error("audio output callback ex: %s", e, exc_info=True)
+        finally:
+            if conf.realtime_output_status_enabled and outdata.shape[0] > 0 and outdata.shape[1] > 0:
+                self.output_volume_calculation_buffer.append(outdata[:, 0].copy())
+                self.process_call_counter += 1
+                if self.process_call_counter >= (
+                    conf.realtime_output_status_send_interval_sec / local_voice_changer_callback_chunk_sec
+                ):
+                    self.calculate_and_send_realtime_output_status()
+                    self.process_call_counter = 0
 
     def audio_monitor_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()

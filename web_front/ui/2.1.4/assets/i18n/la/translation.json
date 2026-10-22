@@ -1,0 +1,407 @@
+{
+    "common": {
+        "app_title": "VCClient",
+        "copyright": {
+            "beatrice_lib_license": "This software is created using beatrice.lib licensed by Project Beatrice.",
+            "beatrice_lib_license2": "This license permits only reasonable use for the development of Beatricejs and BeatriceClient, and distribution or transfer of Beatricejs and BeatriceClient without modification, regardless of who performs it.",
+            "copyright1": "Copyright (c) 2025 Wataru Okada",
+            "copyright2": "FLECT Co.,Ltd.",
+            "disclaimer": "Disclaimer",
+            "disclaimer_text": "This software is provided 'as is', without any express or implied warranty. In no event will the authors or copyright holders be liable for any claims, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software."
+        },
+        "app_info": {
+            "unknown_version": "Ignotum",
+            "unknown_edition": "Ignotum"
+        },
+        "error_messages": {
+            "error_occurred": "Error factus est:",
+            "rvc_model_file_required": "Lima exemplaris RVC requiritur",
+            "beatrice_v2_zip_file_required": "Lima ZIP Beatrice_v2 requiritur",
+            "not_supported_voice_changer_type": "Genus vocis mutatoris non sustentatur",
+            "unhandled_rejection_possible_cause": "[Causa possibilis 1] Error cum alius cliens currit. Hoc fit propter exclusivam processionem fontium sicut database.",
+            "use_app_root_context_error": "useAppRoot intra AppRootProvider uti debet",
+            "use_app_state_context_error": "useAppState intra AppStateProvider uti debet",
+            "use_hotkey_context_error": "useHotkey intra HotkeyProvider uti debet",
+            "server_device_init_failed": "[voiceChangerClient] Initiatio dispositivi servientis defecit. Cura ne valores invalidi adhibeantur. Potest etiam error specificationis PortAudio esse. In hoc casu, aliud dispositivum adhibere.",
+            "audio_output_device_not_found": "[voiceChangerClient] Dispositivum exitus audio {{device}} non inventum.",
+            "audio_monitor_device_not_found": "[voiceChangerClient] Dispositivum monitoris audio {{device}} non inventum.",
+            "set_sink_id_not_supported": "[voiceChangerClient] setSinkId non sustentatur: {{error}}"
+        },
+        "links": {
+            "beatrice_repo": "Beatrice.js Repositorium",
+            "vcclient_repo": "VCClient Repositorium",
+            "screen_recorder": "Tabula Scriptor",
+            "create_voice_model": "Creare Exemplar Vocis Beatrice",
+            "download_native_client": "Demittere Clientem Nativum",
+            "url_open_failed": "URL aperire cum mandato Tauri defecit. Reversio ad window.open:"
+        },
+        "initialize": {
+            "button": "Initiare",
+            "confirm_title": "Confirmatio Initiationis",
+            "confirm_message": "Omnia data servata delebuntur. Certusne es?",
+            "cancel": "Cancellare",
+            "confirm": "Initiare"
+        },
+        "model": {
+            "list_title": "Index Exemplarium",
+            "slots_in_use": "Loca in usu",
+            "no_models": "Nondum exemplaria servata sunt. Onerare limam ZIP ad exemplar servandum.",
+            "upload": {
+                "button": "Onerare",
+                "tooltip": "Onerare Exemplar"
+            },
+            "edit": {
+                "button": "Emendare",
+                "tooltip": "Emendare Exemplar"
+            },
+            "not_selected": "Exemplar non selectum"
+        },
+        "model_editor": {
+            "title": "Administratio Exemplarium",
+            "slots_in_use": "Loca in usu: {{used}} / {{total}}",
+            "slot": "Locus {{number}}",
+            "empty_slot": "Locus vacuus",
+            "save": "Servare",
+            "cancel": "Cancellare",
+            "move_model": "Movere Exemplar",
+            "moving": "Movens...",
+            "move": "Movere",
+            "download_model": "Demittere Exemplar",
+            "download": "Demittere",
+            "delete_model": "Delere Exemplar",
+            "delete": "Delere",
+            "upload_model": "Onerare Exemplar",
+            "upload": "Onerare",
+            "move_here": "Huc Movere",
+            "cancel_move": "Cancellare Motum",
+            "generate_onnx": "Generare ONNX",
+            "generate_onnx_confirm_message": "Generare ONNX ex hoc exemplari?",
+            "generate_onnx_success": "ONNX feliciter generatum.",
+            "generate_onnx_failed": "Generatio ONNX defecit.",
+            "sample_model": "Exemplar Specimen",
+            "select_slot": "Locus Exitus",
+            "icon_upload_success": "Iconum feliciter oneratum.",
+            "icon_upload_failed": "Oneratio iconi defecit.",
+            "no_description": "Nulla descriptio",
+            "download_failed": "Exemplar recipere non potuit",
+            "delete_confirm_message": "Visne hoc exemplar delere?",
+            "no_empty_slot": "Nullus locus vacuus disponibilis",
+            "name_update_failed": "Nomen exemplaris renovare non potuit",
+            "description_update_failed": "Descriptionem renovare non potuit",
+            "downloading": "Recipitur..."
+        },
+        "model_upload": {
+            "title": "Onerare Exemplar",
+            "slot_info": "Oneratio exemplaris. (Locus: {{slotNumber}})",
+            "select_zip": "Eligere limam ZIP",
+            "upload_button": "Onerare",
+            "select_zip_error": "Quaeso elige limam ZIP",
+            "upload_error": "Error in oneratione",
+            "upload_complete_title": "Oneratio completa",
+            "upload_complete_message": "Exemplar feliciter oneratum est.",
+            "select_model_file_error": "Quaeso elige limam exemplaris",
+            "unsupported_voice_changer_type": "Genus vocis mutatoris non sustentatur",
+            "beatrice_v2_not_supported_yet": "Beatrice_v2 nondum sustentatur",
+            "voice_changer_type": "Genus vocis mutatoris",
+            "select_model_file": "Eligere limam exemplaris",
+            "select_index_file": "Eligere limam indicis"
+        },
+        "sample_model_dialog": {
+            "title": "Index exemplarium speciminum",
+            "slot_id": "ID loci: {{slotIndex}}",
+            "no_samples": "Nulla exemplaria speciminum.",
+            "download_button": "Demittere",
+            "downloading_title": "Demittens exemplar",
+            "downloading_wait_message": "Quaeso expecta completionem demissionis...",
+            "download_success": "Demissio exemplaris speciminis completa.",
+            "download_timeout": "Tempus demissionis expiravit.",
+            "download_error": "Demissio exemplaris speciminis defecit."
+        },
+        "settings_dialog": {
+            "title": "Dispositiones",
+            "close": "×",
+            "input_device": "Dispositivum initus (Microphonium)",
+            "output_device": "Dispositivum exitus (Sonator)",
+            "monitor_device": "Dispositivum exitus monitoris (Sonator)",
+            "voice_changer_input_mode": "Modus initus vocis mutatoris",
+            "client_mode": "Modus clientis",
+            "server_mode": "Modus servientis",
+            "mode_switch_disabled": "Modus mutari non potest durante mutatione vocis, recordatione vel transitu",
+            "audio_device_settings": "Dispositiones dispositivorum audio",
+            "gpu_settings": "Dispositiones GPU",
+            "unselected": "Non selectum",
+            "all_hosts": "Omnes hospites",
+            "auto": "Automatice",
+            "wasapi_exclusive_mode": "Habilitare modum exclusivum WASAPI",
+            "noise_suppression": "Suppressio strepitus",
+            "enable_echo_cancellation": "Habilitare cancellationem echo",
+            "enable_noise_suppression": "Habilitare suppressionem strepitus",
+            "enable_noise_suppression2": "Habilitare suppressionem strepitus 2",
+            "noise_gate": "Porta strepitus",
+            "enable_high_pass_filter": "Habilitare filtrum altae frequentiae",
+            "cutoff": "Frequentia sectionis",
+            "enable_low_pass_filter": "Habilitare filtrum humilis frequentiae",
+            "changing_device_settings": "Mutans dispositiones dispositivi..."
+        },
+        "waiting_dialog": {
+            "default_message": "Quaeso expecta..."
+        },
+        "voice": {
+            "character": "Persona Vocis",
+            "no_description": "Nulla descriptio disponibilis",
+            "edit_tooltip": "Emendare Personam Vocis"
+        },
+        "voice_character_editor": {
+            "title": "Emendare Personam Vocis",
+            "name": "Nomen",
+            "description": "Descriptio",
+            "select_icon": "Eligere iconum",
+            "cancel": "Cancellare",
+            "save": "Servare",
+            "save_success": "Servatum",
+            "save_error": "Error in servando"
+        },
+        "voice_character_edit_dialog": {
+            "current_icon": "Iconum currens",
+            "new_icon": "Iconum novum"
+        },
+        "controls": {
+            "title": "Moderamina",
+            "start": "Incipere",
+            "stop": "Sistere",
+            "passthrough": "Transitus",
+            "passthrough_enable": "Habilitare Transitum",
+            "passthrough_disable": "Inhabilitare Transitum",
+            "settings": "Dispositiones",
+            "input_type": "Genus Initus Audio",
+            "microphone_input": "Initus Microphonii",
+            "microphone": "Microphonium",
+            "file_input": "Initus Limae",
+            "file": "Lima",
+            "screen_capture": "Captura Scaenae",
+            "capture": "Captura",
+            "sample_input": "Initus speciminis",
+            "sample": "Specimen",
+            "select_sample": "Eligere specimen",
+            "test_play": "Probatio ludendi",
+            "send_sample": "Mittere",
+            "mic_device": "Dispositivum Microphonii",
+            "drop_files": "Preme vel trahe limas huc",
+            "supported_formats": "Formata sustentata: MP3, WAV, OGG",
+            "echoback_enable": "Habilitare Echo",
+            "echoback_disable": "Inhabilitare Echo",
+            "loop_enable": "Habilitare circuitum",
+            "loop_disable": "Inhabilitare circuitum",
+            "stop_capture": "Sistere Capturam",
+            "record": "Recordare",
+            "recording": "Recordatio",
+            "start_recording": "Incipere Recordationem",
+            "stop_recording": "Sistere Recordationem",
+            "volume_control": "Moderamen Voluminis",
+            "input_volume": "Volumen Initus",
+            "input": "Initus",
+            "output_volume": "Volumen Exitus",
+            "output1": "Exitus 1",
+            "monitor_volume": "Volumen Monitoris",
+            "output2": "Exitus 2",
+            "voice_control": "Moderamen Vocis",
+            "pitch_adjust": "Adiustamentum Toni",
+            "pitch": "Tonus",
+            "formant_adjust": "Adiustamentum Formantis",
+            "formant": "Formans",
+            "index_adjust": "Adiustamentum indicis",
+            "index": "Index",
+            "chunksec_label": "chunkSec",
+            "extraframesec_label": "extraFrameSec",
+            "server_mode": "Modus servientis",
+            "client_mode": "Modus clientis",
+            "no_device": "Nullum dispositivum",
+            "device_not_selected_error": "Dispositivum initus vel exitus non selectum. Quaeso elige dispositivum in dispositionibus.",
+            "device_none": "Nullum",
+            "device_file": "Lima",
+            "device_system": "Sonus systematis (Windows tantum)",
+            "start_download_recording": "Incipiens demissionem limae recordationis...",
+            "start_download_server_recording": "Incipiens demissionem limae recordationis servientis...",
+            "download_recording_failed": "Demissio limae recordationis defecit:",
+            "server_recording_failed": "Processus recordationis servientis defecit:",
+            "sample_voices_load_failed": "Oneratio vocum speciminum defecit:",
+            "useeffect_log": "useEffect",
+            "audio_element_null": "Elementum audio nullum",
+            "sample_send_failed": "Missio speciminis defecit:",
+            "capture_error": "Error capturae:",
+            "capture_no_media_stream": "Captura defecit. Nullus fluxus mediorum.",
+            "capture_no_audio_track": "Captura defecit. Nulla via audio.",
+            "test_audio_play_failed": "Probatio ludi audio defecit:",
+            "chunksec_adjust": "Adiustamentum secundorum fragmenti",
+            "extraframe_adjust": "Adiustamentum quadri extra"
+        },
+        "advanced_settings": {
+            "record_for_analysis": "Habilitare recordationem pro analysi",
+            "record_for_analysis_description": "Etiam recordare a latere servientis durante recordatione et demittere limas analysis",
+            "realtime_description": "Valores minores meliorant performantiam temporis realis sed augent onus CPU",
+            "recording_settings": "Dispositiones recordationis",
+            "sample_audio_button": "Clavis audio speciminis",
+            "show_sample_audio_button": "Ostendere clavem audio speciminis",
+            "sample_audio_button_description": "Alternare visualizationem clavis audio speciminis in electione generis initus audio."
+        },
+        "advanced_settings_dialog": {
+            "title": "Dispositiones provectae",
+            "realtime_analysis_settings": "Dispositiones analysis temporis realis",
+            "enable_realtime_io_analysis": "Habilitare analysim initus/exitus temporis realis",
+            "enable_realtime_voice_processing_analysis": "Habilitare analysim processus vocis temporis realis",
+            "send_interval_seconds": "Intervallum missionis (secunda)"
+        },
+        "shortcut_settings": {
+            "title": "Dispositiones clavium",
+            "cancel_tooltip": "Cancellare (Etiam possibile cum clave Escape)",
+            "shortcuts_disabled_notice": "ℹ️ Compendia temporarie inhabilitata sunt durante dispositionem",
+            "usage_instructions": {
+                "title": "Instructiones usus",
+                "instruction1": "• Preme \"Emendare\" pro compendio quod constituere vis",
+                "instruction2": "• Preme combinationem clavium quam constituere vis et automatice servabitur",
+                "instruction3": "• Monitus ostendetur pro clavibus duplicatis",
+                "instruction4": "• Cancellare cum clave Escape vel clavis ×"
+            },
+            "config_load_success": "Dispositiones oneratae:",
+            "config_load_failed": "Oneratio dispositionum defecit:",
+            "config_save_success": "Dispositiones servatae",
+            "config_save_failed": "Servatio dispositionum defecit:",
+            "duplicate_key_error": "Compendium '{{shortcut}}' iam ab '{{displayName}}' adhibetur",
+            "slot_change_skip": "Saltans mutationem loci quia loca disponibilia sunt 1 vel minus",
+            "slot_changed_to_next": "Locus mutatus a {{from}} ad {{to}}",
+            "slot_changed_to_previous": "Locus mutatus a {{from}} ad {{to}}",
+            "voice_conversion_stopped": "Conversio vocis sistita",
+            "voice_conversion_started": "Conversio vocis inchoata",
+            "passthrough_disabled": "Transitus inhabilitatus",
+            "passthrough_enabled": "Transitus habilitatus",
+            "input_volume_changed": "Volumen initus mutatum ad {{volume}}",
+            "output_volume_changed": "Volumen exitus mutatum ad {{volume}}",
+            "monitor_volume_changed": "Volumen monitoris mutatum ad {{volume}}",
+            "unknown_shortcut_action": "📢 Actio compendii ignota: {{action}}",
+            "status": "Status",
+            "settings_load_error": "Error onerationis dispositionum:",
+            "settings_save_error": "Error servationis dispositionum:",
+            "unknown_model": "Exemplar ignotum",
+            "vcclient_notification": "Notificatio VCClient",
+            "show_status_action": "Actio ShowStatus executa",
+            "previous_slot_action": "Actio PreviousSlot executa",
+            "slot_changed_log": "Locus mutatus a {{from}} ad {{to}}",
+            "notification_window_error": "Error ostendendi fenestram notificationis:",
+            "notification_payload_log": "notificationPayload!!!!!!!:",
+            "actions": {
+                "showStatus": {
+                    "name": "Ostendere statum",
+                    "description": "Ostendere statum"
+                },
+                "toggleWindow": {
+                    "name": "Commutare fenestram",
+                    "description": "Commutare visibilitatem fenestrae principalis"
+                },
+                "nextSlot": {
+                    "name": "Locus sequens",
+                    "description": "Mutare ad locum sequentem"
+                },
+                "previousSlot": {
+                    "name": "Locus prior",
+                    "description": "Mutare ad locum priorem"
+                },
+                "toggleVoiceConversion": {
+                    "name": "Commutare conversionem vocis",
+                    "description": "Commutare initium/finem conversionis vocis"
+                },
+                "togglePassthrough": {
+                    "name": "Commutare transitum",
+                    "description": "Habilitare/inhabilitare modum transitus"
+                },
+                "increaseInputVolume": {
+                    "name": "Augere volumen initus",
+                    "description": "Augere volumen microphonii"
+                },
+                "decreaseInputVolume": {
+                    "name": "Minuere volumen initus",
+                    "description": "Minuere volumen microphonii"
+                },
+                "increaseOutputVolume": {
+                    "name": "Augere volumen exitus",
+                    "description": "Augere volumen exitus"
+                },
+                "decreaseOutputVolume": {
+                    "name": "Minuere volumen exitus",
+                    "description": "Minuere volumen exitus"
+                },
+                "increaseMonitorVolume": {
+                    "name": "Augere volumen monitoris",
+                    "description": "Augere volumen monitoris"
+                },
+                "decreaseMonitorVolume": {
+                    "name": "Minuere volumen monitoris",
+                    "description": "Minuere volumen monitoris"
+                }
+            }
+        },
+        "shortcut_settings_dialog": {
+            "loading": "Onerans dispositiones...",
+            "enable_shortcuts": "Habilitare compendia",
+            "shortcut_settings": "Dispositiones compendiorum",
+            "press_key_placeholder": "Premere clavem",
+            "click_to_edit": "Premere ad emendandum",
+            "not_set": "Non constitutum",
+            "enable_shortcut_checkbox": "• Quaeso habilita capsam compendiorum",
+            "example": "Exemplum: Shift+Ctrl+H → shift+control+KeyH"
+        },
+        "sample_model": {
+            "credit": "Creditum:",
+            "language": "Lingua:",
+            "tags": "Signa:",
+            "terms_of_use": "Conditiones usus"
+        },
+        "performance": {
+            "input_buffer": "Buffer initus",
+            "output_buffer": "Buffer exitus",
+            "clear": "Purgare",
+            "input_buffer_label": "Buffer initus: {{time}}s",
+            "output_buffer_label": "Buffer exitus: {{time}}s",
+            "input_volume_level": "Gradus voluminis initus Level 0.000",
+            "output_volume_level": "Gradus voluminis exitus Level 0.000",
+            "input_buffer_initial": "Buffer initus: 0",
+            "output_buffer_initial": "Buffer exitus: 0"
+        },
+        "voice_controls": {
+            "pitch_estimator_tooltip": "Aestimator toni",
+            "pitch_estimator": "Aestimator toni",
+            "embedder_override_tooltip": "Supersedere embedder",
+            "embedder": "Embedder",
+            "embedder_default": "Praefinitum ({{embedder}})",
+            "embedder_change_title": "Mutare embedder",
+            "embedder_change_message": "Embedder est componens summe importante. Mutare potest causare malfunctionem conversionis vocis. Normaliter mutatio non requiritur. Si non intellegis quid facis, noli mutare.",
+            "embedder_change_confirm": "Mutare",
+            "embedder_change_cancel": "Cancellare"
+        },
+        "advanced_area": {
+            "log": "Acta",
+            "advanced_settings": "Dispositiones provectae",
+            "key_settings": "Dispositiones clavium",
+            "github_repo": "GitHub",
+            "clear_site_data_and_restart": "Purgare data situs et redire"
+        },
+        "dialog": {
+            "cancel": "Cancellare",
+            "confirm": "Confirmare"
+        },
+        "clear_site_data_confirm": {
+            "title": "Confirmare purgationem data situs",
+            "message": "Haec operatio delebit omnia data situs servata et terminabit applicationem. Quaeso redire applicationem manualiter post terminationem. Visne continuare?"
+        }
+    },
+    "log_viewer": {
+        "title": "VCClient LogViewer",
+        "autoload": "Oneratio automatica (Ctrl + r): {{status}}",
+        "on": "Activum",
+        "off": "Inactivum",
+        "latest": "Novissima",
+        "items": "elementa",
+        "all_items": "Omnia elementa ({{count, number}} elementa)",
+        "total_items": "{{count, number}} elementa",
+        "loading": "Onerans..."
+    }
+}

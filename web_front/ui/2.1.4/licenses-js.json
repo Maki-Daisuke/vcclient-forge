@@ -1,0 +1,266 @@
+{
+  "MIT": [
+    {
+      "name": "@emotion/react@11.14.0",
+      "repository": "https://github.com/emotion-js/emotion/tree/main/packages/react",
+      "licenseURL": ""
+    },
+    {
+      "name": "@emotion/styled@11.14.0",
+      "repository": "https://github.com/emotion-js/emotion/tree/main/packages/styled",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint-community/eslint-utils@4.7.0",
+      "repository": "https://github.com/eslint-community/eslint-utils",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint-community/regexpp@4.12.1",
+      "repository": "https://github.com/eslint-community/regexpp",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint/eslintrc@3.3.1",
+      "repository": "https://github.com/eslint/eslintrc",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint/js@9.29.0",
+      "repository": "https://github.com/eslint/eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@mui/icons-material@7.1.2",
+      "repository": "https://github.com/mui/material-ui",
+      "licenseURL": ""
+    },
+    {
+      "name": "@mui/material@7.1.2",
+      "repository": "https://github.com/mui/material-ui",
+      "licenseURL": ""
+    },
+    {
+      "name": "@types/react-dom@19.1.6",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
+      "licenseURL": ""
+    },
+    {
+      "name": "@types/react@19.1.8",
+      "repository": "https://github.com/DefinitelyTyped/DefinitelyTyped",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/eslint-plugin@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/parser@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/project-service@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/scope-manager@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/tsconfig-utils@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/type-utils@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/types@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/typescript-estree@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/utils@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@typescript-eslint/visitor-keys@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "@vitejs/plugin-react-swc@3.10.2",
+      "repository": "https://github.com/vitejs/vite-plugin-react",
+      "licenseURL": ""
+    },
+    {
+      "name": "eslint-plugin-react-hooks@5.2.0",
+      "repository": "https://github.com/facebook/react",
+      "licenseURL": ""
+    },
+    {
+      "name": "eslint-plugin-react-refresh@0.4.20",
+      "repository": "https://github.com/ArnaudBarre/eslint-plugin-react-refresh",
+      "licenseURL": ""
+    },
+    {
+      "name": "eslint@9.29.0",
+      "repository": "https://github.com/eslint/eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "globals@16.2.0",
+      "repository": "https://github.com/sindresorhus/globals",
+      "licenseURL": ""
+    },
+    {
+      "name": "i18next-browser-languagedetector@8.2.0",
+      "repository": "https://github.com/i18next/i18next-browser-languageDetector",
+      "licenseURL": ""
+    },
+    {
+      "name": "i18next-http-backend@3.0.2",
+      "repository": "https://github.com/i18next/i18next-http-backend",
+      "licenseURL": ""
+    },
+    {
+      "name": "i18next@25.2.1",
+      "repository": "https://github.com/i18next/i18next",
+      "licenseURL": ""
+    },
+    {
+      "name": "react-device-detect@2.2.3",
+      "repository": "https://github.com/duskload/react-device-detect",
+      "licenseURL": ""
+    },
+    {
+      "name": "react-dom@19.1.0",
+      "repository": "https://github.com/facebook/react",
+      "licenseURL": ""
+    },
+    {
+      "name": "react-i18next@15.5.3",
+      "repository": "https://github.com/i18next/react-i18next",
+      "licenseURL": ""
+    },
+    {
+      "name": "react-toastify@11.0.5",
+      "repository": "https://github.com/fkhadra/react-toastify",
+      "licenseURL": ""
+    },
+    {
+      "name": "react@19.1.0",
+      "repository": "https://github.com/facebook/react",
+      "licenseURL": ""
+    },
+    {
+      "name": "typescript-eslint@8.35.0",
+      "repository": "https://github.com/typescript-eslint/typescript-eslint",
+      "licenseURL": ""
+    },
+    {
+      "name": "vite@7.0.0",
+      "repository": "https://github.com/vitejs/vite",
+      "licenseURL": ""
+    }
+  ],
+  "Apache-2.0": [
+    {
+      "name": "@eslint/config-array@0.20.1",
+      "repository": "https://github.com/eslint/rewrite",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint/config-helpers@0.2.2",
+      "repository": "https://github.com/eslint/rewrite",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint/core@0.14.0",
+      "repository": "https://github.com/eslint/rewrite",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint/object-schema@2.1.6",
+      "repository": "https://github.com/eslint/rewrite",
+      "licenseURL": ""
+    },
+    {
+      "name": "@eslint/plugin-kit@0.3.1",
+      "repository": "https://github.com/eslint/rewrite",
+      "licenseURL": ""
+    },
+    {
+      "name": "eslint-visitor-keys@4.2.1",
+      "repository": "https://github.com/eslint/js",
+      "licenseURL": ""
+    },
+    {
+      "name": "typescript@5.8.3",
+      "repository": "https://github.com/microsoft/TypeScript",
+      "licenseURL": ""
+    }
+  ],
+  "Apache-2.0 OR MIT": [
+    {
+      "name": "@tauri-apps/api@2.5.0",
+      "repository": "https://github.com/tauri-apps/tauri",
+      "licenseURL": ""
+    }
+  ],
+  "MIT OR Apache-2.0": [
+    {
+      "name": "@tauri-apps/plugin-notification@2.2.3",
+      "repository": "https://github.com/tauri-apps/plugins-workspace",
+      "licenseURL": ""
+    },
+    {
+      "name": "@tauri-apps/plugin-opener@2.3.0",
+      "repository": "https://github.com/tauri-apps/plugins-workspace",
+      "licenseURL": ""
+    },
+    {
+      "name": "@tauri-apps/plugin-shell@2.2.2",
+      "repository": "https://github.com/tauri-apps/plugins-workspace",
+      "licenseURL": ""
+    }
+  ],
+  "BSD-2-Clause": [
+    {
+      "name": "eslint-scope@8.4.0",
+      "repository": "https://github.com/eslint/js",
+      "licenseURL": ""
+    }
+  ],
+  "ISC": [
+    {
+      "name": "idb@8.0.3",
+      "repository": "https://github.com/jakearchibald/idb",
+      "licenseURL": ""
+    }
+  ],
+  "UNLICENSED": [
+    {
+      "name": "vcclient-ts-demo@0.0.0",
+      "repository": "",
+      "licenseURL": ""
+    },
+    {
+      "name": "vcclient-ts-lib@0.0.60",
+      "repository": "",
+      "licenseURL": ""
+    }
+  ]
+}
