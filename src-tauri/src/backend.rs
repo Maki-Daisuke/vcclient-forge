@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::num::NonZeroU16;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -92,26 +92,35 @@ fn backend_command() -> Result<Command, String> {
 }
 
 fn read_output(
-    stream: impl Read + Send + 'static,
+    mut stream: impl Read + Send + 'static,
     stdout: bool,
     sender: mpsc::SyncSender<(bool, Vec<u8>)>,
 ) {
     thread::spawn(move || {
-        if stdout {
-            for line in BufReader::new(stream).split(b'\n') {
-                let Ok(mut line) = line else { break };
-                let ready = String::from_utf8_lossy(&line).contains(READY_MESSAGE);
-                line.push(b'\n');
-                let _ = sender.send((ready, line));
+        let mut buffer = [0; 4096];
+        let mut scan_tail = Vec::new();
+        while let Ok(count) = stream.read(&mut buffer) {
+            if count == 0 {
+                break;
             }
-        } else {
-            let mut stream = stream;
-            let mut buffer = [0; 4096];
-            while let Ok(count) = stream.read(&mut buffer) {
-                if count == 0 {
-                    break;
+            let chunk = &buffer[..count];
+            let mut ready = false;
+            if stdout {
+                scan_tail.extend_from_slice(chunk);
+                if scan_tail
+                    .windows(READY_MESSAGE.len())
+                    .any(|w| w == READY_MESSAGE.as_bytes())
+                {
+                    ready = true;
                 }
-                let _ = sender.send((false, buffer[..count].to_vec()));
+                let keep = READY_MESSAGE.len().saturating_sub(1);
+                if scan_tail.len() > keep {
+                    let start = scan_tail.len() - keep;
+                    scan_tail = scan_tail[start..].to_vec();
+                }
+            }
+            if sender.send((ready, chunk.to_vec())).is_err() {
+                break;
             }
         }
     });
@@ -123,17 +132,6 @@ fn log_terminal() -> vt100::Parser {
         NonZeroU16::new(2000).unwrap(),
         0,
     )
-}
-
-fn process_log_output(terminal: &mut vt100::Parser, bytes: &[u8]) {
-    for segment in bytes.split_inclusive(|byte| *byte == b'\n') {
-        if let Some(line) = segment.strip_suffix(b"\n") {
-            terminal.process(line);
-            terminal.process(b"\r\n");
-        } else {
-            terminal.process(segment);
-        }
-    }
 }
 
 fn stop_backend(child: &mut Child) -> Result<(), String> {
@@ -176,7 +174,7 @@ fn supervise(app: &AppHandle, desktop: &Desktop) -> Result<(), String> {
             break Err("Backend startup timed out after 10 minutes.".into());
         }
         if let Ok((ready_message, bytes)) = output.recv_timeout(Duration::from_millis(100)) {
-            process_log_output(&mut terminal, &bytes);
+            terminal.process(&bytes);
             {
                 let mut status = desktop.status.lock().unwrap();
                 status.logs = terminal
@@ -245,8 +243,8 @@ mod tests {
     #[test]
     fn progress_updates_rewrite_existing_rows() {
         let mut terminal = log_terminal();
-        process_log_output(&mut terminal, b"\rModule A: 10%\n\rModel B: 20%");
-        process_log_output(&mut terminal, b"\x1b[A\rModule A: 60%\x1b[B\rModel B: 90%");
+        terminal.process(b"\rModule A: 10%\r\n\rModel B: 20%");
+        terminal.process(b"\x1b[A\rModule A: 60%\x1b[B\rModel B: 90%");
         assert_eq!(terminal.screen().contents(), "Module A: 60%\nModel B: 90%");
     }
 
@@ -254,7 +252,7 @@ mod tests {
     fn ansi_and_utf8_can_span_read_boundaries() {
         let mut terminal = log_terminal();
         for byte in "\x1b[32mDownloading \u{2588} 50%\x1b[0m".as_bytes() {
-            process_log_output(&mut terminal, &[*byte]);
+            terminal.process(&[*byte]);
         }
         assert_eq!(terminal.screen().contents(), "Downloading \u{2588} 50%");
     }
@@ -262,7 +260,7 @@ mod tests {
     #[test]
     fn piped_newlines_start_at_the_first_column() {
         let mut terminal = log_terminal();
-        process_log_output(&mut terminal, b"first\nsecond\r\nthird\n");
+        terminal.process(b"first\r\nsecond\r\nthird\r\n");
         assert_eq!(terminal.screen().contents(), "first\nsecond\nthird");
     }
 
@@ -292,15 +290,17 @@ mod tests {
                 Ok(bytes.len())
             }
         }
-        let (input, chunks) = mpsc::channel();
-        let (sender, output) = mpsc::sync_channel(4);
-        read_output(LiveOutput(chunks), false, sender);
-        input.send(b"\rDownloading 40%".to_vec()).unwrap();
-        let (ready, bytes) = output.recv_timeout(Duration::from_secs(2)).unwrap();
-        assert!(!ready);
-        let mut terminal = log_terminal();
-        process_log_output(&mut terminal, &bytes);
-        assert_eq!(terminal.screen().contents(), "Downloading 40%");
+        for stdout in [false, true] {
+            let (input, chunks) = mpsc::channel();
+            let (sender, output) = mpsc::sync_channel(4);
+            read_output(LiveOutput(chunks), stdout, sender);
+            input.send(b"\rDownloading 40%".to_vec()).unwrap();
+            let (ready, bytes) = output.recv_timeout(Duration::from_secs(2)).unwrap();
+            assert!(!ready);
+            let mut terminal = log_terminal();
+            terminal.process(&bytes);
+            assert_eq!(terminal.screen().contents(), "Downloading 40%");
+        }
     }
 
     #[test]

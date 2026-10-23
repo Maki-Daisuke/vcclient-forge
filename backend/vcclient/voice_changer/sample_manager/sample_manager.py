@@ -2,7 +2,7 @@ import math
 import platform
 from collections.abc import Callable
 from pathlib import Path
-from threading import Thread
+from threading import Lock, Thread
 
 import requests
 
@@ -53,7 +53,7 @@ class SampleManager:
             download_urls.append(target_sample.icon_url)
 
         for url_index, url in enumerate(download_urls):
-            req = requests.get(url, stream=True, allow_redirects=True)
+            req = requests.get(url, stream=True, allow_redirects=True, timeout=(10.0, 60.0))
             content_length_header = req.headers.get("content-length")
             if content_length_header is not None:
                 content_length = int(content_length_header)
@@ -70,6 +70,8 @@ class SampleManager:
                     file_progress = min(1, round((i + 1) / chunk_num, 2))
                     progress = round((file_progress / len(download_urls)) + (1 / len(download_urls) * url_index), 2)
                     callback(SampleDownloadStatus(id=target_sample.id, status="processing", progress=progress))
+
+        callback(SampleDownloadStatus(id=target_sample.id, status="done", progress=1.0))
 
     def download(self, upload_dir: Path, param: SampleDownloadParam) -> None:
         slot_manager = SlotManager.get_instance()
@@ -127,11 +129,13 @@ class SampleManager:
 
         initial_samples = [x for x in self.sample_list if x.id in INITIAL_SAMPLES]
         status_dict = {x.id: SampleDownloadStatus(id=x.id, status="processing", progress=0) for x in initial_samples}
+        lock = Lock()
 
         def download_callback(status: SampleDownloadStatus) -> None:
-            status_dict[status.id] = status
-            if callback is not None:
-                callback(list(status_dict.values()))
+            with lock:
+                status_dict[status.id] = status
+                if callback is not None:
+                    callback(list(status_dict.values()))
 
         self.threads = {}
         for sample in initial_samples:

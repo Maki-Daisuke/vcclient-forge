@@ -1,3 +1,5 @@
+import time
+
 from tqdm import tqdm
 
 from vcclient.logger import logger
@@ -12,27 +14,39 @@ def _check_and_download_rvc_modules() -> None:
     module_manager = ModuleManager.get_instance()
     if module_manager.is_rvc_ready() is False:
         logger.info("RVC is not ready. Downloading RVC modules.")
-        print("RVC is not ready. Downloading RVC modules.")
+        print("RVC is not ready. Downloading RVC modules (parallel)...", flush=True)
 
-        pbar_dict_module: dict[str, tqdm] = {}
+        last_update = [0.0]
 
         def download_callback(status: list[ModuleDownloadStatus]) -> None:
-            position = 0
+            if not status:
+                return
+            now = time.monotonic()
+            all_done = all(s.status == "done" for s in status)
+            if not all_done and (now - last_update[0]) < 0.1:
+                return
+            last_update[0] = now
+
+            total_progress = sum(s.progress for s in status) / len(status)
+            total_pct = int(total_progress * 100)
+
+            items = []
             for s in status:
-                if s.id not in pbar_dict_module:
-                    pbar_dict_module[s.id] = tqdm(
-                        total=100, unit="%", desc=f"Downloading {s.id[:10]}", leave=False, position=position
-                    )
-                    position += 1
-                pbar = pbar_dict_module[s.id]
-                pbar.n = int(s.progress * 100)
-                pbar.refresh()
+                label = s.id.replace(".onnx", "").replace("-f", "")
+                pct = int(s.progress * 100)
                 if s.status == "done":
-                    pbar.close()
+                    items.append(f"{label}: Done")
+                elif s.status == "error":
+                    items.append(f"{label}: Err")
+                else:
+                    items.append(f"{label}: {pct:>2}%")
+
+            summary = " | ".join(items)
+            print(f"\rDownloading RVC modules [{total_pct:>3}%]: {summary}", end="", flush=True)
 
         module_manager.download_rvc_modules(download_callback)
         logger.info("RVC is not ready. Downloading RVC modules. Done.")
-        print("\n\nRVC is not ready. Downloading RVC modules. Done.")
+        print("\nRVC is not ready. Downloading RVC modules. Done.\n", flush=True)
 
 
 def _check_and_convert_legacy_pth_models() -> None:
@@ -67,25 +81,35 @@ def _check_and_download_initial_samples() -> None:
     valid_slot_infos = [x for x in slot_manager.get_slot_infos() if x.voice_changer_type is not None]
     if len(valid_slot_infos) == 0:
         logger.info("Sample is not ready. Downloading initial samples.")
-        print("Sample is not ready. Downloading initial samples.")
+        print("Sample is not ready. Downloading initial samples (parallel)...", flush=True)
 
         sample_manager = SampleManager.get_instance()
-        pbar_dict_sample: dict[str, tqdm] = {}
+        last_update = [0.0]
 
         def download_callback(status: list[SampleDownloadStatus]) -> None:
-            position = 0
+            if not status:
+                return
+            now = time.monotonic()
+            all_done = all(s.status == "done" for s in status)
+            if not all_done and (now - last_update[0]) < 0.1:
+                return
+            last_update[0] = now
+
+            total_progress = sum(s.progress for s in status) / len(status)
+            total_pct = int(total_progress * 100)
+
+            items = []
             for s in status:
-                if s.id not in pbar_dict_sample:
-                    pbar_dict_sample[s.id] = tqdm(
-                        total=100, unit="%", desc=f"Downloading {s.id[:10]}", leave=False, position=position
-                    )
-                    position += 1
-                pbar = pbar_dict_sample[s.id]
-                pbar.n = int(s.progress * 100)
-                pbar.refresh()
+                label = s.id.replace("_o", "")
+                pct = int(s.progress * 100)
                 if s.status == "done":
-                    pbar.close()
+                    items.append(f"{label}: Done")
+                else:
+                    items.append(f"{label}: {pct:>2}%")
+
+            summary = " | ".join(items)
+            print(f"\rDownloading initial samples [{total_pct:>3}%]: {summary}", end="", flush=True)
 
         sample_manager.download_initial_samples(download_callback)
         logger.info("Sample is not ready. Downloading initial samples. Done.")
-        print("\n\nSample is not ready. Downloading initial samples. Done.")
+        print("\nSample is not ready. Downloading initial samples. Done.\n", flush=True)

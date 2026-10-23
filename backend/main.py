@@ -11,6 +11,19 @@ if __name__ == "__main__":
     if getattr(sys, "frozen", False):
         os.chdir(Path(sys.executable).resolve().parent)
 
+# Ensure standard I/O is unbuffered so supervisor processes (like Tauri) receive lines immediately
+os.environ["PYTHONUNBUFFERED"] = "1"
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(line_buffering=True, write_through=True)
+    except Exception:
+        pass
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(line_buffering=True, write_through=True)
+    except Exception:
+        pass
+
 # Ensure the project root is in sys.path regardless of execution context
 _here = Path(__file__).parent.resolve()
 if str(_here) not in sys.path:
@@ -53,7 +66,7 @@ def start_server(
         signal.signal(signal.SIGBREAK, handle_shutdown_signal)
 
     logger.info("VCClient Forge v%s", VERSION)
-    print(f"VCClient Forge v{VERSION}")
+    print(f"VCClient Forge v{VERSION}", flush=True)
 
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
@@ -81,11 +94,11 @@ def start_server(
         time.sleep(0.05)
 
     base_url = f"http://localhost:{vcserver_port}"
-    print("-" * 50)
-    print(f" Application: {base_url}")
-    print(f" API Docs:    {base_url}/docs")
-    print("-" * 50)
-    print("Please press Ctrl+C once to exit vcclient.")
+    print("-" * 50, flush=True)
+    print(f" Application: {base_url}", flush=True)
+    print(f" API Docs:    {base_url}/docs", flush=True)
+    print("-" * 50, flush=True)
+    print("Please press Ctrl+C once to exit vcclient.", flush=True)
 
     err_msg = ""
     while not app_status.end_flag:
@@ -120,14 +133,14 @@ def start_server(
             local_voice_changer_interface.stop()
             time.sleep(1)
 
-    print("terminate vcclient... (press Ctrl+C again to force exit)")
+    print("terminate vcclient... (press Ctrl+C again to force exit)", flush=True)
 
     try:
         app_status.stop_app()
         vcserver.stop()
         VoiceChanger.get_instance().stop_convert_chunk_bulk()
     except KeyboardInterrupt:
-        print("\nforce exit vcclient.")
+        print("\nforce exit vcclient.", flush=True)
         os._exit(1)
 
 

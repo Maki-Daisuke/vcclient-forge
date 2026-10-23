@@ -2,7 +2,7 @@ import hashlib
 import math
 from collections.abc import Callable
 from pathlib import Path
-from threading import Thread
+from threading import Lock, Thread
 
 import requests
 
@@ -87,7 +87,7 @@ class ModuleManager:
 
     def _download(self, target_module: ModuleInfo, callback: ModuleDownloadCallback) -> None:
         target_module.save_to.parent.mkdir(parents=True, exist_ok=True)
-        req = requests.get(target_module.url, stream=True, allow_redirects=True)
+        req = requests.get(target_module.url, stream=True, allow_redirects=True, timeout=(10.0, 60.0))
         content_length_header = req.headers.get("content-length")
         content_length = int(content_length_header) if content_length_header is not None else 1073741824
         chunk_size = 1048576
@@ -185,10 +185,12 @@ class ModuleManager:
         status_dict = {
             x.info.id: ModuleDownloadStatus(id=x.info.id, status="processing", progress=0) for x in rvc_modules
         }
+        lock = Lock()
 
         def download_callback(status: ModuleDownloadStatus) -> None:
-            status_dict[status.id] = status
-            callback(list(status_dict.values()))
+            with lock:
+                status_dict[status.id] = status
+                callback(list(status_dict.values()))
 
         for module in rvc_modules:
             self.download(module.info.id, download_callback)
@@ -197,4 +199,3 @@ class ModuleManager:
             if threads is not None:
                 threads.join()
         self.reload()
-        print("module download fin!")
