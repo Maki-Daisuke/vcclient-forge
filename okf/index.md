@@ -16,6 +16,7 @@ entries:
   - deprecating-and-removing-ngrok.md
   - server-first-architecture-and-static-pipeline-roadmap.md
   - inversion-of-control-and-process-lifecycle.md
+  - migrating-desktop-host-from-tauri-to-wails.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -58,3 +59,6 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 11. **[Inversion of Control: Client-Driven Architecture and Process Lifecycle](./inversion-of-control-and-process-lifecycle.md)**
     How Forge inverts the legacy Python-centric master/slave model by isolating the Python backend to a pure HTTP/Socket.IO server, shifting UI and browser launching to client launchers (Tauri, shell scripts), and standardizing process lifecycle management via standard OS signals.
+
+12. **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**
+    Why Forge migrates its desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go). In a system where heavy lifting is handled by Python/ONNX and UI is rendered by WebView2, Rust's runtime advantages are negligible compared to the high cost of build times, permission ceremony, and boilerplate. Wails v3 provides instant builds, concise process control, pure Go Windows builds without CGO, and declarative script injection (`WebviewWindowOptions.JS`) that eliminates native event hooking while reusing all existing bootstrap assets.

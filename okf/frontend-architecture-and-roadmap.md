@@ -200,13 +200,14 @@ flowchart TD
 - Verify Tauri WebView audio permissions and optional browser access through Tailscale Serve. Tauri packaging and Server Mode usability do not need to wait for Client Mode completion.
 - **Acceptance**: Client Mode is restored using WebSocket only; no Socket.IO dependencies or legacy UI return. Continue adding remaining UI features incrementally.
 
-### Planned Desktop Packaging (Tauri v2)
+### Desktop Packaging: Transitioning from Tauri v2 to Wails v3
 
-**Execution update (2026-10-19)**: Establish the desktop baseline with the existing legacy UI before implementing the Svelte migration. The root `src-tauri/` host embeds a separate startup/error/retry page, starts and supervises Python, and navigates to the Python-served UI after readiness. It does not embed a second copy of the main UI. Preserve REST/Socket.IO and current audio behavior for this step; actual WebView/audio compatibility remains a runtime acceptance gate. Initially build Windows portable packages with the full PyInstaller onedir backend. Future remote attachment is a separate extension, not implemented by this local startup path.
+**Historical Context (2026-10-19)**: The project initially prototyped a desktop baseline using Tauri v2 to avoid Electron's runtime overhead and preserve size budget under GitHub Releases' 2 GiB limit.
 
-Forge chooses **Tauri v2 (Rust + native OS WebView)** for two reasons:
+**Architectural Decision Update (2026-10-23)**: Following practical implementation and evaluation, Forge made the strategic decision to **migrate the desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go)**. See the dedicated architectural decision record: **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**.
 
-1. **Small Distribution Package**:
-   The complete portable archive, including the Python backend and CUDA dependencies, must remain **under 2 GiB** for GitHub Releases. Tauri uses the OS WebView instead of bundling Electron's Chromium and Node.js, leaving more of that size budget for inference dependencies. See [Sub-2GB Portable Distribution and Packaging Architecture](./sub-2gb-portable-distribution-and-packaging.md).
-2. **Small Memory Footprint**:
-   The Rust host adds neither Electron's Node.js runtime nor Wails' Go runtime. Its small runtime overhead is the architectural reason for choosing Tauri, leaving memory available for voice conversion, games, and streaming applications rather than the desktop shell. This is a selection rationale, not a claim of a fixed memory saving for every workload.
+Key rationale:
+1. **The Desktop Wrapper is Functionally Thin**: Because neural inference (ONNX Runtime) and audio streaming (WASAPI) run in Python, and UI execution runs in WebView2, the host process merely supervises subprocess lifecycle and navigation. The marginal runtime memory difference between Rust and Go is negligible.
+2. **Elimination of Build & Toolchain Friction**: Wails v3 compiles in seconds rather than minutes, removes Tauri's extensive permission/capability configuration overhead, and compiles cleanly on Windows without CGO or MSVC build toolchains.
+3. **Declarative Hook Injection (`WebviewWindowOptions.JS`)**: Wails v3 allows injecting pre-execution scripts directly into the window context, solving external link delegation (`window.open`) and legacy Electron polyfilling (`window.electronAPI.openBrowser`) transparently in user space without low-level COM/event interception.
+4. **Asset Preservation**: All unbuffered bootstrap UI assets (HTML/CSS/JS) developed for Tauri are directly embedded into the Wails binary via standard `//go:embed`.
