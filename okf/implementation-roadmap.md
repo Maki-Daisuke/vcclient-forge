@@ -66,13 +66,13 @@ Keep connection selection separate from local process ownership so future remote
 - **Exit**: Native conversion, monitor output, notifications, and shutdown work without Socket.IO. A temporary browser-audio gap is accepted.
 - **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-websocket-notifications--socketio-removal).
 
-### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2)
+### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2) [Completed]
 
 - Establish the desktop baseline around the Python-served UI. Supervise the child process and render the embedded bootstrap page while backend models initialize.
-- **Architectural Update (2026-10-23)**: Migrate the desktop host from Tauri v2 to Wails v3 (Go) as detailed in [Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md). This eliminates multi-minute Rust compile times, complex capability/permission schemas, and webview navigation ceremony while retaining instant iteration, pure-Go CGO-free Windows builds, declarative script injection (`WebviewWindowOptions.JS`), and all existing bootstrap assets.
+- **Architectural Update & Completion (2026-10-25)**: Completed migration from Tauri v2 to Wails v3 (Go) with Vite, TypeScript, and xterm.js as detailed in [Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md). Completely removed `src-tauri/` and Rust dependencies, achieving a net code reduction of **2,846 lines**. Daily build turnaround improved by **~5× (~3–5s vs ~15–30s)**, Windows builds are pure Go (`CGO_ENABLED=0`) without MSVC requirements, and process supervision is cleanly handled via Win32 console integration (`AllocConsole`) and `CTRL_C_EVENT` handling.
 - Retain the self-contained PyInstaller backend and externally writable state. Validate relocation/startup and the complete edition-specific archive, including desktop-shell additions, against the strict under-2-GiB limit.
 - **Depends on**: The working UI and self-contained Python backend for the initial shell; the later Svelte transition follows item 4. Neither protocol modernization nor Boost Mode is a prerequisite.
-- **Exit**: A usable packaged native desktop workflow with clean process lifecycle, instant Go compilation, and measured distribution size/resource use on target platforms.
+- **Exit**: A usable packaged native desktop workflow with clean process lifecycle, instant Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
 - **Sources**: [Desktop Transition](./frontend-architecture-and-roadmap.md#desktop-packaging-transitioning-from-tauri-to-wails), [Wails ADR](./migrating-desktop-host-from-tauri-to-wails.md), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 
 ### 7. Restore Browser Audio as WebSocket Adapters

@@ -8,7 +8,8 @@ tags:
   - inversion-of-control
   - process-lifecycle
   - backend
-  - tauri
+  - wails
+  - desktop
   - signal-handling
   - simplification
 ---
@@ -22,7 +23,7 @@ VCClient Forge fundamentally redesigns the relationship between the client UI an
 Forge **inverts this control hierarchy**:
 
 1. **Pure HTTP/Socket.IO Server**: The Python backend does one thing only—it serves voice-conversion endpoints and audio streaming. It never launches browsers, spawns UIs, or monitors `stdin`.
-2. **Client-Driven Lifecycle**: The user-facing launcher (the Tauri desktop binary on Windows, or `start.bat` / `start.sh` for browser/headless environments) owns and manages the backend process.
+2. **Client-Driven Lifecycle**: The user-facing launcher (the Wails desktop binary on Windows, or `start.bat` / `start.sh` for browser/headless environments) owns and manages the backend process.
 3. **Standard OS Signals and Two-Stage Shutdown**: Custom stdin polling loops are replaced by standard OS signals (`SIGINT`, `SIGTERM`, and Windows `SIGBREAK`), backed by a fail-safe two-stage Ctrl+C handler that guarantees instantaneous force-exit if cleanup ever hangs.
 
 This architectural inversion removed hundreds of lines of dead weight, eliminated unneeded external dependencies (`fire`), and established clean, standardized process lifecycle management.
@@ -69,7 +70,7 @@ Forge establishes strict boundaries: **Python is strictly a server; launchers ar
    Windows Desktop User                    Linux / Mac / Browser User
   ┌───────────────────────┐               ┌──────────────────────────┐
   │  vcclient-forge.exe   │               │   start.sh / start.bat   │
-  │     (Tauri App)       │               │     (Shell Script)       │
+  │     (Wails App)       │               │     (Shell Script)       │
   └──────────┬────────────┘               └────────────┬─────────────┘
              │ Spawns & monitors                       │ Spawns backend &
              │ child process                           │ opens default browser
@@ -86,7 +87,7 @@ Forge establishes strict boundaries: **Python is strictly a server; launchers ar
 
 | Component | Responsibility | Does NOT Do |
 | :--- | :--- | :--- |
-| **Tauri Desktop (`vcclient-forge.exe`)** | Supervise backend child process; display bootstrap loading screen; navigate WebView to server URL upon readiness; kill child on window close. | Implement audio DSP or model inference directly. |
+| **Wails Desktop (`vcclient-forge.exe`)** | Supervise backend child process; display bootstrap loading screen with xterm.js terminal; navigate WebView to server URL upon readiness; kill child on window close. | Implement audio DSP or model inference directly. |
 | **Shell Launchers (`start.bat`, `start.sh`)** | Start backend binary; wait briefly; launch system default browser pointing to `http://127.0.0.1:18888/`. | Contain application logic or Python wrappers. |
 | **Python Backend (`main.py`)** | Initialize audio devices; load ONNX pipelines; bind HTTP/Socket.IO server; handle graceful OS signals. | Launch browsers; manage UI windows; poll stdin; generate SSL keys. |
 
@@ -99,13 +100,13 @@ With control inverted, user interactions become intuitive and single-action:
 ### Windows Desktop (Standard User)
 - **Action**: Double-click `vcclient-forge.exe`.
 - **What happens**:
-  1. Tauri launches immediately and shows a lightweight native bootstrap/loading UI.
-  2. Tauri spawns `main.exe` in the background with `stdin: Stdio::null()`.
-  3. Tauri captures stdout/stderr and displays logs in the startup window.
-  4. Once stdout outputs `Application: http://localhost:18888`, Tauri automatically navigates its WebView to the application.
+  1. Wails launches immediately and shows a lightweight native bootstrap screen with an embedded xterm.js terminal.
+  2. Wails spawns the backend process (`python backend/main.py` in dev or `main.exe` in package) with stdout/stderr pipes.
+  3. Wails captures stdout/stderr, pushes real-time `backend-log` events, and displays them via xterm.js with ANSI formatting.
+  4. Once stdout outputs `Application: http://localhost:18888`, Wails triggers `backend-ready` and automatically navigates its WebView to the application.
 
 ### Linux / macOS / Headless Windows (Browser Workflow)
-- **Action**: Run `./start.sh` (or `start.bat` on Windows without Tauri).
+- **Action**: Run `./start.sh` (or `start.bat` on Windows without Wails).
 - **What happens**:
   1. The script initiates background browser opening (`xdg-open`, `open`, or `start http://127.0.0.1:18888/`).
   2. The script executes the backend executable (`exec "$SCRIPT_DIR/main" "$@"`).
@@ -135,7 +136,7 @@ Forge replaces custom stdin loops with standard OS signals and introduces a **tw
                  ┌───────────────────────┴───────────────────────┐
                  ▼                                               ▼
    [Graceful Shutdown Signals]                        [Direct Process Kill]
-   - Terminal 1st Ctrl+C (SIGINT)                     - Tauri window close (`child.kill()`)
+   - Terminal 1st Ctrl+C (SIGINT)                     - Wails window close (`CTRL_C_EVENT` / `taskkill`)
    - Process termination (SIGTERM)                    - OS SIGKILL / TerminateProcess
    - Windows supervisor (SIGBREAK)                               │
                  │                                               │
@@ -197,5 +198,5 @@ In terminal environments, if a background device driver or thread deadlocks duri
 The inversion of control and lifecycle refactoring is verified through automated test suites across all target operating systems:
 
 - **Signal and Argument Verification**: `test_main_starts_server_with_parsed_arguments` validates that `main.py` accepts CLI options without `fire` and correctly dispatches host/port parameters.
-- **Desktop Process Supervision**: `tests/desktop_bootstrap.test.cjs` validates Tauri's bootstrap lifecycle, readiness reporting, and error handling.
+- **Desktop Process Supervision**: `tests/desktop_bootstrap.test.cjs` and `desktop/supervisor_test.go` validate Wails's bootstrap lifecycle, readiness reporting, and error handling.
 - **Readiness Detection**: `src-tauri/src/backend.rs` unit tests verify that output stream monitoring reliably detects readiness from stdout lines matching `Application: http://localhost:18888` without capturing stderr or deadlocking.

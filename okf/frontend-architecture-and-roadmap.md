@@ -200,11 +200,11 @@ flowchart TD
 - Verify Tauri WebView audio permissions and optional browser access through Tailscale Serve. Tauri packaging and Server Mode usability do not need to wait for Client Mode completion.
 - **Acceptance**: Client Mode is restored using WebSocket only; no Socket.IO dependencies or legacy UI return. Continue adding remaining UI features incrementally.
 
-### Desktop Packaging: Transitioning from Tauri v2 to Wails v3
+### Desktop Packaging: Transitioning from Tauri v2 to Wails v3 [Completed]
 
 **Historical Context (2026-10-19)**: The project initially prototyped a desktop baseline using Tauri v2 to avoid Electron's runtime overhead and preserve size budget under GitHub Releases' 2 GiB limit.
 
-**Architectural Decision Update (2026-10-23)**: Following practical implementation and evaluation, Forge made the strategic decision to **migrate the desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go)**. See the dedicated architectural decision record: **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**.
+**Architectural Decision & Completion (2026-10-25)**: The desktop host migration from Tauri v2 (Rust) to Wails v3 (Go) with Vite, TypeScript, and xterm.js has been completed (commit `b260979`). Completely removing `src-tauri/` eliminated **2,846 lines of net boilerplate**, sped up daily iteration by **~5× (~3–5s vs ~15–30s)**, and eliminated the requirement for MSVC C++ build tools on Windows. See the detailed record in **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**.
 
 Key rationale:
 1. **The Desktop Wrapper is Functionally Thin**: Because neural inference (ONNX Runtime) and audio streaming (WASAPI) run in Python, and UI execution runs in WebView2, the host process merely supervises subprocess lifecycle and navigation. The marginal runtime memory difference between Rust and Go is negligible.

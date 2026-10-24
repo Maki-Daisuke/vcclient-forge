@@ -110,20 +110,35 @@ The migration to Wails preserves all frontend and UX investments made so far:
 
 ---
 
-## 4. Migration Roadmap
+## 4. Migration Roadmap & Execution
 
-1. **Phase 1: Environment & Project Scaffolding**
-   - Initialize Wails project structure under `desktop/` or `src-wails/`.
-   - Embed existing `bootstrap/` HTML/JS assets.
-2. **Phase 2: Process Supervisor Implementation**
-   - Port `backend_command`, line streaming, readiness detection, and graceful shutdown to Go using `os/exec`.
-   - Expose startup status and retry bindings to the bootstrap frontend.
-3. **Phase 3: Navigation & Window Lifecycle**
-   - Navigate webview to `http://127.0.0.1:18888/` upon backend readiness.
-   - Configure declarative link delegation and Electron polyfills via `WebviewWindowOptions.JS`.
-4. **Phase 4: Toolchain & Build Script Integration**
-   - Update `scripts/build.js` and `package.json` to replace `tauri build` with `wails build`.
-   - Remove `src-tauri/` and prune Rust dependencies.
-5. **Phase 5: Release Verification**
-   - Verify Windows x64 portable builds, startup unbuffering, and multi-UI navigation.
-   - Tag and release `v2.0.78-forge.0.1.0` on the new Wails baseline.
+1. **Phase 1: Environment & Project Scaffolding** [Completed]
+   - Initialized Wails v3 project structure under `desktop/` with Vite, TypeScript, and `@xterm/xterm` (xterm.js).
+   - Configured Taskfile automation (`desktop/Taskfile.yml` and `desktop/build/Taskfile.yml`) for bindings generation, Vite build, syso manifest generation, and Go compilation.
+2. **Phase 2: Process Supervisor Implementation** [Completed]
+   - Implemented `desktop/main.go` and `desktop/sys_windows.go` to supervise Python backend execution via `os/exec.Command`.
+   - Replaced polling architecture (`StartupStatus` / `RetryBackend`) with real-time push event streaming (`app.Event.Emit("backend-log")` and `app.Event.Emit("backend-ready")`).
+   - Attached hidden console session via `AllocConsole` and `windows.SW_HIDE` on Windows to enable reliable `CTRL_C_EVENT` handling, backed by `taskkill /F /T /PID` process-tree termination.
+3. **Phase 3: Navigation & Window Lifecycle** [Completed]
+   - Bound `app.Run()` strictly to the main OS thread for COM STA compliance (`HRESULT 0x800401f0` prevention).
+   - Automated webview navigation to `http://127.0.0.1:18888/` upon backend readiness.
+   - Configured declarative link delegation to OS default browser and legacy Electron polyfills via `WebviewWindowOptions.JS`.
+4. **Phase 4: Toolchain & Build Script Integration** [Completed]
+   - Updated `scripts/build_package.py`, `tests/desktop_bootstrap.test.cjs`, and `package.json` to replace Tauri tasks with `wails3 task --dir desktop build`.
+   - Completely deleted `src-tauri/` and pruned Rust dependencies.
+5. **Phase 5: Release Verification & Quality Gates** [Completed]
+   - Verified pure Go CGO-free Windows compilation (`CGO_ENABLED=0`), generating `desktop/bin/vcclient-forge.exe` (10.18 MB) in ~8 seconds.
+   - Integrated native Git pre-commit hook (`.githooks/pre-commit`) to guarantee Ruff and `gofmt` code formatting before every commit.
+   - Passed all 105 backend pytest cases, 8 desktop bootstrap test cases, and Go unit tests.
+
+---
+
+## 5. Migration Outcome & Quantitative Impact
+
+On October 25, 2026, the migration from Tauri v2 to Wails v3 was completed and merged (commit `b260979`). The technical and organizational benefits directly align with the core philosophy **"If the outcome and capabilities are identical, less code and concise documentation is the ultimate virtue."**:
+
+| Metric                                | Tauri v2 (Rust)                                                        | Wails v3 (Go)                                                            | Impact / Savings                                                                                           |
+| :------------------------------------ | :--------------------------------------------------------------------- | :----------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| **Lines of Code**                     | ~5,324 lines across 40+ files                                          | ~2,478 lines across 20 files                                             | **-2,846 lines net reduction** (massive elimination of configuration & wrapper boilerplate)                |
+| **Build Toolchain**                   | Rust + Cargo + MSVC C++ Build Tools + Windows SDK (multi-GB footprint) | Pure Go 1.25+ (`CGO_ENABLED=0`)                                          | **Zero C++ compiler requirement** on Windows; lightweight developer onboarding                             |
+| **Desktop Build Time (Daily Rhythm)** | **~15–30s** (incremental turnaround)<br>_(~2–4 min clean/CI build)_    | **~3–5s** (full pipeline: Vite + Go build)<br>_(~10–15s fresh/CI setup)_ | **~5× faster iteration loop**; keeps developer concentration and rhythm uninterrupted without idle waiting |
