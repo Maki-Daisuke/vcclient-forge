@@ -1,0 +1,49 @@
+version: '3'
+
+tasks:
+  go:mod:tidy:
+    summary: Runs `go mod tidy`
+    internal: true
+    run: once
+    cmds:
+      - go mod tidy
+
+  generate:bindings:
+    summary: Generates bindings for the frontend
+    run: once
+    deps:
+      - task: go:mod:tidy
+    cmds:
+      - wails3 generate bindings -ts -clean=true
+
+  build:frontend:
+    summary: Builds the Vite frontend
+    dir: frontend
+    run: once
+    deps:
+      - task: generate:bindings
+    cmds:
+      - npm run build
+
+  dev:frontend:
+    summary: Runs the frontend in development mode
+    dir: frontend
+    cmds:
+      - npm run dev -- --port {{.VITE_PORT}} --strictPort
+
+  generate:icons:
+    summary: Generates Windows `.ico` from an image
+    run: once
+    dir: build
+    sources:
+      - "appicon.png"
+    generates:
+      - "windows/icon.ico"
+    cmds:
+      - wails3 generate icons -input appicon.png -windowsfilename windows/icon.ico
+
+  update:build-assets:
+    summary: Updates the build assets
+    dir: build
+    cmds:
+      - wails3 update build-assets -name "{{.APP_NAME}}" -binaryname "{{.APP_NAME}}" -config config.yml -dir .

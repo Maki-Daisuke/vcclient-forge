@@ -5,9 +5,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+/build/
 develop-eggs/
-dist/
+/dist/
 downloads/
 eggs/
 .eggs/
@@ -44,8 +44,11 @@ dummy/
 
 # Node / Frontend
 node_modules/
-src-tauri/target/
-src-tauri/gen/
+# Desktop / Native Host
+desktop/bin/
+desktop/.task/
+desktop/frontend/node_modules/
+desktop/frontend/dist/
 frontend/dist/
 client/lib/dist
 client/lib/worklet/dist

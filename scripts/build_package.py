@@ -88,7 +88,7 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path | 
     )
     desktop = None
     if platform.system() == "Windows":
-        desktop = PROJECT_ROOT / "src-tauri" / "target" / "release" / "vcclient-forge.exe"
+        desktop = PROJECT_ROOT / "desktop" / "bin" / "vcclient-forge.exe"
         if not desktop.is_file() or desktop.stat().st_size == 0:
             missing.append(str(desktop))
     for name in ("start.bat", "start.sh", "README.md", "LICENSE"):

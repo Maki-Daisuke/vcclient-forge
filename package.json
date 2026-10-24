@@ -1,21 +1,20 @@
 {
   "name": "vcclient-forge",
-  "version": "2.0.78-forge.0.0.2",
+  "version": "2.0.78-forge.0.1.0",
   "private": true,
   "description": "VCClient Forge - Task Runner and Integration",
   "scripts": {
     "clean": "node scripts/clean.js",
     "start": "uv run --project backend python backend/main.py",
     "dev:backend": "uv run --project backend python backend/main.py",
-    "tauri": "tauri",
-    "dev:desktop": "tauri dev --no-dev-server",
-    "build:desktop": "tauri build --no-bundle -- --locked",
+    "dev:desktop": "wails3 task --dir desktop dev",
+    "build:desktop": "wails3 task --dir desktop build",
     "build:frontend": "node scripts/build_frontend.js",
     "build:backend": "uv run --no-project --python 3.14 python scripts/build_backend.py",
     "build": "node scripts/build.js",
     "typecheck:backend": "uv run --project backend mypy --config-file backend/pyproject.toml",
     "test:backend": "uv run --project backend mypy --config-file backend/pyproject.toml && uv run --project backend pytest backend/tests",
-    "test:desktop": "node --test tests/desktop_bootstrap.test.cjs",
+    "test:desktop": "node --test tests/desktop_bootstrap.test.cjs && cd desktop && go test .",
     "test": "npm run test:backend && npm run test:desktop",
     "lint": "uv run --project backend ruff check backend",
     "lint:fix": "uv run --project backend ruff check --fix backend",
@@ -28,8 +27,5 @@
     "url": "git+https://github.com/Maki-Daisuke/vcclient-forge.git"
   },
   "author": "Daisuke (yanother) Maki",
-  "license": "MIT",
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.12.3"
-  }
+  "license": "MIT"
 }
