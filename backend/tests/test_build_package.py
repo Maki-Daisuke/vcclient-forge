@@ -34,8 +34,8 @@ def prepare_artifacts(builder: ModuleType) -> Path:
     for name in ("start.bat", "start.sh", "README.md", "LICENSE"):
         (root / name).write_text("asset", encoding="utf-8")
     if builder.platform.system() == "Windows":
-        desktop = root / "src-tauri/target/release/vcclient-forge.exe"
-        desktop.parent.mkdir(parents=True)
+        desktop = root / "desktop/bin/vcclient-forge.exe"
+        desktop.parent.mkdir(parents=True, exist_ok=True)
         desktop.write_bytes(b"desktop")
     return frozen
 
@@ -188,7 +188,7 @@ def test_non_windows_package_retains_backend_only_support(
 @pytest.mark.parametrize(
     "missing_path",
     [
-        "src-tauri/target/release/vcclient-forge.exe",
+        "desktop/bin/vcclient-forge.exe",
         "frontend/dist/index.html",
         "frontend/dist/index.js",
         "frontend/dist/945.index.js",
@@ -246,7 +246,7 @@ def test_npm_tasks_separate_build_from_packaging() -> None:
     assert tasks["build"] == "node scripts/build.js"
     assert tasks["build:backend"].endswith("scripts/build_backend.py")
     assert tasks["package"].endswith("scripts/build_package.py")
-    assert tasks["build:desktop"] == "tauri build --no-bundle -- --locked"
+    assert tasks["build:desktop"] == "wails3 task --dir desktop build"
     assert not hasattr(load_builder(), "build_application")
     assert not hasattr(load_builder(), "build_backend")
     assert "--no-project" in tasks["package"]

@@ -1,0 +1,27 @@
+#!/bin/sh
+# Git pre-commit hook to verify code formatting before committing.
+
+echo "🔍 Checking code formatting..."
+
+# 1. Check Python backend formatting with Ruff
+if ! npm run format:check; then
+  echo ""
+  echo "❌ Code formatting check failed for Python backend!"
+  echo "👉 Please run 'npm run format' to fix formatting issues, then try committing again."
+  exit 1
+fi
+
+# 2. Check Go desktop formatting with gofmt
+if command -v gofmt >/dev/null 2>&1; then
+  UNFORMATTED_GO=$(gofmt -l desktop 2>/dev/null)
+  if [ -n "$UNFORMATTED_GO" ]; then
+    echo ""
+    echo "❌ Code formatting check failed for Go desktop code:"
+    echo "$UNFORMATTED_GO"
+    echo "👉 Please run 'gofmt -w desktop' to fix formatting issues, then try committing again."
+    exit 1
+  fi
+fi
+
+echo "✅ All formatting checks passed!"
+exit 0

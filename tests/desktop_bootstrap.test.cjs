@@ -4,12 +4,21 @@ const path = require("node:path");
 const { test } = require("node:test");
 const vm = require("node:vm");
 
-const script = readFileSync(
-  path.join(__dirname, "../src-tauri/bootstrap/bootstrap.js"),
+const ts = require("../desktop/frontend/node_modules/typescript");
+
+const rawScript = readFileSync(
+  path.join(__dirname, "../desktop/frontend/src/main.ts"),
   "utf8",
 );
+const script = ts
+  .transpileModule(rawScript, {
+    compilerOptions: { target: ts.ScriptTarget.ESNext },
+  })
+  .outputText
+  .replace(/^import\s+[^;]+;\s*/gm, "")
+  .replace(/^export\s+/gm, "");
 
-function createPage(invoke, logPosition = {}) {
+function createPage() {
   const elements = new Map();
   const document = {
     body: { dataset: {} },
@@ -35,10 +44,47 @@ function createPage(invoke, logPosition = {}) {
       return elements.get(identifier);
     },
   };
-  const window = { __TAURI__: { core: { invoke } }, setInterval() {} };
-  Object.assign(document.getElementById("logs"), logPosition);
-  vm.runInNewContext(script, { document, window, Date, String, Math });
-  return { document, elements };
+  const terminalLines = [];
+  class MockTerminal {
+    constructor() {}
+    loadAddon() {}
+    open() {}
+    clear() {
+      terminalLines.length = 0;
+    }
+    write(text) {
+      terminalLines.push(text);
+    }
+    writeln(line) {
+      terminalLines.push(line);
+    }
+  }
+  class MockFitAddon {
+    fit() {}
+  }
+  const eventHandlers = new Map();
+  const Events = {
+    On(name, cb) {
+      eventHandlers.set(name, cb);
+    },
+  };
+  const window = {
+    addEventListener() {},
+    setInterval() {},
+    location: { href: "" },
+  };
+
+  vm.runInNewContext(script, {
+    document,
+    window,
+    Date,
+    String,
+    Math,
+    Terminal: MockTerminal,
+    FitAddon: MockFitAddon,
+    Events,
+  });
+  return { document, elements, terminalLines, eventHandlers, window };
 }
 
 test("desktop version references the root package manifest", () => {
@@ -49,117 +95,64 @@ test("desktop version references the root package manifest", () => {
   const lock = JSON.parse(
     readFileSync(path.join(root, "package-lock.json"), "utf8"),
   );
-  const config = JSON.parse(
-    readFileSync(path.join(root, "src-tauri/tauri.conf.json"), "utf8"),
+  const config = readFileSync(
+    path.join(root, "desktop/build/config.yml"),
+    "utf8",
   );
-  assert.equal(config.version, "../package.json");
   assert.equal(manifest.version.startsWith("v"), false);
   assert.equal(lock.version, manifest.version);
   assert.equal(lock.packages[""].version, manifest.version);
+  assert.match(config, new RegExp(`version:\\s*"${manifest.version}"`));
 });
 
 test("startup log is expanded by default", () => {
   const html = readFileSync(
-    path.join(__dirname, "../src-tauri/bootstrap/index.html"),
+    path.join(__dirname, "../desktop/frontend/index.html"),
     "utf8",
   );
   assert.match(html, /<details\b[^>]*\bid="diagnostics"[^>]*\bopen(?:\s|>)/);
+  assert.match(html, /<div\b[^>]*\bid="terminal-container"/);
 });
 
-test("startup state shows progress and keeps retry hidden", async () => {
-  const page = createPage(async () => ({
-    phase: "starting",
-    message: "Loading models",
-    logs: ["Loading"],
-  }));
-  await new Promise(setImmediate);
-  assert.equal(
-    page.elements.get("status-title").textContent,
-    "Starting backend",
-  );
-  assert.equal(page.elements.get("message").textContent, "Loading models");
-  assert.equal(page.elements.get("startup").attributes["aria-busy"], "true");
-  assert.equal(page.elements.get("retry").hidden, true);
+test("backend-log events write output to terminal", () => {
+  const page = createPage();
+  const handler = page.eventHandlers.get("backend-log");
+  assert.ok(handler, "backend-log event handler should be registered");
+
+  handler({ data: "Initializing engine...\n" });
+  handler({ data: "Models loaded.\n" });
+  assert.deepEqual(page.terminalLines, [
+    "Initializing engine...\n",
+    "Models loaded.\n",
+  ]);
 });
 
-for (const [label, scrollTop, expected] of [
-  ["at the bottom", 780, 1000],
-  ["reading earlier logs", 100, 100],
-]) {
-  test(`startup log preserves scroll intent when ${label}`, async () => {
-    const page = createPage(
-      async () => ({
-        phase: "starting",
-        message: "Downloading",
-        logs: ["Model: 50%"],
-      }),
-      { scrollTop, scrollHeight: 1000, clientHeight: 220 },
-    );
-    await new Promise(setImmediate);
-    assert.equal(page.elements.get("logs").textContent, "Model: 50%");
-    assert.equal(page.elements.get("logs").scrollTop, expected);
-  });
-}
+test("backend-ready event navigates to backend URL", () => {
+  const page = createPage();
+  const handler = page.eventHandlers.get("backend-ready");
+  assert.ok(handler, "backend-ready event handler should be registered");
 
-test("failed startup exposes diagnostics and retry returns to waiting", async () => {
-  let phase = "failed";
-  const calls = [];
-  const page = createPage(async (command) => {
-    calls.push(command);
-    if (command === "retry_backend") {
-      phase = "starting";
-      return;
-    }
-    return { phase, message: "<backend error>", logs: ["Port already in use"] };
-  });
-  await new Promise(setImmediate);
-  assert.equal(page.document.body.dataset.phase, "failed");
-  assert.equal(page.elements.get("retry").hidden, false);
-  assert.equal(page.elements.get("message").textContent, "<backend error>");
-  assert.equal(page.elements.get("logs").textContent, "Port already in use");
-  await page.elements.get("retry").handlers.click();
-  assert.equal(
-    calls.filter((command) => command === "retry_backend").length,
-    1,
-  );
-  assert.equal(page.elements.get("retry").hidden, true);
-  assert.equal(page.elements.get("retry").disabled, false);
-  assert.equal(page.document.body.dataset.phase, "starting");
+  handler({});
+  assert.equal(page.window.location.href, "http://127.0.0.1:18888");
 });
 
-test("IPC failure remains visible without an unhandled rejection", async () => {
-  const page = createPage(async () => {
-    throw new Error("IPC unavailable");
-  });
-  await new Promise(setImmediate);
-  assert.equal(
-    page.elements.get("status-title").textContent,
-    "Desktop connection unavailable",
-  );
-  assert.match(page.elements.get("message").textContent, /IPC unavailable/);
-  assert.equal(page.elements.get("startup").attributes["aria-busy"], "false");
-});
-
-test("only the embedded startup page receives explicitly scoped desktop commands", () => {
-  const root = path.join(__dirname, "../src-tauri");
+test("desktop host embeds bootstrap assets and configures dev script", () => {
   const manifest = JSON.parse(
     readFileSync(path.join(__dirname, "../package.json"), "utf8"),
   );
-  const config = JSON.parse(
-    readFileSync(path.join(root, "tauri.conf.json"), "utf8"),
+  const mainGo = readFileSync(
+    path.join(__dirname, "../desktop/main.go"),
+    "utf8",
   );
-  const capability = JSON.parse(
-    readFileSync(path.join(root, "capabilities/bootstrap.json"), "utf8"),
+  const taskfile = readFileSync(
+    path.join(__dirname, "../desktop/Taskfile.yml"),
+    "utf8",
   );
-  assert.equal(manifest.scripts["dev:desktop"], "tauri dev --no-dev-server");
-  assert.equal(config.build.frontendDist, "./bootstrap");
-  assert.equal(config.build.devUrl, undefined);
-  assert.equal(capability.local, true);
-  assert.equal(capability.remote, undefined);
-  assert.deepEqual(capability.permissions, [
-    "allow-startup-status",
-    "allow-retry-backend",
-  ]);
+  assert.equal(manifest.scripts["dev:desktop"], "wails3 task --dir desktop dev");
+  assert.equal(manifest.scripts["build:desktop"], "wails3 task --dir desktop build");
+  assert.match(mainGo, /\/\/go:embed all:frontend\/dist/);
+  assert.match(mainGo, /AssetFileServerFS\(assets\)/);
+  assert.match(taskfile, /APP_NAME:\s*"vcclient-forge"/);
 });
 
 function runBuild(platform, results = []) {

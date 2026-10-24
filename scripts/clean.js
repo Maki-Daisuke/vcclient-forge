@@ -12,6 +12,7 @@ const projectRoot = path.resolve(__dirname, "..");
 const targets = [
   "dist",
   "build",
+  "desktop/bin",
   "backend/.venv",
   ".venv",
   "frontend/dist",

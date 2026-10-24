@@ -16,11 +16,20 @@ def _check_and_download_rvc_modules() -> None:
         logger.info("RVC is not ready. Downloading RVC modules.")
         print("RVC is not ready. Downloading RVC modules (parallel)...", flush=True)
 
+        completed_ids: set[str] = set()
         last_update = [0.0]
 
         def download_callback(status: list[ModuleDownloadStatus]) -> None:
             if not status:
                 return
+
+            # Print completed files one line per file
+            for s in status:
+                if s.status == "done" and s.id not in completed_ids:
+                    completed_ids.add(s.id)
+                    label = s.id.replace(".onnx", "").replace("-f", "")
+                    print(f"\r\x1b[2K  ✓ {label}: Done", flush=True)
+
             now = time.monotonic()
             all_done = all(s.status == "done" for s in status)
             if not all_done and (now - last_update[0]) < 0.1:
@@ -29,20 +38,13 @@ def _check_and_download_rvc_modules() -> None:
 
             total_progress = sum(s.progress for s in status) / len(status)
             total_pct = int(total_progress * 100)
-
-            items = []
-            for s in status:
-                label = s.id.replace(".onnx", "").replace("-f", "")
-                pct = int(s.progress * 100)
-                if s.status == "done":
-                    items.append(f"{label}: Done")
-                elif s.status == "error":
-                    items.append(f"{label}: Err")
-                else:
-                    items.append(f"{label}: {pct:>2}%")
-
-            summary = " | ".join(items)
-            print(f"\rDownloading RVC modules [{total_pct:>3}%]: {summary}", end="", flush=True)
+            bar_len = 20
+            filled = int(bar_len * total_progress)
+            bar = "=" * filled + (">" if filled < bar_len else "")
+            line = (
+                f"\r\x1b[2KDownloading modules [{bar:<{bar_len}}] {total_pct:>3}% ({len(completed_ids)}/{len(status)})"
+            )
+            print(line, end="", flush=True)
 
         module_manager.download_rvc_modules(download_callback)
         logger.info("RVC is not ready. Downloading RVC modules. Done.")
@@ -84,11 +86,19 @@ def _check_and_download_initial_samples() -> None:
         print("Sample is not ready. Downloading initial samples (parallel)...", flush=True)
 
         sample_manager = SampleManager.get_instance()
+        completed_ids: set[str] = set()
         last_update = [0.0]
 
         def download_callback(status: list[SampleDownloadStatus]) -> None:
             if not status:
                 return
+
+            for s in status:
+                if s.status == "done" and s.id not in completed_ids:
+                    completed_ids.add(s.id)
+                    label = s.id.replace("_o", "")
+                    print(f"\r\x1b[2K  ✓ {label}: Done", flush=True)
+
             now = time.monotonic()
             all_done = all(s.status == "done" for s in status)
             if not all_done and (now - last_update[0]) < 0.1:
@@ -97,18 +107,13 @@ def _check_and_download_initial_samples() -> None:
 
             total_progress = sum(s.progress for s in status) / len(status)
             total_pct = int(total_progress * 100)
-
-            items = []
-            for s in status:
-                label = s.id.replace("_o", "")
-                pct = int(s.progress * 100)
-                if s.status == "done":
-                    items.append(f"{label}: Done")
-                else:
-                    items.append(f"{label}: {pct:>2}%")
-
-            summary = " | ".join(items)
-            print(f"\rDownloading initial samples [{total_pct:>3}%]: {summary}", end="", flush=True)
+            bar_len = 20
+            filled = int(bar_len * total_progress)
+            bar = "=" * filled + (">" if filled < bar_len else "")
+            line = (
+                f"\r\x1b[2KDownloading samples [{bar:<{bar_len}}] {total_pct:>3}% ({len(completed_ids)}/{len(status)})"
+            )
+            print(line, end="", flush=True)
 
         sample_manager.download_initial_samples(download_callback)
         logger.info("Sample is not ready. Downloading initial samples. Done.")

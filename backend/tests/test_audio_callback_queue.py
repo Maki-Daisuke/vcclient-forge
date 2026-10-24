@@ -3,6 +3,9 @@ from queue import Queue
 
 import numpy as np
 
+from vcclient.voice_changer.configuration_manager.configuration_manager import (
+    ConfigurationManager,
+)
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import (
     LocalVoiceChangerInterface,
 )
@@ -54,6 +57,8 @@ def test_audio_monitor_callback_zero_fills_when_queue_empty(monkeypatch):
 def test_audio_output_callback_copies_data_when_available(monkeypatch):
     """Verify that audio_output_callback properly copies queued audio to outdata."""
     interface = LocalVoiceChangerInterface.get_instance()
+    conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+    monkeypatch.setattr(conf, "audio_output_device_gain", 1.0)
     q = Queue()
     dummy_wav = np.full(480, 0.5, dtype=np.float32)
     q.put(dummy_wav)
