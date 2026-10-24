@@ -54,19 +54,23 @@ jobs:
           enable-cache: true
           version: "latest"
 
-      - name: Set up Rust (Windows desktop)
+      - name: Set up Go (Windows desktop)
         if: runner.os == 'Windows'
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build (Windows desktop)
-        if: runner.os == 'Windows'
-        uses: swatinem/rust-cache@v2
+        uses: actions/setup-go@v5
         with:
-          workspaces: src-tauri -> target
+          go-version: "1.27"
+          cache: true
+          cache-dependency-path: desktop/go.sum
+
+      - name: Install Wails v3 CLI (Windows desktop)
+        if: runner.os == 'Windows'
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
 
       - name: Install desktop build dependencies
         if: runner.os == 'Windows'
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix desktop/frontend ci
 
       - name: Install audio and archive dependencies (Linux)
         if: runner.os == 'Linux'

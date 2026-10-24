@@ -32,15 +32,16 @@ tasks:
       - npm run dev -- --port {{.VITE_PORT}} --strictPort
 
   generate:icons:
-    summary: Generates Windows `.ico` from an image
+    summary: Generates application icons from an image
     run: once
     dir: build
     sources:
       - "appicon.png"
     generates:
       - "windows/icon.ico"
+      - "darwin/icon.icns"
     cmds:
-      - wails3 generate icons -input appicon.png -windowsfilename windows/icon.ico
+      - wails3 generate icons -input appicon.png -windowsfilename windows/icon.ico -macfilename darwin/icon.icns
 
   update:build-assets:
     summary: Updates the build assets

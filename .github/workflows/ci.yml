@@ -49,23 +49,33 @@ jobs:
       - name: Run test suite (mypy & pytest)
         run: npm run test:backend
 
-  desktop:
-    name: Windows desktop host
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Set up Go (Windows desktop)
+        if: runner.os == 'Windows'
+        uses: actions/setup-go@v5
         with:
-          node-version: "26"
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-      - run: npm ci
-      - run: npm run test:desktop
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
-      - run: npm run build:desktop
+          go-version: "1.27"
+          cache: true
+          cache-dependency-path: desktop/go.sum
+
+      - name: Install Wails v3 CLI (Windows desktop)
+        if: runner.os == 'Windows'
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
+
+      - name: Run desktop test suite (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          npm --prefix desktop/frontend ci
+          npm run test:desktop
+
+      - name: Check Go code formatting (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $unformatted = gofmt -l desktop
+          if ($unformatted) {
+            Write-Error "Unformatted Go files:`n$unformatted"
+            exit 1
+          }
+
+      - name: Build Windows desktop host
+        if: runner.os == 'Windows'
+        run: npm run build:desktop
