@@ -49,14 +49,14 @@ jobs:
           node-version: "26"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
           version: "latest"
 
       - name: Set up Go (Windows desktop)
         if: runner.os == 'Windows'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache: true
