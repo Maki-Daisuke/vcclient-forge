@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -55,13 +56,39 @@ def test_fcpe_onnx_estimation():
 
 
 def test_pitch_estimator_manager_load():
-    fcpe_path = Path("modules/fcpe/fcpe.onnx")
-    if fcpe_path.exists():
-        fcpe_est = PitchEstimatorManager.load_pitch_estimator("fcpe", device_id=-1)
-        assert isinstance(fcpe_est, FCPEOnnxPitchEstimator)
+    """Verify that PitchEstimatorManager correctly dispatches to FCPE, RMVPE, and falls back for unsupported types."""
+    with (
+        patch(
+            "vcclient.voice_changer.module_manager.module_manager.ModuleManager.get_module_filepath",
+            return_value="dummy.onnx",
+        ),
+        patch(
+            "vcclient.voice_changer.voice_change_manager.pitch_estimator.onnxfcpe_pitch_estimator.FCPEOnnxPitchEstimator"
+        ) as mock_fcpe_cls,
+        patch(
+            "vcclient.voice_changer.voice_change_manager.pitch_estimator.onnxrmvpe_pitch_estimator.RMVPEOnnxPitchEstimator"
+        ) as mock_rmvpe_cls,
+    ):
+        mock_fcpe_inst = MagicMock()
+        mock_fcpe_inst.pitch_estimator_type = "fcpe"
+        mock_fcpe_cls.return_value = mock_fcpe_inst
 
-    rmvpe_path = Path("modules/rmvpe/rmvpe_20231006.onnx")
-    if rmvpe_path.exists():
-        # Fallback test with unsupported type
+        mock_rmvpe_inst = MagicMock()
+        mock_rmvpe_inst.pitch_estimator_type = "rmvpe"
+        mock_rmvpe_cls.return_value = mock_rmvpe_inst
+
+        # Test loading fcpe
+        fcpe_est = PitchEstimatorManager.load_pitch_estimator("fcpe", device_id=-1)
+        mock_fcpe_cls.assert_called_once_with("fcpe", "dummy.onnx", -1)
+        assert fcpe_est.pitch_estimator_type == "fcpe"
+
+        # Test loading rmvpe
+        rmvpe_est = PitchEstimatorManager.load_pitch_estimator("rmvpe", device_id=-1)
+        mock_rmvpe_cls.assert_called_with("rmvpe", "dummy.onnx", -1)
+        assert rmvpe_est.pitch_estimator_type == "rmvpe"
+
+        # Test fallback for unsupported type (harvest -> rmvpe)
+        mock_rmvpe_cls.reset_mock()
         fallback_est = PitchEstimatorManager.load_pitch_estimator("harvest", device_id=-1)
+        mock_rmvpe_cls.assert_called_once_with("rmvpe", "dummy.onnx", -1)
         assert fallback_est.pitch_estimator_type == "rmvpe"
