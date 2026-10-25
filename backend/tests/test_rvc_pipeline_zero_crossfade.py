@@ -28,6 +28,7 @@ def _create_mock_pipeline(is_f0: bool = False, sample_rate: int = 16000) -> RVCP
     pipeline.pitchf_buffer = None
     pipeline.feature_buffer = None
     pipeline.index_data = None
+    pipeline.is_gate_open = True
 
     # Mocks for pipeline components
     pipeline.pitch_estimator = MagicMock()

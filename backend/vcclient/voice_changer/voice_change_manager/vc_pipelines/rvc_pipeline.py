@@ -32,6 +32,7 @@ class RVCPipeline(VCPipeline):
     index_data: tuple[faiss.Index, np.ndarray] | None
     pitchf_buffer: np.ndarray | None
     feature_buffer: np.ndarray
+    is_gate_open: bool = True
 
     def __init__(self, slot_info: SlotInfoMember) -> None:
         if not isinstance(slot_info, RVCSlotInfo):
@@ -78,6 +79,7 @@ class RVCPipeline(VCPipeline):
         else:
             self.feature_buffer = np.zeros((1, 1, 256), dtype=np.float64)
         self.prev_vol = 0
+        self.is_gate_open: bool = True
 
     @property
     def slot_info(self) -> RVCSlotInfo:
@@ -212,8 +214,27 @@ class RVCPipeline(VCPipeline):
             vol_db = -np.inf
         else:
             vol_db = 20 * np.log10(vol / reference_volume)
-        if vol_db < conf.noise_gate:
-            logger.debug("noise gate %s < %s", vol_db, conf.noise_gate)
+
+        # Noise gate with hysteresis (Open / Close threshold)
+        if conf.noise_gate <= -100.0:
+            self.is_gate_open = True
+        else:
+            open_threshold = conf.noise_gate
+            close_threshold = conf.noise_gate - 5.0
+            if not self.is_gate_open:
+                if vol_db >= open_threshold:
+                    self.is_gate_open = True
+            else:
+                if vol_db < close_threshold:
+                    self.is_gate_open = False
+
+        if not self.is_gate_open:
+            logger.debug(
+                "noise gate closed (vol_db=%s < open=%s, close=%s)",
+                vol_db,
+                conf.noise_gate,
+                conf.noise_gate - 5.0,
+            )
             return np.zeros(real_output_size).astype(float)
 
         if slot_info.is_f0:

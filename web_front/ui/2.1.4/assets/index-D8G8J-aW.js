@@ -98112,9 +98112,9 @@ const RightButtonArea = ({
                                   }),
                                   jsxRuntimeExports.jsx("input", {
                                     type: "range",
-                                    min: "0",
-                                    max: "0.5",
-                                    step: "0.001",
+                                    min: "-120",
+                                    max: "0",
+                                    step: "1",
                                     value: le.noise_gate,
                                     onChange: async (Fe) => {
                                       await de({
@@ -98126,10 +98126,10 @@ const RightButtonArea = ({
                                   }),
                                   jsxRuntimeExports.jsx("span", {
                                     style: {
-                                      minWidth: "30px",
+                                      minWidth: "60px",
                                       textAlign: "right",
                                     },
-                                    children: le.noise_gate,
+                                    children: le.noise_gate + " dB",
                                   }),
                                 ],
                               }),
@@ -102514,7 +102514,7 @@ const codeFilename$2 = import.meta.url.split("/").pop(),
     realtime_process_status_send_interval_sec: 2,
     realtime_output_status_enabled: !1,
     realtime_output_status_send_interval_sec: 0.2,
-    noise_gate: 0,
+    noise_gate: -100,
     extra_frame_sec: 0,
     crossfade_sec: 0,
     sola_search_frame_sec: 0,
