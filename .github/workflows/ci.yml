@@ -33,9 +33,9 @@ jobs:
       - name: Set up Python 3.14
         run: uv python install 3.14
 
-      - name: Install system audio dependencies (Linux)
+      - name: Install system audio and desktop dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libportaudio2
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2 build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Install dependencies (CPU + Dev)
         run: uv sync --project backend --extra cpu --extra dev --python 3.14
@@ -49,33 +49,30 @@ jobs:
       - name: Run test suite (mypy & pytest)
         run: npm run test:backend
 
-      - name: Set up Go (Windows desktop)
-        if: runner.os == 'Windows'
+      - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache: true
           cache-dependency-path: desktop/go.sum
 
-      - name: Install Wails v3 CLI (Windows desktop)
-        if: runner.os == 'Windows'
+      - name: Install Wails v3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
 
-      - name: Run desktop test suite (Windows)
-        if: runner.os == 'Windows'
+      - name: Run desktop test suite
         run: |
           npm --prefix desktop/frontend ci
           npm run test:desktop
 
-      - name: Check Go code formatting (Windows)
-        if: runner.os == 'Windows'
+      - name: Check Go code formatting
+        shell: bash
         run: |
-          $unformatted = gofmt -l desktop
-          if ($unformatted) {
-            Write-Error "Unformatted Go files:`n$unformatted"
+          unformatted=$(gofmt -l desktop)
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted Go files:"
+            echo "$unformatted"
             exit 1
-          }
+          fi
 
-      - name: Build Windows desktop host
-        if: runner.os == 'Windows'
+      - name: Build desktop host
         run: npm run build:desktop

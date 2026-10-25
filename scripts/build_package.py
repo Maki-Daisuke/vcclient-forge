@@ -51,7 +51,7 @@ def get_build_dir(edition: str, python_version: str) -> Path:
     return PROJECT_ROOT / "build" / "packaging" / f"{get_platform_tag()}_{edition}_{python_version}"
 
 
-def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path | None]:
+def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
     build_dir = get_build_dir(edition, python_version)
     frozen = build_dir / "dist" / "main"
     manifest = build_dir / "backend-manifest.json"
@@ -86,11 +86,10 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path | 
     missing.extend(
         str(frontend / relative) for relative in sorted(required_frontend) if not (frontend / relative).is_file()
     )
-    desktop = None
-    if platform.system() == "Windows":
-        desktop = PROJECT_ROOT / "desktop" / "bin" / "vcclient-forge.exe"
-        if not desktop.is_file() or desktop.stat().st_size == 0:
-            missing.append(str(desktop))
+    desktop_name = "vcclient-forge.exe" if platform.system() == "Windows" else "vcclient-forge"
+    desktop = PROJECT_ROOT / "desktop" / "bin" / desktop_name
+    if not desktop.is_file() or desktop.stat().st_size == 0:
+        missing.append(str(desktop))
     for name in ("start.bat", "start.sh", "README.md", "LICENSE"):
         if not (PROJECT_ROOT / name).is_file():
             missing.append(str(PROJECT_ROOT / name))
@@ -154,8 +153,7 @@ def build_package(
     (package_dir / "modules").mkdir(exist_ok=True)
     (package_dir / "model_dir").mkdir(exist_ok=True)
 
-    if desktop_executable is not None:
-        shutil.copy2(desktop_executable, package_dir / desktop_executable.name)
+    shutil.copy2(desktop_executable, package_dir / desktop_executable.name)
 
     if skip_archive:
         print(f"\n[OK] Package directory created at: {package_dir}")

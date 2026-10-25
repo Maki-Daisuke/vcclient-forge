@@ -54,27 +54,24 @@ jobs:
           enable-cache: true
           version: "latest"
 
-      - name: Set up Go (Windows desktop)
-        if: runner.os == 'Windows'
+      - name: Install audio, desktop, and archive dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2 7zip build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache: true
           cache-dependency-path: desktop/go.sum
 
-      - name: Install Wails v3 CLI (Windows desktop)
-        if: runner.os == 'Windows'
+      - name: Install Wails v3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
 
       - name: Install desktop build dependencies
-        if: runner.os == 'Windows'
         run: |
           npm ci
           npm --prefix desktop/frontend ci
-
-      - name: Install audio and archive dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libportaudio2 7zip
 
       - name: Install 7-Zip (macOS)
         if: runner.os == 'macOS'

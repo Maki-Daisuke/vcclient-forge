@@ -6,9 +6,7 @@ if (!npmCli) {
   process.exit(1);
 }
 
-const tasks = ["build:frontend"];
-if (process.platform === "win32") tasks.push("build:desktop");
-tasks.push("build:backend");
+const tasks = ["build:frontend", "build:desktop", "build:backend"];
 
 for (const task of tasks) {
   const args = task === "build:backend" ? process.argv.slice(2) : [];

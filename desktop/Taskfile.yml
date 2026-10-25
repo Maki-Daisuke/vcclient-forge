@@ -8,19 +8,22 @@ vars:
 includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
 
 tasks:
   build:
     summary: Builds the application
     cmds:
-      - task: windows:build:native
+      - task: '{{OS}}:build:native'
 
   run:
     summary: Runs the application
     cmds:
-      - task: windows:run
+      - task: '{{OS}}:run'
 
   dev:
     summary: Runs the application in development mode
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+

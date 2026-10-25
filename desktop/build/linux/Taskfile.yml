@@ -1,0 +1,34 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application for Linux
+    cmds:
+      - task: build:native
+        vars:
+          ARCH: '{{.ARCH}}'
+          DEV: '{{.DEV}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+
+  build:native:
+    summary: Builds the application using native Go compilation
+    internal: true
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+    cmds:
+      - 'go build {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}"'
+    vars:
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+    env:
+      GOOS: linux
+      CGO_ENABLED: '1'
+      GOARCH: '{{.ARCH | default ARCH}}'
+
+  run:
+    summary: Runs the application
+    cmds:
+      - '{{.BIN_DIR}}/{{.APP_NAME}}'

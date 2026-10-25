@@ -114,22 +114,22 @@ The migration to Wails preserves all frontend and UX investments made so far:
 
 1. **Phase 1: Environment & Project Scaffolding** [Completed]
    - Initialized Wails v3 project structure under `desktop/` with Vite, TypeScript, and `@xterm/xterm` (xterm.js).
-   - Configured Taskfile automation (`desktop/Taskfile.yml` and `desktop/build/Taskfile.yml`) for bindings generation, Vite build, syso manifest generation, and Go compilation.
+   - Configured cross-platform Taskfile automation (`desktop/Taskfile.yml`, `desktop/build/Taskfile.yml`, `desktop/build/windows/Taskfile.yml`, `desktop/build/linux/Taskfile.yml`, and `desktop/build/darwin/Taskfile.yml`) for bindings generation, Vite build, icon/syso manifest generation, and native Go compilation on Windows, Linux, and macOS.
 2. **Phase 2: Process Supervisor Implementation** [Completed]
-   - Implemented `desktop/main.go` and `desktop/sys_windows.go` to supervise Python backend execution via `os/exec.Command`.
+   - Implemented `desktop/main.go`, `desktop/sys_windows.go`, and `desktop/sys_other.go` to supervise Python backend execution via `os/exec.Command`.
    - Replaced polling architecture (`StartupStatus` / `RetryBackend`) with real-time push event streaming (`app.Event.Emit("backend-log")` and `app.Event.Emit("backend-ready")`).
-   - Attached hidden console session via `AllocConsole` and `windows.SW_HIDE` on Windows to enable reliable `CTRL_C_EVENT` handling, backed by `taskkill /F /T /PID` process-tree termination.
+   - Attached hidden console session via `AllocConsole` and `windows.SW_HIDE` on Windows to enable reliable `CTRL_C_EVENT` handling, backed by `taskkill /F /T /PID` process-tree termination, with `os.Interrupt` / `Process.Kill()` on Linux and macOS.
 3. **Phase 3: Navigation & Window Lifecycle** [Completed]
    - Bound `app.Run()` strictly to the main OS thread for COM STA compliance (`HRESULT 0x800401f0` prevention).
    - Automated webview navigation to `http://127.0.0.1:18888/` upon backend readiness.
    - Configured declarative link delegation to OS default browser and legacy Electron polyfills via `WebviewWindowOptions.JS`.
 4. **Phase 4: Toolchain & Build Script Integration** [Completed]
-   - Updated `scripts/build_package.py`, `tests/desktop_bootstrap.test.cjs`, and `package.json` to replace Tauri tasks with `wails3 task --dir desktop build`.
+   - Updated `scripts/build.js`, `scripts/build_package.py`, `tests/desktop_bootstrap.test.cjs`, and `package.json` to build and package the Wails v3 desktop host across Windows, Linux, and macOS via `wails3 task --dir desktop build`.
    - Completely deleted `src-tauri/` and pruned Rust dependencies.
 5. **Phase 5: Release Verification & Quality Gates** [Completed]
-   - Verified pure Go CGO-free Windows compilation (`CGO_ENABLED=0`), generating `desktop/bin/vcclient-forge.exe` (10.18 MB) in ~8 seconds.
+   - Verified pure Go CGO-free Windows compilation (`CGO_ENABLED=0`), generating `desktop/bin/vcclient-forge.exe` (10.18 MB) in ~8 seconds, alongside native CGO builds (`desktop/bin/vcclient-forge`) on Linux and macOS.
    - Integrated native Git pre-commit hook (`.githooks/pre-commit`) to guarantee Ruff and `gofmt` code formatting before every commit.
-   - Passed all 105 backend pytest cases, 8 desktop bootstrap test cases, and Go unit tests.
+   - Passed all backend pytest cases, desktop bootstrap test cases, and Go unit tests.
 
 ---
 

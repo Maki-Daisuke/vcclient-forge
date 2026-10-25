@@ -192,27 +192,23 @@ function runBuild(platform, results = []) {
   return calls;
 }
 
-test("Windows build delegates to npm tasks without duplicating build commands", () => {
-  assert.deepEqual(runBuild("win32"), [
-    ["node", "npm-cli.js", "run", "build:frontend", "--"],
-    ["node", "npm-cli.js", "run", "build:desktop", "--"],
-    [
-      "node",
-      "npm-cli.js",
-      "run",
-      "build:backend",
-      "--",
-      "--edition",
-      "cuda",
-      "--python-version",
-      "3.14",
-    ],
-  ]);
-});
-
-test("non-Windows builds retain the current backend-only desktop policy", () => {
-  for (const platform of ["linux", "darwin"]) {
-    assert.equal(runBuild(platform).length, 2);
+test("Build delegates to npm tasks on all platforms without duplicating build commands", () => {
+  for (const platform of ["win32", "linux", "darwin"]) {
+    assert.deepEqual(runBuild(platform), [
+      ["node", "npm-cli.js", "run", "build:frontend", "--"],
+      ["node", "npm-cli.js", "run", "build:desktop", "--"],
+      [
+        "node",
+        "npm-cli.js",
+        "run",
+        "build:backend",
+        "--",
+        "--edition",
+        "cuda",
+        "--python-version",
+        "3.14",
+      ],
+    ]);
   }
 });
 

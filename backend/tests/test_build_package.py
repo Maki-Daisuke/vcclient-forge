@@ -33,10 +33,10 @@ def prepare_artifacts(builder: ModuleType) -> Path:
             destination.write_bytes(b"frontend")
     for name in ("start.bat", "start.sh", "README.md", "LICENSE"):
         (root / name).write_text("asset", encoding="utf-8")
-    if builder.platform.system() == "Windows":
-        desktop = root / "desktop/bin/vcclient-forge.exe"
-        desktop.parent.mkdir(parents=True, exist_ok=True)
-        desktop.write_bytes(b"desktop")
+    desktop_name = "vcclient-forge.exe" if builder.platform.system() == "Windows" else "vcclient-forge"
+    desktop = root / "desktop/bin" / desktop_name
+    desktop.parent.mkdir(parents=True, exist_ok=True)
+    desktop.write_bytes(b"desktop")
     return frozen
 
 
@@ -181,7 +181,7 @@ def test_desktop_package_keeps_complete_backend_next_to_tauri(tmp_path: Path, mo
 
 
 @pytest.mark.parametrize("system", ["Linux", "Darwin"])
-def test_non_windows_package_retains_backend_only_support(
+def test_non_windows_package_includes_desktop_and_backend(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, system: str
 ) -> None:
     builder = load_builder()
@@ -192,6 +192,7 @@ def test_non_windows_package_retains_backend_only_support(
     package = builder.build_package("cpu", skip_archive=True)
     assert package.name == f"vcclient_{builder.get_platform_tag()}_cpu_v{builder.VERSION}"
     assert (package / "main").is_file()
+    assert (package / "vcclient-forge").read_bytes() == b"desktop"
     assert not (package / "vcclient-forge.exe").exists()
 
 

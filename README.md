@@ -21,8 +21,8 @@ If you have an NVIDIA GPU, download the package with the `cuda` edition for opti
 
 Extract the archive to any folder and run:
 
-- **Windows Desktop App (Recommended)**:
-  Double-click **`vcclient-forge.exe`**.
+- **Desktop App (Recommended)**:
+  Double-click **`vcclient-forge.exe`** (Windows) or execute **`./vcclient-forge`** (Linux / macOS).
 - **Web Browser Mode (Classic)**:
   Double-click **`start.bat`** (Windows) or execute **`./start.sh`** (Linux / macOS).
   Your default web browser will automatically open:
@@ -41,10 +41,10 @@ To transfer your existing models and settings, simply copy the **`settings`** an
 
 - **OS**: Ubuntu 24.04 LTS or newer (`glibc >= 2.39`).
 - **NVIDIA Driver (`cuda` edition only)**: Host NVIDIA GPU driver is required (CUDA Toolkit and cuDNN are bundled and **not** required).
-- **Audio & Archive Dependencies**:
+- **Audio, Desktop & Archive Dependencies**:
   ```bash
   # Ubuntu / Debian
-  sudo apt-get update && sudo apt-get install -y libportaudio2 7zip
+  sudo apt-get update && sudo apt-get install -y libportaudio2 libwebkitgtk-6.0-4 7zip
   ```
 
 ---
