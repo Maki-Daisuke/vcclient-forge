@@ -41,6 +41,7 @@ tmp/
 tmp_dir/
 upload_dir/
 dummy/
+*.wav
 
 # Node / Frontend
 node_modules/

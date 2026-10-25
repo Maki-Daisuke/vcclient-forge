@@ -2,7 +2,12 @@ from typing import Any
 
 import socketio
 
-from vcclient.const import LOG_FILE, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
+from vcclient.const import (
+    LOG_FILE,
+    SERVER_IO_RECORDING_FILE_IN,
+    SERVER_IO_RECORDING_FILE_MONITOR,
+    SERVER_IO_RECORDING_FILE_OUT,
+)
 from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
 from vcclient.server.vcserver_rest_api import RestAPI
@@ -24,6 +29,7 @@ class SocketIOApp:
                 "/vcclient.log": {"filename": f"""{LOG_FILE}""", "content_type": "text/plain"},
                 "/input.wav": {"filename": f"""{SERVER_IO_RECORDING_FILE_IN}""", "content_type": "audio/wav"},
                 "/output.wav": {"filename": f"""{SERVER_IO_RECORDING_FILE_OUT}""", "content_type": "audio/wav"},
+                "/monitor.wav": {"filename": f"""{SERVER_IO_RECORDING_FILE_MONITOR}""", "content_type": "audio/wav"},
             }
 
             if not (frontend_path / "ui").exists():

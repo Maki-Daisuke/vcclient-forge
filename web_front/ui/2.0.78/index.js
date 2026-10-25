@@ -122839,14 +122839,44 @@
               ),
               (0, n.useEffect)(
                 function () {
-                  if (i.current && c)
-                    if (1 == L) i.current.startOutputRecording();
-                    else {
-                      var e = i.current.stopOutputRecording();
-                      e.length > 0 && (0, l.h4)(e);
+                  if (1 == L) {
+                    window.__vc_was_recording = !0;
+                    if (i.current && c) {
+                      i.current.startOutputRecording();
                     }
+                    fetch("/api/voice-changer/operation/start_recording", { method: "POST" }).catch(function () {});
+                  } else {
+                    var wasRec = window.__vc_was_recording;
+                    window.__vc_was_recording = !1;
+                    var clientBuf = i.current && c ? i.current.stopOutputRecording() : null;
+                    if (clientBuf && clientBuf.length > 0) {
+                      (0, l.h4)(clientBuf);
+                    } else if (wasRec) {
+                      fetch("/api/voice-changer/operation/stop_recording", { method: "POST" })
+                        .then(function () {
+                          return fetch("/output.wav?t=" + Date.now());
+                        })
+                        .then(function (res) {
+                          if (res.ok) return res.blob();
+                          throw new Error("Failed to fetch recording");
+                        })
+                        .then(function (blob) {
+                          var url = URL.createObjectURL(blob);
+                          var a = document.createElement("a");
+                          a.href = url;
+                          a.download = "output.wav";
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                        })
+                        .catch(function (err) {
+                          console.error("Download recording failed:", err);
+                        });
+                    }
+                  }
                 },
-                [L, c],
+                [L],
               ));
             var le = {
               voiceChangerClientInitialized: c,

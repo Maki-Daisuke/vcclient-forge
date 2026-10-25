@@ -31,7 +31,7 @@ except ImportError:
 from vcclient.logger import logger
 from vcclient.server.event_emitter_manager import EventEmitterManager
 
-from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_OUT
+from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_MONITOR, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
     ERROR_CODE_MODEL_UPDATE_FAILED,
     ERROR_CODE_PIPELINE_IS_NOT_INITIALIZED,
@@ -355,7 +355,9 @@ class VoiceChanger:
             wavfile.write(SERVER_IO_RECORDING_FILE_IN, self.input_sample_rate, np.concatenate(self.input_record))
             wavfile.write(SERVER_IO_RECORDING_FILE_OUT, self.output_sample_rate, np.concatenate(self.output_record))
             if self.vc_info.monitor_enabled is True:
-                wavfile.write("monitor.wav", self.output_sample_rate, np.concatenate(self.monitor_record))
+                wavfile.write(
+                    SERVER_IO_RECORDING_FILE_MONITOR, self.output_sample_rate, np.concatenate(self.monitor_record)
+                )
         except Exception as e:
             logger.warning("Failed to save recording: %s", e, exc_info=True)
             raise VCClientError(ERROR_CODE_RECORDING_FAILED, f"Failed to save recording:{e}")

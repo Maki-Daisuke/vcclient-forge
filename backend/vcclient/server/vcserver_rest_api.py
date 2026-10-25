@@ -3,16 +3,22 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from vcclient.const import (
+    SERVER_IO_RECORDING_FILE_IN,
+    SERVER_IO_RECORDING_FILE_MONITOR,
+    SERVER_IO_RECORDING_FILE_OUT,
+)
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
 from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR, get_frontend_path
@@ -94,6 +100,34 @@ class RestAPI:
                 return get_custom_swagger_ui_html(
                     openapi_url=app_fastapi.openapi_url or "/openapi.json", title="VCClient API Docs"
                 )
+
+            def _serve_audio_file(filename: str) -> Response:
+                file_path = Path(filename)
+                if not file_path.exists():
+                    return JSONResponse(status_code=404, content={"detail": f"Recording {filename} not found"})
+                return FileResponse(
+                    path=str(file_path),
+                    media_type="audio/wav",
+                    filename=filename,
+                )
+
+            @app_fastapi.get("/output.wav", include_in_schema=False)
+            @app_fastapi.get("/ui/2.1.4/output.wav", include_in_schema=False)
+            @app_fastapi.get("/ui/2.0.78/output.wav", include_in_schema=False)
+            def serve_output_wav():
+                return _serve_audio_file(SERVER_IO_RECORDING_FILE_OUT)
+
+            @app_fastapi.get("/input.wav", include_in_schema=False)
+            @app_fastapi.get("/ui/2.1.4/input.wav", include_in_schema=False)
+            @app_fastapi.get("/ui/2.0.78/input.wav", include_in_schema=False)
+            def serve_input_wav():
+                return _serve_audio_file(SERVER_IO_RECORDING_FILE_IN)
+
+            @app_fastapi.get("/monitor.wav", include_in_schema=False)
+            @app_fastapi.get("/ui/2.1.4/monitor.wav", include_in_schema=False)
+            @app_fastapi.get("/ui/2.0.78/monitor.wav", include_in_schema=False)
+            def serve_monitor_wav():
+                return _serve_audio_file(SERVER_IO_RECORDING_FILE_MONITOR)
 
             frontend_ui_dir = get_frontend_path() / "ui"
             if frontend_ui_dir.exists():

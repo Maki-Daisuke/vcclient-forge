@@ -34,6 +34,10 @@ class RestAPIVoiceChanger:
             "/api/voice-changer/operation/stop_server_device", self.stop_server_device, methods=["POST"]
         )
         self.router.add_api_route(
+            "/api/voice-changer/operation/start_recording", self.start_recording, methods=["POST"]
+        )
+        self.router.add_api_route("/api/voice-changer/operation/stop_recording", self.stop_recording, methods=["POST"])
+        self.router.add_api_route(
             "/api/voice-changer-manager/information", self.get_voice_changer_information, methods=["GET"]
         )
 
@@ -112,6 +116,20 @@ class RestAPIVoiceChanger:
     def stop_server_device(self):
         vc = LocalVoiceChangerInterface.get_instance()
         vc.stop()
+
+    def start_recording(self) -> Response:
+        vc = VoiceChanger.get_instance()
+        vc.start_recording()
+        cm = ConfigurationManager.get_instance()
+        cm.voice_changer_configuration.recording_started = True
+        return Response(status_code=200)
+
+    def stop_recording(self) -> Response:
+        vc = VoiceChanger.get_instance()
+        vc.stop_recording()
+        cm = ConfigurationManager.get_instance()
+        cm.voice_changer_configuration.recording_started = False
+        return Response(status_code=200)
 
     def get_voice_changer_information(self) -> VoiceChangerManagerInfo:
         voice_changer_manager = VoiceChangerManager.get_instance()

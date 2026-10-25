@@ -98342,8 +98342,8 @@ const RightButtonArea = ({
   downloadServerRecordingFiles = async (S = !1, C = !0) => {
     const E = generateTimestamp(),
       w = [];
-    (S && w.push(downloadFile("./input.wav", `input_${E}.wav`)),
-      C && w.push(downloadFile("./output.wav", `output_${E}.wav`)),
+    (S && w.push(downloadFile("/input.wav", `input_${E}.wav`)),
+      C && w.push(downloadFile("/output.wav", `output_${E}.wav`)),
       await Promise.all(w));
   },
   MainControls = () => {

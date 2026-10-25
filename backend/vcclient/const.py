@@ -28,4 +28,5 @@ LOGGER_NAME = "vcclient"
 LOG_FILE = Path("vcclient.log")
 SERVER_IO_RECORDING_FILE_IN = "input.wav"
 SERVER_IO_RECORDING_FILE_OUT = "output.wav"
+SERVER_IO_RECORDING_FILE_MONITOR = "monitor.wav"
 TOAST_TIMEOUT = 0.7
