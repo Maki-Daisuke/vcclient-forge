@@ -24,13 +24,13 @@ jobs:
             os: windows-latest
             edition: cpu
           - name: linux-cuda-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
             edition: cuda
           - name: linux-cuda-arm64
             os: ubuntu-24.04-arm
             edition: cuda
           - name: linux-cpu-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
             edition: cpu
           - name: linux-cpu-arm64
             os: ubuntu-24.04-arm

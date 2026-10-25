@@ -8,10 +8,36 @@ from pathlib import Path
 
 import build_package as package_tools
 
+NVIDIA_CUDA_PACKAGES = (
+    "nvidia.cublas",
+    "nvidia.cudnn",
+    "nvidia.cufft",
+    "nvidia.cuda_runtime",
+    "nvidia.curand",
+    "nvidia.cu13",
+)
+NVIDIA_BINARY_PATTERNS = ("*.dll", "*.dylib", "lib*.so", "lib*.so.*")
+
 
 def requires_nvidia_wheel_binaries(edition: str) -> bool:
-    machine = platform.machine().lower()
-    return edition == "cuda" and not (platform.system() == "Linux" and machine in ("aarch64", "arm64"))
+    return edition == "cuda"
+
+
+def collect_nvidia_binary_args(runtime_dir: Path) -> list[str]:
+    found: list[tuple[str, str]] = []
+    for nvidia_dir in sorted(runtime_dir.rglob("site-packages/nvidia")):
+        if not nvidia_dir.is_dir():
+            continue
+        base = nvidia_dir.parent
+        for pat in NVIDIA_BINARY_PATTERNS:
+            for f in sorted(nvidia_dir.rglob(pat)):
+                if f.is_file() or f.is_symlink():
+                    dest = f.parent.relative_to(base).as_posix()
+                    found.append((str(f), dest))
+    args: list[str] = []
+    for src, dest in dict.fromkeys(found):
+        args.extend(["--add-binary", f"{src}:{dest}"])
+    return args
 
 
 def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
@@ -81,8 +107,14 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         "vcclient.server.vcserver_socketio",
     ]
     if requires_nvidia_wheel_binaries(edition):
-        for package in ("nvidia.cublas", "nvidia.cudnn", "nvidia.cufft", "nvidia.cuda_runtime"):
+        for package in (
+            "nvidia.cublas",
+            "nvidia.cudnn",
+            "nvidia.cufft",
+            "nvidia.cuda_runtime",
+        ):
             freeze_command.extend(["--hidden-import", package, "--collect-binaries", package])
+        freeze_command.extend(collect_nvidia_binary_args(runtime_dir))
     freeze_command.append(str(backend_dir / "main.py"))
     package_tools.run_cmd(freeze_command, cwd=root, env=env)
     frozen = build_dir / "dist" / "main"
@@ -104,7 +136,8 @@ def main() -> None:
     parser.add_argument("--python-version", default="3.14")
     args = parser.parse_args()
     package_tools.run_cmd(
-        ["uv", "sync", "--project", "backend", "--extra", args.edition], cwd=package_tools.PROJECT_ROOT
+        ["uv", "sync", "--project", "backend", "--extra", args.edition],
+        cwd=package_tools.PROJECT_ROOT,
     )
     freeze_backend(args.edition, args.python_version)
 

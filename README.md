@@ -39,12 +39,13 @@ To transfer your existing models and settings, simply copy the **`settings`** an
 
 ### Linux only
 
-Linux requires the PortAudio system library for audio device I/O:
-
-```bash
-# Ubuntu / Debian
-sudo apt-get update && sudo apt-get install -y libportaudio2
-```
+- **OS**: Ubuntu 24.04 LTS or newer (`glibc >= 2.39`).
+- **NVIDIA Driver (`cuda` edition only)**: Host NVIDIA GPU driver is required (CUDA Toolkit and cuDNN are bundled and **not** required).
+- **Audio & Archive Dependencies**:
+  ```bash
+  # Ubuntu / Debian
+  sudo apt-get update && sudo apt-get install -y libportaudio2 7zip
+  ```
 
 ---
 

@@ -93,12 +93,21 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
 
 
-def test_linux_arm64_cuda_uses_system_cuda_libraries(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_linux_cuda_bundles_nvidia_wheel_binaries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     freezer = load_builder("build_backend")
-    monkeypatch.setattr(freezer.platform, "system", lambda: "Linux")
-    monkeypatch.setattr(freezer.platform, "machine", lambda: "aarch64")
+    for arch in ("x86_64", "aarch64"):
+        monkeypatch.setattr(freezer.platform, "system", lambda: "Linux")
+        monkeypatch.setattr(freezer.platform, "machine", lambda a=arch: a)
+        assert freezer.requires_nvidia_wheel_binaries("cuda")
+        assert not freezer.requires_nvidia_wheel_binaries("cpu")
 
-    assert not freezer.requires_nvidia_wheel_binaries("cuda")
+    cudnn_lib = tmp_path / ".venv/lib/python3.14/site-packages/nvidia/cudnn/lib/libcudnn.so.9"
+    cudnn_lib.parent.mkdir(parents=True, exist_ok=True)
+    cudnn_lib.write_bytes(b"cudnn")
+    assert freezer.collect_nvidia_binary_args(tmp_path / ".venv") == [
+        "--add-binary",
+        f"{cudnn_lib}:nvidia/cudnn/lib",
+    ]
 
 
 @pytest.mark.parametrize("existing_artifact", ["directory", "archive"])
@@ -127,6 +136,7 @@ def test_archive_size_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, arch
 
     def fake_run(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
         assert cmd[0] == "7z"
+        assert "-snl" in cmd
         assert cwd is not None
         expected_name = f"vcclient_{builder.get_platform_tag()}_cpu_v{builder.VERSION}"
         assert cmd[-2] == f"{expected_name}.7z"

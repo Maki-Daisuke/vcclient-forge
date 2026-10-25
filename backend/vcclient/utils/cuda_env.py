@@ -9,10 +9,13 @@ def setup_cuda_env() -> None:
     """Setup platform-specific CUDA / GPU runtime environment transparently.
 
     - Windows: Python 3.8+ restricts DLL search paths. We explicitly register
-      PyTorch's bundled CUDA 12 and cuDNN 9 libraries via os.add_dll_directory
-      so ONNX Runtime GPU can load cublas, cudart, and cudnn without requiring
-      a system-wide CUDA Toolkit installation.
-    - Linux / macOS: Hook for any future shared library paths or device configs.
+      PyTorch's or nvidia-* wheels' bundled CUDA and cuDNN libraries via
+      os.add_dll_directory and onnxruntime.preload_dlls so ONNX Runtime GPU can
+      load cublas, cudart, and cudnn without requiring a system-wide CUDA Toolkit.
+    - Linux: Preload bundled nvidia-* wheel shared libraries (CUDA 12 / CUDA 13
+      and cuDNN 9) via onnxruntime.preload_dlls so both source execution and
+      PyInstaller portable builds work without system-wide CUDA / cuDNN packages.
+    - macOS: Uses CoreML Execution Provider natively.
     """
     global _initialized
     if _initialized:
@@ -39,6 +42,8 @@ def setup_cuda_env() -> None:
             "nvidia.cudnn",
             "nvidia.cuda_runtime",
             "nvidia.cufft",
+            "nvidia.curand",
+            "nvidia.cu13",
         ]
         for pkg in nvidia_pkgs:
             try:
@@ -49,11 +54,53 @@ def setup_cuda_env() -> None:
                     if bin_dir.exists():
                         os.add_dll_directory(str(bin_dir))
                         os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
+                        for arch_dir in bin_dir.iterdir():
+                            if arch_dir.is_dir():
+                                os.add_dll_directory(str(arch_dir))
+                                os.environ["PATH"] = str(arch_dir) + os.pathsep + os.environ.get("PATH", "")
             except Exception:
                 pass
+
+        try:
+            import onnxruntime
+
+            if hasattr(onnxruntime, "preload_dlls") and getattr(onnxruntime, "cuda_version", None):
+                onnxruntime.preload_dlls(directory="")
+        except Exception:
+            pass
     elif sys.platform == "linux":
-        # Future Linux-specific environment hook (e.g., LD_LIBRARY_PATH checks)
-        pass
+        import importlib.util
+
+        nvidia_pkgs = [
+            "nvidia.cublas",
+            "nvidia.cudnn",
+            "nvidia.cuda_runtime",
+            "nvidia.cufft",
+            "nvidia.curand",
+            "nvidia.cu13",
+        ]
+        lib_dirs: list[str] = []
+        for pkg in nvidia_pkgs:
+            try:
+                spec = importlib.util.find_spec(pkg)
+                if spec and spec.submodule_search_locations:
+                    for search_loc in spec.submodule_search_locations:
+                        lib_dir = Path(search_loc) / "lib"
+                        if lib_dir.is_dir():
+                            lib_dirs.append(str(lib_dir))
+            except Exception:
+                pass
+        if lib_dirs:
+            existing = os.environ.get("LD_LIBRARY_PATH", "")
+            os.environ["LD_LIBRARY_PATH"] = os.pathsep.join(lib_dirs + ([existing] if existing else []))
+
+        try:
+            import onnxruntime
+
+            if hasattr(onnxruntime, "preload_dlls") and getattr(onnxruntime, "cuda_version", None):
+                onnxruntime.preload_dlls(directory="")
+        except Exception:
+            pass
     elif sys.platform == "darwin":
         # macOS uses CoreML Execution Provider natively
         pass

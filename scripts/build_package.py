@@ -118,7 +118,7 @@ def build_package(
     frozen, desktop_executable = validate_artifacts(edition, python_version)
     seven_zip = None if skip_archive else find_7z_binary()
     output_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(frozen, package_dir)
+    shutil.copytree(frozen, package_dir, symlinks=True)
 
     print(">>> Copying validated distribution assets...")
     copy_targets = [
@@ -174,6 +174,7 @@ def build_package(
             "-t7z",
             "-mx=5",
             "-md=32m",
+            "-snl",
             f"-mmt={threads}",
             archive_path.name,
             package_name,
