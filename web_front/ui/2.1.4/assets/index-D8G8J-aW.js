@@ -102301,13 +102301,6 @@ const AdvancedArea = () => {
       }),
       jsxRuntimeExports.jsx(Button, {
         size: "small",
-        onClick: () => {
-          window.location.href = "/ui/2.0.78/";
-        },
-        children: "Classic UI (v2.0.78)",
-      }),
-      jsxRuntimeExports.jsx(Button, {
-        size: "small",
         onClick: H,
         children: S("common.advanced_area.clear_site_data_and_restart"),
       }),
