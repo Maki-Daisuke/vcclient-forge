@@ -129618,17 +129618,11 @@
                         for (;;)
                           switch ((e.prev = e.next)) {
                             case 0:
+                              ((t = new URL(window.location.href)).search = "?app_mode=LogViewer"),
                               Sn()
-                                ? ((t = new URL(window.location.href)),
-                                  (n = ""
-                                    .concat(t.protocol, "//")
-                                    .concat(t.hostname)
-                                    .concat(t.port ? ":" + t.port : "")),
-                                  window.electronAPI.openBrowser(
-                                    "".concat(n, "/?app_mode=LogViewer"),
-                                  ))
+                                ? window.electronAPI.openBrowser(t.href)
                                 : window.open(
-                                    "/?app_mode=LogViewer",
+                                    t.href,
                                     "_blank",
                                     "noopener,noreferrer",
                                   );
@@ -129651,20 +129645,11 @@
                         for (;;)
                           switch ((e.prev = e.next)) {
                             case 0:
+                              ((t = new URL(window.location.href)).search = "?app_mode=JsonViewer&url=/api/voice-changer-manager/information"),
                               Sn()
-                                ? ((t = new URL(window.location.href)),
-                                  (n = ""
-                                    .concat(t.protocol, "//")
-                                    .concat(t.hostname)
-                                    .concat(t.port ? ":" + t.port : "")),
-                                  window.electronAPI.openBrowser(
-                                    "".concat(
-                                      n,
-                                      "/?app_mode=JsonViewer&url=/api/voice-changer-manager/information",
-                                    ),
-                                  ))
+                                ? window.electronAPI.openBrowser(t.href)
                                 : window.open(
-                                    "/?app_mode=JsonViewer&url=/api/voice-changer-manager/information",
+                                    t.href,
                                     "_blank",
                                     "noopener,noreferrer",
                                   );

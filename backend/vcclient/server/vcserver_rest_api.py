@@ -134,8 +134,10 @@ class RestAPI:
                 app_fastapi.mount("/ui", StaticFiles(directory=str(frontend_ui_dir), html=True), name="ui")
 
             @app_fastapi.get("/", include_in_schema=False)
-            def root_redirect():
-                return RedirectResponse(url="/ui/2.1.4/", status_code=307)
+            def root_redirect(request: Request):
+                query = request.url.query
+                target = f"/ui/2.1.4/?{query}" if query else "/ui/2.1.4/"
+                return RedirectResponse(url=target, status_code=307)
 
             custom_swagger_ui_html = app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
             app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")

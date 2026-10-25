@@ -1,5 +1,9 @@
 from pathlib import Path
 
+from starlette.testclient import TestClient
+
+from vcclient.server.vcserver_rest_api import RestAPI
+
 
 def test_ui_switcher_assets_and_integration():
     """Verify that ui_switcher.js is integrated into both UI versions."""
@@ -31,3 +35,27 @@ def test_ui_switcher_assets_and_integration():
         encoding="utf-8"
     )
     assert "Classic UI (v2.0.78)" not in v214_bundle, "Redundant Classic UI button must be removed"
+
+
+def test_root_redirect_preserves_query_parameters():
+    """Verify that root redirect preserves query parameters such as app_mode."""
+    client = TestClient(RestAPI.get_instance(), follow_redirects=False)
+
+    res_root = client.get("/")
+    assert res_root.status_code == 307
+    assert res_root.headers.get("location") == "/ui/2.1.4/"
+
+    res_query = client.get("/?app_mode=LogViewer")
+    assert res_query.status_code == 307
+    assert res_query.headers.get("location") == "/ui/2.1.4/?app_mode=LogViewer"
+
+
+def test_classic_ui_log_viewer_and_json_viewer_urls():
+    """Verify that classic UI uses current window location href for LogViewer and JsonViewer."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    index_2078 = (repo_root / "web_front" / "ui" / "2.0.78" / "index.js").read_text(encoding="utf-8")
+
+    assert '"/?app_mode=LogViewer"' not in index_2078, "Must not use hardcoded root /?app_mode=LogViewer"
+    assert '"/?app_mode=JsonViewer"' not in index_2078, "Must not use hardcoded root /?app_mode=JsonViewer"
+    assert "?app_mode=LogViewer" in index_2078
+    assert "?app_mode=JsonViewer" in index_2078
