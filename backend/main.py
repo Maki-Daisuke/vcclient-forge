@@ -153,6 +153,10 @@ def main():
     parser.add_argument("--port", type=int, default=18888, help="Server port (default: 18888)")
     args: argparse.Namespace = parser.parse_args()
 
+    if args.command in ("--help", "-h", "help"):
+        parser.print_help()
+        sys.exit(0)
+
     start_server(
         host=args.host,
         port=args.port,

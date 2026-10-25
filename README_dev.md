@@ -149,7 +149,7 @@ End users extract the **entire directory** and launch `vcclient-forge.exe` (Wind
 
 Existing package folders and archives are never overwritten: use a new `--output-dir` for another build. Archive creation fails when the result is 2 GiB or larger. The Windows CUDA onedir archive measured on 2026-10-19 is **1,318,130,525 bytes (1.228 GiB)**, including Python and the selected CUDA libraries.
 
-For an import/startup check without starting a server or downloading models, use `main.exe -- --help` (`./main -- --help` on Linux/macOS). Fire's help flags follow the separate `--`; `server --help` is not the same check. Windows CPU audio conversion has been confirmed manually. Python-free clean-machine validation and the non-Windows builds remain separate release checks.
+For an import/startup check without starting a server or downloading models, use `main.exe --help` (`./main --help` on Linux/macOS). Windows CPU audio conversion has been confirmed manually. Python-free clean-machine validation and the non-Windows builds remain separate release checks.
 
 ---
 
