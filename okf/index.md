@@ -15,6 +15,7 @@ entries:
   - deprecating-and-removing-beatrice.md
   - deprecating-and-removing-ngrok.md
   - server-first-architecture-and-static-pipeline-roadmap.md
+  - hybrid-cpu-gpu-pipeline-architecture.md
   - inversion-of-control-and-process-lifecycle.md
   - migrating-desktop-host-from-tauri-to-wails.md
 ---
@@ -62,3 +63,6 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 12. **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**
     Why Forge migrates its desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go). In a system where heavy lifting is handled by Python/ONNX and UI is rendered by WebView2, Rust's runtime advantages are negligible compared to the high cost of build times, permission ceremony, and boilerplate. Wails v3 provides instant builds, concise process control, pure Go Windows builds without CGO, and declarative script injection (`WebviewWindowOptions.JS`) that eliminates native event hooking while reusing all existing bootstrap assets.
+
+13. **[Hybrid CPU-GPU Pipelining vs. Monolithic Graph Fusion](./hybrid-cpu-gpu-pipeline-architecture.md)**
+    Empirical latency benchmarks and architectural analysis explaining why CPU-based preprocessing (ContentVec, RMVPE, FAISS) overlapped with dedicated GPU neural vocoder synthesis outperforms monolithic graph fusion ("Boost Mode") by eliminating PCIe roundtrips and avoiding accelerator-specific compiler quirks.
