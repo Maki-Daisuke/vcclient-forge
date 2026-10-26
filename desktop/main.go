@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
+	"github.com/spf13/pflag"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -28,16 +30,16 @@ var assets embed.FS
 
 func main() {
 	var (
-		cmd   *exec.Cmd
-		cmdMu sync.Mutex
+		cleanupMu sync.Mutex
+		cleanup   func()
 	)
 
-	stopChild := func() {
-		cmdMu.Lock()
-		defer cmdMu.Unlock()
-		if cmd != nil {
-			stopProcess(cmd)
-			cmd = nil
+	doCleanup := func() {
+		cleanupMu.Lock()
+		defer cleanupMu.Unlock()
+		if cleanup != nil {
+			cleanup()
+			cleanup = nil
 		}
 	}
 
@@ -50,7 +52,7 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
-		OnShutdown: stopChild,
+		OnShutdown: doCleanup,
 	})
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
@@ -102,101 +104,224 @@ func main() {
 		dialog.Show()
 	}
 
+	remoteAddr := parseRemoteAddr(os.Args[1:])
+
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		go func() {
-			binPath, args, workDir, err := resolveBackendCommand()
-			if err != nil {
-				showFatalError(fmt.Sprintf("Failed to resolve backend command: %v", err))
-				return
-			}
-
-			c := createCommand(binPath, args...)
-			c.Dir = workDir
-			c.Env = append(os.Environ(),
-				"PYTHONUNBUFFERED=1",
-				"PYTHONIOENCODING=utf-8",
-			)
-
-			stdout, err := c.StdoutPipe()
-			if err != nil {
-				showFatalError(fmt.Sprintf("Failed to open stdout pipe: %v", err))
-				return
-			}
-			stderr, err := c.StderrPipe()
-			if err != nil {
-				showFatalError(fmt.Sprintf("Failed to open stderr pipe: %v", err))
-				return
-			}
-
-			if err := c.Start(); err != nil {
-				showFatalError(fmt.Sprintf("Failed to spawn backend process: %v", err))
-				return
-			}
-			cmdMu.Lock()
-			cmd = c
-			cmdMu.Unlock()
-
-			// Stream stdout & monitor readiness
-			go func() {
-				buf := make([]byte, STDIO_BUF_LEN)
-				slideBuf := make([]byte, STDIO_BUF_LEN*2)
-				slideLen := 0
-				for {
-					n, err := stdout.Read(buf)
-					if n > 0 {
-						text := unsafe.String(&buf[0], n)
-						app.Event.Emit("backend-log", text)
-						copy(slideBuf[slideLen:cap(slideBuf)], buf[:n])
-						slideLen += n
-						if strings.Contains(unsafe.String(&slideBuf[0], slideLen), READY_SENTINEL) {
-							app.Event.Emit("backend-log", "\r\n\x1b[32m>>> Backend is ready! Navigating...\x1b[0m\r\n")
-							app.Event.Emit("backend-ready", true)
-							window.SetURL(BACKEND_URL)
-							return
-						}
-						if slideLen > STDIO_BUF_LEN {
-							copy(slideBuf, slideBuf[slideLen-STDIO_BUF_LEN:slideLen])
-							slideLen -= STDIO_BUF_LEN
-						}
-					}
-					if err != nil {
-						if err == io.EOF {
-							app.Event.Emit("backend-log", "\r\n\x1b[31m>>> Backend process exited\x1b[0m\r\n")
-						}
-						return
-					}
-				}
-			}()
-
-			// Stream stderr
-			go func() {
-				buf := make([]byte, STDIO_BUF_LEN)
-				for {
-					n, err := stderr.Read(buf)
-					if n > 0 {
-						app.Event.Emit("backend-log", unsafe.String(&buf[0], n))
-					}
-					if err != nil {
-						return
-					}
-				}
-			}()
-		}()
+		if remoteAddr != "" {
+			go startRemoteProxy(app, window, remoteAddr, &cleanupMu, &cleanup, showFatalError)
+		} else {
+			go startLocalBackend(app, window, &cleanupMu, &cleanup, showFatalError)
+		}
 	})
 
 	window.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
-		stopChild()
+		doCleanup()
 	})
 
 	// Run application on the MAIN OS THREAD
 	err := app.Run()
 
-	// Ensure backend process is terminated across all platforms
-	stopChild()
+	// Ensure cleanup is executed across all platforms
+	doCleanup()
 
 	if err != nil {
 		log.Fatalf("Application exited with error: %v", err)
 	}
+}
+
+// parseRemoteAddr parses CLI args for --remote / -r using pflag.
+func parseRemoteAddr(args []string) string {
+	fs := pflag.NewFlagSet("desktop", pflag.ContinueOnError)
+	fs.ParseErrorsAllowlist.UnknownFlags = true
+	var remote string
+	fs.StringVarP(&remote, "remote", "r", "", "Remote backend address (e.g. 192.168.11.22:18888)")
+	_ = fs.Parse(args)
+	return normalizeRemoteAddr(remote)
+}
+
+// normalizeRemoteAddr ensures the address contains a port (defaults to :18888).
+func normalizeRemoteAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	if !strings.Contains(addr, ":") {
+		return addr + ":18888"
+	}
+	return addr
+}
+
+// startRemoteProxy listens on localhost:18888 and forwards all traffic to remoteAddr.
+func startRemoteProxy(
+	app *application.App,
+	window *application.WebviewWindow,
+	remoteAddr string,
+	cleanupMu *sync.Mutex,
+	cleanup *func(),
+	showFatalError func(string),
+) {
+	app.Event.Emit("backend-log", fmt.Sprintf("Starting TCP proxy to remote backend: %s\r\n", remoteAddr))
+
+	ln, err := net.Listen("tcp", "127.0.0.1:18888")
+	if err != nil {
+		showFatalError(fmt.Sprintf("Failed to bind local proxy port: %v", err))
+		return
+	}
+
+	stopCh := make(chan struct{})
+	cleanupMu.Lock()
+	*cleanup = func() {
+		select {
+		case <-stopCh:
+		default:
+			close(stopCh)
+		}
+		_ = ln.Close()
+	}
+	cleanupMu.Unlock()
+
+	// Accept loop for incoming connections
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go proxyConnection(conn, remoteAddr)
+		}
+	}()
+
+	// Monitor readiness of the remote server
+	app.Event.Emit("backend-log", fmt.Sprintf("Waiting for remote connection at %s...\r\n", remoteAddr))
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		conn, err := net.DialTimeout("tcp", remoteAddr, 1*time.Second)
+		if err == nil {
+			_ = conn.Close()
+			app.Event.Emit("backend-log", fmt.Sprintf("\r\n\x1b[32m>>> Connected to remote backend at %s! Navigating...\x1b[0m\r\n", remoteAddr))
+			app.Event.Emit("backend-ready", true)
+			window.SetURL(BACKEND_URL)
+			return
+		}
+		select {
+		case <-stopCh:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// proxyConnection forwards bytes bi-directionally between src and target.
+func proxyConnection(src net.Conn, target string) {
+	defer src.Close()
+	dst, err := net.DialTimeout("tcp", target, 5*time.Second)
+	if err != nil {
+		return
+	}
+	defer dst.Close()
+
+	done := make(chan struct{}, 2)
+	go func() {
+		_, _ = io.Copy(dst, src)
+		done <- struct{}{}
+	}()
+	go func() {
+		_, _ = io.Copy(src, dst)
+		done <- struct{}{}
+	}()
+	<-done
+}
+
+// startLocalBackend launches the bundled or local Python backend process.
+func startLocalBackend(
+	app *application.App,
+	window *application.WebviewWindow,
+	cleanupMu *sync.Mutex,
+	cleanup *func(),
+	showFatalError func(string),
+) {
+	binPath, args, workDir, err := resolveBackendCommand()
+	if err != nil {
+		showFatalError(fmt.Sprintf("Failed to resolve backend command: %v", err))
+		return
+	}
+
+	c := createCommand(binPath, args...)
+	c.Dir = workDir
+	c.Env = append(os.Environ(),
+		"PYTHONUNBUFFERED=1",
+		"PYTHONIOENCODING=utf-8",
+	)
+
+	stdout, err := c.StdoutPipe()
+	if err != nil {
+		showFatalError(fmt.Sprintf("Failed to open stdout pipe: %v", err))
+		return
+	}
+	stderr, err := c.StderrPipe()
+	if err != nil {
+		showFatalError(fmt.Sprintf("Failed to open stderr pipe: %v", err))
+		return
+	}
+
+	if err := c.Start(); err != nil {
+		showFatalError(fmt.Sprintf("Failed to spawn backend process: %v", err))
+		return
+	}
+
+	cleanupMu.Lock()
+	*cleanup = func() {
+		stopProcess(c)
+	}
+	cleanupMu.Unlock()
+
+	// Stream stdout & monitor readiness
+	go func() {
+		buf := make([]byte, STDIO_BUF_LEN)
+		slideBuf := make([]byte, STDIO_BUF_LEN*2)
+		slideLen := 0
+		for {
+			n, err := stdout.Read(buf)
+			if n > 0 {
+				text := unsafe.String(&buf[0], n)
+				app.Event.Emit("backend-log", text)
+				copy(slideBuf[slideLen:cap(slideBuf)], buf[:n])
+				slideLen += n
+				if strings.Contains(unsafe.String(&slideBuf[0], slideLen), READY_SENTINEL) {
+					app.Event.Emit("backend-log", "\r\n\x1b[32m>>> Backend is ready! Navigating...\x1b[0m\r\n")
+					app.Event.Emit("backend-ready", true)
+					window.SetURL(BACKEND_URL)
+					return
+				}
+				if slideLen > STDIO_BUF_LEN {
+					copy(slideBuf, slideBuf[slideLen-STDIO_BUF_LEN:slideLen])
+					slideLen -= STDIO_BUF_LEN
+				}
+			}
+			if err != nil {
+				if err == io.EOF {
+					app.Event.Emit("backend-log", "\r\n\x1b[31m>>> Backend process exited\x1b[0m\r\n")
+				}
+				return
+			}
+		}
+	}()
+
+	// Stream stderr
+	go func() {
+		buf := make([]byte, STDIO_BUF_LEN)
+		for {
+			n, err := stderr.Read(buf)
+			if n > 0 {
+				app.Event.Emit("backend-log", unsafe.String(&buf[0], n))
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
 }
 
 // resolveBackendCommand returns the path to the executable and its initial arguments.
