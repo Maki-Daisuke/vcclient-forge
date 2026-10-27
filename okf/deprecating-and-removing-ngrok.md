@@ -18,7 +18,7 @@ tags:
 
 ## Executive Summary
 
-VCClient Forge has completely removed all legacy `ngrok` integration, including the bundled `NgrokProxyManager`, CLI tunneling parameters (`--ngrok_token`, `--ngrok_proxy_url_file`), and the external `ngrok` Python SDK dependency.
+VCClient Forge has removed all legacy `ngrok` integration, including the bundled `NgrokProxyManager`, CLI tunneling parameters (`--ngrok_token`, `--ngrok_proxy_url_file`), and the external `ngrok` Python SDK dependency.
 
 The historical **free Google Colab + VCClient Web UI** workflow that motivated this integration has largely disappeared following Colab's restrictions on that usage. At the same time, sending microphone audio to a remote host and receiving converted audio over a network works against Forge's goal of local, low-latency real-time voice conversion. The original use case has faded, and the architecture it required does not fit the project's direction.
 
@@ -53,7 +53,7 @@ Real-time voice changing is an ultra-low-latency digital signal processing (DSP)
       |<------------------------- Conversational Latency Budget ------------------------->|
 ```
 
-Every millisecond of latency disrupts the speaker's auditory feedback loop (Delayed Auditory Feedback), inducing cognitive fatigue and speech jamming. In a local execution environment, real-time voice conversion already operates under severe timing constraints: audio chunk buffering, pitch estimation, neural inference, and crossfading must all execute seamlessly within the tightest possible envelope.
+Every millisecond of latency disrupts the speaker's auditory feedback loop (Delayed Auditory Feedback), inducing cognitive fatigue and speech jamming. In a local execution environment, real-time voice conversion already operates under severe timing constraints: audio chunk buffering, pitch estimation, neural inference, and crossfading must all execute within a tight timing budget.
 
 Sending audio to a remote inference host adds a network round trip and variable delivery times to this already constrained pipeline:
 
@@ -71,7 +71,7 @@ Web browsers enforce strict security standards around audio hardware access via 
 
 - **Ephemeral URLs**: On ngrok's free tier, a dynamic random subdomain (`https://<random-id>.ngrok.io`) was generated on every launch. Users could not bookmark the WebUI and had to retrieve and copy-paste new URLs on every restart.
 - **ngrok Interstitials**: Free endpoints displayed mandatory warning pages ("You are about to visit...") upon first access, breaking automated client launchers and headless WebSocket connections.
-- **The Self-Signed Certificate Alternative**: For users attempting non-ngrok remote connections without a domain, upstream attempted automatic self-signed certificate generation (`backend/vcclient/server/key_generator.py`). This triggered alarming browser security warnings ("Your connection is not private") that non-technical users struggled to navigate.
+- **The Self-Signed Certificate Alternative**: For users attempting non-ngrok remote connections without a domain, upstream attempted automatic self-signed certificate generation (`backend/vcclient/server/key_generator.py`). This triggered browser security warnings ("Your connection is not private") that non-technical users struggled to navigate.
 
 ---
 
@@ -84,10 +84,10 @@ Users who need remote access to their own workstation or GPU host can use Tailsc
 | **Domain/Endpoint** | Depends on ngrok product and plan | Tailnet MagicDNS endpoint (`*.ts.net`) |
 | **Routing Topology** | Provider proxy/relay path | Direct UDP when connectivity allows; peer relay or DERP fallback otherwise |
 | **Transport** | Provider-managed tunnel | Encrypted Tailscale/WireGuard transport |
-| **Latency Impact** | Depends on client-to-provider-to-host route | Direct LAN/P2P is expected for common trusted-network use. Relay latency is route-dependent; there is no zero-relay guarantee |
+| **Latency Impact** | Depends on client-to-provider-to-host route | Direct LAN/P2P is expected for common trusted-network use; relay latency depends on network topology |
 | **SSL/TLS Certificates** | Depends on ngrok endpoint/plan | Tailscale Serve provisions HTTPS certificates for the tailnet endpoint |
 | **Security / Access** | Publicly exposed URL on the internet | Authenticated private mesh (Tailnet) |
-| **Application Footprint**| Native SDK bundled inside VCClient | Completely decoupled operating system daemon |
+| **Application Footprint**| Native SDK bundled inside VCClient | Decoupled operating system daemon |
 | **Cost** | Tier-restricted with interstitial pages | Free for personal use (up to 100 devices) |
 
 ### Recommended Setup for Remote Compute

@@ -16,25 +16,35 @@ Keep the scope local and single-user: one selected input, one main output, and o
 
 ## 2. Recommended Implementation Order
 
-### Current Priority: Establish the Desktop Baseline First
+### Completed Baseline: Native Desktop Host (Wails v3)
 
-The immediate priority is the Tauri v2 desktop shell around the **existing Python-served legacy UI**, before the Svelte migration and audio refactors below. Keep `src-tauri/` at the project root. Embed a small startup/error/retry page, supervise the local Python process, wait for its readiness notification, then navigate to its loopback URL. Preserve existing REST, Socket.IO, and audio workflows; validate native and Client Mode permissions separately before claiming upstream UX parity.
+The native desktop wrapper has been established using **Wails v3 (Go)** under `desktop/` with Vite, TypeScript, and xterm.js (commit `b260979`). It embeds a lightweight startup/bootstrap page, supervises the local Python backend, handles process tree termination cleanly, and navigates to `http://127.0.0.1:18888` upon readiness. See [Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md).
 
-Keep connection selection separate from local process ownership so future remote attachment need not start or stop a backend. Remote attachment is not part of the initial implementation. A Rust WebSocket client does not remove WebView microphone secure-context requirements; remote HTTP content must not receive broad native permissions. The initial portable desktop packaging target is Windows, retaining the entire PyInstaller onedir distribution and writable external state. See the [desktop development instructions](../README_dev.md#windows-desktop-host-tauri-v2).
+### Current Priority: Audio Pipeline Refactoring & Modern UI
 
-### 1. Establish the Baseline and Confirm Remaining Cleanup
+With desktop packaging and hardware sub-model benchmarking established, active development focuses on:
+1. One-way fixed-chunk audio stream refactoring (`convert_chunk_bulk_internal` separation)
+2. Svelte 5 + Vite UI migration (Server Mode first)
+3. Concurrent Hybrid Pipelining (overlapping CPU preparation with GPU vocoder synthesis)
 
-- Record stage timings, queue age, allocations, underruns, and actual microphone-to-output latency with hardware, model, provider, and settings. Include speech/silence quality fixtures and continuous/silent-input runs of at least 30 minutes.
-- Reconcile the old Beatrice cleanup checklist with the checkout: no Beatrice references were found in `backend/vcclient` or the backend manifest during this inventory. Check remaining frontend/assets and regression coverage before treating the entire cleanup as complete; do not recreate already removed backend work.
-- **Exit**: A reproducible performance/quality baseline and a confirmed list of remaining cleanup, rather than historical plans mistaken for open tasks.
-- **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-roadmap).
+### 1. Establish the Baseline and Confirm Remaining Cleanup [Sub-Model Benchmarks Completed]
+
+- **Sub-Model Component Benchmarking [Completed]**: Empirical micro-benchmarks for all RVC pipeline components (ContentVec, RMVPE, FAISS, HiFi-GAN Vocoder, and PCIe DMA transfers) were measured on modern hardware (AMD Ryzen 9 7950X, NVIDIA GeForce RTX 4090). Key results are documented in [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md):
+  - PCIe DMA latency: 18.3 μs (16 KB audio chunk), 37.2 μs (147 KB ContentVec embedding).
+  - Preparation stage: CPU 23.37 ms vs RTX 4090 25.74 ms (RMVPE is 2.3× faster on CPU: 7.35 ms vs 16.91 ms).
+  - Synthesis stage: HiFi-GAN vocoder runs in 11.71 ms on RTX 4090 vs 145.43 ms on CPU (12.4× GPU acceleration).
+- **Remaining Baseline Work**:
+  - Run continuous long-duration (30+ minutes) streaming and silent-input tests on the active pipeline to evaluate end-to-end microphone-to-output latency, queue age, and clock drift.
+  - Reconcile the old Beatrice cleanup checklist: backend references in `backend/vcclient` are removed; verify remaining frontend/assets and regression coverage.
+- **Exit**: A documented end-to-end baseline under continuous streaming and confirmation of remaining legacy cleanup.
+- **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-roadmap).
 
 ### 2. Separate Configuration Acceptance, Notification, and Application
 
 - Keep `ConfigurationManager` responsible for configuration storage/persistence. Introduce serialized request coordination, validation, coherent snapshots/change classification, and revision-aware requested/applied state.
 - Deliver commands to the owning thread. Apply scalar inference changes at chunk boundaries; coordinate structural changes explicitly and report completion/failure instead of waiting a fixed sleep. Treat recording start/stop as commands.
 - Define input/inference/output lifecycle and audio-format contracts, plus ownership of input context (`extra_chunk`), resampler/filter state, model histories, and crossfade state. Initially allow stop, finish in-flight work, reset affected state, rebuild, and restart.
-- Preserve current serialized settings and workflows until an explicit migration; do not require RxPY, seamless replacement, or cross-component state transfer for this separation.
+- Preserve current serialized settings and workflows until an explicit migration; do not require RxPY, uninterrupted in-flight replacement, or cross-component state transfer for this separation.
 - **Exit**: Settings changes no longer perform device/inference lifecycle work in the storage manager, and ordered application/failure handling has focused tests.
 - **Source**: [Configuration and modularization plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
@@ -69,18 +79,18 @@ Keep connection selection separate from local process ownership so future remote
 ### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2) [Completed]
 
 - Establish the desktop baseline around the Python-served UI. Supervise the child process and render the embedded bootstrap page while backend models initialize.
-- **Architectural Update & Completion (2026-10-25)**: Completed migration from Tauri v2 to Wails v3 (Go) with Vite, TypeScript, and xterm.js as detailed in [Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md). Completely removed `src-tauri/` and Rust dependencies, achieving a net code reduction of **2,846 lines**. Daily build turnaround improved by **~5× (~3–5s vs ~15–30s)**, Windows builds are pure Go (`CGO_ENABLED=0`) without MSVC requirements, and process supervision is cleanly handled via Win32 console integration (`AllocConsole`) and `CTRL_C_EVENT` handling.
+- **Architectural Update & Completion (2026-10-25)**: Completed migration from Tauri v2 to Wails v3 (Go) with Vite, TypeScript, and xterm.js as detailed in [Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md). Removed `src-tauri/` and Rust dependencies, achieving a net code reduction of **2,846 lines**. Daily build turnaround improved by **~5× (~3–5s vs ~15–30s)**, Windows builds are pure Go (`CGO_ENABLED=0`) without MSVC requirements, and process supervision is cleanly handled via Win32 console integration (`AllocConsole`) and `CTRL_C_EVENT` handling.
 - Retain the self-contained PyInstaller backend and externally writable state. Validate relocation/startup and the complete edition-specific archive, including desktop-shell additions, against the strict under-2-GiB limit.
 - **Depends on**: The working UI and self-contained Python backend for the initial shell; the later Svelte transition follows item 4. Neither protocol modernization nor Boost Mode is a prerequisite.
-- **Exit**: A usable packaged native desktop workflow with clean process lifecycle, instant Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
+- **Exit**: A usable packaged native desktop workflow with clean process lifecycle, fast Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
 - **Sources**: [Desktop Transition](./frontend-architecture-and-roadmap.md#desktop-packaging-transitioning-from-tauri-to-wails), [Wails ADR](./migrating-desktop-host-from-tauri-to-wails.md), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 
 ### 7. Restore Browser Audio as WebSocket Adapters
 
 - Add `/ws/audio` with a specified little-endian Float32 PCM format and frame/continuity metadata; use the common preparation/inference path. Add AudioWorklet capture/playback and reuse `/ws/events`.
 - First restore browser-input/browser-output operation alongside the native pair, without Socket.IO. Keep main/monitor routing contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
-- Validate browser secure-context/microphone requirements and Tauri WebView permissions where applicable. Optional Tailscale Serve remains user-managed, not a bundled tunnel dependency.
-- **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Does not depend on Tauri packaging being complete.
+- Validate browser secure-context/microphone requirements and Wails WebView2 permissions where applicable. Optional Tailscale Serve remains user-managed, not a bundled tunnel dependency.
+- **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
 - **Exit**: Browser audio works through WebSocket only, with one selected input and bounded latency/recovery behavior.
 - **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-websocket-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
@@ -92,28 +102,32 @@ Keep connection selection separate from local process ownership so future remote
 - **Exit**: Explicitly supported combinations pass routing, rate, main/monitor isolation, and discontinuity tests. This is an extension, not a gate for the native release.
 - **Source**: [Routing and monitor contract](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
-### 9. Optimize Inference Incrementally: The Boost Mode Track
+### 9. Optimize Inference: Concurrent Hybrid Pipelining (Superseding Boost Mode)
 
-This is a separate track after the baseline and stable worker path (items 1 and 3); it need not wait for items 6-8. Preserve normal inference and CPU FAISS fallbacks. Follow the source roadmap's phases in order:
+The original monolithic end-to-end graph fusion track ("Boost Mode") was evaluated against empirical micro-benchmarks on modern hardware (AMD Ryzen 9 7950X, NVIDIA GeForce RTX 4090). Key findings:
+- PCIe Gen 4 x16 DMA transfer latency is 18.3 μs for audio chunks (16 KB) and 37.2 μs for ContentVec embeddings (147 KB), showing that host-device data transfers are not the primary bottleneck.
+- For small tensors at batch size 1, CPU execution (7.35 ms) is faster than GPU execution (16.91 ms) for RMVPE due to GPU kernel launch and synchronization overheads.
+- Monolithic graph fusion across ContentVec, RMVPE, FAISS, and RVC is superseded by a 2-stage concurrent hybrid pipeline where CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$) overlaps with GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) via a bounded double-buffered queue.
 
-| Order         | Work                                                                             | Gate                                                                                                                                                                                     |
-| ------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Audio Phase 2 | Stable runtime shapes, warmup, reusable buffers, GPU IO Binding                  | Measured benefit and equivalent quality; fixed-shape export only if justified; respect DirectML-specific session constraints.                                                            |
-| Audio Phase 3 | Integrate RMVPE/FCPE pitch estimation and RVC; keep ContentVec/CPU FAISS outside | Correct alignment/history and reduced F0 host roundtrip with retrieval preserved.                                                                                                        |
-| Audio Phase 4 | Add ContentVec for retrieval-free full integration                               | Fixed-shape explicit-state execution improves measured waveform-to-waveform performance/quality.                                                                                         |
-| Audio Phase 5 | Evaluate standalone ONNX retrieval against real FAISS indexes                    | Match index metric/semantics as required; measure quality, latency, memory, provider placement, and practical index-size limits. A failed experiment does not invalidate earlier phases. |
-| Audio Phase 6 | Conditionally integrate retrieval into the full graph                            | Only adopt combinations passing Phase 5; retain CPU FAISS plus Phase 3 otherwise.                                                                                                        |
+Follow the concurrent hybrid optimization milestones in order:
 
-CUDA Graph capture is a separate CUDA-only gate at applicable integration stages: verify node placement, fixed shapes/addresses, serialized session calls, state correctness, and actual benefit. Do not treat it as automatic or mandatory. Tune chunk/device/buffer sizes with measurements toward the documented-hardware local round-trip target of 100 ms or less, not a universal latency promise.
+| Milestone | Work | Acceptance Gate |
+| --- | --- | --- |
+| Hybrid Phase 1 | Stable runtime shapes, session warmup, reusable buffers, GPU IO Binding | Measured memory stability and reduced allocation overhead without breaking DirectML/CUDA fallback. |
+| Hybrid Phase 2 | Decouple CPU preparation (ContentVec, RMVPE, FAISS) and GPU vocoder synthesis | Independent worker execution with bounded queues; $T_{\text{effective}} = \max(T_{\text{prep}}, T_{\text{synth}})$ verified under continuous audio streaming. |
+| Hybrid Phase 3 | GPU vocoder IO Binding and CUDA stream management | Pre-allocated GPU output buffers; minimal host-to-device roundtrip latency verified. |
+| Hybrid Phase 4 | Lightweight vocoder evaluation (DDSP / Streamable architectures) | Synthesis latency reduced below 5 ms while maintaining perceptual audio quality thresholds. |
 
-**Source**: [Optimization phases and acceptance criteria](./server-first-architecture-and-static-pipeline-roadmap.md#5-optimization-roadmap).
+CUDA Graph capture remains a conditional investigation for the isolated GPU vocoder stage only, gated on fixed shapes, pinned memory addresses, and measurable speedup.
+
+**Source**: [Concurrent Hybrid Pipeline Architecture](./hybrid-cpu-gpu-pipeline-architecture.md), [Server-First Architecture and Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md#4-architectural-pivot-from-monolithic-graph-fusion-to-concurrent-hybrid-pipelining).
 
 ## 3. Conditional Improvements, Not Initial Requirements
 
 - **Reactive control library**: Evaluate RxPY or lightweight signals after control ownership is clear; notifications do not replace application acknowledgements or thread dispatch.
-- **Seamless component exchange**: Add only where interruption matters and state compatibility is defined. Safe stop/reset/restart comes first.
+- **Dynamic in-flight component exchange**: Add only where interruption matters and state compatibility is defined. Safe stop/reset/restart comes first.
 - **Alternative buffers and stage splitting**: Evaluate rings, custom synchronization, or separate postprocessing only if the bounded-queue baseline exposes a measured bottleneck. No new C++ toolchain solely for a ring wrapper.
-- **Further package reduction**: Measure against the self-contained CUDA archive baseline (1.228 GiB), not against the former environment-dependent package. Tauri is the currently documented desktop-shell direction, not a reason to restart completed packaging work.
+- **Further package reduction**: Measure against the self-contained CUDA archive baseline (1.228 GiB), not against the former environment-dependent package. Wails v3 is the established desktop shell, not a reason to restart completed packaging work.
 
 Sources: [Control and state plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 

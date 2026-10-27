@@ -21,7 +21,7 @@ VCClient Forge has made the deliberate architectural decision to **fully depreca
 
 Following a thorough investigation and proof-of-concept backend restoration under modern Python 3.14 + NumPy 2.x, we evaluated the long-term feasibility and maintenance overhead of hosting Beatrice alongside RVC. The conclusion was based on core engineering and UX realities:
 
-1. **Dual UI Maintenance Burden**: Beatrice and RVC have completely different operational models and parameter sets. Supporting Beatrice requires designing and maintaining virtually two separate, parallel user interfaces within a single client application.
+1. **Dual UI Maintenance Burden**: Beatrice and RVC have distinct operational models and parameter sets. Supporting Beatrice requires designing and maintaining virtually two separate, parallel user interfaces within a single client application.
 2. **Native C/C++ Toolchain Maintenance**: Beatrice is implemented in C/C++ without official prebuilt PyPI wheels. Integrating native compilation into Forge's build pipeline and maintaining it across Windows, macOS, and Linux exceeds the engineering capacity of our development team.
 3. **Official, Dedicated Alternatives Already Exist**: Dedicated standalone implementations—namely [aq2r/beatrice-client](https://github.com/aq2r/beatrice-client) and [prj-beatrice/beatrice-vst](https://github.com/prj-beatrice/beatrice-vst)—already deliver a purpose-built, optimal user experience for Beatrice.
 4. **Architectural Cohesion**: VCClient Forge is anchored on ONNX Runtime and modern GPU acceleration (CUDA, DirectML). Focusing exclusively on this paradigm preserves codebase simplicity and maximizes engineering impact.
@@ -59,16 +59,16 @@ While this proved that Beatrice _could_ be made to run, it also allowed us to ob
 Because Beatrice and RVC operate on entirely different concepts:
 
 - Upstream handled this by conditionally hiding RVC controls (F0 Detectors, Index Ratio, GPU pickers, crossfade buffers) and rendering Beatrice-specific controls (formant shift, auto pitch alignment, and spherical morphing weight sliders) when a Beatrice model was selected.
-- However, this essentially meant maintaining **two completely distinct application UIs and state-management lifecycles** crammed into a single codebase.
+- However, this essentially meant maintaining **two distinct application UIs and state-management lifecycles** crammed into a single codebase.
 - For users seeking a streamlined voice changer, this split identity added complexity; for maintainers, any frontend refactor required double the testing and design effort.
 
 ### ② Native Build & Multi-Platform Maintenance Limits
 
-While the official C/C++ source code for Beatrice is publicly accessible (e.g., in the `beatrice-vst` repository) and could theoretically be recompiled rather than relying on extracted binary shims, doing so introduces severe operational challenges:
+While the official C/C++ source code for Beatrice is publicly accessible (e.g., in the `beatrice-vst` repository) and could theoretically be recompiled rather than relying on extracted binary shims, doing so introduces operational challenges:
 
 - There are no official prebuilt PyPI wheels for Beatrice.
 - Although upstream distributed precompiled binaries for Windows and macOS, Linux binaries were entirely absent.
-- Incorporating C/C++ native builds (with platform-specific SIMD optimizations) into Forge’s automated build and release pipeline across Windows, macOS, and Linux is a massive undertaking that our development team simply does not have the capacity to maintain over time.
+- Incorporating C/C++ native builds (with platform-specific SIMD optimizations) into Forge’s automated build and release pipeline across Windows, macOS, and Linux requires ongoing platform-specific maintenance and build infrastructure.
 
 ### ③ Dedicated Standalone Tools Offer Superior UX
 

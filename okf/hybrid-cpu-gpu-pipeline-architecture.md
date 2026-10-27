@@ -91,7 +91,7 @@ Given that PCIe transfer is fast (< 0.1 ms), why should ContentVec and RMVPE rem
 1. **Marginal Compute Advantage (~15 ms)**:
    Modern CPUs with large L3 caches (32–64 MB) and AVX2 SIMD execute batch=1 inference for ContentVec and RMVPE in just ~30 ms total. The absolute compute difference between CPU and GPU is modest.
 2. **FAISS Inherent CPU Affinity**:
-   Vector database search in FAISS is CPU-native in desktop environments. Because features must reside in host RAM for FAISS retrieval, running ContentVec on CPU eliminates roundtrips entirely and allows zero-copy NumPy handoffs.
+   Vector database search in FAISS is CPU-native in desktop environments. Because features must reside in host RAM for FAISS retrieval, running ContentVec on CPU avoids host-device roundtrips and allows in-memory NumPy array handoffs.
 3. **Immunity to Microarchitecture & Vendor Quirks**:
    Complex reduction, softmax, and normalization layers in ContentVec and RMVPE are vulnerable to vendor compiler assumptions (such as the Wave32 vs. Wave64 `GPU_WARP_SIZE=64` reduction bug in ONNX Runtime ROCm). Running them on the CPU ensures 100% mathematical precision across all platforms.
 4. **VRAM Footprint & Resource Contention**:
@@ -120,7 +120,7 @@ flowchart TD
 
     subgraph Hybrid["Option B: Concurrent Hybrid Pipeline (Recommended)"]
         direction TB
-        subgraph CPU_Stage["Stage 1: CPU Worker (Zero-Copy Host Memory)"]
+        subgraph CPU_Stage["Stage 1: CPU Worker (Host Memory)"]
             C1["Audio Chunk N+1"] --> C2["ContentVec (CPU)"]
             C1 --> C3["RMVPE (CPU)"]
             C2 --> C4["CPU FAISS Search & Alignment"]
@@ -135,7 +135,7 @@ flowchart TD
 
 ### Option A: Monolithic Graph Fusion ("Boost Mode")
 * **Advantages**: Single session dispatch; fully self-contained ONNX execution.
-* **Severe Drawbacks**:
+* **Drawbacks**:
   * Embedding FAISS / k-NN retrieval into ONNX requires complex custom operators or static vector tables that do not adapt dynamically to slot index changes.
   * Embedder and pitch weights permanently occupy GPU VRAM.
   * Complex attention and reduction operations in ContentVec remain exposed to hardware-specific compiler/driver bugs.
@@ -143,7 +143,7 @@ flowchart TD
 ### Option B: Concurrent Hybrid Pipeline (Target Architecture)
 * **Stage 1 (Host CPU)**: ContentVec, RMVPE, and FAISS run in host memory via `CPUExecutionProvider`.
   * Total preparation latency: ~30 ms.
-  * Zero-copy handoff into FAISS.
+  * In-memory array handoff into FAISS.
 * **Stage 2 (Device GPU / CPU)**: HiFi-GAN synthesis runs on the accelerator (or CPU if GPU is unavailable).
 * **Temporal Overlap (Pipelining)**:
   * While the GPU executes the neural vocoder for chunk $N$, the CPU concurrently prepares features for chunk $N+1$.
@@ -156,11 +156,11 @@ flowchart TD
 ## 6. Implementation Status & Roadmap
 
 ### 6.1 Formal Deprecation of Standalone ROCm EP (`--edition rocm`)
-Upstream investigation revealed that Microsoft and AMD officially deprecated and **deleted `ROCmExecutionProvider` from ONNX Runtime** in PR #25181 (`Delete ROCM EP`, ONNX Runtime 1.23+). The `onnxruntime-rocm==1.22.2.post3` package represents an abandoned final release hardcoded for Wave64 CDNA hardware (`GPU_WARP_SIZE=64`), causing silent $2\times$ reduction doubling on consumer RDNA3/RDNA4 Wave32 GPUs.
+Upstream investigation revealed that Microsoft and AMD officially deprecated and **deleted `ROCmExecutionProvider` from ONNX Runtime** in [PR #25181](https://github.com/microsoft/onnxruntime/pull/25181) (`Delete ROCM EP`, ONNX Runtime 1.23+). The `onnxruntime-rocm==1.22.2.post3` package represents an abandoned final release hardcoded for Wave64 CDNA hardware (`GPU_WARP_SIZE=64`), causing silent $2\times$ reduction doubling on consumer RDNA3/RDNA4 Wave32 GPUs.
 
 Consequently, Forge explicitly **abandons standalone ROCm support**:
-* Attempting to maintain a custom ROCm build imposes fragile host dependencies (~30 GB ROCm SDKs) with zero upstream maintenance.
-* Linux AMD users are instead directed to the highly optimized, bit-exact multi-threaded CPU pipeline or the upcoming WebGPU backend.
+* Attempting to maintain a custom ROCm build imposes fragile host dependencies (~30 GB ROCm SDKs) without upstream maintenance.
+* Linux AMD users are instead directed to the bit-exact multi-threaded CPU pipeline or the upcoming WebGPU backend.
 
 ### 6.2 Production Platform Strategy
 | Platform | Target Edition | Primary Acceleration Path | Latency Profile & Notes |
@@ -169,7 +169,7 @@ Consequently, Forge explicitly **abandons standalone ROCm support**:
 | **Windows (AMD / Intel)** | `dml` | `DmlExecutionProvider` (DirectX 12) | Official Microsoft/AMD path; immune to Wave32 reduction issues. |
 | **macOS (Apple Silicon)** | `mac` | `CoreMLExecutionProvider` | Apple Neural Engine (ANE) & Metal acceleration. |
 | **Linux (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | Stable Linux CUDA stack. |
-| **Linux (AMD / Intel / Generic)** | `cpu` | `CPUExecutionProvider` (AVX2 / AVX-512) | **Fastest & most stable path (~112 ms)**; 2× faster than RDNA GPU; zero driver dependencies. |
+| **Linux (AMD / Intel / Generic)** | `cpu` | `CPUExecutionProvider` (AVX2 / AVX-512) | **Measured latency profile (~112 ms)**; faster than RDNA GPU under current drivers; no additional driver dependencies. |
 
 ### 6.3 Pipelining Evolution (Next Steps)
 1. **Concurrent Producer-Consumer Decoupling**:
@@ -177,11 +177,11 @@ Consequently, Forge explicitly **abandons standalone ROCm support**:
    - The inference worker pops prepared feature tensors and executes neural vocoder synthesis concurrently, overlapping the ~23–30 ms preparation latency.
 2. **Next-Generation Lightweight Vocoders (Vocos / iSTFT)**:
    - Evaluate modern vocoders (such as Vocos) that replace HiFi-GAN's 156 Conv1D layers with lightweight ConvNeXt blocks and an inverse Short-Time Fourier Transform (iSTFT) synthesis head.
-   - Eliminates the 128-bit VRAM bandwidth bottleneck and reduces end-to-end chunk conversion latency to <20 ms on both modern multi-core CPUs and consumer GPUs.
+   - Reduces the VRAM memory stall impact and shortens chunk conversion latency to <20 ms on modern multi-core CPUs and consumer GPUs.
 3. **Hardware Backends: Native Direct APIs vs. Universal Abstraction (WebGPU / Vulkan)**:
-   - While WebGPU (`--edition webgpu`) provides a universal, zero-dependency GPU backend across operating systems, empirical evidence (e.g., RTX 4090 executing significantly slower under DirectML than native CUDA) confirms that **native vendor APIs (`CUDA` on NVIDIA, `CoreML` on Apple Silicon) remain indispensable**.
+   - While WebGPU (`--edition webgpu`) provides a universal, driver-independent GPU backend across operating systems, empirical evidence (e.g., RTX 4090 executing significantly slower under DirectML than native CUDA) confirms that **native vendor APIs (`CUDA` on NVIDIA, `CoreML` on Apple Silicon) remain indispensable**.
    - Universal abstraction layers (DirectML, WebGPU/Dawn) must translate compute shaders through intermediate representations (HLSL/WGSL), which prevents full utilization of vendor-proprietary micro-architectures (such as NVIDIA Tensor Core cuDNN fused kernels or Apple Neural Engine / ANE coprocessors).
    - Therefore, Forge adopts a tiered backend strategy:
      - **Tier 1 (Native Direct)**: `cuda` (NVIDIA) and `mac` (Apple Silicon CoreML) provide maximum throughput, lowest latency, and best power efficiency.
      - **Tier 2 (Universal Abstraction)**: `dml` (Windows AMD/Intel) and upcoming `webgpu` (Linux AMD/Intel / universal cross-platform) solve driver fragmentation where native vendor runtimes are unavailable or unstable.
-     - **Tier 0 (Ubiquitous Baseline)**: `cpu` (AVX2 / AVX-512) guarantees bit-exact execution with zero driver setup.
+     - **Tier 0 (Ubiquitous Baseline)**: `cpu` (AVX2 / AVX-512) guarantees bit-exact execution without specialized GPU driver setup.

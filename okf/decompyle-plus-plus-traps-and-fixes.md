@@ -1,18 +1,18 @@
 ---
 type: concept
-title: "Decompyle++ Traps and Technical Bug Post-Mortems"
+title: "Decompyle++ Bytecode Errors and Technical Bug Post-Mortems"
 description: "Technical analysis of Python 3.10 bytecode reconstruction errors and audio compatibility fixes discovered while restoring VCClient."
 tags: [bytecode, decompilation, decompyle++, python310, audio, portaudio]
 timestamp: 2026-10-14T12:27:00Z
 ---
 
-# Decompyle++ Traps and Technical Bug Post-Mortems
+# Decompyle++ Bytecode Errors and Technical Bug Post-Mortems
 
 The original Windows v2.0.78-beta distribution bundles Python 3.10.11. Automated decompilers like `pycdc` (Decompyle++) can reconstruct incorrect control flow, calls, and expressions from its bytecode. This article records the reconstruction errors and audio compatibility issues encountered while restoring the application, together with their diagnosis and fixes.
 
 ---
 
-## 1. Complete Failure of Server-Device Audio Monitoring
+## 1. Failure of Server-Device Audio Monitoring
 
 ### Symptom
 When selecting "Server" input mode in the Web UI and clicking "Start", the button toggled, but no audio stream was opened, no audio was converted, and silence was returned.
@@ -25,7 +25,7 @@ Disassembling `main.py::start_cui` revealed three compounding decompilation erro
    # Decompiled code (broken):
    if conf.voice_changer_input_mode == "server_device": # "server_device" is never set!
        if not lvc.local_voice_changer_enabled:
-           pass # The call to lvc.run() was completely deleted!
+           pass # The call to lvc.run() was omitted by the decompiler
    ```
    In the original bytecode, the condition checked `conf.voice_changer_input_mode == "server"`, and if `local_voice_changer_enabled is True`, it called `local_voice_changer_interface.run()`.
 

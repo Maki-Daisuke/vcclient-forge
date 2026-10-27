@@ -17,7 +17,7 @@ tags:
 
 ## Executive Summary
 
-One of the foundational design objectives of **VCClient Forge** is to deliver a completely standalone, zero-setup portable distribution that can be downloaded and run with a single click.
+One of the foundational design objectives of **VCClient Forge** is to deliver a standalone portable distribution that can be run directly after extraction.
 
 Crucially, VCClient Forge establishes a strict engineering constraint: **the portable distribution package (including CUDA runtime dependencies) must remain strictly under 2.00 GiB (2,147,483,648 bytes)**. This constraint enables direct hosting and automated release deployments on GitHub Releases, eliminating the multi-gigabyte bloat that likely drove upstream to rely on third-party hosting platforms like Hugging Face.
 
@@ -73,7 +73,7 @@ All runtime inference components—RVC voice conversion, RMVPE/FCPE pitch estima
 PyTorch is retained strictly as an offline utility for the automatic `.pth` ➡ `.onnx` in-place exporter. Because model export is run only once upon importing a voice slot and is not latency-critical:
 
 - PyTorch is pinned to its **CPU-only build (`torch==2.*+cpu`)**, requiring only ~118 MB.
-- Heavy companion libraries (`torchaudio`, `torchfcpe`, `torchvision`) are completely eradicated.
+- Heavy companion libraries (`torchaudio`, `torchfcpe`, `torchvision`) are removed.
 
 ### 3. Surgical NVIDIA Dependency Selection
 
@@ -114,7 +114,7 @@ In Python on Windows, attempting to delete the active `.venv` from a Python-base
 
 ### The Decoupled Node.js Solution
 
-- `scripts/clean.js` runs externally via Node.js, completely out-of-process from Python.
+- `scripts/clean.js` runs externally via Node.js, out-of-process from Python.
 - It safely tears down `dist/`, `backend/.venv`, `frontend/dist/`, `modules/`, and internal caches.
 - **User Safety**: It intentionally leaves `model_dir/` untouched, protecting the user's imported voice models from accidental destruction during development resets.
 
@@ -124,9 +124,9 @@ In Python on Windows, attempting to delete the active `.venv` from a Python-base
 
 The measured Windows CUDA onedir `.7z` package is within the 2 GiB limit (1.228 GiB). Future reductions must be measured against this self-contained baseline:
 
-### Tauri v2 + Svelte Desktop Application
+### Native Desktop Application (Wails v3)
 
-As detailed in [Frontend Architecture & Roadmap](./frontend-architecture-and-roadmap.md), migrating from the legacy web UI to **Tauri v2 + Svelte 5**:
+As detailed in [Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md), adopting **Wails v3 (Go)**:
 
-- Avoids bundling Electron's Chromium and Node.js runtime by using the operating system's native WebView, preserving more of the strict 2 GiB archive budget for the Python/CUDA inference runtime.
-- Uses a Rust application host without bundling the Node.js runtime used by Electron, keeping desktop-shell memory overhead small relative to the audio inference workload.
+- Avoids bundling Electron's Chromium and Node.js runtime by using the operating system's native WebView2, preserving more of the 2 GiB archive budget for the Python/CUDA inference runtime.
+- Produces a single lightweight desktop binary (`vcclient-forge.exe` ~10 MB) without MSVC build requirements on Windows, keeping host wrapper footprint minimal relative to the audio inference runtime.

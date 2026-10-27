@@ -169,49 +169,59 @@ After the native-only UI migration temporarily removes Client Mode, browser audi
 
 Preserve the existing monitor capability: the minimum routing contract is **one selected input, one main output, and one optional monitor output**, not a single output only. Keep the monitor's signal source distinct from its destination adapter. Each enabled output needs independently owned bounded buffering/read positions, rate conversion and gain as required, and its own overflow/underflow and failure policy. Outputs must not compete to consume one queue, and a slow or disconnected output must not block inference or the other output. Account for independent playback clocks and define safe buffer lifetime if audio storage is shared. Arbitrary output counts are not required for the initial modularization.
 
-Start by separating responsibilities while preserving current workflows. Initially allow a brief interruption for structural changes: wait for in-flight work to finish, reset affected state, rebuild, and restart. Keep input context (`extra_chunk`), resampler/filter state, and inference/crossfade histories under explicit ownership; preserve compatible state for scalar updates, but reset invalidated histories and reject obsolete results when a source or execution profile changes. Seamless replacement and cross-component state transfer are later improvements, not prerequisites for modularization.
+Start by separating responsibilities while preserving current workflows. Initially allow a brief interruption for structural changes: wait for in-flight work to finish, reset affected state, rebuild, and restart. Keep input context (`extra_chunk`), resampler/filter state, and inference/crossfade histories under explicit ownership; preserve compatible state for scalar updates, but reset invalidated histories and reject obsolete results when a source or execution profile changes. Uninterrupted in-flight replacement and cross-component state transfer are later improvements, not prerequisites for modularization.
 
 Evaluate RxPY (`reactivex`) or lightweight signals only after defining these boundaries; library adoption is not decided. Reactive notifications belong to the control path, not the real-time audio-sample handoffs, and do not replace owner-thread dispatch, ordered reconfiguration, or completion/failure reporting.
 
 ---
 
-## 4. The Ultimate Vision: "Boost Mode" (End-to-End Graph Fusion)
+## 4. Architectural Pivot: From Monolithic Graph Fusion to Concurrent Hybrid Pipelining
 
-### 4.1 Stable Execution Profiles, Adjustable Values
+### 4.1 Empirical Findings on Modern Hardware
 
-An execution profile fixes the pitch estimator, embedder, RVC model, retrieval table, tensor shapes, dtypes, and buffer layout. Profile changes may require rebuilding sessions, reallocating buffers, resetting history, and warming up again outside the audio callback.
+The theoretical "Boost Mode" concept originally assumed that eliminating host-to-device transfers between sub-models (ContentVec, RMVPE, FAISS, and RVC) would produce substantial latency reductions, justifying full end-to-end graph fusion into a single ONNX model.
 
-Pitch shift and index ratio can remain runtime tensor inputs whose **values** change while shapes and GPU addresses remain stable. They need not trigger recompilation merely because the user adjusts them. Apply settings at chunk boundaries and distinguish scalar changes from profile changes. Avoid assuming that users never change settings while speaking.
+Empirical micro-benchmarks on AMD Ryzen 9 7950X (AVX-512) and NVIDIA GeForce RTX 4090 (24 GB VRAM) evaluated this hypothesis:
 
-### 4.2 The "Boost Mode" Architecture
+1. **Host-to-Device Transfer Latency Is Negligible**:
+   - Audio input chunk (16.0 KB, 512 samples @ 16 kHz): 18.3 μs roundtrip.
+   - ContentVec embeddings (147.0 KB): 37.2 μs roundtrip.
+   - CUDA kernel dispatch overhead: 6.8 μs; stream synchronization: 0.6 μs.
+   - Cumulative PCIe DMA latency accounts for less than 0.05 ms across the entire pipeline. Graph fusion to avoid PCIe transfers solves an insignificant bottleneck.
 
-Boost Mode incrementally removes intermediate CPU/GPU roundtrips. The first integrated graph accepts waveform, externally prepared ContentVec/FAISS features, and explicit history/parameter inputs. It combines pitch estimation, F0 postprocessing/alignment, and RVC synthesis. ContentVec and CPU FAISS remain outside this graph initially.
+2. **Sequential Small-Kernel Workloads Penalize GPU Execution**:
+   - RMVPE pitch estimation (256 ms audio): **CPU took 7.35 ms vs RTX 4090 taking 16.91 ms (CPU was 2.3× faster)**.
+   - For batch size 1 and small dynamic tensor dimensions, GPU execution suffers from kernel launch overhead, memory dispatch latency, and thread under-utilization compared to Zen 4 large L3 cache and AVX-512 vector units.
+
+3. **Sub-Model Latency Breakdown**:
+   - ContentVec feature extraction: CPU 12.07 ms vs RTX 4090 4.89 ms.
+   - FAISS top-1 retrieval (10,000 vectors): CPU 3.94 ms.
+   - Total Preparation Stage (ContentVec + RMVPE + FAISS): **CPU 23.37 ms vs RTX 4090 25.74 ms**.
+   - HiFi-GAN Vocoder Synthesis: CPU 145.43 ms vs **RTX 4090 11.71 ms (12.4× speedup)**.
+
+### 4.2 The Concurrent Hybrid Architecture
+
+Because CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$) is faster than GPU preparation, and GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) is 12.4× faster than CPU vocoder synthesis, the optimal architecture is a 2-stage concurrent hybrid pipeline decoupled by a bounded double-buffered queue:
 
 ```text
-First integration:
-ContentVec --> CPU FAISS --> prepared features --+
-                                               +--> [Pitch estimator + F0 processing + RVC] --> audio
-Waveform + pitch history + parameters ----------+
-
-Later, without retrieval:
-Waveform + histories + parameters --> [ContentVec + Pitch estimator + RVC] --> audio
-
-Conditional final integration:
-Waveform + histories + parameters --> [ContentVec + ONNX retrieval + Pitch estimator + RVC] --> audio
+Chunk N+1 (CPU): [Audio Accumulator] -> [ContentVec] -> [RMVPE] -> [CPU FAISS] -> Intermediate Features
+                                                                                          |
+                                                             (Bounded Queue Transfer: 37.2 μs)
+                                                                                          v
+Chunk N (GPU):                                               [IO Binding] -> [HiFi-GAN Vocoder] -> Output Audio
 ```
 
-Each bracket denotes a proposed integrated ONNX graph, not an already implemented engine. Explicit state inputs/outputs preserve pitch/feature history and chunk alignment. State updates and buffer reuse must be synchronized between calls. F0-free models use a separate profile without the pitch branch.
+Effective per-chunk latency is:
+$$T_{\text{effective}} = \max(T_{\text{prep\_CPU}}, T_{\text{synth\_GPU}}) = \max(23.4\text{ ms}, 11.7\text{ ms}) = 23.4\text{ ms}$$
 
-### 4.3 CUDA Graph Capture Is a Separate Gate
+This eliminates vocoder latency from the perceived pipeline time without requiring monolithic graph fusion, custom ONNX FAISS operators, or complex dynamic-shape CUDA Graph workarounds.
 
-For the selected ONNX Runtime/CUDA version, verify:
+### 4.3 GPU IO Binding and Scoped CUDA Graphs
 
-- All graph nodes are assigned to CUDA EP, with no unsupported control-flow operators or CPU fallback within the captured graph.
-- Input/output tensor shapes and GPU addresses stay fixed for each captured profile; pre-allocated `OrtValue` buffers are bound with IO Binding and updated in place.
-- Warmup/capture completes before live audio, and calls to the same captured session are serialized.
-- Intermediate histories, signal-dependent behavior, and random operators in the exported models preserve correct behavior across replays; static shape does not imply deterministic values.
-
-Multiple sessions connected through GPU buffers can reduce transfers, but do not automatically form one captured CUDA Graph. Host-to-device input transfer and device-to-host output transfer still remain for native audio devices. The objective is **removing intermediate host roundtrips**, not zero transfer or zero launch latency. Keep a normal execution path when capture is unsupported or slower.
+Rather than capturing an entire heterogeneous graph, CUDA optimization is scoped exclusively to the standalone vocoder stage:
+- Pre-allocate device memory for ContentVec/F0 input tensors and audio output waveforms using ONNX Runtime IO Binding.
+- Tensor shapes for the vocoder remain static for a given chunk size (`[1, 512, D]` or equivalent).
+- CUDA Graph capture may be evaluated conditionally for the isolated vocoder session, where kernel launch overhead can be eliminated without multi-stage synchronization hazards.
 
 ---
 
@@ -219,12 +229,10 @@ Multiple sessions connected through GPU buffers can reduce transfers, but do not
 
 ```mermaid
 flowchart LR
-   A["Phase 0: Baseline"] --> B["Phase 1: Fixed-chunk worker"]
-   B --> C["Phase 2: GPU IO Binding"]
-   C --> D["Phase 3: Pitch + RVC"]
-   D --> E["Phase 4: Full graph without retrieval"]
-   E --> F["Phase 5: ONNX retrieval evaluation"]
-   F --> G["Phase 6: Conditional full integration"]
+   A["Phase 0: Baseline"] --> B["Phase 1: Server-First Defaults & Fixed-Chunk Worker"]
+   B --> C["Phase 2: Stable Runtime Shapes & GPU IO Binding"]
+   C --> D["Phase 3: Concurrent Hybrid Pipeline (CPU Prep + GPU Vocoder)"]
+   D --> E["Phase 4: Lightweight Vocoder Exploration (DDSP / Streamable)"]
 ```
 
 ### Phase 0: Measurement Baseline
@@ -256,40 +264,32 @@ flowchart LR
 - If static export proves beneficial, extend [`export2onnx.py`](../backend/vcclient/voice_changer/slot_manager/onnx_exporter/export2onnx.py) while retaining existing model compatibility.
 - **Acceptance**: Measured transfer/timing improvements with stable memory use and equivalent audio quality; normal inference remains available.
 
-### Phase 3: Pitch Estimation + RVC Integration
+### Phase 3: Concurrent Hybrid Pipeline (CPU Prep + GPU Vocoder)
 
-- Integrate RMVPE or FCPE with RVC, including pitch shift, coarse quantization, history, and time-axis alignment. Accept externally prepared feature tensors as inputs.
-- Preserve ContentVec and existing CPU FAISS behavior. This is a useful production path even if later retrieval experiments do not succeed.
-- Separate profile rebuilds from scalar setting updates. Test warmup, silence, restart, and transitions without stale histories.
-- Evaluate CUDA Graph capture for this integrated graph only after the independent capture gate passes.
-- **Acceptance**: Remove the F0 intermediate CPU roundtrip on the supported GPU path while preserving retrieval behavior and pitch/audio quality.
+- Formally decouple CPU preparation (ContentVec, RMVPE/FCPE, FAISS retrieval) from GPU vocoder synthesis via a bounded double-buffered queue.
+- Replaces former monolithic graph fusion (Phases 3–6 in earlier planning) based on hardware benchmarks demonstrating 2.3× faster RMVPE execution on CPU and negligible (37.2 μs) DMA transfer overhead.
+- Intermediate features (ContentVec embeddings + quantized F0) are transferred to GPU memory via pinned buffers and IO Binding.
+- **Acceptance**: $T_{\text{effective}} = \max(T_{\text{prep\_CPU}}, T_{\text{synth\_GPU}})$ verified under live audio streaming with underrun rates at or below baseline.
 
-### Phase 4: Retrieval-Free Full Integration
+### Phase 4: Lightweight Vocoder Exploration (DDSP / Streamable)
 
-- With `index_ratio = 0`, add ContentVec, feature resizing/cropping, and alignment to the pitch-estimation + RVC graph.
-- Validate complete waveform-to-waveform execution with explicit state and fixed runtime shapes; independently assess capture eligibility.
-- **Acceptance**: No intermediate feature/F0 host roundtrips in the integrated path, with measured speed and quality compared to the baseline. Phase 3 remains the retrieval-enabled fallback.
-
-### Phase 5: Standalone ONNX Retrieval Evaluation
-
-- Inspect each FAISS index's type, metric, vector count, dimension, and reconstruction support before choosing a replacement.
-- For L2 search, evaluate standard ONNX `MatMul`/reductions, `ArgMin`, and `Gather` to select one nearest vector, then apply the existing mixture. Match other metrics explicitly rather than assuming L2.
-- This replaces the search algorithm, not the FAISS library wholesale. Exact full-table search can differ from IVF or other approximate indexes; compare retrieval results and audible behavior.
-- Keep new-frame-only search and feature-history reuse. Measure latency and peak VRAM across realistic index sizes, including table storage and distance intermediates.
-- A small CPU ONNX prototype has matched NumPy exact L2 search; real-index performance, GPU node placement, and capture compatibility remain unverified.
-- **Acceptance**: Identify the index sizes/providers where ONNX retrieval improves total pipeline latency within the VRAM and quality budgets. An unsuccessful experiment does not block Phase 3 or Phase 4.
-
-### Phase 6: Conditional Retrieval-Enabled Full Integration
-
-- Integrate ONNX retrieval into the Phase 4 graph only for configurations that pass Phase 5. Verify state handling and all CUDA Graph conditions again for the resulting graph.
-- Retain CPU FAISS + the Phase 3 integrated graph when the index is too large, the provider is unsupported, or the ONNX path is slower or changes quality unacceptably.
-- Tune device periods, inference chunks, and output buffering together. Small device periods such as 64-128 samples are experiments for supported drivers, not a guarantee of equivalent inference latency.
-- **Acceptance**: Demonstrated end-to-end benefit with bounded queue age, no quality regression, and documented fallback. Pursue the measured 100 ms local round-trip target without treating it as a universal hardware guarantee.
+- Evaluate lightweight vocoder architectures (such as DDSP, streamable ConvNeXt vocoders) to compress GPU synthesis time below 5 ms.
+- If vocoder synthesis time is reduced below 5 ms, evaluate offloading ContentVec to GPU (where it runs in 4.89 ms) while maintaining RMVPE on CPU, balancing both stages at ~7.5 ms.
+- **Acceptance**: Lower overall roundtrip latency while maintaining objective audio quality metrics (PESQ/STOI) within acceptable variance.
 
 ---
 
 ## 6. Summary
 
-The foundation is a **one-way stream pipeline around the existing inference worker**: lightweight input submission, worker-owned fixed-length processing, and direct output publication with bounded buffer age and discontinuity recovery. Fixed-chunk buffering and IO Binding then support **pitch estimation + RVC, retrieval-free full integration, ONNX retrieval evaluation, and conditional retrieval-enabled integration**. CUDA Graph capture is verified separately at each applicable stage. CPU FAISS remains a supported fallback, so earlier integration work remains useful regardless of the retrieval experiments.
+The operational foundation is a **one-way stream pipeline around the inference worker**: lightweight input submission, worker-owned fixed-length processing, and direct output publication with bounded buffer age and discontinuity recovery.
+
+Following empirical benchmarks on modern hardware, the optimization strategy centers on **Concurrent Hybrid Pipelining**:
+1. **CPU Preparation**: ContentVec, RMVPE, and FAISS run concurrently on host CPU where small-kernel execution is faster (RMVPE 7.35 ms CPU vs 16.91 ms GPU) and retrieval requires no custom ONNX operators.
+2. **GPU Synthesis**: HiFi-GAN vocoder executes on GPU with IO Binding where parallel compute provides substantial acceleration (11.71 ms GPU vs 145.43 ms CPU).
+3. **Double Buffering**: Host and device stages overlap across consecutive chunks, reducing effective inference time to the maximum of the two stages while incurring less than 0.05 ms of PCIe transfer overhead.
+
+Monolithic graph fusion and ONNX-native FAISS conversion are superseded by this architecture.
+
+Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).
 
 Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).

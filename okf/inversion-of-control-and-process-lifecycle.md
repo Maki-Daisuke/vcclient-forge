@@ -56,7 +56,7 @@ This design suffered from several architectural defects:
 
 1. **Responsibility Inversion**: A web server should never be responsible for opening user browsers or supervising desktop windows. Doing so required complex flags (`--launch_client`, `--desktop_control`) and messy process-spawning logic.
 2. **Fragile Shutdown Mechanism (`desktop_control.py`)**: To let external callers stop the server, legacy code spun up a dedicated background thread polling `sys.stdin.readline()` for `q\n` or `close\n`. If stdin was closed, redirected, or detached (common in GUI runners or background services), the thread spun out of control or blocked process termination.
-3. **Extraneous Dependencies and Dead CLI Commands**: `main.py` relied on Google's `fire` library to expose subcommands (`rest_client`, `convert_file`, `cui`, `module_download`). Several of these were completely unimplemented stubs, yet they added startup overhead and dependency baggage.
+3. **Extraneous Dependencies and Dead CLI Commands**: `main.py` relied on Google's `fire` library to expose subcommands (`rest_client`, `convert_file`, `cui`, `module_download`). Several of these were unimplemented stubs, yet they added startup overhead and dependency baggage.
 
 ---
 
@@ -199,4 +199,4 @@ The inversion of control and lifecycle refactoring is verified through automated
 
 - **Signal and Argument Verification**: `test_main_starts_server_with_parsed_arguments` validates that `main.py` accepts CLI options without `fire` and correctly dispatches host/port parameters.
 - **Desktop Process Supervision**: `tests/desktop_bootstrap.test.cjs` and `desktop/supervisor_test.go` validate Wails's bootstrap lifecycle, readiness reporting, and error handling.
-- **Readiness Detection**: `src-tauri/src/backend.rs` unit tests verify that output stream monitoring reliably detects readiness from stdout lines matching `Application: http://localhost:18888` without capturing stderr or deadlocking.
+- **Readiness Detection**: `desktop/supervisor_test.go` unit tests verify that output stream monitoring reliably detects readiness from stdout lines matching `Application: http://localhost:18888` without capturing stderr or deadlocking.

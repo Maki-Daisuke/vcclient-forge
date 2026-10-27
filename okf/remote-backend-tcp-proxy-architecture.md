@@ -1,5 +1,5 @@
 ---
-title: "Remote Backend TCP Proxy & Zero-Config Secure Context: Solving Remote WebAudio without Certificates"
+title: "Remote Backend TCP Proxy & Localhost Secure Context: Satisfying Remote WebAudio Requirements Without Certificates"
 date: "2026-10-27"
 author: "VCClient Forge Team"
 category: "Architecture & Engineering Decisions"
@@ -14,7 +14,7 @@ tags:
   - simplicity
 ---
 
-# Remote Backend TCP Proxy & Zero-Config Secure Context: Solving Remote WebAudio without Certificates
+# Remote Backend TCP Proxy & Localhost Secure Context: Satisfying Remote WebAudio Requirements Without Certificates
 
 ## Executive Summary
 
@@ -31,7 +31,7 @@ Because the embedded Webview loads `http://127.0.0.1:18888`, the browser treats 
 This design is a direct manifestation of VCClient Forge's core philosophy:
 
 > **「できることが同じなら、コードもドキュメントも少ないほうが正義！」**  
-> _(If the outcome and capabilities are identical, less code and concise documentation is the ultimate virtue.)_
+> _(If the outcome and capabilities are identical, less code and concise documentation is a guiding principle.)_
 
 ---
 
@@ -128,7 +128,7 @@ flowchart LR
 
 ## 3. Core Architectural Advantages
 
-### 1. Zero-Configuration Secure Context
+### 1. Plaintext Localhost Secure Context
 
 Because the webview connects to `127.0.0.1`, it classifies the origin as secure. `navigator.mediaDevices.getUserMedia` and WebAudio initialize without certificate warnings or manual certificate installation; the normal OS/browser microphone permission prompt still applies.
 

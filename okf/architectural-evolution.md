@@ -29,7 +29,7 @@ The upstream repository grew organically as a multi-purpose monorepo housing unr
 * **`docs/` (Removed in Forge)**: Not documentation, but a standalone client-side Web application ("Voice Recorder") hosted on GitHub Pages (`https://w-okada.github.io/voice-changer/`). Used in 2022 to record reading scripts (including Natsume Soseki's *I Am a Cat* and the ITA corpus) to build training datasets for MMVC. Not used by VCClient.
 * **`trainer/`**: Dockerfiles and notebooks for training MMVC models on Google Colab or local GPU rigs.
 * **`client/`**: Electron wrapper assets for desktop packaging.
-* **`server/`**: The frozen 2024 source of the v1.x server, completely superseded by `vcclient_dev`.
+* **`server/`**: The frozen 2024 source of the v1.x server, superseded by `vcclient_dev`.
 * **`web_front/`**: Compiled SPA assets (React/Webpack) served statically by FastAPI.
 
 ## 3. Entry Point Resolution: The `main.py` Puzzle
@@ -73,7 +73,7 @@ voice-changer/
 
 Upstream included an optional terminal-based user interface (CUI) powered by `textual` and file monitoring via `watchdog`.
 
-In Forge, this layer was completely removed based on core engineering rationale:
+In Forge, this layer was removed based on core engineering rationale:
 1. **Redundant Functionality**: Full-featured real-time log monitoring and status inspection are already provided in the Web UI, and management is exposed via REST and Socket.IO APIs. The CUI merely mirrored server logs inside an artificial terminal widget.
 2. **Dead Dependency Elimination**: Removing the CUI eliminated four heavy third-party packages (`textual`, `watchdog`, `linkify-it-py`, `mdit-py-plugins`) and pruned over 500 lines of complex terminal UI logic.
 3. **Clean Shutdown & Process Lifecycle**: Dropping terminal event loops and file watcher threads substantially simplified graceful shutdown, preventing thread deadlocks and orphaned async tasks.

@@ -1,19 +1,19 @@
 ---
 type: architecture
-title: "Next-Gen Frontend Architecture: Svelte 5 Rebirth, Pure WebSocket, and Tauri Packaging"
-description: "Server-Mode-first Svelte 5/Tauri UI replacement, notification migration and Socket.IO removal, followed by incremental WebSocket Client Mode support."
+title: "Next-Gen Frontend Architecture: Svelte 5 Rebirth, Pure WebSocket, and Native Desktop Packaging"
+description: "Server-Mode-first Svelte 5 UI replacement, notification migration and Socket.IO removal, followed by incremental WebSocket Client Mode support."
 tags:
-  [frontend, svelte, websocket, tauri, i18n, performance, architecture, desktop]
+  [frontend, svelte, websocket, wails, i18n, performance, architecture, desktop]
 timestamp: 2026-10-18T06:30:00Z
 ---
 
-# Next-Gen Frontend Architecture: Svelte 5 Rebirth, Pure WebSocket, and Tauri Packaging
+# Next-Gen Frontend Architecture: Svelte 5 Rebirth, Pure WebSocket, and Native Desktop Packaging
 
 ## Deployment Assumptions
 
-Forge is a **local, single-user application with one active audio client**, packaged primarily with Tauri. Users are responsible for operating it on a trusted machine/network. Multi-user hosting, application-level authentication, and per-client inference-session management are not goals of this roadmap. Server Mode and Client Mode are alternative input modes.
+Forge is a **local, single-user application with one active audio client**, packaged primarily with Wails v3. Users are responsible for operating it on a trusted machine/network. Multi-user hosting, application-level authentication, and per-client inference-session management are not goals of this roadmap. Server Mode and Client Mode are alternative input modes.
 
-The Tauri application connects to the loopback backend using local HTTP/WebSocket; a public HTTPS deployment is not required for the desktop workflow. Configure Tauri capabilities/CSP and OS/WebView audio permissions for this local integration. When an optional remote browser captures microphone audio for Client Mode, it requires a secure context and user permission to access the microphone. Tailscale Serve can provide HTTPS/WSS, as described in the [remote-access notes](./deprecating-and-removing-ngrok.md). A browser that only controls Server Mode does not capture audio locally, so this microphone-access requirement does not apply to that workflow.
+The Wails application connects to the loopback backend using local HTTP/WebSocket; a public HTTPS deployment is not required for the desktop workflow. Configure WebView2 and OS audio permissions for this local integration. When an optional remote browser captures microphone audio for Client Mode, it requires a secure context and user permission to access the microphone. Tailscale Serve can provide HTTPS/WSS, as described in the [remote-access notes](./deprecating-and-removing-ngrok.md). A browser that only controls Server Mode does not capture audio locally, so this microphone-access requirement does not apply to that workflow.
 
 ## 1. Anatomy of the Legacy Frontend Bottlenecks
 
@@ -67,14 +67,14 @@ Upstream's audio transport relies on `python-socketio` and `python-engineio`. In
 Forge replaces Socket.IO with **Pure WebSocket** endpoints powered by FastAPI/Starlette and the ASGI server's WebSocket support, without adding a separate Socket.IO/Engine.IO protocol layer:
 
 ```text
-[Tauri / Optional Browser Web Audio]                   [FastAPI Backend]
+[Wails / Optional Browser Web Audio]                   [FastAPI Backend]
    |                                                      |
    |---- /ws/audio: binary Float32 PCM ------------------->|--> bounded input buffer
    |<--- /ws/audio: converted Float32 PCM -----------------|<-- inference worker
    |<--- /ws/events: performance and state notifications --|
 ```
 
-- **Binary PCM**: Specify little-endian Float32 PCM, channel count, and sample rates. Use binary buffers and NumPy buffer views to avoid per-sample Python unpacking; browser, ASGI, output serialization, and GPU transfers can still copy data. This is not an end-to-end zero-copy guarantee.
+- **Binary PCM**: Specify little-endian Float32 PCM, channel count, and sample rates. Use binary buffers and NumPy buffer views to avoid per-sample Python unpacking; data copies may still occur across browser, ASGI, and GPU boundaries.
 - **Audio Scheduling**: An async transport loop feeds a bounded buffer; a dedicated worker performs inference. WebSocket message boundaries do not define inference chunk sizes. Both native and Web Audio inputs use the [fixed-chunk pipeline](./server-first-architecture-and-static-pipeline-roadmap.md).
 - **Bounded Latency**: Define frame/sample identification, send and playback buffer limits, `bufferedAmount` monitoring, and overload/disconnect recovery. Reset stream history when continuity is lost rather than playing an ever-growing backlog.
 - **Separate Notifications**: `/ws/events` is introduced first for Server Mode and later reused by Client Mode alongside `/ws/audio`. It replaces `perf` and `command` notifications, scheduled outside audio callbacks on the server event loop.
@@ -88,14 +88,14 @@ The framework decision followed the settings investigation, rather than precedin
 
 1. The legacy implementation uses React, but bypasses React's state-update model by mutating shared objects and relying on server reloads for visual feedback. Keeping that interaction design would preserve the problem regardless of framework.
 2. The new UI therefore needs a fresh interaction/state/synchronization design. React could implement that design correctly, but the legacy UI's use of React is not a requirement to choose React again.
-3. For this local audio-control application, Forge chooses **Svelte 5 + Vite** as a lightweight fit for reactive settings, localized meter updates, and Tauri packaging. The aim is a smaller, simpler frontend, not a claim that React is inherently unsuitable or that Svelte automatically fixes synchronization bugs.
+3. For this local audio-control application, Forge chooses **Svelte 5 + Vite** as a lightweight fit for reactive settings, localized meter updates, and desktop packaging. The aim is a smaller, simpler frontend, not a claim that React is inherently unsuitable or that Svelte automatically fixes synchronization bugs.
 
 This is a deliberate framework choice after deciding to redesign the UI, rather than a like-for-like React rewrite. Bundle size, CPU/memory usage, and responsiveness will still be measured in this application.
 
 | Dimension                   | Legacy Frontend (`web_front` / `client`)   | Next-Gen Forge Frontend (`frontend/`)                                               |
 | --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
 | **Framework**               | React 18/19 SPA                            | **Svelte 5** (Runes: `$state`, `$derived`, `$effect`)                               |
-| **Rendering Engine**        | Virtual DOM (Varying diffing overhead)     | **Zero Virtual DOM** (Direct, surgical DOM updates)                                 |
+| **Rendering Engine**        | Virtual DOM (Varying diffing overhead)     | **No Virtual DOM** (Direct DOM updates)                                             |
 | **Audio Meter Performance** | Frequent updates can cause broad rerenders | Localized updates, measured at the display refresh rate                             |
 | **Bundler**                 | Webpack 5 (~2.6MB bundle)                  | **Vite**, with build time and bundle size measured in this project                  |
 | **State Management**        | UI values closely coupled to API responses | **SSOT Reactive Store** with optimistic updates, debounced sync, and ordered writes |
@@ -137,7 +137,7 @@ The shared frontend settings model gives components one consistent view, but dis
 
 VCClient has accumulated translations across **13 languages** (`ar`, `de`, `el`, `en`, `es`, `fr`, `it`, `ja`, `ko`, `la`, `ms`, `ru`, `zh`), created by community contributors over several years.
 
-### Zero-Friction Portability
+### Direct Translation Asset Portability
 
 Inspection of `web_front/assets/i18n/*/translation.json` demonstrated that:
 
@@ -171,8 +171,8 @@ flowchart TD
     end
 
    S1 --> S2 --> S3
-   TAURI["Tauri Packaging: Server Mode first"] -.-> FE
-   TAURI -.->|"Supervised Sidecar"| B1
+   WAILS["Wails v3 Host: Server Mode first"] -.-> FE
+   WAILS -.->|"Supervised Subprocess"| B1
 ```
 
 ### Step 1: Minimal Svelte 5 UI for Server Mode
@@ -197,14 +197,14 @@ flowchart TD
 - Add `/ws/audio` for binary Float32 PCM, using the common bounded-buffer/inference-worker path rather than creating another inference engine.
 - Add Web Audio capture/playback through `AudioWorklet` to the new UI. Reuse `/ws/events` for performance and state notifications in both modes.
 - Validate sample-rate/channel handling, buffering, overload/disconnect recovery, and exclusive selection between native Server Mode and WebSocket Client Mode.
-- Verify Tauri WebView audio permissions and optional browser access through Tailscale Serve. Tauri packaging and Server Mode usability do not need to wait for Client Mode completion.
+- Verify Wails WebView2 audio permissions and optional browser access through Tailscale Serve. Desktop packaging is already established with Wails v3.
 - **Acceptance**: Client Mode is restored using WebSocket only; no Socket.IO dependencies or legacy UI return. Continue adding remaining UI features incrementally.
 
 ### Desktop Packaging: Transitioning from Tauri v2 to Wails v3 [Completed]
 
 **Historical Context (2026-10-19)**: The project initially prototyped a desktop baseline using Tauri v2 to avoid Electron's runtime overhead and preserve size budget under GitHub Releases' 2 GiB limit.
 
-**Architectural Decision & Completion (2026-10-25)**: The desktop host migration from Tauri v2 (Rust) to Wails v3 (Go) with Vite, TypeScript, and xterm.js has been completed (commit `b260979`). Completely removing `src-tauri/` eliminated **2,846 lines of net boilerplate**, sped up daily iteration by **~5× (~3–5s vs ~15–30s)**, and eliminated the requirement for MSVC C++ build tools on Windows. See the detailed record in **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**.
+**Architectural Decision & Completion (2026-10-25)**: The desktop host migration from Tauri v2 (Rust) to Wails v3 (Go) with Vite, TypeScript, and xterm.js has been completed (commit `b260979`). Removing `src-tauri/` eliminated **2,846 lines of net boilerplate**, sped up daily iteration by **~5× (~3–5s vs ~15–30s)**, and eliminated the requirement for MSVC C++ build tools on Windows. See the detailed record in **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**.
 
 Key rationale:
 1. **The Desktop Wrapper is Functionally Thin**: Because neural inference (ONNX Runtime) and audio streaming (WASAPI) run in Python, and UI execution runs in WebView2, the host process merely supervises subprocess lifecycle and navigation. The marginal runtime memory difference between Rust and Go is negligible.
