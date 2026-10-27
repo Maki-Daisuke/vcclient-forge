@@ -30,11 +30,14 @@ class ConfigurationManager:
     def __init__(self) -> None:
         self.reload()
         self.voice_changer_configuration.recording_started = False
+        self.voice_changer_configuration.pass_through = False
 
     def reload(self) -> None:
         if os.path.exists(ConfigFile):
             with open(ConfigFile, "r", encoding="utf-8") as f:
                 self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(f.read())
+            self.voice_changer_configuration.recording_started = False
+            self.voice_changer_configuration.pass_through = False
             return None
 
         self.voice_changer_configuration = VoiceChangerConfiguration()
@@ -131,4 +134,9 @@ class ConfigurationManager:
 
     def save_voice_changer_configuration(self) -> None:
         with open(ConfigFile, "w", encoding="utf-8") as f:
-            f.write(self.voice_changer_configuration.model_dump_json(indent=4))
+            f.write(
+                self.voice_changer_configuration.model_dump_json(
+                    indent=4,
+                    exclude={"pass_through", "recording_started"},
+                )
+            )
