@@ -18,6 +18,7 @@ entries:
   - hybrid-cpu-gpu-pipeline-architecture.md
   - inversion-of-control-and-process-lifecycle.md
   - migrating-desktop-host-from-tauri-to-wails.md
+  - remote-backend-tcp-proxy-architecture.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -66,3 +67,6 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 13. **[Hybrid CPU-GPU Pipelining vs. Monolithic Graph Fusion](./hybrid-cpu-gpu-pipeline-architecture.md)**
     Empirical latency benchmarks and architectural analysis explaining why CPU-based preprocessing (ContentVec, RMVPE, FAISS) overlapped with dedicated GPU neural vocoder synthesis outperforms monolithic graph fusion ("Boost Mode") by eliminating PCIe roundtrips and avoiding accelerator-specific compiler quirks.
+
+14. **[Remote Backend TCP Proxy & Zero-Config Secure Context](./remote-backend-tcp-proxy-architecture.md)**
+    How Forge eliminates upstream's self-signed HTTPS certificate generation and confusing browser SSL warnings. By embedding a lightweight Layer-4 TCP proxy (`--remote`) in the desktop host, the browser connects to `127.0.0.1`, unconditionally satisfying WebAudio's Secure Context requirement with zero configuration, zero certificates, and minimal code.
