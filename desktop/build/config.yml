@@ -7,7 +7,7 @@ info:
   description: "VCClient Forge Desktop Host"
   copyright: "(c) 2026, VCClient Forge"
   comments: "Voice Changer Client Forge"
-  version: "2.0.78-forge.0.1.0"
+  version: "2.0.78-forge.0.1.1"
 
 dev_mode:
   root_path: .
