@@ -198,5 +198,5 @@ In terminal environments, if a background device driver or thread deadlocks duri
 The inversion of control and lifecycle refactoring is verified through automated test suites across all target operating systems:
 
 - **Signal and Argument Verification**: `test_main_starts_server_with_parsed_arguments` validates that `main.py` accepts CLI options without `fire` and correctly dispatches host/port parameters.
-- **Desktop Process Supervision**: `tests/desktop_bootstrap.test.cjs` and `desktop/supervisor_test.go` validate Wails's bootstrap lifecycle, readiness reporting, and error handling.
+- **Desktop Process Supervision**: `desktop/supervisor_test.go` validates Wails's bootstrap lifecycle, readiness reporting, and error handling.
 - **Readiness Detection**: `desktop/supervisor_test.go` unit tests verify that output stream monitoring reliably detects readiness from stdout lines matching `Application: http://localhost:18888` without capturing stderr or deadlocking.

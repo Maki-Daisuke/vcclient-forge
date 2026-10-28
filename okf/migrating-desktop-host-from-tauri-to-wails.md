@@ -124,12 +124,12 @@ The migration to Wails preserves all frontend and UX investments made so far:
    - Automated webview navigation to `http://127.0.0.1:18888/` upon backend readiness.
    - Configured declarative link delegation to OS default browser and legacy Electron polyfills via `WebviewWindowOptions.JS`.
 4. **Phase 4: Toolchain & Build Script Integration** [Completed]
-   - Updated `scripts/build.js`, `scripts/build_package.py`, `tests/desktop_bootstrap.test.cjs`, and `package.json` to build and package the Wails v3 desktop host across Windows, Linux, and macOS via `wails3 task --dir desktop build`.
+   - Updated `scripts/build.js`, `scripts/build_package.py`, and `package.json` to build and package the Wails v3 desktop host across Windows, Linux, and macOS via `wails3 task --dir desktop build`.
    - Deleted `src-tauri/` and pruned Rust dependencies.
 5. **Phase 5: Release Verification & Quality Gates** [Completed]
    - Verified pure Go CGO-free Windows compilation (`CGO_ENABLED=0`), generating `desktop/bin/vcclient-forge.exe` (10.18 MB) in ~8 seconds, alongside native CGO builds (`desktop/bin/vcclient-forge`) on Linux and macOS.
    - Integrated native Git pre-commit hook (`.githooks/pre-commit`) to guarantee Ruff and `gofmt` code formatting before every commit.
-   - Passed all backend pytest cases, desktop bootstrap test cases, and Go unit tests.
+   - Passed all backend pytest cases and Go unit tests.
 
 ---
 
