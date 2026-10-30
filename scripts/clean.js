@@ -26,9 +26,12 @@ function cleanPath(relPath) {
   if (fs.existsSync(fullPath)) {
     try {
       console.log(`[CLEAN] Removing: ${relPath}`);
-      fs.rmSync(fullPath, { recursive: true, force: true });
+      fs.rmSync(fullPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     } catch (err) {
-      console.warn(`[WARN] Could not remove ${relPath} (it may be in use): ${err.message}`);
+      console.error(`\n[ERROR] Failed to remove ${relPath}: ${err.message}`);
+      console.error(`[HINT] The file or directory may be in use by another process (e.g. running Python, Language Server, or editor).`);
+      console.error(`       Please stop any running processes and try again.\n`);
+      process.exit(1);
     }
   }
 }
@@ -43,9 +46,10 @@ function cleanPyCache(dir) {
         if (entry.name === "__pycache__") {
           try {
             console.log(`[CLEAN] Removing pycache: ${path.relative(projectRoot, fullPath)}`);
-            fs.rmSync(fullPath, { recursive: true, force: true });
+            fs.rmSync(fullPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
           } catch (err) {
-            console.warn(`[WARN] Could not remove ${fullPath}: ${err.message}`);
+            console.error(`\n[ERROR] Failed to remove pycache ${fullPath}: ${err.message}`);
+            process.exit(1);
           }
         } else {
           cleanPyCache(fullPath);
