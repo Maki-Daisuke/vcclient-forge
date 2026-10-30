@@ -10,7 +10,9 @@ from pathlib import Path
 
 MAX_ARCHIVE_BYTES = 2 * 1024**3
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-VERSION = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))["version"].removeprefix("v")
+VERSION = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))[
+    "version"
+].removeprefix("v")
 
 
 def get_platform_tag() -> str:
@@ -32,11 +34,15 @@ def get_platform_tag() -> str:
     return f"{system}_{arch}"
 
 
-def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+def run_cmd(
+    cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
+) -> None:
     print(f"[RUN] {' '.join(str(c) for c in cmd)}")
     res = subprocess.run(cmd, cwd=cwd, env=env, check=False)
     if res.returncode != 0:
-        raise RuntimeError(f"Command failed with exit code {res.returncode}: {' '.join(str(c) for c in cmd)}")
+        raise RuntimeError(
+            f"Command failed with exit code {res.returncode}: {' '.join(str(c) for c in cmd)}"
+        )
 
 
 def find_7z_binary() -> str:
@@ -44,11 +50,18 @@ def find_7z_binary() -> str:
         p = shutil.which(cmd)
         if p:
             return p
-    raise RuntimeError("7-Zip executable ('7z', '7za', or '7zz') was not found in PATH.")
+    raise RuntimeError(
+        "7-Zip executable ('7z', '7za', or '7zz') was not found in PATH."
+    )
 
 
 def get_build_dir(edition: str, python_version: str) -> Path:
-    return PROJECT_ROOT / "build" / "packaging" / f"{get_platform_tag()}_{edition}_{python_version}"
+    return (
+        PROJECT_ROOT
+        / "build"
+        / "packaging"
+        / f"{get_platform_tag()}_{edition}_{python_version}"
+    )
 
 
 def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
@@ -71,7 +84,9 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
             or not all(isinstance(size, int) and size >= 0 for size in files.values())
             or not any(name.startswith("_internal/") for name in files)
         ):
-            raise ValueError(f"Invalid backend build manifest: {manifest}; run npm run build -- --edition {edition}")
+            raise ValueError(
+                f"Invalid backend build manifest: {manifest}; run npm run build -- --edition {edition}"
+            )
         for name, size in files.items():
             artifact = frozen / name
             if not artifact.resolve().is_relative_to(frozen.resolve()):
@@ -82,11 +97,17 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
     frontend = PROJECT_ROOT / "frontend" / "dist"
     source = PROJECT_ROOT / "web_front"
     required_frontend = {Path("index.html")}
-    required_frontend.update(path.relative_to(source) for path in source.rglob("*") if path.is_file())
-    missing.extend(
-        str(frontend / relative) for relative in sorted(required_frontend) if not (frontend / relative).is_file()
+    required_frontend.update(
+        path.relative_to(source) for path in source.rglob("*") if path.is_file()
     )
-    desktop_name = "vcclient-forge.exe" if platform.system() == "Windows" else "vcclient-forge"
+    missing.extend(
+        str(frontend / relative)
+        for relative in sorted(required_frontend)
+        if not (frontend / relative).is_file()
+    )
+    desktop_name = (
+        "vcclient-forge.exe" if platform.system() == "Windows" else "vcclient-forge"
+    )
     desktop = PROJECT_ROOT / "desktop" / "bin" / desktop_name
     if not desktop.is_file() or desktop.stat().st_size == 0:
         missing.append(str(desktop))
@@ -113,7 +134,9 @@ def build_package(
     package_dir = output_dir / package_name
     archive_path = output_dir / f"{package_name}.7z"
     if package_dir.exists() or archive_path.exists():
-        raise FileExistsError(f"Package already exists; choose a new --output-dir: {package_dir}")
+        raise FileExistsError(
+            f"Package already exists; choose a new --output-dir: {package_dir}"
+        )
     frozen, desktop_executable = validate_artifacts(edition, python_version)
     seven_zip = None if skip_archive else find_7z_binary()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -182,7 +205,9 @@ def build_package(
 
     archive_bytes = archive_path.stat().st_size
     if archive_bytes >= MAX_ARCHIVE_BYTES:
-        raise RuntimeError(f"Archive must be smaller than 2 GiB: {archive_path} ({archive_bytes} bytes)")
+        raise RuntimeError(
+            f"Archive must be smaller than 2 GiB: {archive_path} ({archive_bytes} bytes)"
+        )
     size_mb = archive_bytes / (1024 * 1024)
     size_gib = archive_bytes / (1024 * 1024 * 1024)
     print("\n[OK] Build complete!")
@@ -192,13 +217,15 @@ def build_package(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate and package an existing build")
+    parser = argparse.ArgumentParser(
+        description="Validate and package an existing build"
+    )
     parser.add_argument(
         "--edition",
         type=str,
-        default="cpu",
-        choices=["cuda", "dml", "cpu", "mac"],
-        help="Target edition (cuda, dml, cpu, mac, default: cpu)",
+        default="universal",
+        choices=["universal", "cuda"],
+        help="Target edition (universal, cuda, default: universal)",
     )
     parser.add_argument(
         "--python-version",

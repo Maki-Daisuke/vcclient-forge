@@ -17,7 +17,7 @@ Always run commands from the repository root. Backend Python dependencies and to
 | Task                                | Command                                                                                 |
 | ----------------------------------- | --------------------------------------------------------------------------------------- |
 | Run backend from source             | `npm start` (or `uv run --project backend python backend/main.py`)                      |
-| Build all components (default: CPU) | `npm run build` or `npm run build -- --edition <edition>` (`cpu`, `cuda`, `dml`, `mac`) |
+| Build all components (default: universal) | `npm run build` or `npm run build -- --edition <edition>` (`universal`, `cuda`) |
 | Build frontend assets only          | `npm run build:frontend`                                                                |
 | Package prebuilt distribution       | `npm run package -- --edition <edition>`                                                |
 

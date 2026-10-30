@@ -37,8 +37,8 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libportaudio2 build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
 
-      - name: Install dependencies (CPU + Dev)
-        run: uv sync --project backend --extra cpu --extra dev --python 3.14
+      - name: Install dependencies (Universal + Dev)
+        run: uv sync --project backend --extra universal --extra dev --python 3.14
 
       - name: Check code formatting (Ruff)
         run: npm run format:check

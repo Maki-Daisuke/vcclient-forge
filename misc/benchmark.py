@@ -42,6 +42,15 @@ class DeviceInfo:
     numpy_runtime: str
     available_providers: list[str]
     ep_devices: list[dict[str, Any]] = field(default_factory=list)
+    raw_ep_devices: list[Any] = field(default_factory=list)
+
+
+@dataclass
+class TargetConfig:
+    label: str
+    provider_name: str
+    provider_options: dict[str, Any]
+    ep_device: Any = None
 
 
 @dataclass
@@ -92,9 +101,10 @@ def probe_hardware() -> DeviceInfo:
 
     # 4. ONNX Runtime Device Topology (get_ep_devices)
     ep_devices_info: list[dict[str, Any]] = []
+    raw_devices: list[Any] = []
     if hasattr(ort, "get_ep_devices"):
         try:
-            raw_devices = ort.get_ep_devices()
+            raw_devices = list(ort.get_ep_devices())
             for dev in raw_devices:
                 dev_type_str = str(getattr(dev.device, "type", "Unknown"))
                 # Simplify OrtHardwareDeviceType enum representation
@@ -121,6 +131,7 @@ def probe_hardware() -> DeviceInfo:
         numpy_runtime=np_runtime_summary,
         available_providers=available_providers,
         ep_devices=ep_devices_info,
+        raw_ep_devices=raw_devices,
     )
 
 
@@ -208,61 +219,85 @@ def discover_models(args: argparse.Namespace) -> dict[str, Path | None]:
 
 
 def generate_benchmark_targets(
-    available_providers: list[str],
+    hw_info: DeviceInfo,
     threads: int,
-) -> list[tuple[str, str, dict[str, Any]]]:
-    """Build list of (label, provider_name, provider_options) configurations to benchmark."""
-    targets: list[tuple[str, str, dict[str, Any]]] = []
+) -> list[TargetConfig]:
+    """Build list of TargetConfig configurations to benchmark."""
+    targets: list[TargetConfig] = []
 
     # 1. CPUExecutionProvider
-    if "CPUExecutionProvider" in available_providers:
+    if "CPUExecutionProvider" in hw_info.available_providers:
         targets.append(
-            (
-                f"CPU EP (intra_op_num_threads={threads})",
-                "CPUExecutionProvider",
-                {"intra_op_num_threads": threads},
+            TargetConfig(
+                label=f"CPU EP (intra_op_num_threads={threads})",
+                provider_name="CPUExecutionProvider",
+                provider_options={"intra_op_num_threads": threads},
             )
         )
 
-    # 2. OpenVINOExecutionProvider
-    if "OpenVINOExecutionProvider" in available_providers:
-        # Probe common OpenVINO targets
+    # 2. OpenVINO Execution Provider
+    # 2a. Check dynamic plugin EP devices (ort.get_ep_devices)
+    ov_devices = [
+        d
+        for d in hw_info.raw_ep_devices
+        if getattr(d, "ep_name", "") == "OpenVINOExecutionProvider"
+    ]
+    if ov_devices:
+        for d in ov_devices:
+            ov_target = "UNKNOWN"
+            if hasattr(d, "ep_metadata") and isinstance(d.ep_metadata, dict):
+                ov_target = d.ep_metadata.get("ov_device", "AUTO")
+            elif hasattr(d, "device"):
+                ov_target = str(getattr(d.device, "type", "UNKNOWN"))
+                if "." in ov_target:
+                    ov_target = ov_target.split(".")[-1]
+            dev_id = getattr(getattr(d, "device", None), "device_id", 0)
+            targets.append(
+                TargetConfig(
+                    label=f"OpenVINO EP ({ov_target}, id={dev_id})",
+                    provider_name="OpenVINOExecutionProvider",
+                    provider_options={},
+                    ep_device=d,
+                )
+            )
+    elif "OpenVINOExecutionProvider" in hw_info.available_providers:
+        # 2b. Fallback to in-tree OpenVINO providers if available
         for dev_type in ["CPU", "GPU", "NPU"]:
             targets.append(
-                (
-                    f"OpenVINO EP (device_type={dev_type})",
-                    "OpenVINOExecutionProvider",
-                    {"device_type": dev_type},
+                TargetConfig(
+                    label=f"OpenVINO EP (device_type={dev_type})",
+                    provider_name="OpenVINOExecutionProvider",
+                    provider_options={"device_type": dev_type},
                 )
             )
 
     # 3. CUDAExecutionProvider
-    if "CUDAExecutionProvider" in available_providers:
+    if "CUDAExecutionProvider" in hw_info.available_providers:
         targets.append(
-            (
-                "CUDA EP (device_id=0)",
-                "CUDAExecutionProvider",
-                {"device_id": 0},
+            TargetConfig(
+                label="CUDA EP (device_id=0)",
+                provider_name="CUDAExecutionProvider",
+                provider_options={"device_id": 0},
             )
         )
 
     # 4. DmlExecutionProvider
-    if "DmlExecutionProvider" in available_providers:
+    if "DmlExecutionProvider" in hw_info.available_providers:
         targets.append(
-            (
-                "DirectML EP (device_id=0)",
-                "DmlExecutionProvider",
-                {"device_id": 0},
+            TargetConfig(
+                label="DirectML EP (device_id=0)",
+                provider_name="DmlExecutionProvider",
+                provider_options={"device_id": 0},
             )
         )
 
     # 5. CoreMLExecutionProvider
-    if "CoreMLExecutionProvider" in available_providers:
+    if "CoreMLExecutionProvider" in hw_info.available_providers:
         targets.append(
-            (
-                "CoreML EP",
-                "CoreMLExecutionProvider",
-                {},
+            TargetConfig(
+                label="CoreML EP",
+                provider_name="CoreMLExecutionProvider",
+                provider_options={},
             )
         )
 
@@ -272,9 +307,7 @@ def generate_benchmark_targets(
 def run_benchmark_for_model(
     model_name: str,
     model_path: Path,
-    target_label: str,
-    provider_name: str,
-    provider_options: dict[str, Any],
+    target: TargetConfig,
     warmup_runs: int,
     benchmark_runs: int,
     sample_rate: int = 16000,
@@ -283,8 +316,8 @@ def run_benchmark_for_model(
     """Benchmark a single model on a specific Execution Provider configuration."""
     result = BenchmarkResult(
         model_name=model_name,
-        provider_name=target_label,
-        provider_options=provider_options,
+        provider_name=target.label,
+        provider_options=target.provider_options,
         active_providers=[],
         success=False,
     )
@@ -292,16 +325,23 @@ def run_benchmark_for_model(
     so = ort.SessionOptions()
     so.log_severity_level = 3  # Suppress driver diagnostic warnings
 
-    if "intra_op_num_threads" in provider_options:
-        so.intra_op_num_threads = int(provider_options["intra_op_num_threads"])
+    if "intra_op_num_threads" in target.provider_options:
+        so.intra_op_num_threads = int(target.provider_options["intra_op_num_threads"])
 
     try:
-        session = ort.InferenceSession(
-            str(model_path),
-            sess_options=so,
-            providers=[provider_name],
-            provider_options=[provider_options],
-        )
+        if target.ep_device is not None and hasattr(so, "add_provider_for_devices"):
+            so.add_provider_for_devices([target.ep_device], target.provider_options)
+            session = ort.InferenceSession(
+                str(model_path),
+                sess_options=so,
+            )
+        else:
+            session = ort.InferenceSession(
+                str(model_path),
+                sess_options=so,
+                providers=[target.provider_name],
+                provider_options=[target.provider_options],
+            )
     except Exception as e:  # noqa: BLE001
         result.error_message = f"Session creation failed: {e}"
         return result
@@ -309,9 +349,9 @@ def run_benchmark_for_model(
     result.active_providers = session.get_providers()
 
     # Silent fallback verification
-    if provider_name not in result.active_providers:
+    if target.provider_name not in result.active_providers:
         result.error_message = (
-            f"Provider '{provider_name}' was not retained by ONNX Runtime. "
+            f"Provider '{target.provider_name}' was not retained by ONNX Runtime. "
             f"Active providers: {result.active_providers} (silent fallback detected)"
         )
         return result
@@ -557,9 +597,7 @@ def main() -> None:
     models = discover_models(args)
 
     # 3. Build target provider list
-    targets = generate_benchmark_targets(
-        hw_info.available_providers, threads=args.threads
-    )
+    targets = generate_benchmark_targets(hw_info, threads=args.threads)
 
     # 4. Run benchmarks
     results_by_model: dict[str, list[BenchmarkResult]] = {}
@@ -571,13 +609,11 @@ def main() -> None:
             continue
 
         model_results: list[BenchmarkResult] = []
-        for label, provider_name, provider_options in targets:
+        for target in targets:
             res = run_benchmark_for_model(
                 model_name=model_name,
                 model_path=model_path,
-                target_label=label,
-                provider_name=provider_name,
-                provider_options=provider_options,
+                target=target,
                 warmup_runs=args.warmup,
                 benchmark_runs=args.runs,
                 sample_rate=16000,
