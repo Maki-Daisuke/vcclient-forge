@@ -26,12 +26,12 @@ def get_platform_tag() -> str:
         arch = machine
 
     if system == "windows":
-        return f"win_{arch}"
+        return f"win-{arch}"
     elif system == "darwin":
-        return f"mac_{arch}"
+        return f"mac-{arch}"
     elif system == "linux":
-        return f"linux_{arch}"
-    return f"{system}_{arch}"
+        return f"linux-{arch}"
+    return f"{system}-{arch}"
 
 
 def run_cmd(
@@ -60,7 +60,7 @@ def get_build_dir(edition: str, python_version: str) -> Path:
         PROJECT_ROOT
         / "build"
         / "packaging"
-        / f"{get_platform_tag()}_{edition}_{python_version}"
+        / f"{get_platform_tag()}-{edition}_{python_version}"
     )
 
 
@@ -130,7 +130,7 @@ def build_package(
     skip_archive: bool = False,
 ) -> Path:
     output_dir = (output_dir or PROJECT_ROOT / "dist").resolve()
-    package_name = f"vcclient_{get_platform_tag()}_{edition}_v{VERSION}"
+    package_name = f"vcclient-{get_platform_tag()}-{edition}-v{VERSION}"
     package_dir = output_dir / package_name
     archive_path = output_dir / f"{package_name}.7z"
     if package_dir.exists() or archive_path.exists():
@@ -223,9 +223,9 @@ def main():
     parser.add_argument(
         "--edition",
         type=str,
-        default="universal",
-        choices=["universal", "cuda"],
-        help="Target edition (universal, cuda, default: universal)",
+        default="standard",
+        choices=["standard", "cuda"],
+        help="Target edition (standard, cuda, default: standard)",
     )
     parser.add_argument(
         "--python-version",

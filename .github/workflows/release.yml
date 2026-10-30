@@ -14,27 +14,27 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - name: win-universal-x64
+          - name: win-x64-standard
             os: windows-latest
-            edition: universal
-          - name: win-cuda-x64
+            edition: standard
+          - name: win-x64-cuda
             os: windows-latest
             edition: cuda
-          - name: linux-universal-x64
+          - name: linux-x64-standard
             os: ubuntu-24.04
-            edition: universal
-          - name: linux-cuda-x64
+            edition: standard
+          - name: linux-x64-cuda
             os: ubuntu-24.04
             edition: cuda
-          - name: linux-universal-arm64
+          - name: linux-arm64-standard
             os: ubuntu-24.04-arm
-            edition: universal
-          - name: linux-cuda-arm64
+            edition: standard
+          - name: linux-arm64-cuda
             os: ubuntu-24.04-arm
             edition: cuda
-          - name: mac-universal-arm64
+          - name: mac-arm64-standard
             os: macos-latest
-            edition: universal
+            edition: standard
 
     steps:
       - name: Checkout code

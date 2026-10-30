@@ -46,7 +46,7 @@ cuda = [
     "nvidia-curand>=10.3.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
     "onnxruntime-ep-openvino>=1.8.0; (sys_platform == 'win32' or sys_platform == 'linux') and (platform_machine == 'AMD64' or platform_machine == 'x86_64')",
 ]
-universal = [
+standard = [
     "onnxruntime-directml>=1.20.0; sys_platform == 'win32'",
     "onnxruntime>=1.20.0; sys_platform != 'win32'",
     "onnxruntime-ep-openvino>=1.8.0; (sys_platform == 'win32' or sys_platform == 'linux') and (platform_machine == 'AMD64' or platform_machine == 'x86_64')",
@@ -74,7 +74,7 @@ default-groups = ["dev"]
 conflicts = [
     [
         { extra = "cuda" },
-        { extra = "universal" },
+        { extra = "standard" },
     ],
 ]
 

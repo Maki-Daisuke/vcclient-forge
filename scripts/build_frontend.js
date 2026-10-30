@@ -48,7 +48,7 @@ if (!edition) {
   try {
     const uvBin = process.platform === "win32" ? "uv.exe" : "uv";
     const pyCode =
-      "import onnxruntime as ort; p = ort.get_available_providers(); print('cuda' if 'CUDAExecutionProvider' in p else 'universal')";
+      "import onnxruntime as ort; p = ort.get_available_providers(); print('cuda' if 'CUDAExecutionProvider' in p else 'standard')";
     const res = spawnSync(uvBin, ["run", "--project", "backend", "python", "-c", pyCode], {
       cwd: projectRoot,
       encoding: "utf8",
@@ -63,7 +63,7 @@ if (!edition) {
 }
 
 if (!edition) {
-  edition = "universal";
+  edition = "standard";
 }
 
 // 3. Sync web_front -> frontend/dist (source web_front remains untouched for git)

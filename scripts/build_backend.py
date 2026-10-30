@@ -157,8 +157,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build the frozen backend")
     parser.add_argument(
         "--edition",
-        choices=["universal", "cuda"],
-        default="universal",
+        choices=["standard", "cuda"],
+        default="standard",
     )
     parser.add_argument("--python-version", default="3.14")
     args = parser.parse_args()

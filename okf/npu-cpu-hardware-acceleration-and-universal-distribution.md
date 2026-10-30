@@ -1,5 +1,5 @@
 ---
-title: "Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Universal Distribution"
+title: "Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Standard Two-Tier Distribution"
 date: "2026-10-29"
 author: "VCClient Forge Team"
 category: "Architecture & Engineering Decisions"
@@ -14,10 +14,10 @@ tags:
   - distribution
 ---
 
-# Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Universal Distribution
+# Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Standard Two-Tier Distribution
 
 > **Implementation Status & Roadmap Notice**:
-> This document records empirical micro-benchmarking data, hardware architecture evaluations, and the **target design specification for upcoming implementation milestones** (specifically Roadmap Item 9 / Hybrid Phase 5 and the future Two-Tier Universal Distribution transition). The current repository baseline maintains legacy backend device detection and distinct per-hardware packages. The cross-platform probing architecture and multi-EP packaging described herein represent the planned implementation roadmap for future releases.
+> This document records empirical micro-benchmarking data, hardware architecture evaluations, and the **target design specification for upcoming implementation milestones** (specifically Roadmap Item 9 / Hybrid Phase 5 and the Two-Tier Standard & CUDA Distribution transition). The current repository baseline maintains legacy backend device detection and distinct per-hardware packages. The cross-platform probing architecture and multi-EP packaging described herein represent the planned implementation roadmap for future releases.
 
 ## Executive Summary
 
@@ -32,8 +32,8 @@ Through micro-benchmarks on modern x86/ARM hardware and architectural evaluation
    - `DmlExecutionProvider` (DirectML): Microsoft's DirectX 12 compute provider across Windows. While DirectML is currently in a servicing phase with active development transitioning toward Windows ML, it remains the standard out-of-the-box accelerator for AMD Radeon GPUs (discrete and integrated).
 4. **Target Distribution Architecture: Pragmatic Layered Editions**:
    Rather than maintaining fragmented platform editions, Forge's packaging roadmap establishes a consolidated tiering:
-   - **Universal Edition (Planned)**: Lightweight standard release bundling platform baselines (`onnxruntime-directml` + `onnxruntime-ep-openvino` plugin on Windows x64; `onnxruntime` + OpenVINO plugin on Linux x64; `onnxruntime` CPU on Linux ARM64; `onnxruntime` CoreML on macOS ARM64).
-   - **CUDA Edition (Planned)**: High-performance release bundling `onnxruntime-gpu` plus the standalone `onnxruntime-ep-openvino` plugin on x64, and native CUDA 13 on ARM64 (targeting the NVIDIA DGX Spark / GB10 Grace Blackwell Superchip), enabling hybrid offloading while respecting PyPI wheel coexistence boundaries.
+   - **Standard Edition**: Lightweight standard release bundling platform baselines (`onnxruntime-directml` + `onnxruntime-ep-openvino` plugin on Windows x64; `onnxruntime` + OpenVINO plugin on Linux x64; `onnxruntime` CPU on Linux ARM64; `onnxruntime` CoreML on macOS ARM64).
+   - **CUDA Edition**: High-performance release bundling `onnxruntime-gpu` plus the standalone `onnxruntime-ep-openvino` plugin on x64, and native CUDA 13 on ARM64 (targeting the NVIDIA DGX Spark / GB10 Grace Blackwell Superchip), enabling hybrid offloading while respecting PyPI wheel coexistence boundaries.
 
 ---
 
@@ -256,7 +256,7 @@ In the Python ONNX Runtime ecosystem, Execution Providers fall into three distin
 2. **Out-of-Tree Modular Plugins (Cleanly Composable)**:
    - In contrast, packages like `onnxruntime-ep-openvino` are engineered as official, modular out-of-tree plugins.
    - The plugin installs into its own dedicated namespace and dynamically registers its Level Zero / oneDNN execution provider into the host ONNX Runtime session at runtime.
-   - This allows OpenVINO to attach seamlessly to **either** `onnxruntime-directml` (in Universal editions) or `onnxruntime-gpu` (in CUDA editions) using official PyPI wheels without binary collisions or custom builds.
+   - This allows OpenVINO to attach seamlessly to **either** `onnxruntime-directml` (in Standard editions) or `onnxruntime-gpu` (in CUDA editions) using official PyPI wheels without binary collisions or custom builds.
 3. **Unpackaged Execution Providers (Excluded from Baseline)**:
    - Execution providers that lack official pre-compiled PyPI wheels—such as `ACLExecutionProvider` (Arm Compute Library)—require local source compilation and manual C++ dependency linking.
    - In strict adherence to Forge's core principle of leveraging existing upstream ecosystems and minimizing self-maintained toolchains, unpackaged EPs are excluded from baseline distributions. Expansion to new hardware backends is strictly gated on the upstream availability of official plugin wheels.
@@ -281,22 +281,22 @@ flowchart TD
         B_Mac["macOS ARM64 Baseline<br/>(CoreML ANE/Metal + CPU NEON)"]
     end
 
-    B_x64 --> Win_Uni["win / x64 / universal<br/>(+ DirectML)"]
+    B_x64 --> Win_Std["win / x64 / standard<br/>(+ DirectML)"]
     B_x64 --> Win_CUDA["win / x64 / cuda<br/>(+ CUDA Runtime)"]
 
-    B_x64 --> LinX_Uni["linux / x64 / universal"]
+    B_x64 --> LinX_Std["linux / x64 / standard"]
     B_x64 --> LinX_CUDA["linux / x64 / cuda<br/>(+ CUDA Runtime)"]
 
-    B_LinA --> LinA_Uni["linux / arm64 / universal"]
+    B_LinA --> LinA_Std["linux / arm64 / standard"]
     B_LinA --> LinA_CUDA["linux / arm64 / cuda<br/>(+ DGX Spark / GB10 CUDA)"]
 
-    B_Mac --> Mac_Uni["mac / arm64 / universal"]
+    B_Mac --> Mac_Std["mac / arm64 / standard"]
 ```
 
 1. **x64 Platform Baseline (Linux & Windows)**:
    Includes `CPUExecutionProvider` and `OpenVINOExecutionProvider`. Provides hardware-accelerated inference across Intel CPUs, Iris Xe / Arc integrated graphics, Intel Arc discrete GPUs (A-Series / Battlemage B-Series), and Intel AI Boost NPUs via oneDNN and Level Zero.
 2. **Windows Graphics Tiering**:
-   - **Universal Edition**: Adds `DmlExecutionProvider` to the x64 baseline, providing DirectX 12 hardware acceleration across AMD Radeon discrete and integrated GPUs (RDNA architecture), Intel graphics, and non-CUDA systems.
+   - **Standard Edition**: Adds `DmlExecutionProvider` to the x64 baseline, providing DirectX 12 hardware acceleration across AMD Radeon discrete and integrated GPUs (RDNA architecture), Intel graphics, and non-CUDA systems.
    - **CUDA Edition**: Layers native NVIDIA CUDA runtime libraries on top of the x64 baseline, delivering maximum Tensor Core performance for GeForce and RTX hardware while retaining OpenVINO for hybrid Intel offloading.
 3. **Linux ARM64 Platform Baseline**:
    Includes standard `CPUExecutionProvider` leveraging Arm NEON and SVE/SVE2 vector optimizations natively integrated into ONNX Runtime's MLAS engine. While specialized libraries such as `ACLExecutionProvider` (Arm Compute Library) exist, Microsoft does not distribute official pre-compiled PyPI wheels for ACL. In strict adherence to Forge's core architectural principle—*leveraging existing upstream ecosystems and minimizing custom maintenance overhead*—Forge deliberately avoids requiring custom C++ builds of ONNX Runtime. Additional Execution Providers will only be integrated as out-of-tree plugins with official PyPI package distribution.
@@ -306,17 +306,17 @@ flowchart TD
 
 ### 5.4 Consolidated Target Edition Matrix
 
-Under the consolidated roadmap, Forge organizes distribution packages into a clean, hierarchical matrix across OS, architecture, and compute tier:
+Under the consolidated roadmap, Forge organizes distribution packages into a clean, hierarchical matrix across OS, architecture, and compute tier (`<os>-<architecture>-<edition>`):
 
-| OS          | Architecture | Edition     | Bundled Execution Providers                               | Intended Hardware                                              |
-| :---------- | :----------- | :---------- | :-------------------------------------------------------- | :------------------------------------------------------------- |
-| **Windows** | `x64`        | `universal` | `OpenVINO`, `DirectML`, `CPU`                             | Non-NVIDIA systems (AMD Radeon/Ryzen, Intel Arc/Core/Ultra, CPU-only) & NVIDIA DML fallback |
-| **Windows** | `x64`        | `cuda`      | **`CUDA`**, `OpenVINO`, `CPU`                             | NVIDIA hardware (GeForce / RTX desktops & hybrid laptops)      |
-| **Linux**   | `x64`        | `universal` | `OpenVINO`, `CPU`                                         | Non-NVIDIA systems (AMD / Intel CPU, Intel Arc/iGPU, cloud VMs)|
-| **Linux**   | `x64`        | `cuda`      | **`CUDA`**, `OpenVINO`, `CPU`                             | NVIDIA hardware (desktop and server workstations)              |
-| **Linux**   | `arm64`      | `universal` | `CPU` (NEON/SVE)                                          | Non-NVIDIA ARM64 systems (RPi 5, RK3588, ARM servers)         |
-| **Linux**   | `arm64`      | `cuda`      | **`CUDA`**, `CPU` (NEON/SVE)                              | NVIDIA hardware (DGX Spark / GB10 Grace Blackwell, GPU cloud)  |
-| **macOS**   | `arm64`      | `universal` | `CoreML`, `CPU` (NEON)                                    | Apple Silicon (M1/M2/M3/M4: ANE + Metal GPU)                   |
+| OS          | Architecture | Edition    | Bundled Execution Providers                               | Intended Hardware                                              | Package Name Example |
+| :---------- | :----------- | :--------- | :-------------------------------------------------------- | :------------------------------------------------------------- | :------------------- |
+| **Windows** | `x64`        | `standard` | `OpenVINO`, `DirectML`, `CPU`                             | Non-NVIDIA systems (AMD Radeon/Ryzen, Intel Arc/Core/Ultra, CPU-only) & NVIDIA DML fallback | `win-x64-standard`   |
+| **Windows** | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU`                             | NVIDIA hardware (GeForce / RTX desktops & hybrid laptops)      | `win-x64-cuda`       |
+| **Linux**   | `x64`        | `standard` | `OpenVINO`, `CPU`                                         | Non-NVIDIA systems (AMD / Intel CPU, Intel Arc/iGPU, cloud VMs)| `linux-x64-standard` |
+| **Linux**   | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU`                             | NVIDIA hardware (desktop and server workstations)              | `linux-x64-cuda`     |
+| **Linux**   | `arm64`      | `standard` | `CPU` (NEON/SVE)                                          | Non-NVIDIA ARM64 systems (RPi 5, RK3588, ARM servers)         | `linux-arm64-standard` |
+| **Linux**   | `arm64`      | `cuda`     | **`CUDA`**, `CPU` (NEON/SVE)                              | NVIDIA hardware (DGX Spark / GB10 Grace Blackwell, GPU cloud)  | `linux-arm64-cuda`   |
+| **macOS**   | `arm64`      | `standard` | `CoreML`, `CPU` (NEON)                                    | Apple Silicon (M1/M2/M3/M4: ANE + Metal GPU)                   | `mac-arm64-standard` |
 
 ### 5.5 Architectural Advantages of the Planned Bundled Baseline
 
@@ -331,5 +331,5 @@ Under the consolidated roadmap, Forge organizes distribution packages into a cle
    Bundling OpenVINO adds only ~50–80 MB compressed to the distribution. The standalone archive growth remains well below the 2.00 GiB release asset threshold.
 4. **Elimination of User Confusion**:
    Users with NVIDIA laptops no longer need to decide between a "CUDA edition" and an "OpenVINO edition" to test battery-saving NPU execution. The CUDA edition is a superset that contains all baseline capabilities.
-5. **Universal Edition Safety Net for NVIDIA Users**:
-   Because `DmlExecutionProvider` is included in the Windows Universal Edition baseline, any NVIDIA user who inadvertently downloads `win_universal` (or selects it intentionally) automatically runs GPU-accelerated inference via DirectX 12. GPU acceleration degrades gracefully rather than dropping precipitously to CPU execution.
+5. **Standard Edition Safety Net for NVIDIA Users**:
+   Because `DmlExecutionProvider` is included in the Windows Standard Edition baseline, any NVIDIA user who inadvertently downloads `win-x64-standard` (or selects it intentionally) automatically runs GPU-accelerated inference via DirectX 12. GPU acceleration degrades gracefully rather than dropping precipitously to CPU execution.
