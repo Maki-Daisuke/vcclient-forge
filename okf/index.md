@@ -19,6 +19,7 @@ entries:
   - inversion-of-control-and-process-lifecycle.md
   - migrating-desktop-host-from-tauri-to-wails.md
   - remote-backend-tcp-proxy-architecture.md
+  - npu-cpu-hardware-acceleration-and-universal-distribution.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -70,3 +71,6 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 14. **[Remote Backend TCP Proxy & Localhost Secure Context](./remote-backend-tcp-proxy-architecture.md)**
     How Forge replaces upstream's self-signed HTTPS certificate generation and browser certificate warnings. By embedding a Layer-4 TCP proxy (`--remote`) in the desktop host, the browser connects to `127.0.0.1`, satisfying WebAudio's Secure Context requirement without self-signed certificates.
+
+15. **[Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md)**
+    Re-evaluates the common community assumption that real-time voice conversion strictly requires discrete GPUs. Explores AVX-512 CPU acceleration potential (RMVPE 7.35 ms on Zen 4 vs 16.91 ms on RTX 4090), client NPU feasibility, execution providers (OpenVINO, DirectML), and cross-platform in-band probing via ONNX Runtime and NumPy. Based on Python wheel coexistence boundaries, outlines a planned two-tier distribution strategy: a lightweight `universal` edition for non-NVIDIA systems and a high-performance `cuda` edition for NVIDIA hardware (GeForce/RTX and DGX Spark).

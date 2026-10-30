@@ -43,9 +43,9 @@ The decision to support RMVPE as the default and FCPE as an alternative rests on
 
 Many RVC models and workflows use RMVPE-derived pitch features. Making it the default therefore best matches common training and configuration assumptions in the model ecosystem.
 
-### 2. FCPE as an Alternative
+### 2. FCPE as an Alternative and NPU Offload Candidate
 
-FCPE is retained as an alternative supported ONNX estimator. Its relative accuracy, robustness, and latency should be evaluated on representative hardware and input audio before making universal performance claims.
+FCPE is retained as an alternative supported ONNX estimator. Beyond providing an accurate alternative to RMVPE, FCPE possesses a critical structural advantage: its **Lynx-Net** backbone is composed entirely of **Depthwise Separable 1D Convolutions** without recurrent feedback layers (no BiGRU). This pure feed-forward topology maps directly to the spatial systolic MAC arrays of client NPUs (Intel AI Boost, AMD XDNA), making FCPE the prime architectural candidate for low-power NPU pitch estimation. See [Modern Client Hardware Acceleration and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md#211-structural-pitch-estimator-comparison-rmvpe-vs-fcpe-on-npus).
 
 ### 3. Radical Code Maintainability ("Less Code is Better")
 

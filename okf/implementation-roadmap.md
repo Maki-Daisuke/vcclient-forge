@@ -23,6 +23,7 @@ The native desktop wrapper has been established using **Wails v3 (Go)** under `d
 ### Current Priority: Audio Pipeline Refactoring & Modern UI
 
 With desktop packaging and hardware sub-model benchmarking established, active development focuses on:
+
 1. One-way fixed-chunk audio stream refactoring (`convert_chunk_bulk_internal` separation)
 2. Svelte 5 + Vite UI migration (Server Mode first)
 3. Concurrent Hybrid Pipelining (overlapping CPU preparation with GPU vocoder synthesis)
@@ -105,37 +106,41 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 ### 9. Optimize Inference: Concurrent Hybrid Pipelining (Superseding Boost Mode)
 
 The original monolithic end-to-end graph fusion track ("Boost Mode") was evaluated against empirical micro-benchmarks on modern hardware (AMD Ryzen 9 7950X, NVIDIA GeForce RTX 4090). Key findings:
+
 - PCIe Gen 4 x16 DMA transfer latency is 18.3 μs for audio chunks (16 KB) and 37.2 μs for ContentVec embeddings (147 KB), showing that host-device data transfers are not the primary bottleneck.
 - For small tensors at batch size 1, CPU execution (7.35 ms) is faster than GPU execution (16.91 ms) for RMVPE due to GPU kernel launch and synchronization overheads.
 - Monolithic graph fusion across ContentVec, RMVPE, FAISS, and RVC is superseded by a 2-stage concurrent hybrid pipeline where CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$) overlaps with GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) via a bounded double-buffered queue.
 
 Follow the concurrent hybrid optimization milestones in order:
 
-| Milestone | Work | Acceptance Gate |
-| --- | --- | --- |
-| Hybrid Phase 1 | Stable runtime shapes, session warmup, reusable buffers, GPU IO Binding | Measured memory stability and reduced allocation overhead without breaking DirectML/CUDA fallback. |
+| Milestone      | Work                                                                          | Acceptance Gate                                                                                                                                               |
+| -------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hybrid Phase 1 | Stable runtime shapes, session warmup, reusable buffers, GPU IO Binding       | Measured memory stability and reduced allocation overhead without breaking DirectML/CUDA fallback.                                                            |
 | Hybrid Phase 2 | Decouple CPU preparation (ContentVec, RMVPE, FAISS) and GPU vocoder synthesis | Independent worker execution with bounded queues; $T_{\text{effective}} = \max(T_{\text{prep}}, T_{\text{synth}})$ verified under continuous audio streaming. |
-| Hybrid Phase 3 | GPU vocoder IO Binding and CUDA stream management | Pre-allocated GPU output buffers; minimal host-to-device roundtrip latency verified. |
-| Hybrid Phase 4 | Lightweight vocoder evaluation (DDSP / Streamable architectures) | Synthesis latency reduced below 5 ms while maintaining perceptual audio quality thresholds. |
+| Hybrid Phase 3 | GPU vocoder IO Binding and CUDA stream management                             | Pre-allocated GPU output buffers; minimal host-to-device roundtrip latency verified.                                                                          |
+| Hybrid Phase 4 | Lightweight vocoder evaluation (DDSP / Streamable architectures)              | Synthesis latency reduced below 5 ms while maintaining perceptual audio quality thresholds.                                                                   |
+| Hybrid Phase 5 | Client NPU streaming offload (Intel AI Boost / AMD XDNA)                      | Evaluation of fixed-chunk inference offload to client NPUs.                                                                                                   |
 
 CUDA Graph capture remains a conditional investigation for the isolated GPU vocoder stage only, gated on fixed shapes, pinned memory addresses, and measurable speedup.
 
-**Source**: [Concurrent Hybrid Pipeline Architecture](./hybrid-cpu-gpu-pipeline-architecture.md), [Server-First Architecture and Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md#4-architectural-pivot-from-monolithic-graph-fusion-to-concurrent-hybrid-pipelining).
+**Source**: [Concurrent Hybrid Pipeline Architecture](./hybrid-cpu-gpu-pipeline-architecture.md), [Server-First Architecture and Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md#4-architectural-pivot-from-monolithic-graph-fusion-to-concurrent-hybrid-pipelining), [Hardware Acceleration & Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
 
 ## 3. Conditional Improvements, Not Initial Requirements
 
 - **Reactive control library**: Evaluate RxPY or lightweight signals after control ownership is clear; notifications do not replace application acknowledgements or thread dispatch.
 - **Dynamic in-flight component exchange**: Add only where interruption matters and state compatibility is defined. Safe stop/reset/restart comes first.
 - **Alternative buffers and stage splitting**: Evaluate rings, custom synchronization, or separate postprocessing only if the bounded-queue baseline exposes a measured bottleneck. No new C++ toolchain solely for a ring wrapper.
+- **Two-tier universal distribution consolidation**: Consolidate fragmented platform editions (`win_x64_cpu`, `win_x64_dml`, `linux_x64_cpu`) into a layered distribution model: platform baselines (OpenVINO + DirectML on Windows x64; OpenVINO on Linux x64; CPU NEON/SVE on Linux ARM64) bundled across both `universal` and `cuda` editions, enabling hybrid NPU/iGPU/dGPU offloading across modern client machines within the 2.00 GiB release limit.
 - **Further package reduction**: Measure against the self-contained CUDA archive baseline (1.228 GiB), not against the former environment-dependent package. Wails v3 is the established desktop shell, not a reason to restart completed packaging work.
 
-Sources: [Control and state plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
+Sources: [Control and state plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap), [Hardware Acceleration and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
 
 ## 4. Existing Foundations, Not New Roadmap Tasks
 
 - [Runtime/toolchain](./modern-runtime-and-toolchain.md): uv-managed pinned Python, locked hardware editions, root npm tasks, and PyInstaller onedir packaging already exist. Continue testing them as migration gates.
 - [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the frontend build currently copies tracked legacy assets and still needs item 4's Vite migration.
 - [Pitch estimators](./streamlined-pitch-estimation-and-torch-free-pipeline.md): RMVPE default and ONNX FCPE alternative already exist. Pure-ONNX inference does not mean removing CPU PyTorch needed for legacy model export.
+- [Hardware acceleration & universal distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md): AVX-512 CPU acceleration benchmarks (RMVPE 7.35 ms on Zen 4 vs 16.91 ms on RTX 4090), NPU execution characteristics, and the layered platform baseline strategy (OpenVINO + DirectML baseline bundled across all editions, including CUDA) are established architectural baselines.
 - [ngrok removal](./deprecating-and-removing-ngrok.md): Bundled ngrok is already removed. Tailscale Serve is optional external setup, not an unfinished Forge integration.
 - [Beatrice decision](./deprecating-and-removing-beatrice.md): RVC-only scope is established; backend references are absent in this inventory. Frontend/assets and the stale cleanup checklist still require reconciliation in item 1.
 
