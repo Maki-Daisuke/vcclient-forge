@@ -8,6 +8,7 @@ Markdown reports to stdout.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import platform
 import statistics
@@ -221,6 +222,8 @@ def discover_models(args: argparse.Namespace) -> dict[str, Path | None]:
 def generate_benchmark_targets(
     hw_info: DeviceInfo,
     threads: int,
+    skip_npu: bool = False,
+    providers_filter: list[str] | None = None,
 ) -> list[TargetConfig]:
     """Build list of TargetConfig configurations to benchmark."""
     targets: list[TargetConfig] = []
@@ -251,6 +254,8 @@ def generate_benchmark_targets(
                 ov_target = str(getattr(d.device, "type", "UNKNOWN"))
                 if "." in ov_target:
                     ov_target = ov_target.split(".")[-1]
+            if skip_npu and "NPU" in ov_target.upper():
+                continue
             dev_id = getattr(getattr(d, "device", None), "device_id", 0)
             targets.append(
                 TargetConfig(
@@ -263,6 +268,8 @@ def generate_benchmark_targets(
     elif "OpenVINOExecutionProvider" in hw_info.available_providers:
         # 2b. Fallback to in-tree OpenVINO providers if available
         for dev_type in ["CPU", "GPU", "NPU"]:
+            if skip_npu and dev_type == "NPU":
+                continue
             targets.append(
                 TargetConfig(
                     label=f"OpenVINO EP (device_type={dev_type})",
@@ -301,7 +308,163 @@ def generate_benchmark_targets(
             )
         )
 
+    if providers_filter:
+        normalized_filter = [p.strip().upper() for p in providers_filter if p.strip()]
+        targets = [
+            t
+            for t in targets
+            if any(
+                f in t.label.upper() or f in t.provider_name.upper()
+                for f in normalized_filter
+            )
+        ]
+
     return targets
+
+
+def get_openvino_device_name(target: TargetConfig) -> str:
+    """Extract OpenVINO target hardware device name (GPU, NPU, CPU) from TargetConfig."""
+    lbl = target.label.upper()
+    if "GPU" in lbl:
+        return "GPU"
+    if "NPU" in lbl:
+        return "NPU"
+    if "CPU" in lbl:
+        return "CPU"
+    if target.ep_device is not None:
+        raw_type = str(
+            getattr(getattr(target.ep_device, "device", None), "type", "")
+        ).upper()
+        if "GPU" in raw_type:
+            return "GPU"
+        if "NPU" in raw_type:
+            return "NPU"
+        if "CPU" in raw_type:
+            return "CPU"
+    dev_type = str(target.provider_options.get("device_type", "")).upper()
+    if dev_type in ("GPU", "NPU", "CPU"):
+        return dev_type
+    return "GPU"
+
+
+def get_openvino_reshape_input(model_path: Path, window_samples: int) -> str | None:
+    """Infer concrete static input shapes for OpenVINO NPU compilation."""
+    try:
+        import onnx
+
+        m = onnx.load(str(model_path), load_external_data=False)
+        shapes: list[str] = []
+        frames = max(1, window_samples // 128)
+        for inp in m.graph.input:
+            dims: list[int] = []
+            for idx, dim in enumerate(inp.type.tensor_type.shape.dim):
+                if dim.dim_value > 0:
+                    dims.append(dim.dim_value)
+                else:
+                    name = inp.name.lower()
+                    if "waveform" in name or "audio" in name:
+                        dims.append(window_samples)
+                    elif (
+                        "feats" in name
+                        or "pitch" in name
+                        or ("rnd" in name and idx == 2)
+                    ):
+                        dims.append(frames)
+                    elif idx == 0:
+                        dims.append(1)
+                    else:
+                        dims.append(1)
+            shapes.append(f"{inp.name}[{','.join(str(d) for d in dims)}]")
+        return ",".join(shapes)
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"[Warning] Failed to inspect ONNX shapes for {model_path.name}: {e}",
+            file=sys.stderr,
+        )
+        return None
+
+
+def patch_rvc_for_openvino_gpu(model_path: Path) -> bytes:
+    """In-memory ONNX patch: convert SineGen 3D Resize to 4D to satisfy OpenVINO GPU tensor rank requirements."""
+    import onnx
+    from onnx import helper, numpy_helper
+
+    m = onnx.load(str(model_path), load_external_data=False)
+    target_idx = -1
+    for i, n in enumerate(m.graph.node):
+        if (
+            n.op_type == "Resize"
+            and any(a.name == "mode" and a.s == b"linear" for a in n.attribute)
+            and "m_source" in n.name
+        ):
+            target_idx = i
+            break
+
+    if target_idx == -1:
+        for i, n in enumerate(m.graph.node):
+            if n.op_type == "Resize" and any(
+                a.name == "mode" and a.s == b"linear" for a in n.attribute
+            ):
+                target_idx = i
+                break
+
+    if target_idx == -1:
+        with open(model_path, "rb") as f:
+            return f.read()
+
+    target_node = m.graph.node[target_idx]
+    orig_in = target_node.input[0]
+    orig_scales_name = target_node.input[2] if len(target_node.input) > 2 else ""
+    orig_out = target_node.output[0]
+
+    axes_name = "sin_gen_axes_dim2"
+    if not any(init.name == axes_name for init in m.graph.initializer):
+        axes_init = numpy_helper.from_array(
+            np.array([2], dtype=np.int64), name=axes_name
+        )
+        m.graph.initializer.append(axes_init)
+
+    scales_4d_name = "sin_gen_scales_4d"
+    scale_factor = 400.0
+    for init in m.graph.initializer:
+        if init.name == orig_scales_name:
+            orig_arr = numpy_helper.to_array(init)
+            if len(orig_arr) > 0:
+                scale_factor = float(orig_arr[-1])
+            break
+
+    if not any(init.name == scales_4d_name for init in m.graph.initializer):
+        scales_4d_init = numpy_helper.from_array(
+            np.array([1.0, 1.0, 1.0, scale_factor], dtype=np.float32),
+            name=scales_4d_name,
+        )
+        m.graph.initializer.append(scales_4d_init)
+
+    unsqueeze_out = orig_in + "_unsqueeze_4d"
+    unsqueeze_node = helper.make_node(
+        "Unsqueeze",
+        inputs=[orig_in, axes_name],
+        outputs=[unsqueeze_out],
+        name=target_node.name + "_unsqueeze4d",
+    )
+
+    resize_out_4d = orig_out + "_resize_4d"
+    target_node.input[0] = unsqueeze_out
+    if len(target_node.input) > 2:
+        target_node.input[2] = scales_4d_name
+    target_node.output[0] = resize_out_4d
+
+    squeeze_node = helper.make_node(
+        "Squeeze",
+        inputs=[resize_out_4d, axes_name],
+        outputs=[orig_out],
+        name=target_node.name + "_squeeze4d",
+    )
+
+    m.graph.node.insert(target_idx, unsqueeze_node)
+    m.graph.node.insert(target_idx + 2, squeeze_node)
+
+    return m.SerializeToString()
 
 
 def run_benchmark_for_model(
@@ -322,29 +485,142 @@ def run_benchmark_for_model(
         success=False,
     )
 
+    target_options = dict(target.provider_options)
+    is_npu = (
+        "NPU" in target.label.upper()
+        or str(target_options.get("device_type", "")).upper() == "NPU"
+        or (
+            target.ep_device is not None
+            and "NPU"
+            in str(
+                getattr(getattr(target.ep_device, "device", None), "type", "")
+            ).upper()
+        )
+    )
+
     so = ort.SessionOptions()
     so.log_severity_level = 3  # Suppress driver diagnostic warnings
+
+    if target.provider_name == "OpenVINOExecutionProvider":
+        # Disabling ORT high-level graph optimizations allows OpenVINO's compiler
+        # to ingest pristine model topology and manage native layer fusion.
+        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+
+        # NPU requires static dimensions or bounded shapes. Set reshape_input
+        # to match the benchmark analysis window samples.
+        if is_npu and "reshape_input" not in target_options:
+            reshape_spec = get_openvino_reshape_input(model_path, window_samples)
+            if reshape_spec:
+                target_options["reshape_input"] = reshape_spec
+                print(
+                    f"[OpenVINO NPU] Configured static shapes ({model_name}): {reshape_spec}",
+                    file=sys.stderr,
+                )
+
+        # RVC float models contain mixed ops (ScatterNDUpdate in FP32 + Gather in FP16)
+        # that cause OpenVINO GPU's auto-FP16 conversion to fail with element type mismatch.
+        # OpenVINO GPU requires load_config with EXECUTION_MODE_HINT="ACCURACY" to prevent auto-FP16 downconversion.
+        if model_name == "RVC" and "load_config" not in target_options:
+            ov_dev = get_openvino_device_name(target)
+            target_options["load_config"] = json.dumps(
+                {ov_dev: {"EXECUTION_MODE_HINT": "ACCURACY"}}
+            )
+
+    model_data: str | bytes = str(model_path)
+    if model_name == "RVC" and target.provider_name == "OpenVINOExecutionProvider":
+        ov_dev = get_openvino_device_name(target)
+        if ov_dev == "GPU":
+            try:
+                print(
+                    "\n  [OpenVINO GPU] Applying in-memory 4D SineGen patch to satisfy GPU tensor rank limits...",
+                    file=sys.stderr,
+                    end="",
+                    flush=True,
+                )
+                model_data = patch_rvc_for_openvino_gpu(model_path)
+            except Exception as patch_e:  # noqa: BLE001
+                print(
+                    f"\n  [Warning] In-memory 4D SineGen patch failed: {patch_e}",
+                    file=sys.stderr,
+                )
+                model_data = str(model_path)
+
+    result.provider_options = target_options
+    target_options_str = {k: str(v) for k, v in target_options.items()}
 
     if "intra_op_num_threads" in target.provider_options:
         so.intra_op_num_threads = int(target.provider_options["intra_op_num_threads"])
 
     try:
         if target.ep_device is not None and hasattr(so, "add_provider_for_devices"):
-            so.add_provider_for_devices([target.ep_device], target.provider_options)
+            so.add_provider_for_devices([target.ep_device], target_options_str)
             session = ort.InferenceSession(
-                str(model_path),
+                model_data,
                 sess_options=so,
             )
         else:
             session = ort.InferenceSession(
-                str(model_path),
+                model_data,
                 sess_options=so,
                 providers=[target.provider_name],
-                provider_options=[target.provider_options],
+                provider_options=[target_options],
             )
     except Exception as e:  # noqa: BLE001
-        result.error_message = f"Session creation failed: {e}"
-        return result
+        err_msg = str(e)
+        if target.provider_name == "OpenVINOExecutionProvider" and any(
+            tok in err_msg
+            for tok in ("same element type", "Type::merge", "element::Type")
+        ):
+            print(
+                f"\n  [OpenVINO Recovery] Mixed-precision mismatch detected ({model_name}). Retrying with EXECUTION_MODE_HINT='ACCURACY'...",
+                file=sys.stderr,
+                end="",
+                flush=True,
+            )
+            ov_dev = get_openvino_device_name(target)
+            target_options["load_config"] = json.dumps(
+                {ov_dev: {"EXECUTION_MODE_HINT": "ACCURACY"}}
+            )
+            result.provider_options = target_options
+            target_options_str = {k: str(v) for k, v in target_options.items()}
+            try:
+                so_retry = ort.SessionOptions()
+                so_retry.log_severity_level = 3
+                so_retry.graph_optimization_level = (
+                    ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+                )
+                if "intra_op_num_threads" in target.provider_options:
+                    so_retry.intra_op_num_threads = int(
+                        target.provider_options["intra_op_num_threads"]
+                    )
+                if target.ep_device is not None and hasattr(
+                    so_retry, "add_provider_for_devices"
+                ):
+                    so_retry.add_provider_for_devices(
+                        [target.ep_device], target_options_str
+                    )
+                    session = ort.InferenceSession(model_data, sess_options=so_retry)
+                else:
+                    session = ort.InferenceSession(
+                        model_data,
+                        sess_options=so_retry,
+                        providers=[target.provider_name],
+                        provider_options=[target_options],
+                    )
+            except Exception as retry_e:  # noqa: BLE001
+                result.error_message = (
+                    f"Session creation failed (even with ACCURACY): {retry_e}"
+                )
+                return result
+        else:
+            if "interpolate.cpp" in err_msg or "linear_onnx" in err_msg:
+                result.error_message = (
+                    "OpenVINO Intel GPU plugin does not support 3D tensor 'linear_onnx' interpolation in RVC SineGen. "
+                    "Use DirectML EP for Intel GPU execution on Windows."
+                )
+            else:
+                result.error_message = f"Session creation failed: {e}"
+            return result
 
     result.active_providers = session.get_providers()
 
@@ -414,6 +690,17 @@ def run_benchmark_for_model(
         else:
             result.error_message = f"Unsupported model name: {model_name}"
             return result
+
+        # Filter feed to match model's expected inputs
+        model_input_names = {i.name for i in session.get_inputs()}
+        feed = {k: v for k, v in feed.items() if k in model_input_names}
+
+        # Filter output_names to match model's expected outputs
+        model_output_names = [o.name for o in session.get_outputs()]
+        if output_names:
+            output_names = [
+                o for o in output_names if o in model_output_names
+            ] or model_output_names[:1]
 
         # Warmup executions
         for _ in range(warmup_runs):
@@ -545,6 +832,12 @@ def main() -> None:
         description="Benchmark RMVPE, FCPE, ContentVec, and RVC models across ONNX Execution Providers."
     )
     parser.add_argument(
+        "--models",
+        type=str,
+        default=None,
+        help="Comma-separated list of models to benchmark (e.g. FCPE,RMVPE,ContentVec,RVC)",
+    )
+    parser.add_argument(
         "--models-dir", type=str, default=None, help="Base directory containing models"
     )
     parser.add_argument(
@@ -581,6 +874,29 @@ def main() -> None:
         help="Audio window samples @ 16kHz (default: 4096 = 256ms)",
     )
     parser.add_argument(
+        "--skip-npu",
+        action="store_true",
+        help="Skip NPU execution provider targets",
+    )
+    parser.add_argument(
+        "--allow-rvc-npu",
+        action="store_true",
+        help="Attempt compiling RVC on NPU (warning: HiFi-GAN compilation may take 15+ minutes or hang)",
+    )
+    parser.add_argument(
+        "--providers",
+        type=str,
+        default=None,
+        help="Comma-separated filter for target providers/devices (e.g. CPU,OpenVINO,CUDA,DML,NPU)",
+    )
+    parser.add_argument(
+        "--ov-precision",
+        type=str,
+        default=None,
+        choices=["FP32", "FP16", "f32", "f16"],
+        help="Explicit precision override for OpenVINO Execution Provider (e.g. FP32)",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
@@ -595,9 +911,32 @@ def main() -> None:
 
     # 2. Discover model files
     models = discover_models(args)
+    if args.models:
+        selected = {m.strip().upper() for m in args.models.split(",") if m.strip()}
+        models = {k: v for k, v in models.items() if k.upper() in selected}
 
     # 3. Build target provider list
-    targets = generate_benchmark_targets(hw_info, threads=args.threads)
+    providers_filter = (
+        [p.strip() for p in args.providers.split(",")] if args.providers else None
+    )
+    targets = generate_benchmark_targets(
+        hw_info,
+        threads=args.threads,
+        skip_npu=args.skip_npu,
+        providers_filter=providers_filter,
+    )
+    if args.ov_precision:
+        hint = (
+            "ACCURACY"
+            if args.ov_precision.upper() in ("FP32", "ACCURACY", "F32")
+            else "PERFORMANCE"
+        )
+        for t in targets:
+            if t.provider_name == "OpenVINOExecutionProvider":
+                ov_dev = get_openvino_device_name(t)
+                t.provider_options["load_config"] = json.dumps(
+                    {ov_dev: {"EXECUTION_MODE_HINT": hint}}
+                )
 
     # 4. Run benchmarks
     results_by_model: dict[str, list[BenchmarkResult]] = {}
@@ -608,8 +947,49 @@ def main() -> None:
             results_by_model[model_name] = []
             continue
 
+        print(
+            f"\n>>> Running benchmarks for: {model_name} ({model_path.name})",
+            file=sys.stderr,
+        )
+
         model_results: list[BenchmarkResult] = []
         for target in targets:
+            is_target_npu = (
+                "NPU" in target.label.upper()
+                or str(target.provider_options.get("device_type", "")).upper() == "NPU"
+                or (
+                    target.ep_device is not None
+                    and "NPU"
+                    in str(
+                        getattr(getattr(target.ep_device, "device", None), "type", "")
+                    ).upper()
+                )
+            )
+
+            print(
+                f"  --> [{model_name}] Testing on {target.label}...",
+                end="",
+                flush=True,
+                file=sys.stderr,
+            )
+
+            if model_name == "RVC" and is_target_npu and not args.allow_rvc_npu:
+                print(
+                    " [SKIPPED] (HiFi-GAN vocoder exceeds NPU compiler scheduling limits; pass --allow-rvc-npu to force)",
+                    file=sys.stderr,
+                )
+                model_results.append(
+                    BenchmarkResult(
+                        model_name=model_name,
+                        provider_name=target.label,
+                        provider_options=target.provider_options,
+                        active_providers=[],
+                        success=False,
+                        error_message="Skipped: RVC HiFi-GAN vocoder topology exceeds NPU SRAM compilation capacity (use --allow-rvc-npu to force).",
+                    )
+                )
+                continue
+
             res = run_benchmark_for_model(
                 model_name=model_name,
                 model_path=model_path,
@@ -620,6 +1000,13 @@ def main() -> None:
                 window_samples=args.samples,
             )
             model_results.append(res)
+            if res.success:
+                print(
+                    f" [OK] {res.mean_ms:.2f} ms (min: {res.min_ms:.2f} ms)",
+                    file=sys.stderr,
+                )
+            else:
+                print(f" [FAILED] ({res.error_message})", file=sys.stderr)
 
         results_by_model[model_name] = model_results
 
