@@ -53,17 +53,17 @@ Consequently, running RMVPE on CPU under default PyTorch configurations frequent
 
 In contrast, ONNX Runtime evaluates a pre-optimized computation graph using static memory planning and hand-tuned assembly kernels:
 
-| Dimension | PyTorch CPU (Eager Mode) | ONNX Runtime CPU (MLAS Engine) | Observed Characteristic |
-| :--- | :--- | :--- | :--- |
-| **Execution Paradigm** | Operator-by-operator eager dispatch | Pre-optimized computation graph | Eliminates Python runtime dispatch overhead |
-| **Memory Planning** | Layer-by-layer dynamic allocation | Arena memory allocator (`enable_mem_pattern=True`) | Reuses pre-allocated buffer slots across chunks |
-| **Kernel Implementation** | General GEMM & ATen kernels (oneDNN optional) | Dedicated MLAS assembly (AVX2 / AVX-512) | Vectorized register utilization on supported CPUs |
-| **Thread Control** | `torch.set_num_threads()` | Tuned `intra_op_num_threads` | Configurable thread pool sizing to balance core usage |
-| **Measured RMVPE Latency** | **50–100+ ms** (default PyTorch) | **7.35 ms** (Ryzen 9 7950X, 8 threads) | Demonstrates viability of CPU pitch estimation |
+| Dimension                  | PyTorch CPU (Eager Mode)                      | ONNX Runtime CPU (MLAS Engine)                     | Observed Characteristic                               |
+| :------------------------- | :-------------------------------------------- | :------------------------------------------------- | :---------------------------------------------------- |
+| **Execution Paradigm**     | Operator-by-operator eager dispatch           | Pre-optimized computation graph                    | Eliminates Python runtime dispatch overhead           |
+| **Memory Planning**        | Layer-by-layer dynamic allocation             | Arena memory allocator (`enable_mem_pattern=True`) | Reuses pre-allocated buffer slots across chunks       |
+| **Kernel Implementation**  | General GEMM & ATen kernels (oneDNN optional) | Dedicated MLAS assembly (AVX2 / AVX-512)           | Vectorized register utilization on supported CPUs     |
+| **Thread Control**         | `torch.set_num_threads()`                     | Tuned `intra_op_num_threads`                       | Configurable thread pool sizing to balance core usage |
+| **Measured RMVPE Latency** | **50–100+ ms** (default PyTorch)              | **7.35 ms** (Ryzen 9 7950X, 8 threads)             | Demonstrates viability of CPU pitch estimation        |
 
 As established in [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), physical PCIe bus DMA transfers and synchronization take only tens of microseconds (16–38 μs) and are negligible in the latency budget. The 16.91 ms latency observed for RMVPE on the RTX 4090 is hypothesized to stem from driver kernel launch overhead across fine-grained sequential operators and low arithmetic intensity at batch size 1 (where massive CUDA core arrays remain mostly idle between kernel launches). By contrast, on the Ryzen 9 7950X testbed, the CPU evaluates sequential operations using AVX-512 MLAS assembly without GPU driver dispatch queuing, completing in 7.35 ms.
 
-*(Note: The 7.35 ms measurement reflects a specific desktop testbed featuring an AMD Ryzen 9 7950X with 64 MB L3 cache. It illustrates the performance potential of high-end modern CPUs rather than guaranteeing identical latency across all client processors).*
+_(Note: The 7.35 ms measurement reflects a specific desktop testbed featuring an AMD Ryzen 9 7950X with 64 MB L3 cache. It illustrates the performance potential of high-end modern CPUs rather than guaranteeing identical latency across all client processors)._
 
 ---
 
@@ -73,7 +73,7 @@ As established in [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architec
 
 For VCClient Forge's core objective—delivering real-time voice conversion under 100 ms roundtrip latency across diverse client machines—client NPUs (Intel AI Boost, AMD XDNA) introduce a distinct third compute tier alongside CPUs and GPUs with concrete architectural trade-offs.
 
-*(Note on Latency Budget vs. Analysis Window: The 256 ms audio window, or 4096 samples at 16 kHz, represents the analysis context window / receptive field required by pitch estimators and feature extractors to reliably capture vocal intonation. In a real-time streaming pipeline, the stream advances in small hops—such as 32–64 ms—to preserve a sub-100 ms total roundtrip latency budget).*
+_(Note on Latency Budget vs. Analysis Window: The 256 ms audio window, or 4096 samples at 16 kHz, represents the analysis context window / receptive field required by pitch estimators and feature extractors to reliably capture vocal intonation. In a real-time streaming pipeline, the stream advances in small hops—such as 32–64 ms—to preserve a sub-100 ms total roundtrip latency budget)._
 
 #### Potential Advantages (Why NPUs Matter for Forge)
 
@@ -105,11 +105,11 @@ For VCClient Forge's core objective—delivering real-time voice conversion unde
 
 | Pipeline Stage | Primary Recommended Target | NPU Feasibility & Strategic Role |
 | :--- | :--- | :--- |
-| **Pitch Estimation: FCPE (`fcpe.onnx`)** | **Client NPU or CPU** | **High (Hypothesis to be verified)**: Feed-forward depthwise separable 1D convolutions (`Lynx-Net`) without recurrent loops map naturally to spatial MAC arrays. |
-| **Pitch Estimation: RMVPE (`rmvpe.onnx`)** | **CPU (AVX-512 / AVX2)** | **Medium**: Recurrent BiGRU layer maintains temporal state dependencies, performing best on modern CPU SIMD (7.35 ms on Zen 4 testbed) or dGPU. |
-| **Feature Extraction (ContentVec)** | **CPU or GPU** | **Medium**: Suitable for NPU evaluation once verified on target drivers. |
+| **Pitch Estimation: FCPE (`fcpe.onnx`)** | **Intel GPU (1.19 ms) / NPU (4.07 ms)** | **Verified (High)**: 4.07 ms on Lunar Lake NPU 4000, 1.19 ms on Arc 140V GPU with ultra-low jitter (±0.12 ms) (Section 2.3). |
+| **Pitch Estimation: RMVPE (`rmvpe.onnx`)** | **NPU (5.09 ms) / GPU (4.09 ms)** | **Verified (High)**: Compiles cleanly with static shapes, running 2.2× faster than CPU (5.09 ms vs 11.04 ms) (Section 2.3). |
+| **Feature Extraction (ContentVec)** | **GPU (3.15 ms) / NPU (5.52 ms)** | **Verified (High)**: Runs 3.0× faster on NPU (5.52 ms) and 4.4× faster on Arc GPU (3.15 ms) than CPU (Section 2.3). |
 | **FAISS Vector Search** | **CPU (Host RAM)** | **Not Applicable**: Vector index search remains CPU-native. |
-| **HiFi-GAN Vocoder (Synthesis)** | **Discrete GPU (CUDA/DirectML)** | **Low with FP32 HiFi-GAN**; **High with future lightweight vocoders** (DDSP / Streamable). |
+| **HiFi-GAN Vocoder (Synthesis)** | **DirectML (47.77 ms) / OpenVINO GPU (62.41 ms)** | **NPU Infeasible, GPU High**: Full FP32 vocoder exceeds NPU SRAM limits. Unlocked on OpenVINO GPU via in-memory 4D graph surgery (62.41 ms) alongside DirectML (47.77 ms) (Section 2.3). |
 
 ### 2.1.1 Structural Pitch Estimator Comparison: RMVPE vs. FCPE on NPUs
 
@@ -137,8 +137,8 @@ flowchart LR
    - Quantizing BiGRU hidden states and recurrent gate matrices to INT8 can introduce compounding numerical drift across time steps.
    - Feed-forward depthwise separable convolutions in FCPE follow standard convolutional quantization paths, presenting fewer temporal stability challenges.
 3. **Strategic Pitch Estimator Pairing in Forge**:
-   - **RMVPE**: Remains the default ecosystem-compatible estimator, exceptionally fast on modern high-end CPUs via AVX-512 MLAS assembly (**7.35 ms** on Ryzen 9 7950X).
-   - **FCPE**: Serves as the **primary architectural candidate for client NPU acceleration**, subject to empirical benchmarking on Intel AI Boost and AMD XDNA hardware.
+   - **RMVPE**: Remains the default ecosystem-compatible estimator, exceptionally fast on modern high-end CPUs via AVX-512 MLAS assembly (**7.35 ms** on Ryzen 9 7950X) and client NPUs (**5.09 ms** on NPU 4000).
+   - **FCPE**: Serves as the primary feed-forward candidate for client NPU acceleration, validated on Intel AI Boost NPU 4000 (**4.07 ms**, Section 2.3).
 
 ### 2.2 Hardware Platforms and Associated Execution Providers
 
@@ -164,7 +164,7 @@ flowchart TD
   - Windows download size (`win_amd64` wheel): **~75.8 MB**.
   - Linux download size (`manylinux_2_28_x86_64` wheel): **~52.6 MB**.
   - Uncompressed footprint: **~160–190 MB**.
-- **Dispatch Features**: Supports `AUTO:` (automatic device selection) and `HETERO:` targeting strings (e.g., `HETERO:NPU,GPU,CPU`) to split graph execution across multiple hardware targets. *(Note: Heterogeneous execution does not guarantee seamless failure-free operation for arbitrary custom operators; graph partitioning behavior must be validated per model).*
+- **Dispatch Features**: Supports `AUTO:` (automatic device selection) and `HETERO:` targeting strings (e.g., `HETERO:NPU,GPU,CPU`) to split graph execution across multiple hardware targets. _(Note: Heterogeneous execution does not guarantee seamless failure-free operation for arbitrary custom operators; graph partitioning behavior must be validated per model)._
 
 #### AMD Client Architecture & Cross-Vendor DirectX (`DmlExecutionProvider`)
 
@@ -177,6 +177,49 @@ flowchart TD
   - While Windows 11 includes Microsoft Compute Driver Model (MCDM) drivers for compute-only accelerators, standard DirectML EP routes inference through DXGI graphics adapters. DirectML cannot be assumed to provide an out-of-the-box interface for AMD XDNA NPUs. Official AMD ONNX Runtime NPU acceleration relies on `VitisAIExecutionProvider` within Ryzen AI Software.
 - **Universal Fallback**:
   - DirectML also functions across Intel and NVIDIA GPUs on Windows, acting as a reliable GPU fallback whenever dedicated native EPs (CUDA, OpenVINO) are not initialized.
+
+### 2.3 Empirical Verification on Intel Lunar Lake (AI Boost NPU 4000 & Arc 140V GPU)
+
+In October 2026, the empirical micro-benchmarking suite (`misc/benchmark.py`) was executed on an **Intel Core Ultra 7 268V** (Lunar Lake, 8 cores, Arc 140V GPU, AI Boost NPU 4000 @ 48 TOPS, Windows 11). Telemetry validates key acceleration hypotheses while resolving critical execution boundaries:
+
+#### 2.3.1 Benchmark Telemetry Across Execution Providers
+
+> **Parameters**: 256.0 ms window (4096 samples @ 16 kHz), 5 warmup, 10 benchmark runs. Latencies in ms (`mean [min, std]`).
+
+| Model | CPU EP (8 thr) | OpenVINO CPU | OpenVINO NPU (AI Boost) | OpenVINO GPU (Arc 140V) | DirectML EP (Arc 140V) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **FCPE** (`fcpe.onnx`) | 4.07 ms [3.08, 1.28] | 8.12 ms [2.64, 5.31] | **4.07 ms** [3.97, 0.12] | **1.19 ms** [0.79, 0.45] | 4.82 ms [3.88, 0.54] |
+| **RMVPE** (`rmvpe.onnx`) | 11.04 ms [10.36, 0.58] | 8.55 ms [8.04, 0.45] | **5.09 ms** [4.73, 0.22] | **4.09 ms** [3.40, 0.58] | 42.84 ms [41.73, 1.15] |
+| **ContentVec** (`contentvec-f.onnx`) | 24.41 ms [15.69, 11.16] | 13.96 ms [12.89, 1.28] | **5.52 ms** [5.01, 0.35] | **3.15 ms** [2.97, 0.13] | 10.37 ms [9.80, 0.45] |
+| **RVC** (`kikoto_kurage_v2_40k`) | 87.91 ms [84.71, 3.10] | 87.20 ms [81.97, 3.76] | _[Skipped: SRAM capacity]_ | **62.41 ms** [60.13, 1.62] <sup>\*1</sup> | **47.77 ms** [45.64, 1.45] |
+
+<sup>*1</sup> *Requires in-memory 4D SineGen graph surgery (see Section 2.3.4).*
+
+#### 2.3.2 NPU Dynamic Shape Resolution (`reshape_input`)
+
+Unbounded dynamic dimensions initially caused integer overflow in the OpenVINO NPU AOT compiler (`INT64_MAX` upper bounds of `9223372036854775807` wrapped to `-9223372036854775297`). Inferring concrete analysis dimensions from the audio window and passing `reshape_input` (e.g., `waveform[1,4096],threshold[1]`) at session creation completely resolved the failure, guaranteeing deterministic, compilation-free streaming.
+
+#### 2.3.3 NPU Capacity Limits on Full Neural Vocoders
+
+Compiling the full RVC HiFi-GAN vocoder on NPU fails with compiler scheduler termination (`Failed to infer result type(s): "IE.Convolution"`). Dense multi-receptive-field transposed convolutions and dilation sweeps exceed on-chip NPU SRAM scheduling limits. This confirms Forge's architectural principle: **reserve client NPUs for acoustic front-ends (FCPE/RMVPE + ContentVec), offloading vocoder synthesis to GPU or CPU**.
+
+#### 2.3.4 OpenVINO GPU: Precision Control & In-Memory 4D Graph Surgery
+
+Executing RVC on OpenVINO GPU uncovered two compiler barriers:
+
+1. **Auto-FP16 Type Mismatch**: Default auto-FP16 conversion caused element type mismatch between FP32 `ScatterNDUpdate` and FP16 `Gather`. Resolved by configuring `load_config` strictly as a device-keyed dictionary (`{"GPU": {"EXECUTION_MODE_HINT": "ACCURACY"}}`).
+2. **3D Interpolate Barrier (`linear_onnx`)**: Intel GPU's `interpolate.cpp` strictly rejects 3D tensors for linear interpolation (`Check 'inputRank == 2 || inputRank == 4 || inputRank == 5' failed`). RVC's SineGen expands pitch along a 3D tensor `[batch, channel, time]`.
+   - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, yields bit-exact numerical parity (diff `< 2.4e-7`), and unblocks OpenVINO GPU synthesis (**62.41 ms**).
+
+#### 2.3.5 Optimal Real-Time Deployment Matrices
+
+With in-memory 4D graph surgery, OpenVINO GPU provides a high-performance cross-platform acceleration path on Linux where DirectML is unavailable:
+
+| Target Deployment | Front-End (Pitch + Features) | Back-End (Vocoder Synthesis) | Total Latency | Key Benefit |
+| :--- | :--- | :--- | :--- | :--- |
+| **Windows (DirectML)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | DirectML EP (47.8 ms) | **~52–57 ms** | Peak performance on Arc GPU |
+| **Linux (Pure OpenVINO)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | OpenVINO GPU (62.4 ms <sup>\*1</sup>) | **~67–72 ms** | Zero proprietary driver dependencies |
+| **Low-Power / Headless** | OpenVINO NPU (9.6–10.6 ms) | CPU EP (87.2 ms) | **~97–98 ms** | Zero GPU heat or acoustic fan noise |
 
 ---
 
@@ -203,6 +246,7 @@ DXGI Adapter Enumeration Order (Typical Windows Laptop):
 ### 4.1 Eliminating OS-Specific Subprocess Probing
 
 Legacy voice changer implementations and upstream v2.0.78-beta relied heavily on external OS commands to detect compute hardware:
+
 - Spawning PowerShell (`Get-CimInstance Win32_VideoController` or PnP queries) on Windows (~100–300 ms startup latency).
 - Spawning `nvidia-smi` across subprocesses (failing in non-NVIDIA or containerized environments).
 - Spawning `system_profiler SPDisplaysDataType` on macOS (~300–600 ms blocking delay).
@@ -219,7 +263,7 @@ Because VCClient Forge relies exclusively on **ONNX Runtime and NumPy** for all 
    - Query registered execution backends via `ort.get_available_providers()` and enumerate physical accelerator devices recognized by active providers via `ort.get_ep_devices()`.
 3. **Execution Viability Probing (Subject to Implementation Design)**:
    - Rather than relying solely on static enumeration, the planned device manager will verify that target Execution Providers can genuinely compile kernels and execute without silent fallback to CPU.
-   - *Design Status*: Concrete probing details—such as minimal in-memory test graph execution, active provider validation (`session.get_providers()`), and dynamic fallback heuristics (e.g., dGPU -> iGPU/NPU -> CPU)—remain subject to empirical evaluation during the upcoming backend device manager refactoring milestone.
+   - _Design Status_: Concrete probing details—such as minimal in-memory test graph execution, active provider validation (`session.get_providers()`), and dynamic fallback heuristics (e.g., dGPU -> iGPU/NPU -> CPU)—remain subject to empirical evaluation during the upcoming backend device manager refactoring milestone.
 
 ### 4.3 Architectural Advantages
 
@@ -252,7 +296,7 @@ In the Python ONNX Runtime ecosystem, Execution Providers fall into three distin
 1. **Monolithic In-Tree Runtimes (Mutually Exclusive via pip)**:
    - Packages such as `onnxruntime`, `onnxruntime-gpu`, and `onnxruntime-directml` each distribute full, standalone builds of the C++ engine.
    - Crucially, they install into the **identical Python package namespace** (`site-packages/onnxruntime`) and overwrite the core native bindings (`_pybind_state.pyd` on Windows, `_pybind_state.so` on Linux) and engine DLLs.
-   - Consequently, attempting to `pip install` both `onnxruntime-gpu` and `onnxruntime-directml` in a standard Python environment causes binary corruption and symbol mismatch. Coexistence within a single wheel is only possible through custom C++ source builds (`--use_cuda --use_dml`), which imposes an unsustainable CI and maintenance burden that violates Forge's philosophy (*"Less code and less documentation is the ultimate virtue"*).
+   - Consequently, attempting to `pip install` both `onnxruntime-gpu` and `onnxruntime-directml` in a standard Python environment causes binary corruption and symbol mismatch. Coexistence within a single wheel is only possible through custom C++ source builds (`--use_cuda --use_dml`), which imposes an unsustainable CI and maintenance burden that violates Forge's philosophy (_"Less code and less documentation is the ultimate virtue"_).
 2. **Out-of-Tree Modular Plugins (Cleanly Composable)**:
    - In contrast, packages like `onnxruntime-ep-openvino` are engineered as official, modular out-of-tree plugins.
    - The plugin installs into its own dedicated namespace and dynamically registers its Level Zero / oneDNN execution provider into the host ONNX Runtime session at runtime.
@@ -264,6 +308,7 @@ In the Python ONNX Runtime ecosystem, Execution Providers fall into three distin
 #### Secondary Footprint Validation
 
 Because the modular OpenVINO plugin is compact (~50–80 MB compressed) and DirectML adds only ~20–25 MB:
+
 - The **Universal Edition** (`onnxruntime-directml` + OpenVINO plugin) creates a single lightweight (~100 MB non-CUDA stack) release covering all non-NVIDIA systems.
 - The **CUDA Edition** (`onnxruntime-gpu` + OpenVINO plugin) enables Intel hybrid NPU/iGPU offloading alongside NVIDIA dGPU vocoder synthesis with a negligible archive delta (~75 MB), well within GitHub Releases' 2.00 GiB asset ceiling.
 
@@ -299,7 +344,7 @@ flowchart TD
    - **Standard Edition**: Adds `DmlExecutionProvider` to the x64 baseline, providing DirectX 12 hardware acceleration across AMD Radeon discrete and integrated GPUs (RDNA architecture), Intel graphics, and non-CUDA systems.
    - **CUDA Edition**: Layers native NVIDIA CUDA runtime libraries on top of the x64 baseline, delivering maximum Tensor Core performance for GeForce and RTX hardware while retaining OpenVINO for hybrid Intel offloading.
 3. **Linux ARM64 Platform Baseline**:
-   Includes standard `CPUExecutionProvider` leveraging Arm NEON and SVE/SVE2 vector optimizations natively integrated into ONNX Runtime's MLAS engine. While specialized libraries such as `ACLExecutionProvider` (Arm Compute Library) exist, Microsoft does not distribute official pre-compiled PyPI wheels for ACL. In strict adherence to Forge's core architectural principle—*leveraging existing upstream ecosystems and minimizing custom maintenance overhead*—Forge deliberately avoids requiring custom C++ builds of ONNX Runtime. Additional Execution Providers will only be integrated as out-of-tree plugins with official PyPI package distribution.
+   Includes standard `CPUExecutionProvider` leveraging Arm NEON and SVE/SVE2 vector optimizations natively integrated into ONNX Runtime's MLAS engine. While specialized libraries such as `ACLExecutionProvider` (Arm Compute Library) exist, Microsoft does not distribute official pre-compiled PyPI wheels for ACL. In strict adherence to Forge's core architectural principle—_leveraging existing upstream ecosystems and minimizing custom maintenance overhead_—Forge deliberately avoids requiring custom C++ builds of ONNX Runtime. Additional Execution Providers will only be integrated as out-of-tree plugins with official PyPI package distribution.
    For accelerated GPU workflows, the **`linux / arm64 / cuda`** edition specifically targets modern personal AI supercomputers such as the **NVIDIA DGX Spark (powered by the GB10 Grace Blackwell Superchip)** and Grace-Blackwell/Grace-Hopper workstation platforms. In this architecture, the 20-core Grace Arm CPU and the 1 PFLOPS Blackwell GPU share unified system memory (128GB UMA connected via NVLink-C2C), executing native CUDA 13 kernels with near-zero transfer overhead.
 4. **macOS ARM64 Platform Baseline**:
    Bundles `CoreMLExecutionProvider`, which automatically delegates computation between the Apple Neural Engine (ANE) and Metal GPU, backed by NEON/Accelerate CPU execution.
@@ -308,15 +353,15 @@ flowchart TD
 
 Under the consolidated roadmap, Forge organizes distribution packages into a clean, hierarchical matrix across OS, architecture, and compute tier (`<os>-<architecture>-<edition>`):
 
-| OS          | Architecture | Edition    | Bundled Execution Providers                               | Intended Hardware                                              | Package Name Example |
-| :---------- | :----------- | :--------- | :-------------------------------------------------------- | :------------------------------------------------------------- | :------------------- |
-| **Windows** | `x64`        | `standard` | `OpenVINO`, `DirectML`, `CPU`                             | Non-NVIDIA systems (AMD Radeon/Ryzen, Intel Arc/Core/Ultra, CPU-only) & NVIDIA DML fallback | `win-x64-standard`   |
-| **Windows** | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU`                             | NVIDIA hardware (GeForce / RTX desktops & hybrid laptops)      | `win-x64-cuda`       |
-| **Linux**   | `x64`        | `standard` | `OpenVINO`, `CPU`                                         | Non-NVIDIA systems (AMD / Intel CPU, Intel Arc/iGPU, cloud VMs)| `linux-x64-standard` |
-| **Linux**   | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU`                             | NVIDIA hardware (desktop and server workstations)              | `linux-x64-cuda`     |
-| **Linux**   | `arm64`      | `standard` | `CPU` (NEON/SVE)                                          | Non-NVIDIA ARM64 systems (RPi 5, RK3588, ARM servers)         | `linux-arm64-standard` |
-| **Linux**   | `arm64`      | `cuda`     | **`CUDA`**, `CPU` (NEON/SVE)                              | NVIDIA hardware (DGX Spark / GB10 Grace Blackwell, GPU cloud)  | `linux-arm64-cuda`   |
-| **macOS**   | `arm64`      | `standard` | `CoreML`, `CPU` (NEON)                                    | Apple Silicon (M1/M2/M3/M4: ANE + Metal GPU)                   | `mac-arm64-standard` |
+| OS          | Architecture | Edition    | Bundled Execution Providers   | Intended Hardware                                                                           | Package Name Example   |
+| :---------- | :----------- | :--------- | :---------------------------- | :------------------------------------------------------------------------------------------ | :--------------------- |
+| **Windows** | `x64`        | `standard` | `OpenVINO`, `DirectML`, `CPU` | Non-NVIDIA systems (AMD Radeon/Ryzen, Intel Arc/Core/Ultra, CPU-only) & NVIDIA DML fallback | `win-x64-standard`     |
+| **Windows** | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU` | NVIDIA hardware (GeForce / RTX desktops & hybrid laptops)                                   | `win-x64-cuda`         |
+| **Linux**   | `x64`        | `standard` | `OpenVINO`, `CPU`             | Non-NVIDIA systems (AMD / Intel CPU, Intel Arc/iGPU, cloud VMs)                             | `linux-x64-standard`   |
+| **Linux**   | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU` | NVIDIA hardware (desktop and server workstations)                                           | `linux-x64-cuda`       |
+| **Linux**   | `arm64`      | `standard` | `CPU` (NEON/SVE)              | Non-NVIDIA ARM64 systems (RPi 5, RK3588, ARM servers)                                       | `linux-arm64-standard` |
+| **Linux**   | `arm64`      | `cuda`     | **`CUDA`**, `CPU` (NEON/SVE)  | NVIDIA hardware (DGX Spark / GB10 Grace Blackwell, GPU cloud)                               | `linux-arm64-cuda`     |
+| **macOS**   | `arm64`      | `standard` | `CoreML`, `CPU` (NEON)        | Apple Silicon (M1/M2/M3/M4: ANE + Metal GPU)                                                | `mac-arm64-standard`   |
 
 ### 5.5 Architectural Advantages of the Planned Bundled Baseline
 
