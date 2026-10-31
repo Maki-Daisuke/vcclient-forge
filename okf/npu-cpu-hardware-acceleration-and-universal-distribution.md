@@ -221,6 +221,19 @@ With in-memory 4D graph surgery, OpenVINO GPU provides a high-performance cross-
 | **Linux (Pure OpenVINO)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | OpenVINO GPU (62.4 ms <sup>\*1</sup>) | **~67–72 ms** | Zero proprietary driver dependencies |
 | **Low-Power / Headless** | OpenVINO NPU (9.6–10.6 ms) | CPU EP (87.2 ms) | **~97–98 ms** | Zero GPU heat or acoustic fan noise |
 
+#### 2.3.6 Working Design Hypothesis: Minimal Two-Stage Dispatch Heuristic
+
+Building upon the empirical telemetry, Forge formulates a streamlined, two-stage hardware dispatch hypothesis for future pipeline routing (Roadmap Item 9 / Hybrid Phase 5):
+
+1. **Back-End (Vocoder Synthesis / RVC)**:
+   - **Rule**: If a GPU is present, allocate to **GPU** (`CUDA` > `DirectML` / `OpenVINO GPU` with 4D patch); otherwise, fall back to **CPU**.
+   - **Rationale**: Neural vocoding involves high-bandwidth transposed convolutions and dilation sweeps where GPUs deliver ~45–62 ms latency. Client NPUs fail under current SRAM constraints, leaving modern SIMD CPU as the single robust fallback (~87 ms).
+2. **Front-End (Acoustic Analysis / FCPE + ContentVec)**:
+   - **Rule**: If a client NPU is present, allocate to **NPU** (`OpenVINO NPU`); otherwise, fall back to **CPU** (or dedicated GPU if unconstrained).
+   - **Rationale**: Acoustic front-end tasks require ~9.5 ms on NPU within a ~2–5 W silicon envelope. Offloading front-end processing to NPU completely decouples audio intonation tracking from 3D gaming/OBS GPU queues and avoids CPU thermal throttling.
+
+*(Status: Working architectural design hypothesis to be validated during the backend pipeline decoupling milestone in Roadmap Item 9).*
+
 ---
 
 ## 3. DirectML Device Enumeration Mechanics
