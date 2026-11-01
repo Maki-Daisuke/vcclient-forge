@@ -384,61 +384,165 @@ def get_openvino_reshape_input(model_path: Path, window_samples: int) -> str | N
         return None
 
 
-def patch_rvc_for_openvino_gpu(model_path: Path) -> bytes:
-    """In-memory ONNX patch: convert SineGen 3D Resize to 4D to satisfy OpenVINO GPU tensor rank requirements."""
+def verify_3d_to_4d_resize_parity(
+    scale_factor: float, tolerance: float = 1e-5
+) -> float:
+    """Validate numerical equivalence between 3D linear Resize and 4D Unsqueeze+Resize+Squeeze."""
+    import onnx
+    from onnx import helper, numpy_helper
+
+    rng = np.random.RandomState(42)
+    test_in = rng.randn(1, 2, 16).astype(np.float32)
+
+    # 1. 3D reference graph
+    x3 = helper.make_tensor_value_info("x3", onnx.TensorProto.FLOAT, [1, 2, 16])
+    y3 = helper.make_tensor_value_info("y3", onnx.TensorProto.FLOAT, [1, 2, None])
+    sc3 = numpy_helper.from_array(
+        np.array([1.0, 1.0, scale_factor], dtype=np.float32), name="sc3"
+    )
+    n3 = helper.make_node(
+        "Resize",
+        ["x3", "", "sc3"],
+        ["y3"],
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
+    g3 = helper.make_graph([n3], "g3", [x3], [y3], [sc3])
+    m3 = helper.make_model(
+        g3, opset_imports=[helper.make_opsetid("", 17)], ir_version=8
+    )
+    s3 = ort.InferenceSession(
+        m3.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    out3 = s3.run(None, {"x3": test_in})[0]
+
+    # 2. 4D patched graph
+    x4 = helper.make_tensor_value_info("x4", onnx.TensorProto.FLOAT, [1, 2, 16])
+    y4 = helper.make_tensor_value_info("y4", onnx.TensorProto.FLOAT, [1, 2, None])
+    ax = numpy_helper.from_array(np.array([2], dtype=np.int64), name="ax")
+    sc4 = numpy_helper.from_array(
+        np.array([1.0, 1.0, 1.0, scale_factor], dtype=np.float32), name="sc4"
+    )
+    unsq = helper.make_node("Unsqueeze", ["x4", "ax"], ["x4_4d"])
+    n4 = helper.make_node(
+        "Resize",
+        ["x4_4d", "", "sc4"],
+        ["y4_4d"],
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
+    sq = helper.make_node("Squeeze", ["y4_4d", "ax"], ["y4"])
+    g4 = helper.make_graph([unsq, n4, sq], "g4", [x4], [y4], [ax, sc4])
+    m4 = helper.make_model(
+        g4, opset_imports=[helper.make_opsetid("", 17)], ir_version=8
+    )
+    s4 = ort.InferenceSession(
+        m4.SerializeToString(), providers=["CPUExecutionProvider"]
+    )
+    out4 = s4.run(None, {"x4": test_in})[0]
+
+    max_diff = float(np.max(np.abs(out3 - out4)))
+    if max_diff > tolerance:
+        raise ValueError(
+            f"Numerical parity check failed for scale {scale_factor}: max_diff={max_diff:.6e} exceeds tolerance {tolerance}"
+        )
+    return max_diff
+
+
+def patch_rvc_for_openvino_gpu(model_path: Path) -> tuple[bytes, float]:
+    """In-memory ONNX patch: convert SineGen 3D Resize to 4D to satisfy OpenVINO GPU tensor rank requirements.
+
+    Strictly identifies the SineGen 3D linear Resize node and resolves its scale factor from model initializers.
+    Performs numerical parity verification before applying the patch. Raises ValueError if validation fails.
+    """
     import onnx
     from onnx import helper, numpy_helper
 
     m = onnx.load(str(model_path), load_external_data=False)
-    target_idx = -1
+    candidates = []
     for i, n in enumerate(m.graph.node):
-        if (
-            n.op_type == "Resize"
-            and any(a.name == "mode" and a.s == b"linear" for a in n.attribute)
-            and "m_source" in n.name
+        if n.op_type == "Resize" and any(
+            a.name == "mode" and a.s in (b"linear", "linear") for a in n.attribute
         ):
-            target_idx = i
-            break
+            candidates.append((i, n))
 
-    if target_idx == -1:
-        for i, n in enumerate(m.graph.node):
-            if n.op_type == "Resize" and any(
-                a.name == "mode" and a.s == b"linear" for a in n.attribute
-            ):
-                target_idx = i
-                break
+    if not candidates:
+        raise ValueError(f"No linear Resize node found in {model_path.name}")
 
-    if target_idx == -1:
-        with open(model_path, "rb") as f:
-            return f.read()
+    if len(candidates) > 1:
+        m_source_candidates = [
+            (i, n)
+            for i, n in candidates
+            if "m_source" in n.name.lower() or "sin_gen" in n.name.lower()
+        ]
+        if len(m_source_candidates) == 1:
+            target_idx, target_node = m_source_candidates[0]
+        else:
+            raise ValueError(
+                f"Multiple linear Resize nodes found in {model_path.name} ({[n.name for _, n in candidates]}); "
+                f"could not unambiguously identify the SineGen pitch interpolation node."
+            )
+    else:
+        target_idx, target_node = candidates[0]
 
-    target_node = m.graph.node[target_idx]
-    orig_in = target_node.input[0]
-    orig_scales_name = target_node.input[2] if len(target_node.input) > 2 else ""
-    orig_out = target_node.output[0]
-
-    axes_name = "sin_gen_axes_dim2"
-    if not any(init.name == axes_name for init in m.graph.initializer):
-        axes_init = numpy_helper.from_array(
-            np.array([2], dtype=np.int64), name=axes_name
+    if len(target_node.input) < 3 or not target_node.input[2]:
+        raise ValueError(
+            f"Target Resize node '{target_node.name}' does not specify a scales input tensor."
         )
-        m.graph.initializer.append(axes_init)
 
-    scales_4d_name = "sin_gen_scales_4d"
-    scale_factor = 400.0
+    orig_scales_name = target_node.input[2]
+    scales_arr = None
     for init in m.graph.initializer:
         if init.name == orig_scales_name:
-            orig_arr = numpy_helper.to_array(init)
-            if len(orig_arr) > 0:
-                scale_factor = float(orig_arr[-1])
+            scales_arr = numpy_helper.to_array(init)
             break
 
-    if not any(init.name == scales_4d_name for init in m.graph.initializer):
-        scales_4d_init = numpy_helper.from_array(
-            np.array([1.0, 1.0, 1.0, scale_factor], dtype=np.float32),
-            name=scales_4d_name,
+    if scales_arr is None:
+        for n in m.graph.node:
+            if n.op_type == "Constant" and orig_scales_name in n.output:
+                for attr in n.attribute:
+                    if attr.name == "value":
+                        scales_arr = numpy_helper.to_array(attr.t)
+                        break
+                if scales_arr is not None:
+                    break
+
+    if scales_arr is None:
+        raise ValueError(
+            f"Could not resolve scales initializer or constant '{orig_scales_name}' for node '{target_node.name}'."
         )
-        m.graph.initializer.append(scales_4d_init)
+
+    scales_flat = scales_arr.flatten()
+    if len(scales_flat) != 3:
+        raise ValueError(
+            f"Expected 3D scale vector for node '{target_node.name}', but found shape {scales_arr.shape} ({scales_flat})."
+        )
+
+    if not (
+        np.isclose(scales_flat[0], 1.0)
+        and np.isclose(scales_flat[1], 1.0)
+        and scales_flat[2] > 0
+    ):
+        raise ValueError(
+            f"Invalid 3D scale vector {scales_flat} for node '{target_node.name}'; expected [1.0, 1.0, scale > 0]."
+        )
+
+    scale_factor = float(scales_flat[2])
+    parity_diff = verify_3d_to_4d_resize_parity(scale_factor)
+
+    orig_in = target_node.input[0]
+    orig_out = target_node.output[0]
+
+    axes_name = f"{target_node.name}_axes_dim2"
+    axes_init = numpy_helper.from_array(np.array([2], dtype=np.int64), name=axes_name)
+    m.graph.initializer.append(axes_init)
+
+    scales_4d_name = f"{target_node.name}_scales_4d"
+    scales_4d_init = numpy_helper.from_array(
+        np.array([1.0, 1.0, 1.0, scale_factor], dtype=np.float32),
+        name=scales_4d_name,
+    )
+    m.graph.initializer.append(scales_4d_init)
 
     unsqueeze_out = orig_in + "_unsqueeze_4d"
     unsqueeze_node = helper.make_node(
@@ -450,8 +554,7 @@ def patch_rvc_for_openvino_gpu(model_path: Path) -> bytes:
 
     resize_out_4d = orig_out + "_resize_4d"
     target_node.input[0] = unsqueeze_out
-    if len(target_node.input) > 2:
-        target_node.input[2] = scales_4d_name
+    target_node.input[2] = scales_4d_name
     target_node.output[0] = resize_out_4d
 
     squeeze_node = helper.make_node(
@@ -464,7 +567,8 @@ def patch_rvc_for_openvino_gpu(model_path: Path) -> bytes:
     m.graph.node.insert(target_idx, unsqueeze_node)
     m.graph.node.insert(target_idx + 2, squeeze_node)
 
-    return m.SerializeToString()
+    onnx.checker.check_model(m)
+    return m.SerializeToString(), parity_diff
 
 
 def run_benchmark_for_model(
@@ -500,6 +604,10 @@ def run_benchmark_for_model(
 
     so = ort.SessionOptions()
     so.log_severity_level = 3  # Suppress driver diagnostic warnings
+    # DirectML EP is heterogeneous by design and delegates certain scalar/indexing nodes
+    # to the default CPU EP. Disabling CPU fallback prevents DirectML sessions from initializing.
+    if target.provider_name not in ("CPUExecutionProvider", "DmlExecutionProvider"):
+        so.add_session_config_entry("session.disable_cpu_ep_fallback", "1")
 
     if target.provider_name == "OpenVINOExecutionProvider":
         # Disabling ORT high-level graph optimizations allows OpenVINO's compiler
@@ -537,13 +645,18 @@ def run_benchmark_for_model(
                     end="",
                     flush=True,
                 )
-                model_data = patch_rvc_for_openvino_gpu(model_path)
-            except Exception as patch_e:  # noqa: BLE001
+                model_data, parity_diff = patch_rvc_for_openvino_gpu(model_path)
                 print(
-                    f"\n  [Warning] In-memory 4D SineGen patch failed: {patch_e}",
+                    f" verified (parity max diff: {parity_diff:.2e})...",
                     file=sys.stderr,
+                    end="",
+                    flush=True,
                 )
-                model_data = str(model_path)
+            except Exception as patch_e:  # noqa: BLE001
+                err_msg = f"Failed to apply OpenVINO GPU 4D SineGen patch: {patch_e}"
+                print(f"\n  [Error] {err_msg}", file=sys.stderr)
+                result.error_message = err_msg
+                return result
 
     result.provider_options = target_options
     target_options_str = {k: str(v) for k, v in target_options.items()}
@@ -586,6 +699,13 @@ def run_benchmark_for_model(
             try:
                 so_retry = ort.SessionOptions()
                 so_retry.log_severity_level = 3
+                if target.provider_name not in (
+                    "CPUExecutionProvider",
+                    "DmlExecutionProvider",
+                ):
+                    so_retry.add_session_config_entry(
+                        "session.disable_cpu_ep_fallback", "1"
+                    )
                 so_retry.graph_optimization_level = (
                     ort.GraphOptimizationLevel.ORT_DISABLE_ALL
                 )
@@ -621,6 +741,9 @@ def run_benchmark_for_model(
             else:
                 result.error_message = f"Session creation failed: {e}"
             return result
+
+    if hasattr(session, "disable_fallback"):
+        session.disable_fallback()
 
     result.active_providers = session.get_providers()
 
