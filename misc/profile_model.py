@@ -6,8 +6,24 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+# Ensure repository root and backend directory are in sys.path
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent
+_BACKEND_DIR = _REPO_ROOT / "backend"
+if _REPO_ROOT.exists() and str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+if _BACKEND_DIR.exists() and str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
+# Initialize CUDA / GPU / OpenVINO runtime environment transparently
+from vcclient.utils.cuda_env import setup_cuda_env
+
+setup_cuda_env()
+
 import numpy as np
 import onnxruntime as ort
+
+from misc.benchmark import get_openvino_reshape_input
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -17,19 +33,94 @@ if hasattr(sys.stdout, "reconfigure"):
 def profile_model(
     model_path: Path,
     provider: str = "DmlExecutionProvider",
+    device: str = "GPU",
     runs: int = 5,
     samples: int = 4096,
 ) -> str:
     so = ort.SessionOptions()
     so.enable_profiling = True
 
+    # 1. Trigger dynamic provider library discovery
+    _ = ort.get_available_providers()
+
+    # 2. Find matching ep_device if dynamic plugins are present (e.g. OpenVINO on Windows)
+    matched_ep_device = None
+    target_options: dict[str, str] = {}
+    if hasattr(ort, "get_ep_devices"):
+        raw_devs = list(ort.get_ep_devices())
+        for d in raw_devs:
+            ep_name = getattr(d, "ep_name", "")
+            dev_type = str(getattr(getattr(d, "device", None), "type", "")).upper()
+            ov_dev = ""
+            if hasattr(d, "ep_metadata") and isinstance(d.ep_metadata, dict):
+                ov_dev = str(d.ep_metadata.get("ov_device", "")).upper()
+            elif hasattr(getattr(d, "device", None), "metadata") and isinstance(
+                d.device.metadata, dict
+            ):
+                ov_dev = str(d.device.metadata.get("ov_device", "")).upper()
+
+            # Check provider match
+            name_match = (
+                provider.lower() in ep_name.lower()
+                or ep_name.lower() in provider.lower()
+                or ("openvino" in provider.lower() and "openvino" in ep_name.lower())
+                or ("dml" in provider.lower() and "dml" in ep_name.lower())
+            )
+            # Check device match
+            device_match = (
+                device.upper() in dev_type
+                or device.upper() in ov_dev
+                or (device.upper() == "GPU" and "AUTO" in ov_dev)
+            )
+
+            if name_match and device_match:
+                matched_ep_device = d
+                print(
+                    f"[Info] Selected EP device: {ep_name} (type={dev_type}, ov_device={ov_dev or 'N/A'})"
+                )
+                break
+
+    if "openvino" in provider.lower():
+        so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+
+    is_npu = device.upper() == "NPU" or (
+        matched_ep_device
+        and "NPU"
+        in str(getattr(getattr(matched_ep_device, "device", None), "type", "")).upper()
+    )
+    if is_npu and "reshape_input" not in target_options:
+        reshape_spec = get_openvino_reshape_input(model_path, samples)
+        if reshape_spec:
+            target_options["reshape_input"] = reshape_spec
+            print(f"[OpenVINO NPU] Configured static shapes: {reshape_spec}")
+
     try:
-        session = ort.InferenceSession(
-            str(model_path), sess_options=so, providers=[provider]
-        )
+        if matched_ep_device and hasattr(so, "add_provider_for_devices"):
+            so.add_provider_for_devices([matched_ep_device], target_options)
+            session = ort.InferenceSession(str(model_path), sess_options=so)
+        else:
+            if "openvino" in provider.lower():
+                target_options["device_type"] = device.upper()
+            session = ort.InferenceSession(
+                str(model_path),
+                sess_options=so,
+                providers=[provider],
+                provider_options=[target_options],
+            )
     except Exception as e:  # noqa: BLE001
         print(f"Session creation failed for {provider}: {e}", file=sys.stderr)
         return ""
+
+    active_providers = session.get_providers()
+    print(f"Active providers: {active_providers}")
+    if not any(
+        provider.lower() in p.lower() or p.lower() in provider.lower()
+        for p in active_providers
+    ):
+        print(
+            f"[Warning] Silent fallback detected! Requested '{provider}' ({device}) but active is {active_providers}",
+            file=sys.stderr,
+        )
 
     inputs = session.get_inputs()
     feed = {}
@@ -115,7 +206,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--provider", default="DmlExecutionProvider", help="Execution provider"
     )
+    parser.add_argument("--device", default="GPU", help="Target device (GPU, NPU, CPU)")
     parser.add_argument("--runs", type=int, default=5, help="Number of inferences")
     args = parser.parse_args()
 
-    profile_model(Path(args.model), provider=args.provider, runs=args.runs)
+    profile_model(
+        Path(args.model),
+        provider=args.provider,
+        device=args.device,
+        runs=args.runs,
+    )
