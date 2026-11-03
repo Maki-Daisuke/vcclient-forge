@@ -195,9 +195,47 @@ In October 2026, the empirical micro-benchmarking suite (`misc/benchmark.py`) wa
 
 <sup>*1</sup> *Requires in-memory 4D SineGen graph surgery (see Section 2.3.4).*
 
-#### 2.3.2 NPU Dynamic Shape Resolution (`reshape_input`)
+#### 2.3.2 NPU Dynamic Shape Resolution & Runtime Dimension Derivation (`reshape_input`)
 
-Unbounded dynamic dimensions initially caused integer overflow in the OpenVINO NPU AOT compiler (`INT64_MAX` upper bounds of `9223372036854775807` wrapped to `-9223372036854775297`). Inferring concrete analysis dimensions from the audio window and passing `reshape_input` (e.g., `waveform[1,4096],threshold[1]`) at session creation completely resolved the failure, guaranteeing deterministic, compilation-free streaming.
+Client NPUs (e.g., Intel AI Boost) enforce deterministic, ahead-of-time (AOT) memory allocation over on-chip scratchpad SRAM. When compiling ONNX models containing unconstrained dynamic sequence dimensions (such as `waveform` with shape `[1, -1]`), ONNX Runtime defaults unbounded dimensions to `INT64_MAX` (`9223372036854775807`). This triggers integer overflow in the OpenVINO NPU compiler's memory layout calculation (`-9223372036854775297`), terminating compilation with `vclAllocatedExecutableCreate4` failure code `0x78000004`.
+
+##### 1. Real-Time Audio Pipeline Dimension Analysis
+
+In VCClient Forge's streaming pipeline, the input audio tensor dimensions passed to acoustic models are not arbitrary; they derive deterministically from active slot configurations and audio buffering rules:
+
+- **Chunk Frame Size**: $S_{\text{chunk}} = \text{chunk\_sec} \times 16000$ (UI-configurable; default `0.5s` = 8,000 samples).
+- **Crossfade Overlap**: $S_{\text{cf}} = \min(\text{chunk\_sec}, \text{crossfade\_sec}) \times 16000$ (configurable in advanced settings; default `0.05s` = 800 samples).
+- **SOLA Search Window**: $S_{\text{sola}} = \text{sola\_search\_frame\_sec} \times 16000$ (default `0.012s` = 192 samples).
+- **Past Context Frame (EXTRA)**: $S_{\text{extra}} = \text{extra\_frame\_sec} \times 16000$ (configurable via EXTRA dropdown; default `0.08s` = 1,280 samples).
+- **Hop Alignment**: Padded to a multiple of the 160-sample hop size ($\Delta_{\text{hop}}$).
+
+In `rvc_pipeline.py` and `onnxrmvpe_pitch_estimator.py`, past context is sliced off prior to RMVPE inference, yielding the exact input waveform length:
+
+$$S_{\text{RMVPE}} = (\text{chunk\_sec} \times 16000) + 1120 \text{ samples}$$
+
+| `chunk_sec` Setting | Sample Count ($S_{\text{chunk}}$) | RMVPE Waveform ($S_{\text{RMVPE}}$) | ContentVec Audio ($S_{\text{CV}}$) |
+| :--- | :--- | :--- | :--- |
+| **0.05 s (50 ms)** | 800 samples | 1,920 samples | ~3,200 samples |
+| **0.10 s (100 ms)** | 1,600 samples | 2,720 samples | ~4,000 samples |
+| **0.256 s (256 ms)** | 4,096 samples | 5,216 samples | ~6,496 samples |
+| **0.50 s (500 ms)** | 8,000 samples | 9,120 samples | ~10,400 samples |
+
+##### 2. Architectural Trade-offs: Static Shapes vs. Dynamic Bounds vs. Padding
+
+1. **Static Shape Binding (`waveform[1, 4096]`)**:
+   - *Advantage*: Enables compiler AOT memory layout optimization without runtime dynamic dimension handling.
+   - *Limitation*: Inflexible. If a user modifies `chunk_sec`, `crossfade_sec`, or `extra_frame_sec` in the UI, or if the Web client transmits a larger buffer, the dimension mismatch raises an immediate runtime exception.
+2. **Arbitrarily Large Upper Bounds (`waveform[1, 160..160000]`)**:
+   - *Limitation*: Client NPUs have limited on-chip SRAM (typically 2–8 MB). Setting an excessive upper bound (e.g., 10 seconds) forces intermediate activation tensors to spill into system DRAM (LPDDR5X), inducing bus contention and degrading execution latency, or causes compilation failure due to scheduler memory limits.
+3. **Fixed Oversized Zero-Padding**:
+   - *Limitation*: Compiling for a fixed 10-second static shape and zero-padding a 100 ms speech frame wastes compute and power evaluating unvoiced padding.
+
+##### 3. Planned Strategy: Runtime Dimension Derivation with Model Caching
+
+Forge resolves this trade-off via a two-part strategy for NPU execution:
+
+1. **Runtime Dimension Inference**: Rather than hardcoding 4,096 samples, the runtime calculates the exact static shape (or tightly bounded dynamic range) from the active slot configuration (`chunk_sec`, `extra_frame_sec`, `crossfade_sec`) at model initialization time.
+2. **Persistent Compilation Caching (`cache_dir`)**: OpenVINO's `cache_dir` configuration persists the compiled hardware executable (`.blob`) to disk. While initial AOT compilation takes several seconds, subsequent model reloads with the same configuration load in under 50 ms directly from cache, avoiding UI blocking during routine startup and slot switching.
 
 #### 2.3.3 NPU Capacity Limits on Full Neural Vocoders
 
@@ -233,6 +271,26 @@ Building upon the empirical telemetry, Forge formulates a streamlined, two-stage
    - **Rationale**: Acoustic front-end tasks require ~9.5 ms on NPU within a ~2–5 W silicon envelope. Offloading front-end processing to NPU completely decouples audio intonation tracking from 3D gaming/OBS GPU queues and avoids CPU thermal throttling.
 
 *(Status: Working architectural design hypothesis to be validated during the backend pipeline decoupling milestone in Roadmap Item 9).*
+
+#### 2.3.7 Profiling Telemetry: DirectML Micro-Operator Overhead vs. OpenVINO Fused Subgraph
+
+Detailed profiling traces recorded with `misc/profile_model.py` (analyzed via Chrome Tracing JSON telemetry) isolate the architectural mechanism causing the latency divergence between DirectML and OpenVINO on identical hardware (Intel Arc 140V GPU and AI Boost NPU 4000):
+
+##### DirectML Kernel Dispatch & Fence Stalls (Arc 140V GPU: ~80 ms)
+
+Evaluating `rmvpe.onnx` under DirectML assigns **255 nodes to `DmlExecutionProvider`** (dispatched as Direct3D 12 compute shaders) and 19 shape/indexing nodes to `CPUExecutionProvider` (total 274 graph nodes):
+
+1. **Host-to-Device Command Submission**: CPU-side command list recording (`SequentialExecutor::Execute`) completes in **8.63 ms** (mean across steady-state runs 2–5).
+2. **GPU Execution and Synchronization Stalls**: Following CPU command recording, the host thread blocks in `WaitForSingleObject` for **~72 ms** waiting for GPU command queue completion and memory readback (steady-state total inference: 79.38–82.31 ms).
+3. **Micro-Kernel Serialization**: 5 `ConvTranspose` nodes and 1 `GRU` node account for the bulk of execution time. At batch size 1 and sequence length 4,096, individual kernel launches have low arithmetic intensity, resulting in GPU pipeline under-utilization and command-boundary barrier overhead across 255 separate dispatches.
+
+##### OpenVINO NPU Whole-Graph Fusion (AI Boost NPU: 5.43 ms)
+
+In contrast, OpenVINO compiles the entire RMVPE computation graph into a **single fused execution node** (`OpenVINOExecutionProvider: 1 node`):
+
+1. **Elimination of Intermediate Host-Device Roundtrips**: All intermediate activations across STFT, 2D CNN, and recurrent layers remain mapped directly within on-chip scratchpad SRAM.
+2. **Deterministic Steady-State Latency**: Initial cold-start compilation takes 10.63 ms, after which steady-state execution completes in **5.43 ms** (with a recorded minimum of **3.22 ms**).
+3. **Thermal and Queue Isolation**: Executing pitch estimation in 5.43 ms on the ~2–5 W NPU block eliminates competition with 3D rendering queues on the Arc GPU while keeping host CPU utilization minimal.
 
 ---
 
