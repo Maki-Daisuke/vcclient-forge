@@ -6,6 +6,7 @@ import subprocess
 from vcclient.logger import logger
 
 from ..data_types.data_types import GPUInfo
+from ..voice_changer_const import OPENVINO_GPU_DEVICE_ID
 
 
 def _detect_nvidia_gpus() -> list[GPUInfo]:
@@ -211,6 +212,23 @@ class GPUDeviceManager:
         for g in detected:
             if g.name.lower() != "cpu":
                 all_sys.append(g)
+
+        # 3. OpenVINO Execution Provider (GPU)
+        try:
+            from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
+
+            if DeviceManager.is_openvino_available():
+                all_sys.append(
+                    GPUInfo(
+                        name="OpenVINO (GPU)",
+                        device_id="openvino_gpu",
+                        adapter_ram=0,
+                        device_id_int=OPENVINO_GPU_DEVICE_ID,
+                    )
+                )
+        except Exception as e:
+            logger.debug("OpenVINO detection skipped: %s", e)
+
         self.gpu_info = all_sys
 
         # CUDA/アクセラレータGPUリスト

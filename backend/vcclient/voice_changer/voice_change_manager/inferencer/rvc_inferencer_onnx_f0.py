@@ -18,8 +18,23 @@ class RVCInferencerOnnxF0(RVCInferencer):
 
         so = onnxruntime.SessionOptions()
         so.log_severity_level = 3
+        DeviceManager.get_instance().configure_session_options(so, onnx_providers)
+
+        model_payload: str | bytes = str(self.file)
+        if any("openvino" in p.lower() for p in onnx_providers):
+            try:
+                from .onnx_patch import patch_rvc_model_for_openvino
+
+                model_payload = patch_rvc_model_for_openvino(self.file)
+                logger.info("Applied OpenVINO 4D SineGen patch to %s", self.file)
+            except Exception as e:
+                logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", self.file, e)
+
         self.onnx_session = onnxruntime.InferenceSession(
-            str(self.file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
+            model_payload, sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
+        )
+        logger.info(
+            "ONNX session initialized for %s with active providers: %s", self.file, self.onnx_session.get_providers()
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
