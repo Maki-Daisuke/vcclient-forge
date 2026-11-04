@@ -24,10 +24,10 @@ _BACKEND_DIR = _SCRIPT_DIR.parent / "backend"
 if _BACKEND_DIR.exists() and str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
-# Initialize CUDA / GPU runtime environment transparently via vcclient
-from vcclient.utils.cuda_env import setup_cuda_env
+# Initialize hardware accelerator runtime environment transparently via vcclient
+from vcclient.utils.runtime_env import setup_runtime_env
 
-setup_cuda_env()
+setup_runtime_env()
 
 import numpy as np
 import onnxruntime as ort

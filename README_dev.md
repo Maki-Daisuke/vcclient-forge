@@ -233,7 +233,7 @@ vcclient-forge/
 │   ├── .python-version         # Pinned Python version (3.14)
 │   ├── tests/                  # Pytest test suite
 │   └── vcclient/               # Core application package
-│       ├── utils/cuda_env.py   # Encapsulated platform-specific GPU runtime initialization
+│       ├── utils/runtime_env.py # Encapsulated platform-specific hardware acceleration runtime initialization
 │       ├── server/             # FastAPI REST and Socket.IO servers (graceful shutdown)
 │       └── voice_changer/      # Audio pipeline, inferencers, and model management
 ├── desktop/                    # Wails v3 (Go) cross-platform desktop host

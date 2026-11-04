@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 _initialized = False
 
 
-def setup_cuda_env() -> None:
+def setup_runtime_env() -> None:
     """Setup platform-specific CUDA / GPU / OpenVINO runtime environment transparently.
 
     - Windows: Python 3.8+ restricts DLL search paths. We explicitly register
@@ -37,8 +38,6 @@ def setup_cuda_env() -> None:
             pass
 
         # 2. nvidia-* pip packages (for pure-ONNX mode with CPU PyTorch)
-        import importlib.util
-
         nvidia_pkgs = [
             "nvidia.cublas",
             "nvidia.cudnn",
@@ -71,8 +70,6 @@ def setup_cuda_env() -> None:
         except Exception:
             pass
     elif sys.platform == "linux":
-        import importlib.util
-
         nvidia_pkgs = [
             "nvidia.cublas",
             "nvidia.cudnn",
@@ -123,3 +120,7 @@ def setup_cuda_env() -> None:
             onnxruntime.register_execution_provider_library(ep_name, lib_path)
     except Exception:
         pass
+
+
+# Backward compatibility alias
+setup_cuda_env = setup_runtime_env

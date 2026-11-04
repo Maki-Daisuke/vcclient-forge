@@ -29,7 +29,7 @@ VCClient Forge moves beyond the original distribution's Python 3.10 stack and us
 VCClient Forge prioritizes high-performance, lightweight pure-ONNX inference:
 
 - **ONNX Runtime GPU**: Uses the CUDA execution provider with CUDA 12.x (Windows / Linux x64) or CUDA 13.x (Linux ARM64) and cuDNN 9 runtime dependencies selected by the project's CUDA extra.
-- **Transparent CUDA Environment Hook**: [`cuda_env.py`](../backend/vcclient/utils/cuda_env.py) dynamically locates and preloads CUDA/cuDNN runtime libraries on Windows and Linux via `os.add_dll_directory` and `onnxruntime.preload_dlls`, eliminating missing DLL / shared object errors without requiring manual system-wide CUDA or cuDNN installations.
+- **Transparent Hardware Acceleration Runtime Hook**: [`runtime_env.py`](../backend/vcclient/utils/runtime_env.py) dynamically locates and preloads CUDA/cuDNN runtime libraries and registers OpenVINO Execution Provider plugins on Windows and Linux via `os.add_dll_directory`, `onnxruntime.preload_dlls`, and `onnxruntime.register_execution_provider_library`, eliminating missing DLL / shared object errors without requiring manual system-wide CUDA or OpenVINO installations.
 - **Hardware Fallback**: Supports CUDA, DirectML (Windows AMD/Intel), and highly parallelized CPU execution (`CPUExecutionProvider`).
 
 ## 4. Hybrid Task Runner via `package.json`
