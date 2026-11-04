@@ -1,9 +1,6 @@
 from pathlib import Path
 
 import numpy as np
-import onnxruntime
-
-from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
@@ -33,14 +30,8 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
         self.candidate_onnx_providers = onnx_providers
         self.candidate_onnx_provider_options = onnx_provider_options
 
-        so = onnxruntime.SessionOptions()
-        so.log_severity_level = 3
-        DeviceManager.get_instance().configure_session_options(so, onnx_providers)
-        self.onnx_session = onnxruntime.InferenceSession(
-            str(self.file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
-        )
-        logger.info(
-            "ONNX session initialized for %s with active providers: %s", self.file, self.onnx_session.get_providers()
+        self.onnx_session = DeviceManager.get_instance().create_inference_session(
+            self.file, onnx_providers, onnx_provider_options
         )
 
     def estimate(

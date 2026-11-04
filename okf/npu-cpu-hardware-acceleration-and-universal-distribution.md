@@ -249,7 +249,40 @@ Executing RVC on OpenVINO GPU uncovered two compiler barriers:
 2. **3D Interpolate Barrier (`linear_onnx`)**: Intel GPU's `interpolate.cpp` strictly rejects 3D tensors for linear interpolation (`Check 'inputRank == 2 || inputRank == 4 || inputRank == 5' failed`). RVC's SineGen expands pitch along a 3D tensor `[batch, channel, time]`.
    - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, yields bit-exact numerical parity (diff `< 2.4e-7`), and unblocks OpenVINO GPU synthesis (**62.41 ms**).
 
-#### 2.3.5 Optimal Real-Time Deployment Matrices
+#### 2.3.5 Dynamic Plugin Session Factory Contract (`create_inference_session`)
+
+When using standalone dynamically registered execution provider plugins (`onnxruntime-ep-openvino`), ONNX Runtime exhibits a subtle initialization constraint:
+- Calling `so.add_provider_for_devices([ep_device], opts)` binds the target hardware device into `SessionOptions`.
+- However, if the caller subsequently instantiates `ort.InferenceSession(model, sess_options=so, providers=providers, provider_options=provider_options)`, ONNX Runtime detects the collision, logs a `UserWarning`, and discards the `SessionOptions` provider binding.
+- Because dynamically registered plugins are not enumerated in static `ort.get_available_providers()`, `InferenceSession` evaluates the explicit provider name as unavailable, causing a **silent fallback to `CPUExecutionProvider`**.
+
+Forge resolves this across all pipeline components (`ContentVecOnnx`, `RMVPEOnnxPitchEstimator`, `FCPEOnnxPitchEstimator`, `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, and `RVCPipeline`) via a centralized factory method on `DeviceManager`:
+```python
+def create_inference_session(
+    self,
+    model_payload: str | bytes | Path,
+    providers: list[str],
+    provider_options: list[dict] | None = None,
+    so: onnxruntime.SessionOptions | None = None,
+) -> onnxruntime.InferenceSession:
+    ...
+```
+If `so.has_providers()` evaluates to `True`, the `providers` and `provider_options` arguments are strictly omitted from `InferenceSession(...)`, ensuring hardware acceleration remains active on the bound OpenVINO GPU or NPU device.
+
+#### 2.3.6 OpenVINO GPU Operator Quirks & Workarounds (RMVPE Clip Mask Bug)
+
+During end-to-end audio validation with actual voice samples (`web_front/ui/2.1.4/assets/voices/JVNV/partial/F1_happy_regular_26.wav`), an anomaly was discovered where voice conversion produced a distorted, whispered voice (unvoiced noise).
+
+1. **Root Cause**:
+   - In `modules/rmvpe/rmvpe_20231006.onnx`, the post-processing centroid calculation uses `/rmvpe/Clip_1` (`inputs=['/rmvpe/Add_1_output_0', '', '/rmvpe/Cast_7_output_0']`), where the lower bound `min` is omitted (empty string `""`).
+   - The OpenVINO Intel GPU plugin (`intel_gpu`) has a compiler bug where an ONNX `Clip` node with missing `min` zeroes out all tensor elements instead of clamping to `(-inf, max]`.
+   - As a result, the centroid mask (`indices < Clip_1`) evaluated to False for all frequency bins, zeroing out the weighted centroid and causing RMVPE to emit a constant flat `10.0 Hz` (unvoiced silence). RVC's SineGen vocoder responded to the unvoiced pitch by injecting Gaussian noise rather than harmonic sine waves, producing a "whisper" artifact.
+2. **Resolution (`patch_rmvpe_model_for_openvino`)**:
+   - An in-memory graph patch utility (`backend/vcclient/voice_changer/voice_change_manager/inferencer/onnx_patch.py`) scans for `Clip` nodes with `min == ""` and injects an explicit constant initializer `min = 0` (matching the dtype of `max`, `int64`).
+   - Because the input to `Clip_1` is `ArgMax + 5 >= 5`, `min = 0` is mathematically unconstraining and exact.
+   - When loaded under OpenVINO GPU, `RMVPEOnnxPitchEstimator` achieves pitch estimation parity with CPU (`301.18 Hz` mean vs CPU `301.18 Hz`, max diff `< 0.002 Hz`), and end-to-end vocoder synthesis matches CPU frequency band energy within 0.8%, completely eliminating the whisper distortion.
+
+#### 2.3.7 Optimal Real-Time Deployment Matrices
 
 With in-memory 4D graph surgery, OpenVINO GPU provides a high-performance cross-platform acceleration path on Linux where DirectML is unavailable:
 
@@ -259,7 +292,7 @@ With in-memory 4D graph surgery, OpenVINO GPU provides a high-performance cross-
 | **Linux (Pure OpenVINO)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | OpenVINO GPU (62.4 ms <sup>\*1</sup>) | **~67–72 ms** | Zero proprietary driver dependencies |
 | **Low-Power / Headless** | OpenVINO NPU (9.6–10.6 ms) | CPU EP (87.2 ms) | **~97–98 ms** | Zero GPU heat or acoustic fan noise |
 
-#### 2.3.6 Working Design Hypothesis: Minimal Two-Stage Dispatch Heuristic
+#### 2.3.8 Working Design Hypothesis: Minimal Two-Stage Dispatch Heuristic
 
 Building upon the empirical telemetry, Forge formulates a streamlined, two-stage hardware dispatch hypothesis for future pipeline routing (Roadmap Item 9 / Hybrid Phase 5):
 
@@ -272,7 +305,7 @@ Building upon the empirical telemetry, Forge formulates a streamlined, two-stage
 
 *(Status: Working architectural design hypothesis to be validated during the backend pipeline decoupling milestone in Roadmap Item 9).*
 
-#### 2.3.7 Profiling Telemetry: DirectML Micro-Operator Overhead vs. OpenVINO Fused Subgraph
+#### 2.3.9 Profiling Telemetry: DirectML Micro-Operator Overhead vs. OpenVINO Fused Subgraph
 
 Detailed profiling traces recorded with `misc/profile_model.py` (analyzed via Chrome Tracing JSON telemetry) isolate the architectural mechanism causing the latency divergence between DirectML and OpenVINO on identical hardware (Intel Arc 140V GPU and AI Boost NPU 4000):
 

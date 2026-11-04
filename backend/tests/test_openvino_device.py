@@ -11,6 +11,7 @@ from onnx import TensorProto, helper
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
 from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
 from vcclient.voice_changer.voice_change_manager.inferencer.onnx_patch import (
+    patch_rmvpe_model_for_openvino,
     patch_rvc_model_for_openvino,
     verify_3d_to_4d_resize_parity,
 )
@@ -64,6 +65,35 @@ def test_patch_rvc_model_for_openvino_detects_and_patches():
     assert "Unsqueeze" in op_types
     assert "Resize" in op_types
     assert "Squeeze" in op_types
+
+
+def test_patch_rmvpe_model_for_openvino_supplies_min_bound():
+    # Build a minimal synthetic ONNX model with a Clip node having empty min
+    x = helper.make_tensor_value_info("x", TensorProto.INT64, [1, 5])
+    max_val = helper.make_tensor("max_val", TensorProto.INT64, [], [360])
+    y = helper.make_tensor_value_info("y", TensorProto.INT64, [1, 5])
+
+    clip_node = helper.make_node(
+        "Clip",
+        inputs=["x", "", "max_val"],
+        outputs=["y"],
+        name="/rmvpe/Clip_1",
+    )
+
+    graph = helper.make_graph([clip_node], "test_graph", [x], [y], [max_val])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9)
+    model_bytes = model.SerializeToString()
+
+    patched_bytes = patch_rmvpe_model_for_openvino(model_bytes)
+    assert patched_bytes != model_bytes
+
+    patched_model = onnx.load_model_from_string(patched_bytes)
+    patched_clip = next(node for node in patched_model.graph.node if node.op_type == "Clip")
+    assert patched_clip.input[1] != ""
+    assert patched_clip.input[1] == "/rmvpe/Clip_1_min_zero"
+
+    init_names = [init.name for init in patched_model.graph.initializer]
+    assert "/rmvpe/Clip_1_min_zero" in init_names
 
 
 def test_device_manager_openvino_provider_configuration(monkeypatch: pytest.MonkeyPatch):
@@ -147,3 +177,51 @@ def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
     info_list_no_ov = gpu_mgr.reload()
     device_ids_no_ov = [info.device_id_int for info in info_list_no_ov]
     assert OPENVINO_GPU_DEVICE_ID not in device_ids_no_ov
+
+
+def test_device_manager_create_inference_session_avoids_provider_argument_collision(monkeypatch: pytest.MonkeyPatch):
+    dev_mgr = DeviceManager.get_instance()
+
+    # Minimal dummy ONNX model bytes
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 2])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])
+    node = helper.make_node("Identity", inputs=["x"], outputs=["y"])
+    graph = helper.make_graph([node], "test", [x], [y])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9)
+    model_bytes = model.SerializeToString()
+
+    captured_kwargs: dict[str, Any] = {}
+
+    class DummySession:
+        def __init__(self, *args, **kwargs):
+            captured_kwargs["args"] = args
+            captured_kwargs["kwargs"] = kwargs
+
+        def get_providers(self):
+            return ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
+
+    monkeypatch.setattr(ort, "InferenceSession", DummySession)
+
+    # 1. When so has providers (mocking add_provider_for_devices having run)
+    monkeypatch.setattr(ort.SessionOptions, "has_providers", lambda self: True)
+    session = dev_mgr.create_inference_session(
+        model_bytes,
+        providers=["OpenVINOExecutionProvider", "CPUExecutionProvider"],
+        provider_options=[{}, {}],
+    )
+    assert isinstance(session, DummySession)
+    assert "providers" not in captured_kwargs["kwargs"]
+    assert "provider_options" not in captured_kwargs["kwargs"]
+    assert "sess_options" in captured_kwargs["kwargs"]
+
+    # 2. When so does NOT have providers (standard CPU/CUDA EP path)
+    monkeypatch.setattr(ort.SessionOptions, "has_providers", lambda self: False)
+    session2 = dev_mgr.create_inference_session(
+        model_bytes,
+        providers=["CPUExecutionProvider"],
+        provider_options=[{}],
+    )
+    assert isinstance(session2, DummySession)
+    assert captured_kwargs["kwargs"]["providers"] == ["CPUExecutionProvider"]
+    assert captured_kwargs["kwargs"]["provider_options"] == [{}]
+    assert "sess_options" in captured_kwargs["kwargs"]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import onnx
@@ -202,4 +203,53 @@ def patch_rvc_model_for_openvino(model_source: Path | str | bytes) -> bytes:
 
     onnx.checker.check_model(m)
     logger.info("Successfully applied OpenVINO 4D SineGen patch to %s", model_name)
+    return m.SerializeToString()
+
+
+def patch_rmvpe_model_for_openvino(model_source: Path | str | bytes) -> bytes:
+    """In-memory ONNX patch: supply explicit min bound for Clip nodes with empty min.
+
+    OpenVINO's Intel GPU plugin has a compiler bug where an ONNX Clip node with an
+    omitted/empty `min` input (e.g. `[data, "", max]`) incorrectly zeroes out all elements
+    instead of clamping to `(-inf, max]`. In RMVPE (`modules/rmvpe/rmvpe_20231006.onnx`),
+    the centroid mask clipping node `/rmvpe/Clip_1` uses `inputs=['/rmvpe/Add_1_output_0', '', '/rmvpe/Cast_7_output_0']`.
+    Because `/rmvpe/Add_1_output_0` represents non-negative bin indices (ArgMax + 5 >= 5),
+    setting `min = 0` is mathematically exact and unconstraining, preventing the kernel from
+    zeroing out the centroid mask and restoring full pitch estimation fidelity.
+    """
+    if isinstance(model_source, bytes):
+        m = onnx.load_model_from_string(model_source)
+        model_name = "in-memory-model"
+    else:
+        path = Path(model_source)
+        model_name = path.name
+        m = onnx.load(str(path), load_external_data=False)
+
+    patched_count = 0
+    for node in m.graph.node:
+        if node.op_type == "Clip" and len(node.input) >= 2 and node.input[1] == "":
+            dtype: Any = np.int64
+            if len(node.input) >= 3 and node.input[2]:
+                max_name = node.input[2]
+                for init in m.graph.initializer:
+                    if init.name == max_name:
+                        arr = numpy_helper.to_array(init)
+                        dtype = arr.dtype
+                        break
+
+            min_name = f"{node.name}_min_zero"
+            min_init = numpy_helper.from_array(np.array(0, dtype=dtype), name=min_name)
+            m.graph.initializer.append(min_init)
+            node.input[1] = min_name
+            patched_count += 1
+
+    if patched_count == 0:
+        logger.debug("No Clip nodes with empty min found in %s; skipping patch.", model_name)
+        if isinstance(model_source, bytes):
+            return model_source
+        with open(model_source, "rb") as f:
+            return f.read()
+
+    onnx.checker.check_model(m)
+    logger.info("Successfully applied OpenVINO Clip fix patch (%s node(s)) to %s", patched_count, model_name)
     return m.SerializeToString()

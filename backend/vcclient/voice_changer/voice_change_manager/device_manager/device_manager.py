@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Any
 
 import onnxruntime
@@ -94,21 +95,63 @@ class DeviceManager:
                 try:
                     target_dev = self._find_openvino_ep_device(preferred_type="GPU")
                     if target_dev is not None:
-                        opts: dict[str, str] = {
-                            "device_type": "GPU",
-                            "load_config": json.dumps({"GPU": {"EXECUTION_MODE_HINT": "ACCURACY"}}),
+                        gpu_cfg: dict[str, Any] = {
+                            "EXECUTION_MODE_HINT": "ACCURACY",
                         }
                         try:
                             OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
-                            opts["cache_dir"] = str(OpenVinoCacheDir.resolve())
+                            cache_dir_str = str(OpenVinoCacheDir.resolve())
+                            gpu_cfg["CACHE_DIR"] = cache_dir_str
                         except Exception as e:
                             logger.debug("Failed to set OpenVINO cache_dir: %s", e)
+
+                        opts: dict[str, str] = {
+                            "load_config": json.dumps({"GPU": gpu_cfg}),
+                        }
+                        if "CACHE_DIR" in gpu_cfg:
+                            opts["cache_dir"] = gpu_cfg["CACHE_DIR"]
+
                         so.add_provider_for_devices([target_dev], opts)
                         dev_type = getattr(getattr(target_dev, "device", None), "type", "Unknown")
                         logger.info("Bound OpenVINO EP device: %s (type=%s)", target_dev, dev_type)
                 except Exception as e:
                     logger.debug("Failed to bind OpenVINO ep_device: %s", e)
         return so
+
+    def create_inference_session(
+        self,
+        model_payload: str | bytes | Path,
+        providers: list[str],
+        provider_options: list[dict] | None = None,
+        so: onnxruntime.SessionOptions | None = None,
+    ) -> onnxruntime.InferenceSession:
+        if so is None:
+            so = onnxruntime.SessionOptions()
+            so.log_severity_level = 3
+        self.configure_session_options(so, providers)
+
+        path_or_bytes = str(model_payload) if isinstance(model_payload, Path) else model_payload
+
+        # When SessionOptions has already been configured with providers (e.g. via add_provider_for_devices),
+        # passing providers or provider_options to InferenceSession causes ONNX Runtime to override
+        # and discard the SessionOptions configuration, leading to silent CPU fallback for dynamic plugins like OpenVINO.
+        if hasattr(so, "has_providers") and so.has_providers():
+            session = onnxruntime.InferenceSession(path_or_bytes, sess_options=so)
+        else:
+            session = onnxruntime.InferenceSession(
+                path_or_bytes,
+                sess_options=so,
+                providers=providers,
+                provider_options=provider_options,
+            )
+
+        name = (
+            model_payload.name
+            if isinstance(model_payload, Path)
+            else (model_payload if isinstance(model_payload, str) else "<bytes>")
+        )
+        logger.info("ONNX session initialized for %s with active providers: %s", name, session.get_providers())
+        return session
 
     def _get_onnx_execution_provider(self, device_id: int) -> tuple[list[str], list[dict]]:
         available_providers = onnxruntime.get_available_providers()

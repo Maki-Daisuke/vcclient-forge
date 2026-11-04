@@ -118,8 +118,13 @@ def setup_runtime_env() -> None:
             lib_path = openvino_ep.get_library_path()
             ep_name = openvino_ep.get_ep_name()
             onnxruntime.register_execution_provider_library(ep_name, lib_path)
-    except Exception:
-        pass
+    except Exception as e:
+        try:
+            from vcclient.logger import logger
+
+            logger.warning("Failed to register OpenVINO EP library: %s", e)
+        except Exception:
+            pass
 
 
 # Backward compatibility alias
