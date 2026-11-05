@@ -86,8 +86,11 @@ Initial model assets are downloaded into `model_dir/` upon the first startup.
 ### New UI Appearance Preview
 
 The Svelte 5 UI under `frontend/` is a standalone development UI based on the
-v2.1.4 layout. It reads the model list, current selection, descriptions, and
-portraits from the backend. Audio and settings controls remain disabled;
+v2.1.4 layout. It reads the model list, current selection, descriptions,
+portraits, and current configuration from the existing backend GET APIs. Gains,
+filters, analysis settings, configured device names/hosts, and selected-model parameters
+are reflected in disabled controls; unavailable values show `—`.
+Audio and settings controls remain disabled;
 dialogs, language selection, section expansion, and light/dark themes work.
 
 ```bash
