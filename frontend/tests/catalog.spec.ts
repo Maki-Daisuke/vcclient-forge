@@ -64,7 +64,7 @@ test('network failure clears old models and reload recovers the current selectio
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
   online = false;
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('バックエンドに接続できません');
+  await expect(page.locator('.models-panel').getByRole('alert')).toContainText('バックエンドに接続できません');
   await expect(page.locator('.model-card')).toHaveCount(0);
   await expect(page.locator('.model-description')).toHaveCount(0);
   await expect(page.locator('.portrait img')).toHaveCount(0);
@@ -72,7 +72,7 @@ test('network failure clears old models and reload recovers the current selectio
   selectedId = 2;
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   await expect(page.getByRole('heading', { name: '3. Test model A' })).toBeVisible();
-  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.locator('.models-panel').getByRole('alert')).toHaveCount(0);
 });
 
 for (const invalid of [
@@ -85,7 +85,7 @@ for (const invalid of [
     await page.route('**/api/**', route => route.request().url().endsWith('/slots')
       ? route.fulfill(invalid.response) : fulfillCatalog(route));
     await page.goto('/');
-    await expect(page.getByRole('alert')).toContainText('応答形式が想定と異なる');
+    await expect(page.locator('.models-panel').getByRole('alert')).toContainText('応答形式が想定と異なる');
     await expect(page.locator('.model-card')).toHaveCount(0);
   });
 }
@@ -94,7 +94,7 @@ test('a failed configuration request does not publish a partial list', async ({ 
   await page.route('**/api/**', route => route.request().url().endsWith('/configuration')
     ? route.fulfill({ status: 503 }) : fulfillCatalog(route));
   await page.goto('/');
-  await expect(page.getByRole('alert')).toContainText('HTTP 503');
+  await expect(page.locator('.models-panel').getByRole('alert')).toContainText('HTTP 503');
   await expect(page.locator('.model-card')).toHaveCount(0);
 });
 
@@ -102,7 +102,7 @@ test('an invalid current model ID does not silently choose a model', async ({ pa
   await page.route('**/api/**', route => route.request().url().endsWith('/configuration')
     ? route.fulfill({ json: { current_slot_index: '7' } }) : fulfillCatalog(route));
   await page.goto('/');
-  await expect(page.getByRole('alert')).toContainText('応答形式が想定と異なる');
+  await expect(page.locator('.models-panel').getByRole('alert')).toContainText('応答形式が想定と異なる');
   await expect(page.locator('.model-card')).toHaveCount(0);
 });
 
@@ -112,7 +112,7 @@ test('hung requests time out and can be retried', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.models-panel').getByRole('status')).toContainText('モデル情報を読み込んでいます');
   await page.clock.fastForward(8_001);
-  await expect(page.getByRole('alert')).toContainText('応答が間に合いませんでした');
+  await expect(page.locator('.models-panel').getByRole('alert')).toContainText('応答が間に合いませんでした');
   await page.unroute('**/api/**');
   await mockCatalog(page);
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();

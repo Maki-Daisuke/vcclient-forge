@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { label, value }: { label: string; value: string } = $props();
+  let { label, value, ariaLabel }: { label: string; value: string; ariaLabel?: string } = $props();
 </script>
 
-<label class="select-field"><span>{label}</span><select disabled><option>{value}</option></select></label>
+<label class="select-field"><span>{label}</span><select disabled title={value} aria-label={ariaLabel}><option>{value}</option></select></label>

@@ -3,7 +3,7 @@ import { mockCatalog } from './catalog-fixtures';
 
 test.beforeEach(async ({ page }) => { await mockCatalog(page); });
 
-test('preview only reads models and keeps audio and device access disabled', async ({ page }) => {
+test('initialization only reads backend data and keeps browser audio and device access disabled', async ({ page }) => {
   const errors: string[] = [];
   const backendRequests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -27,6 +27,7 @@ test('preview only reads models and keeps audio and device access disabled', asy
   await page.getByRole('button', { name: '配色を切り替える' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(backendRequests.map(url => new URL(url).pathname).sort()).toEqual([
+    '/api/audio-device-manager/input_devices', '/api/audio-device-manager/output_devices',
     '/api/configuration-manager/configuration', '/api/slot-manager/slots',
   ]);
   expect(errors).toEqual([]);

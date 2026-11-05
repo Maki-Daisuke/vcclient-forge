@@ -3,12 +3,16 @@
   import SettingsDialog from './SettingsDialog.svelte';
   import RangeField from './RangeField.svelte';
   import SelectField from './SelectField.svelte';
+  import DeviceField from './DeviceField.svelte';
   import ModelImage from './ModelImage.svelte';
+  import SettingsStatus from './SettingsStatus.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useCatalog } from '../lib/catalog.svelte';
-  import { preview } from '../lib/preview';
+  import { displayNumber } from '../lib/settings';
   const ui = useUi();
   const catalog = useCatalog();
+  const settings = $derived(catalog.settings);
+  const modelSettings = $derived(catalog.currentModel?.settings);
 </script>
 
 <div class="conversion-layout">
@@ -35,6 +39,7 @@
     </section>
   </aside>
   <section class="controls-column" aria-label={ui.t('common.controls.title')}>
+    <SettingsStatus />
     <div class="transport-row">
       <button class="button primary" disabled><Play size={17} />{ui.t('common.controls.start')}</button>
       <button class="button" disabled><Square size={16} />{ui.t('common.controls.stop')}</button>
@@ -44,7 +49,7 @@
     <div class="input-section">
       <div class="section-heading compact">
         <h3>{ui.t('common.controls.input_type')}</h3>
-        <span class="tag">{ui.t('common.controls.server_mode')}</span>
+        <span class="tag">{settings?.inputMode ? ui.t(`common.controls.${settings.inputMode}_mode`) : '—'}</span>
       </div>
       <div class="button-row input-types">
         <button class="button" disabled><Mic size={16} />{ui.t('common.controls.microphone')}</button>
@@ -52,23 +57,27 @@
         <button class="button" disabled><Monitor size={16} />{ui.t('common.controls.capture')}</button>
         <button class="button" disabled><Circle size={14} />{ui.t('common.controls.record')}</button>
       </div>
-      <SelectField label={ui.t('common.controls.mic_device')} value={ui.t('common.settings_dialog.unselected')} />
+      <DeviceField label={ui.t('common.controls.mic_device')} id={settings?.inputDevice} direction="input" />
     </div>
     <details class="control-group" open>
       <summary><Volume2 size={17} />{ui.t('common.controls.volume_control')}</summary>
       <div class="control-group-body">
-        {#each preview.volume as field (field.key)}<RangeField label={ui.t(field.label)} value={field.value} />{/each}
+        <RangeField label={ui.t('common.controls.input_volume')} value={settings?.inputGain ?? null} step={0.01} />
+        <RangeField label={ui.t('common.controls.output_volume')} value={settings?.outputGain ?? null} step={0.01} />
+        <RangeField label={ui.t('common.controls.monitor_volume')} value={settings?.monitorGain ?? null} step={0.01} />
       </div>
     </details>
     <details class="control-group" open>
       <summary><SlidersHorizontal size={17} />{ui.t('common.controls.voice_control')}</summary>
       <div class="control-group-body">
-        {#each preview.voice as field (field.key)}<RangeField label={ui.t(field.label)} value={field.value} min={field.min} max={field.max} step={field.step} />{/each}
+        <RangeField label={ui.t('common.controls.pitch_adjust')} value={modelSettings?.pitch ?? null} min={-24} max={24} step={1} />
+        <RangeField label={ui.t('common.controls.formant_adjust')} value={null} min={-2} max={2} step={0.1} />
+        <RangeField label={ui.t('common.controls.index_adjust')} value={modelSettings?.indexRatio ?? null} max={1} step={0.01} />
         <div class="field-grid">
-          <SelectField label={ui.t('common.voice_controls.pitch_estimator')} value="RMVPE" />
-          <SelectField label={ui.t('common.voice_controls.embedder')} value="ContentVec" />
-          <SelectField label={ui.t('common.controls.chunksec_adjust')} value="0.25 s" />
-          <SelectField label={ui.t('common.controls.extraframe_adjust')} value="1.36 s" />
+          <SelectField label={ui.t('common.voice_controls.pitch_estimator')} value={modelSettings?.pitchEstimator ?? '—'} />
+          <SelectField label={ui.t('common.voice_controls.embedder')} value={modelSettings?.embedder ?? '—'} />
+          <SelectField label={ui.t('common.controls.chunksec_adjust')} value={displayNumber(modelSettings?.chunkSeconds, ' s')} />
+          <SelectField label={ui.t('common.controls.extraframe_adjust')} value={displayNumber(settings?.extraSeconds, ' s')} />
         </div>
       </div>
     </details>

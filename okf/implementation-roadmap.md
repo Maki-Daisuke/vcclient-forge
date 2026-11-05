@@ -81,6 +81,16 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   models. Vite proxies API/image requests to the backend. Model selection and
   settings/audio writes remain disabled; native integration is still pending.
 
+- **Read-only settings display implemented (2026-11-06)**: The existing GET pair
+  supplies configuration and selected-model settings to disabled controls.
+  Existing device-list GETs resolve native device names/hosts by configured ID,
+  including monitor output. Device failures preserve the settings display and
+  show IDs with status; reload reads cached lists without a native rescan.
+  Missing fields are shown as unknown; failed loads clear prior values. Backend
+  APIs are unchanged. Subsequent editing will preserve the complete current
+  configuration and merge UI edits before using the existing PUT endpoint;
+  draft state and ordered write coordination are not implemented yet.
+
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.

@@ -20,12 +20,13 @@ accessible, nested dialogs; simple controls use standard HTML. Model/audio
 controls and settings fields are disabled, while dialog navigation, collapsible
 sections, language selection, and light/dark themes work locally.
 
-Immutable audio-control sample data lives in `frontend/src/lib/preview.ts`. Per-app Svelte
+The initial scaffold used immutable sample data; current settings now come from
+the existing GET responses described below. Per-app Svelte
 context owns language/theme state and an i18next instance; all 13 original
 community dictionaries are imported from their tracked upstream location with
 English fallback and Arabic RTL. Added preview messages are translated into
 Japanese and English. The initial scaffold used sample model data; the read-only
-model integration below replaces it. Audio and device controls remain samples;
+model integration below replaces it. Audio and device controls remain disabled;
 Socket.IO, microphone access, and settings writes are not implemented.
 
 ### Read-Only Model Integration (2026-11-06)
@@ -53,6 +54,31 @@ selection, partial failures, retry, malformed data, timeout, and image fallback
 alongside the existing appearance checks. Model selection/editing and all audio
 and settings writes remain disabled.
 
+### Read-Only Settings Display (2026-11-06)
+
+The existing catalog/configuration GET pair also supplies the configuration
+snapshot in `frontend/src/lib/settings.ts`. Input/output/monitor gains, mode,
+native device/GPU IDs, device sample rates, WASAPI exclusive mode, filters,
+cutoffs, noise gate, extra context, and analysis switches/intervals now populate
+the controls. Selected-model pitch/index/estimator/embedder/chunk settings are
+mapped from the slot response. Missing fields remain null and display `—` or an
+indeterminate checkbox, rather than sample defaults. Browser-only preferences
+are not fetched yet. Reload updates these values;
+failed loads clear them. All setting controls remain disabled.
+
+Native audio device names/hosts are resolved by ID from the existing
+`/api/audio-device-manager/input_devices` and `output_devices` GETs. The monitor
+uses the output list. Device loading/error state is independent of the catalog,
+so slow or failed lists do not hide current settings. Missing IDs and failed
+lists display the configured ID and status, never an arbitrary fallback device.
+Mount and Reload read cached lists without requesting a PortAudio rescan.
+
+No backend API changes or setting writes are part of this milestone. Subsequent
+UI editing must use the existing GET/PUT contract: preserve the complete current
+configuration, merge the user's edits, and send the full configuration. Draft
+state, coalescing, ordering, and failure recovery are still pending. Do not send
+partial objects to the full-replacement PUT endpoint.
+
 Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
 `npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
 the legacy Python-served `frontend/dist`. `npm run build:frontend`, desktop
@@ -60,7 +86,7 @@ startup, and portable packaging still use the legacy UI. Type checks and preview
 builds run in CI; browser checks are available via `npm run test:frontend` (see
 `frontend/README.md` for browser installation).
 
-This completes the visual scaffold and read-only model integration, not Step 1's native-conversion exit
+This completes the visual scaffold and read-only model/settings integration, not Step 1's native-conversion exit
 criteria. Next, introduce draft/confirmed settings and the synchronization
 coordinator described below as native controls are connected. Copying assets to
 their final home, switching the production build, and retiring the old UI remain
