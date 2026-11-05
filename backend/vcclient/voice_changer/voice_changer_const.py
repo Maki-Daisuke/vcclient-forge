@@ -23,6 +23,9 @@ OPENVINO_AUTO_DEVICE_ID = OPENVINO_GPU_DEVICE_ID
 OpenVinoCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "openvino_cache"
 OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
 
+CoreMLCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "coreml_cache"
+CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
+
 AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]
 
 VoiceChangerInputMode: TypeAlias = Literal["server", "client"]

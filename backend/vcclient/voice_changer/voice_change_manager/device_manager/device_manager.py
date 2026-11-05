@@ -10,6 +10,7 @@ from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDevi
 from vcclient.voice_changer.voice_changer_const import (
     OPENVINO_AUTO_DEVICE_ID,
     OPENVINO_GPU_DEVICE_ID,
+    CoreMLCacheDir,
     OpenVinoCacheDir,
 )
 
@@ -209,6 +210,20 @@ class DeviceManager:
 
         if device_id >= 0 and "DmlExecutionProvider" in available_providers:
             return (["DmlExecutionProvider"], [{"device_id": device_id}])
+
+        if device_id >= 0 and "CoreMLExecutionProvider" in available_providers:
+            coreml_options: dict[str, Any] = {
+                "ModelFormat": "MLProgram",
+                "MLComputeUnits": "ALL",
+                "RequireStaticInputShapes": "0",
+                "EnableOnSubgraphs": "0",
+            }
+            try:
+                CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
+                coreml_options["ModelCacheDirectory"] = str(CoreMLCacheDir.resolve())
+            except Exception as e:
+                logger.debug("Failed to set CoreML cache dir: %s", e)
+            return (["CoreMLExecutionProvider", "CPUExecutionProvider"], [coreml_options, {}])
 
         return (
             ["CPUExecutionProvider"],
