@@ -83,6 +83,24 @@ http://localhost:18888/
 
 Initial model assets are downloaded into `model_dir/` upon the first startup.
 
+### New UI Appearance Preview
+
+The Svelte 5 UI under `frontend/` is a standalone, backend-free appearance
+preview based on the v2.1.4 layout. Audio and settings controls are disabled;
+dialogs, language selection, section expansion, and light/dark themes work.
+
+```bash
+npm --prefix frontend ci
+npm run dev:frontend
+npm run check:frontend
+npm run build:frontend:preview
+```
+
+Vite prints the preview URL (normally `http://127.0.0.1:5173`). The preview builds
+to `frontend/preview-dist`; the production `npm run build:frontend` task still
+prepares the legacy UI in `frontend/dist`. See [frontend/README.md](frontend/README.md)
+for the component/state structure and `npm run test:frontend` browser checks.
+
 ### Desktop Host (Wails v3)
 
 The desktop host lives in `desktop/`. Complete the Wails v3 toolchain setup under [Prerequisites](#prerequisites) before running these commands.

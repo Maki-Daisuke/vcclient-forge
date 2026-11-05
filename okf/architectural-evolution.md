@@ -50,6 +50,11 @@ Forge established an immediately intuitive, modern full-stack architecture that 
 * **Deterministic Static Asset Resolution**: `vcclient.server.server_const.get_frontend_path()` resolves `frontend/dist` via relative anchors from `__file__`, ensuring identical asset resolution both in local development and inside portable distribution zips.
 
 ### 4.2. Strangler Fig Frontend Strategy (`frontend/dist`)
+
+As of 2026-11-06, `frontend/` also contains the standalone Svelte/Vite appearance
+preview described in the [frontend roadmap](./frontend-architecture-and-roadmap.md).
+It builds to `frontend/preview-dist` and does not yet replace the legacy assets
+in `frontend/dist`; native controls and settings synchronization remain planned.
 An essential discovery was made regarding the legacy frontend assets:
 * **`client/` (Reference Implementation A)**: Contains early 2024 uncompiled React/Webpack source code (frozen at commit `2024-02-28`). It lacks Beatrice UI, modern multi-language localizations, and contemporary UI features. Compiling it directly causes regression.
 * **`web_front/` (Reference Implementation B)**: Contains the December 2025 golden binary bundle extracted from `vcclient_win_cuda_2.0.78-beta.zip`.

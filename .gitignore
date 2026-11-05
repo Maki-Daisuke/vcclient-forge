@@ -51,6 +51,11 @@ desktop/.task/
 desktop/frontend/node_modules/
 desktop/frontend/dist/
 frontend/dist/
+frontend/preview-dist/
+frontend/playwright-report/
+frontend/test-results/
+!frontend/src/lib/
+!frontend/src/lib/**
 client/lib/dist
 client/lib/worklet/dist
 client/demo/public/models

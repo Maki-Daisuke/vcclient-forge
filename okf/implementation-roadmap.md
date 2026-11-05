@@ -61,6 +61,13 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 4. Deliver the Minimal Svelte 5 Native-Audio UI
 
+- **Appearance scaffold implemented (2026-11-06)**: `frontend/` has a standalone
+  Svelte 5/Vite preview of the v2.1.4 layout using Bits UI, sample data, disabled
+  backend controls, navigable dialogs, themes, and the 13 community translation
+  dictionaries. It builds to `frontend/preview-dist`; production `frontend/dist`
+  still serves the legacy UI. Native conversion and settings synchronization are
+  not connected, so this milestone's exit criteria remain open.
+
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.
@@ -137,7 +144,7 @@ Sources: [Control and state plan](./server-first-architecture-and-static-pipelin
 ## 4. Existing Foundations, Not New Roadmap Tasks
 
 - [Runtime/toolchain](./modern-runtime-and-toolchain.md): uv-managed pinned Python, locked hardware editions (`standard` and `cuda`), root npm tasks, and PyInstaller onedir packaging already exist. Continue testing them as migration gates.
-- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the frontend build currently copies tracked legacy assets and still needs item 4's Vite migration.
+- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the production frontend build still copies tracked legacy assets. Item 4's Svelte/Vite appearance preview exists separately; native integration and the production build cutover remain planned.
 - [Pitch estimators](./streamlined-pitch-estimation-and-torch-free-pipeline.md): RMVPE default and ONNX FCPE alternative already exist. Pure-ONNX inference does not mean removing CPU PyTorch needed for legacy model export.
 - [Hardware acceleration & universal distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md): AVX-512 CPU acceleration benchmarks, NPU execution characteristics, and the layered platform baseline strategy (OpenVINO + DirectML baseline on Windows, CoreML on macOS, OpenVINO on Linux, bundled across `standard` and `cuda` editions) are fully implemented and verified on physical hardware (Windows CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and macOS Apple Silicon M2 via CoreML).
 - [ngrok removal](./deprecating-and-removing-ngrok.md): Bundled ngrok is already removed. Tailscale Serve is optional external setup, not an unfinished Forge integration.
