@@ -73,6 +73,14 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   still serves the legacy UI. Native conversion and settings synchronization are
   not connected, so this milestone's exit criteria remain open.
 
+- **Read-only model integration implemented (2026-11-06)**: The new UI loads
+  stored slots and the configured current slot via GET. A validated API adapter
+  maps responses to display data; per-app catalog state owns loading, failure,
+  timeout, retry, and selection by ID. Model cards, management, metadata, and
+  portraits now use real backend data; offline/error states never use sample
+  models. Vite proxies API/image requests to the backend. Model selection and
+  settings/audio writes remain disabled; native integration is still pending.
+
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.

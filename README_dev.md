@@ -85,8 +85,9 @@ Initial model assets are downloaded into `model_dir/` upon the first startup.
 
 ### New UI Appearance Preview
 
-The Svelte 5 UI under `frontend/` is a standalone, backend-free appearance
-preview based on the v2.1.4 layout. Audio and settings controls are disabled;
+The Svelte 5 UI under `frontend/` is a standalone development UI based on the
+v2.1.4 layout. It reads the model list, current selection, descriptions, and
+portraits from the backend. Audio and settings controls remain disabled;
 dialogs, language selection, section expansion, and light/dark themes work.
 
 ```bash
@@ -100,6 +101,10 @@ Vite prints the preview URL (normally `http://127.0.0.1:5173`). The preview buil
 to `frontend/preview-dist`; the production `npm run build:frontend` task still
 prepares the legacy UI in `frontend/dist`. See [frontend/README.md](frontend/README.md)
 for the component/state structure and `npm run test:frontend` browser checks.
+Run `npm start` in another terminal for real model information. Vite proxies
+`/api` and `/model_dir` to `http://127.0.0.1:18888`; set `VCCLIENT_BACKEND_URL`
+before starting Vite to override it. A stopped backend displays a reloadable
+error. The UI does not change the selected model or settings.
 
 ### Desktop Host (Wails v3)
 

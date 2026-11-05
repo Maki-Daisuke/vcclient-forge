@@ -1,10 +1,18 @@
 <script lang="ts">
   import { Sun, Moon, AudioLines, Info } from '@lucide/svelte';
+  import { onMount } from 'svelte';
   import Models from './components/Models.svelte';
   import Controls from './components/Controls.svelte';
   import Advanced from './components/Advanced.svelte';
   import { provideUi, languages } from './lib/ui.svelte';
+  import { provideCatalog } from './lib/catalog.svelte';
   const ui = provideUi();
+  const catalog = provideCatalog();
+
+  onMount(() => {
+    void catalog.reload();
+    return () => catalog.dispose();
+  });
 
   $effect(() => {
     document.documentElement.lang = ui.language;
