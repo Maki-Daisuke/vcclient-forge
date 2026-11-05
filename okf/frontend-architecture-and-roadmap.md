@@ -11,6 +11,36 @@ timestamp: 2026-10-18T06:30:00Z
 
 ## Deployment Assumptions
 
+### Appearance Preview Baseline (2026-11-06)
+
+`frontend/` now contains a standalone Svelte 5 + TypeScript + Vite appearance
+preview inspired by the tracked v2.1.4 layout. Exact pixel matching is not a
+goal; maintainable components take priority. Bits UI provides sliders and
+accessible, nested dialogs; simple controls use standard HTML. Model/audio
+controls and settings fields are disabled, while dialog navigation, collapsible
+sections, language selection, and light/dark themes work locally.
+
+Immutable sample data lives in `frontend/src/lib/preview.ts`. Per-app Svelte
+context owns language/theme state and an i18next instance; all 13 original
+community dictionaries are imported from their tracked upstream location with
+English fallback and Arabic RTL. Added preview messages are translated into
+Japanese and English. No backend requests, Socket.IO, microphone access, or
+settings synchronization are implemented in this preview. Its model and device
+values do not represent the user's installation.
+
+Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
+`npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
+the legacy Python-served `frontend/dist`. `npm run build:frontend`, desktop
+startup, and portable packaging still use the legacy UI. Type checks and preview
+builds run in CI; browser checks are available via `npm run test:frontend` (see
+`frontend/README.md` for browser installation).
+
+This completes only the visual scaffold, not Step 1's native-conversion exit
+criteria. Next, introduce draft/confirmed settings and the synchronization
+coordinator described below as native controls are connected. Copying assets to
+their final home, switching the production build, and retiring the old UI remain
+later migration work.
+
 Forge is a **local, single-user application with one active audio client**, packaged primarily with Wails v3. Users are responsible for operating it on a trusted machine/network. Multi-user hosting, application-level authentication, and per-client inference-session management are not goals of this roadmap. Server Mode and Client Mode are alternative input modes.
 
 The Wails application connects to the loopback backend using local HTTP/WebSocket; a public HTTPS deployment is not required for the desktop workflow. Configure WebView2 and OS audio permissions for this local integration. When an optional remote browser captures microphone audio for Client Mode, it requires a secure context and user permission to access the microphone. Tailscale Serve can provide HTTPS/WSS, as described in the [remote-access notes](./deprecating-and-removing-ngrok.md). A browser that only controls Server Mode does not capture audio locally, so this microphone-access requirement does not apply to that workflow.
