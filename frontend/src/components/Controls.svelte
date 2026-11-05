@@ -3,15 +3,24 @@
   import SettingsDialog from './SettingsDialog.svelte';
   import RangeField from './RangeField.svelte';
   import SelectField from './SelectField.svelte';
+  import ModelImage from './ModelImage.svelte';
   import { useUi } from '../lib/ui.svelte';
+  import { useCatalog } from '../lib/catalog.svelte';
   import { preview } from '../lib/preview';
   const ui = useUi();
+  const catalog = useCatalog();
 </script>
 
 <div class="conversion-layout">
   <aside class="portrait-column" aria-label={ui.t('common.voice.character')}>
-    <div class="portrait"><img src={preview.portraitUrl} alt={ui.t('forge.sample_model')} /></div>
-    <span class="status"><span class="status-dot"></span>{ui.t('forge.idle')}</span>
+    <div class="portrait">
+      {#if catalog.currentModel}
+        <ModelImage src={catalog.currentModel.imageUrl} alt={catalog.currentModel.name} />
+      {:else}
+        <span class="muted">{ui.t('common.model.not_selected')}</span>
+      {/if}
+    </div>
+    <span class="status"><span class="status-dot"></span>{ui.t('forge.controls_preview')}</span>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>
       {#each ['input_volume', 'output_volume'] as key}
         <div class="meter-label"><span>{ui.t(`common.controls.${key}`)}</span><span>0.000</span></div>

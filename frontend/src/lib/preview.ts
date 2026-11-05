@@ -1,13 +1,5 @@
-import portraitUrl from '../../../web_front/ui/2.1.4/assets/icons/human.png';
-
-// Display fixtures only. These are not backend settings or installed model slots.
+// Audio-control display fixtures only. These are not backend settings.
 export const preview = {
-  portraitUrl,
-  models: [
-    { id: 'sample-1', slot: 1, name: 'RVC · Sample 01' },
-    { id: 'sample-2', slot: 2, name: 'RVC · Sample 02' },
-    { id: 'sample-3', slot: 3, name: 'RVC · Sample 03' },
-  ],
   volume: [
     { key: 'input', label: 'common.controls.input_volume', value: 1 },
     { key: 'output', label: 'common.controls.output_volume', value: 1 },

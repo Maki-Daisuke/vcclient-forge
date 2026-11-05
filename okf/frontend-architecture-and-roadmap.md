@@ -20,13 +20,38 @@ accessible, nested dialogs; simple controls use standard HTML. Model/audio
 controls and settings fields are disabled, while dialog navigation, collapsible
 sections, language selection, and light/dark themes work locally.
 
-Immutable sample data lives in `frontend/src/lib/preview.ts`. Per-app Svelte
+Immutable audio-control sample data lives in `frontend/src/lib/preview.ts`. Per-app Svelte
 context owns language/theme state and an i18next instance; all 13 original
 community dictionaries are imported from their tracked upstream location with
 English fallback and Arabic RTL. Added preview messages are translated into
-Japanese and English. No backend requests, Socket.IO, microphone access, or
-settings synchronization are implemented in this preview. Its model and device
-values do not represent the user's installation.
+Japanese and English. The initial scaffold used sample model data; the read-only
+model integration below replaces it. Audio and device controls remain samples;
+Socket.IO, microphone access, and settings writes are not implemented.
+
+### Read-Only Model Integration (2026-11-06)
+
+The development UI now reads `/api/slot-manager/slots` and
+`/api/configuration-manager/configuration` using `frontend/src/lib/api.ts`.
+The adapter validates the fields it consumes and maps them to display types in
+`catalog.ts`; components do not depend on backend DTOs or fetch directly.
+Per-app `catalog.svelte.ts` state owns loading/ready/error, an 8-second timeout,
+cancellation on replacement/unmount, manual retry, and current-model lookup by
+slot ID. Failed refreshes clear prior data; no sample-model fallback is used.
+
+Both requests must succeed before publishing a catalog. There is no server
+revision/snapshot guarantee across the two GETs; automatic polling and event
+subscriptions are not yet implemented. The model cards, manager, selected-model
+heading/description, and portrait consume this state. Empty slots are filtered,
+pending/broken slots are labeled, missing selected IDs are not replaced by the
+first model, and broken portrait URLs fall back to the upstream placeholder.
+Counts represent returned occupied slots, not an assumed backend capacity.
+
+Vite dev/preview proxies `/api` and `/model_dir` to the backend on loopback port
+18888, overridable via `VCCLIENT_BACKEND_URL`. Production packaging still uses
+the legacy UI. Browser tests intercept API responses and exercise sparse IDs,
+selection, partial failures, retry, malformed data, timeout, and image fallback
+alongside the existing appearance checks. Model selection/editing and all audio
+and settings writes remain disabled.
 
 Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
 `npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
@@ -35,7 +60,7 @@ startup, and portable packaging still use the legacy UI. Type checks and preview
 builds run in CI; browser checks are available via `npm run test:frontend` (see
 `frontend/README.md` for browser installation).
 
-This completes only the visual scaffold, not Step 1's native-conversion exit
+This completes the visual scaffold and read-only model integration, not Step 1's native-conversion exit
 criteria. Next, introduce draft/confirmed settings and the synchronization
 coordinator described below as native controls are connected. Copying assets to
 their final home, switching the production build, and retiring the old UI remain
