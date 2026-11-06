@@ -5,7 +5,7 @@ Bits UI supplies sliders and accessible dialogs; standard HTML supplies simple
 buttons, selects, and checkboxes. The model list, configured selection, metadata,
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
-live input/output gain, pitch, index, and noise-gate adjustment through existing PUT/POST APIs.
+live input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
 Upload, model metadata editing, Client Mode audio, and other settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 
@@ -123,6 +123,19 @@ configuration write queue as gain, including throttling and retry/discard. The
 displayed value has been checked against the real backend via GET. Configuration
 writes have been covered by mocked browser requests; real-backend PUT and audible
 noise-gate behavior have not yet been verified.
+
+High/low-pass switches and cutoffs are editable in Server Mode when a usable model
+is selected. Before a filter
+update, the client reads the current full configuration and voice-changer
+information, then checks that rates are available and both cutoffs are positive
+and ordered below the effective low-pass limit. Invalid or unknown combinations
+or model mismatches are retained as drafts with an error and are not sent. If
+audio is not initialized, discard the edits and start audio before trying again.
+Valid edits use the same
+serialized full-configuration PUT and readback as the other controls. This is a
+client-side check, not an atomic guarantee against changes by another client.
+Real-backend GET display has been checked; real PUT and audible filter changes
+remain to be tested. Backend APIs are unchanged.
 
 To try native audio, start the backend, select a model card, open Settings, switch
 to Server Mode if necessary, and choose input/output devices (monitor is optional).

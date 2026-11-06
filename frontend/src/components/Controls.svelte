@@ -14,6 +14,8 @@
   const settings = $derived(session.settings);
   const modelSettings = $derived(session.modelSettings);
   const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
+  const showStartMessage = $derived(!!startMessage && session.active !== true
+    && session.startBlockReason !== 'saving' && session.startBlockReason !== 'operation');
 </script>
 
 <div class="conversion-layout">
@@ -44,7 +46,7 @@
     <SettingsStatus />
     <div class="transport-row">
       <button class="button primary" disabled={!session.canStart} title={startMessage}
-        aria-describedby={startMessage && session.active !== true ? 'start-reason' : undefined}
+        aria-describedby={showStartMessage ? 'start-reason' : undefined}
         onclick={() => session.operate('start')}><Play size={17} />{ui.t('common.controls.start')}</button>
       <button class="button" disabled={!session.canStop} onclick={() => session.operate('stop')}><Square size={16} />{ui.t('common.controls.stop')}</button>
       <button class="button" disabled><Repeat2 size={16} />{ui.t('common.controls.passthrough')}</button>
@@ -54,7 +56,7 @@
       <p class="catalog-message" role="alert">{ui.t('forge.operation_failed')} {ui.t(`forge.write_error_${session.operationError.code}`, { status: session.operationError.status })} {session.operationError.detail ?? ''}</p>
     {/if}
     {#if session.statusError}<p class="catalog-message" role="status">{ui.t('forge.audio_status_error')}</p>{/if}
-    {#if startMessage && session.active !== true}<p id="start-reason" class="muted" role="status">{startMessage}</p>{/if}
+    {#if showStartMessage}<p id="start-reason" class="muted" role="status">{startMessage}</p>{/if}
     <div class="input-section">
       <div class="section-heading compact">
         <h3>{ui.t('common.controls.input_type')}</h3>

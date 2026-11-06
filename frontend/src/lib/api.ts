@@ -186,7 +186,12 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
   monitorDeviceRate: 'audio_monitor_device_sample_rate',
   inputGain: 'audio_input_device_gain', outputGain: 'audio_output_device_gain',
   noiseGate: 'noise_gate',
+  highPassEnabled: 'enable_high_pass_filter', lowPassEnabled: 'enable_low_pass_filter',
+  highPassCutoff: 'high_pass_filter_cutoff', lowPassCutoff: 'low_pass_filter_cutoff',
 };
+
+const filterKeys = ['highPassEnabled', 'lowPassEnabled', 'highPassCutoff', 'lowPassCutoff'];
+const liveKeys = ['inputGain', 'outputGain', 'noiseGate', ...filterKeys];
 
 export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
   const info = object(await getJson(`${nativeUrl}/information`, signal));
@@ -196,13 +201,25 @@ export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
 
 export async function updateConfiguration(edits: ConfigurationEdits, signal: AbortSignal): Promise<ConfirmedConfiguration> {
   // Topology changes are only allowed while stopped, including changes from other clients.
-  if (Object.keys(edits).some(key => !['inputGain', 'outputGain', 'noiseGate'].includes(key)) && await readNativeActive(signal)) {
+  if (Object.keys(edits).some(key => !liveKeys.includes(key)) && await readNativeActive(signal)) {
     throw new ApiError('active');
   }
   const config = object(await getJson(configurationUrl, signal));
   parseConfiguration(config);
   const changes = Object.entries(edits).map(([key, value]) => [editFields[key as keyof ConfigurationEdits], value] as const);
   if (changes.some(([field]) => !Object.hasOwn(config, field))) invalidResponse();
+  if (Object.keys(edits).some(key => filterKeys.includes(key))) {
+    const information = object(await getJson('/api/voice-changer-manager/information', signal));
+    const voice = object(information.voice_changer_information);
+    const high = edits.highPassCutoff ?? numeric(config.high_pass_filter_cutoff);
+    const low = edits.lowPassCutoff ?? numeric(config.low_pass_filter_cutoff);
+    const rates = [numeric(config.input_sample_rate), numeric(voice.input_sample_rate), numeric(voice.output_sample_rate)];
+    if (!Number.isSafeInteger(voice.slot_index) || (voice.slot_index as number) < 0 || voice.slot_index !== config.current_slot_index
+      || rates.some(rate => rate === null || rate <= 0) || high === null || low === null
+      || high <= 0 || low <= 0 || high >= Math.min(low, rates[0]! * 0.45, rates[1]! * 0.45)) {
+      throw new ApiError('invalid_filter');
+    }
+  }
   // PUT replaces the entire DTO. Retain all fields, including ones this UI does not understand.
   await responseJson(await fetch(configurationUrl, {
     method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },

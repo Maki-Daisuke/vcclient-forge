@@ -43,7 +43,11 @@ test('dialogs open, trap focus, close with Escape, and restore focus', async ({ 
     await trigger.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    for (const field of await dialog.locator('input, select:not(.device-row select), textarea').all()) await expect(field).toBeDisabled();
+    for (const field of await dialog.locator('input, select:not(.device-row select), textarea').all()) {
+      const label = await field.getAttribute('type') === 'checkbox' ? await field.evaluate(el => el.closest('label')?.textContent) : '';
+      if (name === '設定' && /ハイパスフィルタ|ローパスフィルタ/.test(label ?? '')) await expect(field).toBeEnabled();
+      else await expect(field).toBeDisabled();
+    }
     await page.keyboard.press('Tab');
     await expect(dialog.locator('.preview-notice')).toContainText(/サンプル|読み取り専用/);
     expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);

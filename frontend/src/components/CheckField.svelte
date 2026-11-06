@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { label, checked = null }: { label: string; checked?: boolean | null } = $props();
+  let { label, checked = null, disabled = true, onchange }: { label: string; checked?: boolean | null; disabled?: boolean; onchange?: (value: boolean) => void } = $props();
 </script>
 
-<label class="check-field"><input type="checkbox" disabled checked={checked === true} indeterminate={checked === null} /><span>{label}</span></label>
+<label class="check-field"><input type="checkbox" disabled={disabled || checked === null} checked={checked === true} indeterminate={checked === null} onchange={event => onchange?.(event.currentTarget.checked)} /><span>{label}</span></label>

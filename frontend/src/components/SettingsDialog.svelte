@@ -64,10 +64,15 @@
     <RangeField label={ui.t('forge.noise_gate_threshold')} value={settings?.noiseGate ?? null} min={-120} max={0} step={1} unit=" dB"
       disabled={!session.canAdjustGain} onchange={value => session.setNoiseGate(value)} oncommit={() => session.flush()} />
     <p class="muted">{ui.t('forge.noise_gate_disabled_hint')}</p>
-    <CheckField label={ui.t('common.settings_dialog.enable_high_pass_filter')} checked={settings?.highPassEnabled ?? null} />
-    <SelectField label={ui.t('forge.high_pass_cutoff')} value={displayNumber(settings?.highPassCutoff, ' Hz')} />
-    <CheckField label={ui.t('common.settings_dialog.enable_low_pass_filter')} checked={settings?.lowPassEnabled ?? null} />
-    <SelectField label={ui.t('forge.low_pass_cutoff')} value={displayNumber(settings?.lowPassCutoff, ' Hz')} />
+    {#if !session.currentModel}<p class="muted">{ui.t('forge.filter_requires_model')}</p>{/if}
+    <CheckField label={ui.t('common.settings_dialog.enable_high_pass_filter')} checked={settings?.highPassEnabled ?? null}
+      disabled={!session.canAdjustFilter} onchange={value => session.setFilter('highPassEnabled', value)} />
+    <RangeField label={ui.t('forge.high_pass_cutoff')} value={settings?.highPassCutoff ?? null} min={20} max={200} step={1} unit=" Hz"
+      disabled={!session.canAdjustFilter} onchange={value => session.setFilter('highPassCutoff', value)} oncommit={() => session.flush()} />
+    <CheckField label={ui.t('common.settings_dialog.enable_low_pass_filter')} checked={settings?.lowPassEnabled ?? null}
+      disabled={!session.canAdjustFilter} onchange={value => session.setFilter('lowPassEnabled', value)} />
+    <RangeField label={ui.t('forge.low_pass_cutoff')} value={settings?.lowPassCutoff ?? null} min={3500} max={15000} step={1} unit=" Hz"
+      disabled={!session.canAdjustFilter} onchange={value => session.setFilter('lowPassCutoff', value)} oncommit={() => session.flush()} />
   </section>
 </PreviewDialog>
 
