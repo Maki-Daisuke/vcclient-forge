@@ -8,17 +8,19 @@ test.beforeEach(async ({ page }) => {
 test('renders models, metadata, and the selected portrait using sparse slot IDs', async ({ page }) => {
   await mockCatalog(page);
   await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'モデル選択 保存済み 2 枠' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
   await expect(page.locator('.model-card')).toHaveCount(2);
   await expect(page.locator('.model-name')).toHaveText(['Test model A', 'Test model B']);
   await expect(page.locator('.model-card[aria-current=true]')).toHaveAccessibleName('Test model B');
-  await expect(page.locator('.model-description')).toHaveText('Description of the selected model');
+  await expect(page.locator('.models-panel')).not.toContainText('Description of the selected model');
   await expect(page.locator('.tags')).toContainText('pth v1');
   await expect(page.locator('.tags')).toContainText('non-f0');
   await expect(page.locator('.portrait img')).toHaveAttribute('src', '/model_dir/7/portrait%20%231.png');
   await expect(page.locator('.models-panel .count')).toHaveText('保存済み 2 枠');
   await page.getByRole('button', { name: '編集', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('textbox', { name: '名前', exact: true })).toHaveValue('Test model B');
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: '説明', exact: true })).toHaveCount(0);
 });
 
 test('shows loading until both the slot list and the selection arrive', async ({ page }) => {
@@ -29,7 +31,7 @@ test('shows loading until both the slot list and the selection arrive', async ({
     await fulfillCatalog(route);
   });
   await page.goto('/');
-  await expect(page.locator('.models-panel').getByRole('status')).toContainText('モデル情報を読み込んでいます');
+  await expect(page.locator('.models-panel .catalog-message[role=status]')).toContainText('モデル情報を読み込んでいます');
   await expect(page.locator('.model-card')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '再読み込み', exact: true })).toBeDisabled();
   release();
@@ -39,18 +41,18 @@ test('shows loading until both the slot list and the selection arrive', async ({
 test('empty slots do not become fake installed models', async ({ page }) => {
   await page.route('**/api/**', route => fulfillCatalog(route, [{ slot_index: 0, voice_changer_type: null }], 0));
   await page.goto('/');
-  await expect(page.locator('.models-panel').getByRole('status')).toContainText('保存されているモデルはありません');
+  await expect(page.locator('.models-panel .catalog-message[role=status]')).toHaveText('保存されているモデルはありません。モデルをアップロードしてください。');
   await expect(page.locator('.model-card')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'モデルが選択されていません' })).toBeVisible();
   await expect(page.getByRole('button', { name: '編集', exact: true })).toBeDisabled();
   await expect(page.locator('.portrait img')).toHaveCount(0);
-  await expect(page.locator('.model-description')).toHaveCount(0);
+  await expect(page.locator('.model-message')).toHaveCount(0);
 });
 
 test('a missing selected slot does not select the first model', async ({ page }) => {
   await page.route('**/api/**', route => fulfillCatalog(route, slots, 99));
   await page.goto('/');
-  await expect(page.locator('.model-description')).toContainText('スロット 100');
+  await expect(page.locator('.model-message')).toContainText('スロット 100');
   await expect(page.locator('.model-card')).toHaveCount(2);
   await expect(page.locator('.model-card[aria-current=true]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '編集', exact: true })).toBeDisabled();
@@ -66,7 +68,7 @@ test('network failure clears old models and reload recovers the current selectio
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   await expect(page.locator('.models-panel').getByRole('alert')).toContainText('バックエンドに接続できません');
   await expect(page.locator('.model-card')).toHaveCount(0);
-  await expect(page.locator('.model-description')).toHaveCount(0);
+  await expect(page.locator('.model-message')).toHaveCount(0);
   await expect(page.locator('.portrait img')).toHaveCount(0);
   online = true;
   selectedId = 2;
@@ -110,7 +112,7 @@ test('hung requests time out and can be retried', async ({ page }) => {
   await page.clock.install();
   await page.route('**/api/**', () => {});
   await page.goto('/');
-  await expect(page.locator('.models-panel').getByRole('status')).toContainText('モデル情報を読み込んでいます');
+  await expect(page.locator('.models-panel .catalog-message[role=status]')).toContainText('モデル情報を読み込んでいます');
   await page.clock.fastForward(8_001);
   await expect(page.locator('.models-panel').getByRole('alert')).toContainText('応答が間に合いませんでした');
   await page.unroute('**/api/**');

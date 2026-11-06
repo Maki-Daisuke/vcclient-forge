@@ -1,9 +1,10 @@
+import { openControlSections } from './catalog-fixtures';
 import { test, expect, type Page } from '@playwright/test';
 import { mockSession } from './session-fixtures';
 
 const pitch = (page: Page) => page.getByRole('slider', { name: 'ピッチ調整', exact: true });
-const index = (page: Page) => page.getByRole('slider', { name: 'インデックス調整', exact: true });
-const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toContainText('設定を反映しました');
+const index = (page: Page) => page.getByRole('slider', { name: 'Index使用率', exact: true });
+const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toHaveAttribute('data-state', 'saved');
 
 async function mockEditableModel(page: Page) {
   const state = await mockSession(page);
@@ -19,6 +20,7 @@ test('updates pitch and index while running, preserving fresh full slot data and
   state.active = true;
   const otherModel = structuredClone(state.models[2]);
   await page.goto('/');
+  await openControlSections(page);
   await expect(pitch(page)).toBeEnabled();
   state.models[0].protect_ratio = 0.42;
   state.models[0].future_model_setting = { keep: 'newer backend value' };
@@ -44,6 +46,7 @@ test('coalesces model edits with volume writes in one queue without stale slider
   let release!: () => void;
   state.modelGate = new Promise(resolve => { release = resolve; });
   await page.goto('/');
+  await openControlSections(page);
   await pitch(page).press('ArrowRight');
   await expect.poll(() => state.modelWrites.length).toBe(1);
   await pitch(page).press('End');
@@ -74,8 +77,9 @@ test('throttles index dragging and flushes the final value on release', async ({
   const state = await mockEditableModel(page);
   await page.clock.install({ time: 0 });
   await page.goto('/');
+  await openControlSections(page);
   await expect(index(page)).toBeEnabled();
-  const track = page.locator('.range-field').filter({ hasText: 'インデックス調整' }).locator('.slider');
+  const track = page.locator('.range-field').filter({ hasText: 'Index使用率' }).locator('.slider');
   await track.scrollIntoViewIfNeeded();
   await page.clock.pauseAt(60_000);
   const box = (await track.boundingBox())!;
@@ -101,6 +105,7 @@ test('retains a failed model draft and retries the same slot against fresh data'
   const state = await mockEditableModel(page);
   state.modelStatus = 503;
   await page.goto('/');
+  await openControlSections(page);
   await pitch(page).press('ArrowRight');
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('HTTP 503');
   await pitch(page).press('End');
@@ -111,7 +116,7 @@ test('retains a failed model draft and retries the same slot against fresh data'
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await saved(page);
   expect(state.modelWrites[1]).toMatchObject({ id: 7, data: { slot_index: 7, pitch_shift: 24, description: 'New backend description' } });
-  await expect(page.locator('.model-description')).toHaveText('New backend description');
+  expect(state.models[0].description).toBe('New backend description');
   expect(state.writes).toHaveLength(0);
 });
 
@@ -119,6 +124,7 @@ test('detects an unapplied model update and discards back to confirmed settings'
   const state = await mockEditableModel(page);
   state.modelRollback = true;
   await page.goto('/');
+  await openControlSections(page);
   await pitch(page).press('ArrowRight');
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '-4');
@@ -131,6 +137,7 @@ test('rejects a mismatched slot ID before PUT can affect another model', async (
   const state = await mockEditableModel(page);
   await page.route('**/api/slot-manager/slots/7', route => route.fulfill({ json: state.models[2] }));
   await page.goto('/');
+  await openControlSections(page);
   await pitch(page).press('ArrowRight');
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('応答形式');
   expect(state.modelWrites).toHaveLength(0);
@@ -140,11 +147,14 @@ test('rejects a mismatched slot ID before PUT can affect another model', async (
 test('unsupported pitch and missing index remain disabled with an explanation', async ({ page }) => {
   await mockSession(page);
   await page.goto('/');
+  await openControlSections(page);
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
   await expect(pitch(page)).toBeDisabled();
   await expect(index(page)).toBeDisabled();
-  await expect(page.locator('.controls-column')).toContainText('このモデルはピッチ調整に対応していません');
-  await expect(page.locator('.controls-column')).toContainText('インデックスファイルが設定されていません');
+  await expect(page.locator('.voice-settings')).toContainText('このモデルはピッチ調整に対応していません');
+  await expect(page.locator('.voice-settings')).toContainText('Indexファイルが設定されていません');
+  const indexLabel = page.locator('.voice-settings .range-label-text').filter({ has: page.getByRole('heading', { name: 'Index使用率' }) });
+  await expect(indexLabel).toContainText('Indexファイルが設定されていません');
 });
 
 test('stop waits for the active model write', async ({ page }) => {
@@ -153,12 +163,13 @@ test('stop waits for the active model write', async ({ page }) => {
   let release!: () => void;
   state.modelGate = new Promise(resolve => { release = resolve; });
   await page.goto('/');
+  await openControlSections(page);
   await pitch(page).press('ArrowRight');
   await expect.poll(() => state.modelWrites.length).toBe(1);
   await page.getByRole('button', { name: '停止', exact: true }).click();
   expect(state.operations).toEqual([]);
   state.modelGate = null;
   release();
-  await expect(page.locator('.portrait-column .status')).toContainText('停止中');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['stop']);
 });

@@ -107,6 +107,12 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   browser checks passed; real-device pitch/index listening remains to be checked.
   Backend APIs and persistence are unchanged.
 
+- **Main control sections reorganized (2026-11-06)**: Model-specific voice controls appear with
+  the selected model; audio devices, volume, noise suppression, and inference controls
+  are independently expandable in the main view.
+  Output/monitor share the existing output-volume slider; pitch-estimator radios
+  and other unconnected settings remain disabled. Backend APIs are unchanged.
+
 - **Filter controls implemented (2026-11-06)**: Server Mode with a selected model provides high/low-pass
   switches and cutoff sliders. The existing full PUT is preceded by current
   configuration and voice-information reads and a cutoff/sample-rate check;
@@ -114,7 +120,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   values were checked against a real GET. Real PUT and listening validation are
   pending. Backend APIs are unchanged.
 
-- **Noise-gate control implemented (2026-11-06)**: The Server Mode settings dialog
+- **Noise-gate control implemented (2026-11-06)**: The noise suppression section
   adjusts the threshold over −120 to 0 dB, with the existing ≤ −100 dB bypass
   explained. It shares the serialized settings queue and existing full PUT API.
   All 55 mocked browser checks passed and real-backend GET display was confirmed;

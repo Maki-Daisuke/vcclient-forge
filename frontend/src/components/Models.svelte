@@ -4,6 +4,7 @@
   import UploadDialog from './UploadDialog.svelte';
   import CatalogStatus from './CatalogStatus.svelte';
   import ModelImage from './ModelImage.svelte';
+  import VoiceControls from './VoiceControls.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useCatalog } from '../lib/catalog.svelte';
   import { useSession } from '../lib/session.svelte';
@@ -21,7 +22,7 @@
 <section class="panel models-panel" aria-labelledby="models-title" aria-busy={catalog.state.status === 'loading'}>
   <div class="section-heading">
     <h2 id="models-title">
-      {ui.t('common.model.list_title')}
+      {ui.t('forge.model_selection')}
       {#if catalog.state.status === 'ready'}
         <span class="count">{ui.t('forge.models_count', { count: catalog.models.length })}</span>
       {/if}
@@ -84,8 +85,6 @@
       {/each}
     </div>
   {/if}
-</section>
-
 <div class="model-heading">
   <h2>{currentModel ? `${currentModel.id + 1}. ${modelName(currentModel)}` : ui.t('common.model.not_selected')}</h2>
   {#if currentModel}
@@ -97,13 +96,23 @@
   <PreviewDialog title={ui.t('common.voice_character_editor.title')} description={ui.t('forge.models_readonly')} disabled={!currentModel}>
     {#snippet trigger()}<Pencil size={15} />{ui.t('common.model.edit.button')}{/snippet}
     <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input disabled value={currentModel?.name ?? ''} /></label>
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.description')}</span><textarea disabled rows="4" value={currentModel?.description ?? ''}></textarea></label>
     <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept="image/*" disabled /></label>
     <button class="button primary" disabled>{ui.t('common.voice_character_editor.save')}</button>
   </PreviewDialog>
 </div>
-{#if currentModel}
-  <p class="model-description">{currentModel.description || ui.t('common.voice.no_description')}</p>
-{:else if catalog.state.status === 'ready' && catalog.models.length > 0 && catalog.currentModelId !== null}
-  <p class="model-description">{ui.t('forge.current_model_unavailable', { slot: catalog.currentModelId + 1 })}</p>
-{/if}
+<div class="selected-model-layout">
+  <div class="selected-model-info">
+    <div class="portrait">
+      {#if currentModel}
+        <ModelImage src={currentModel.imageUrl} alt={modelName(currentModel)} />
+      {:else}
+        <span class="muted">{ui.t('common.model.not_selected')}</span>
+      {/if}
+    </div>
+    {#if !currentModel && catalog.state.status === 'ready' && catalog.models.length > 0 && catalog.currentModelId !== null}
+      <p class="model-message">{ui.t('forge.current_model_unavailable', { slot: catalog.currentModelId + 1 })}</p>
+    {/if}
+  </div>
+  <VoiceControls />
+</div>
+</section>

@@ -55,6 +55,7 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
     lowPassCutoff: numeric(config.low_pass_filter_cutoff),
     noiseGate: numeric(config.noise_gate),
     extraSeconds: numeric(config.extra_frame_sec),
+    crossfadeSeconds: numeric(config.crossfade_sec),
     ioAnalysisEnabled: boolean(config.realtime_output_status_enabled),
     ioAnalysisInterval: numeric(config.realtime_output_status_send_interval_sec),
     processAnalysisEnabled: boolean(config.realtime_process_status_enabled),

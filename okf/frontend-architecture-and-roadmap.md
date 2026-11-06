@@ -82,7 +82,7 @@ configuration GET/PUT contract.
 `frontend/src/lib/session.svelte.ts` now coordinates per-app drafts and confirmed
 settings. Model cards and native input/output/monitor selectors are enabled while
 stopped. A changed device uses Auto sample rate. Server Mode can be selected from
-Settings; existing native start/stop POSTs and information GET are connected.
+Audio Devices; existing native start/stop POSTs and information GET are connected.
 Runtime polling runs every two seconds without Socket.IO. The returned enable
 flag does not guarantee a healthy stream or audible output; live meters are still
 unavailable. The current native monitor callback uses output gain, so the UI shows
@@ -122,6 +122,19 @@ the existing slot GET and UI values were also checked against the real backend
 with a simulated selection in the browser. Live slot PUT and on-device pitch/index
 listening validation are still pending.
 
+### Main Control Sections (2026-11-06)
+
+The selected model's portrait, details, and voice controls appear inside the model list.
+The remaining controls are organized as Audio Devices, Volume, Noise Suppression,
+and Inference, each using native expandable details. Output/monitor volume uses one slider;
+the pitch estimator is displayed as disabled RMVPE/FCPE radio buttons, while
+client audio, sample-rate edits, and preferred-device selection remain unconnected.
+Browser-only noise preferences remain visible and disabled under Client Mode Only
+within Noise Suppression.
+Save errors appear in a persistent bottom-right notification with retry and discard actions;
+successful saves do not show notifications. Backend APIs and supported operations
+are unchanged; the legacy production frontend is still separate.
+
 ### Filter Controls (2026-11-06)
 
 High/low-pass switches and cutoffs can be edited in Server Mode with a usable
@@ -137,7 +150,7 @@ GET values were checked in the UI. Real PUT and listening validation are pending
 
 ### Noise-Gate Control (2026-11-06)
 
-The Settings dialog exposes the noise-gate threshold in Server Mode using the
+The Noise Suppression section exposes the noise-gate threshold in Server Mode using the
 v2.1.4 range of −120 to 0 dB and 1 dB steps. The existing pipeline bypasses the
 gate at −100 dB or below. Its configuration edits share the gain/model coordinator
 and use the existing full-configuration GET/PUT/GET flow. Backend APIs are unchanged.

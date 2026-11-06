@@ -65,13 +65,13 @@ export class NativeSession {
     if (this.isSaving || this.dirty) return 'saving';
     const settings = this.settings!;
     if (settings.inputMode !== 'server') return 'mode';
-    if (this.currentModel?.status !== 'ready') return 'model';
     const devices = this.catalog.deviceState;
     if (devices.status === 'loading') return 'devices_loading';
     if (devices.status === 'error') return 'devices_error';
     if (!devices.devices.input.some(device => device.id === settings.inputDevice)) return 'input';
     if (!devices.devices.output.some(device => device.id === settings.outputDevice)) return 'output';
     if (settings.monitorDevice !== -1 && !devices.devices.output.some(device => device.id === settings.monitorDevice)) return 'monitor';
+    if (this.currentModel?.status !== 'ready') return 'model';
     return null;
   }
   get canStart() { return this.startBlockReason === null; }

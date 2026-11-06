@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Sun, Moon, AudioLines, Info } from '@lucide/svelte';
+  import { Sun, Moon, AudioLines } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import Models from './components/Models.svelte';
   import Controls from './components/Controls.svelte';
@@ -37,11 +37,9 @@
     </div>
   </header>
   <main>
-    <p class="preview-banner"><Info size={17} />{ui.t('forge.preview_description')}</p>
     <ConfigurationStatus />
     <Models />
     <section class="panel conversion-panel"><Controls /></section>
     <Advanced />
   </main>
-  <footer class="app-footer"><span>VCClient Forge</span><span>Based on w-okada/voice-changer · v2.1.4 UI</span></footer>
 </div>

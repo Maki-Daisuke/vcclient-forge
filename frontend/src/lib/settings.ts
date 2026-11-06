@@ -17,6 +17,7 @@ export interface ConfigurationSnapshot {
   lowPassCutoff: number | null;
   noiseGate: number | null;
   extraSeconds: number | null;
+  crossfadeSeconds: number | null;
   ioAnalysisEnabled: boolean | null;
   ioAnalysisInterval: number | null;
   processAnalysisEnabled: boolean | null;
