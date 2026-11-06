@@ -6,7 +6,7 @@ from vcclient.logger import logger
 from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
 from vcclient.voice_changer.data_types.sample_manager_data_types import SampleDownloadStatus
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
-from vcclient.voice_changer.sample_manager.sample_manager import SampleManager
+from vcclient.voice_changer.sample_manager import download_initial_samples
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 
 
@@ -85,7 +85,6 @@ def _check_and_download_initial_samples() -> None:
         logger.info("Sample is not ready. Downloading initial samples.")
         print("Sample is not ready. Downloading initial samples (parallel)...", flush=True)
 
-        sample_manager = SampleManager.get_instance()
         completed_ids: set[str] = set()
         last_update = [0.0]
 
@@ -115,6 +114,6 @@ def _check_and_download_initial_samples() -> None:
             )
             print(line, end="", flush=True)
 
-        sample_manager.download_initial_samples(download_callback)
+        download_initial_samples(download_callback)
         logger.info("Sample is not ready. Downloading initial samples. Done.")
         print("\nSample is not ready. Downloading initial samples. Done.\n", flush=True)

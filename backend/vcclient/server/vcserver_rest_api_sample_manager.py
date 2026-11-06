@@ -2,11 +2,16 @@ from fastapi import APIRouter
 
 from vcclient.server.server_const import UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
-from vcclient.voice_changer.sample_manager.sample_manager import SampleDownloadParam, SampleManager
+from vcclient.voice_changer.data_types.data_types import RVCSampleInfo
+from vcclient.voice_changer.sample_manager import (
+    SampleDownloadParam,
+    download_sample,
+    get_samples,
+)
 
 
 class RestAPISampleManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.router = APIRouter()
         self.router.route_class = ValidationErrorLoggingRoute
         self.router.add_api_route("/api/sample-manager/samples", self.get_samples, methods=["GET"])
@@ -14,12 +19,8 @@ class RestAPISampleManager:
             "/api/sample-manager/samples/operation/download", self.post_download, methods=["POST"]
         )
 
-    def get_samples(self, reload: bool = False):
-        sample_manager = SampleManager.get_instance()
-        if reload:
-            sample_manager.reload()
-        return sample_manager.get_samples()
+    def get_samples(self) -> list[RVCSampleInfo]:
+        return get_samples()
 
-    def post_download(self, param: SampleDownloadParam):
-        sample_manager = SampleManager.get_instance()
-        sample_manager.download(UPLOAD_DIR, param)
+    def post_download(self, param: SampleDownloadParam) -> None:
+        download_sample(UPLOAD_DIR, param)
