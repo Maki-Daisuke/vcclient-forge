@@ -5,12 +5,13 @@
   import DeviceField from './DeviceField.svelte';
   import CheckField from './CheckField.svelte';
   import SettingsStatus from './SettingsStatus.svelte';
+  import ConfigurationStatus from './ConfigurationStatus.svelte';
   import { useUi } from '../lib/ui.svelte';
-  import { useCatalog } from '../lib/catalog.svelte';
+  import { useSession } from '../lib/session.svelte';
   import { displayNumber } from '../lib/settings';
   const ui = useUi();
-  const catalog = useCatalog();
-  const settings = $derived(catalog.settings);
+  const session = useSession();
+  const settings = $derived(session.settings);
 
   function rateLabel(rate: number | null | undefined) {
     return rate === null || rate === undefined ? '—' : rate < 0
@@ -21,19 +22,27 @@
 <PreviewDialog title={ui.t('common.settings_dialog.title')} description={ui.t('forge.settings_readonly')}>
   {#snippet trigger()}<Settings size={16} />{ui.t('common.controls.settings')}{/snippet}
   <SettingsStatus />
+  <ConfigurationStatus />
   <SelectField label={ui.t('common.settings_dialog.voice_changer_input_mode')} value={settings?.inputMode ? ui.t(`common.settings_dialog.${settings.inputMode}_mode`) : '—'} />
+  {#if settings?.inputMode === 'client'}
+    <button class="button" disabled={!session.canConfigure} onclick={() => session.useServerMode()}>{ui.t('forge.use_server_mode')}</button>
+  {/if}
+  <p class="muted">{ui.t('forge.device_edit_hint')}</p>
   <section class="settings-section">
     <h3>{ui.t('common.settings_dialog.audio_device_settings')}</h3>
     <div class="device-row">
-      <DeviceField label={ui.t('common.settings_dialog.input_device')} id={settings?.inputDevice} direction="input" />
+      <DeviceField label={ui.t('common.settings_dialog.input_device')} id={settings?.inputDevice} direction="input"
+        disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('inputDevice', id)} />
       <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.input_device_rate')} value={rateLabel(settings?.inputDeviceRate)} />
     </div>
     <div class="device-row">
-      <DeviceField label={ui.t('common.settings_dialog.output_device')} id={settings?.outputDevice} direction="output" />
+      <DeviceField label={ui.t('common.settings_dialog.output_device')} id={settings?.outputDevice} direction="output"
+        disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('outputDevice', id)} />
       <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.output_device_rate')} value={rateLabel(settings?.outputDeviceRate)} />
     </div>
     <div class="device-row">
-      <DeviceField label={ui.t('common.settings_dialog.monitor_device')} id={settings?.monitorDevice} direction="output" />
+      <DeviceField label={ui.t('common.settings_dialog.monitor_device')} id={settings?.monitorDevice} direction="output"
+        disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('monitorDevice', id)} />
       <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.monitor_device_rate')} value={rateLabel(settings?.monitorDeviceRate)} />
     </div>
     <CheckField label={ui.t('common.settings_dialog.wasapi_exclusive_mode')} checked={settings?.wasapiExclusive ?? null} />

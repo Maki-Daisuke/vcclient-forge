@@ -40,6 +40,9 @@ button, select { touch-action: manipulation; }
 button { cursor: pointer; }
 button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; color: var(--disabled); }
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.status-dot.active { background: #27864c; }
+.configuration-status:empty { display: none; }
+.configuration-status { margin-bottom: 12px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 1.7rem; font-weight: 650; letter-spacing: -.045em; }
 h1 span { font-weight: 400; color: var(--accent); }
@@ -112,6 +115,9 @@ output { font-size: .75rem; font-variant-numeric: tabular-nums; color: var(--mut
 .slider-track { height: 4px; position: relative; width: 100%; background: var(--disabled-bg); border-radius: 3px; overflow: hidden; }
 .slider-range { position: absolute; height: 100%; background: var(--disabled); }
 .slider-thumb { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--disabled); }
+.slider:not([data-disabled]) { cursor: pointer; }
+.slider:not([data-disabled]) .slider-range, .slider:not([data-disabled]) .slider-thumb { background: var(--accent); }
+.slider-thumb:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .range-limits { justify-content: space-between; color: var(--muted); font-size: .64rem; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .select-field { display: flex; flex-direction: column; gap: 7px; margin: 8px 0 14px; font-size: .79rem; min-width: 0; }

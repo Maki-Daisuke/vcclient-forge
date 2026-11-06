@@ -7,45 +7,54 @@
   import ModelImage from './ModelImage.svelte';
   import SettingsStatus from './SettingsStatus.svelte';
   import { useUi } from '../lib/ui.svelte';
-  import { useCatalog } from '../lib/catalog.svelte';
+  import { useSession } from '../lib/session.svelte';
   import { displayNumber } from '../lib/settings';
   const ui = useUi();
-  const catalog = useCatalog();
-  const settings = $derived(catalog.settings);
-  const modelSettings = $derived(catalog.currentModel?.settings);
+  const session = useSession();
+  const settings = $derived(session.settings);
+  const modelSettings = $derived(session.currentModel?.settings);
+  const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
 </script>
 
 <div class="conversion-layout">
   <aside class="portrait-column" aria-label={ui.t('common.voice.character')}>
     <div class="portrait">
-      {#if catalog.currentModel}
-        <ModelImage src={catalog.currentModel.imageUrl} alt={catalog.currentModel.name} />
+      {#if session.currentModel}
+        <ModelImage src={session.currentModel.imageUrl} alt={session.currentModel.name} />
       {:else}
         <span class="muted">{ui.t('common.model.not_selected')}</span>
       {/if}
     </div>
-    <span class="status"><span class="status-dot"></span>{ui.t('forge.controls_preview')}</span>
+    <span class="status" role="status"><span class="status-dot" class:active={session.active === true}></span>{ui.t(`forge.audio_${session.operation ?? (session.active === null ? 'unknown' : session.active ? 'running' : 'stopped')}`)}</span>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>
       {#each ['input_volume', 'output_volume'] as key}
-        <div class="meter-label"><span>{ui.t(`common.controls.${key}`)}</span><span>0.000</span></div>
-        <div class="meter" role="meter" aria-label={ui.t(`common.controls.${key}`)} aria-valuenow="0" aria-valuemin="0" aria-valuemax="1"><span></span></div>
+        <div class="meter-label"><span>{ui.t(`common.controls.${key}`)}</span><span>—</span></div>
+        <div class="meter" aria-hidden="true"><span></span></div>
       {/each}
-      <div class="buffer-chart" aria-hidden="true"><span>0.00 s</span></div>
+      <div class="buffer-chart" aria-hidden="true"><span>—</span></div>
       <dl>
-        <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>0.00 s</dd></div>
-        <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>0.00 s</dd></div>
+        <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>—</dd></div>
+        <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>—</dd></div>
       </dl>
       <button class="button small" disabled>{ui.t('common.performance.clear')}</button>
+      <p class="muted">{ui.t('forge.telemetry_unavailable')}</p>
     </section>
   </aside>
   <section class="controls-column" aria-label={ui.t('common.controls.title')}>
     <SettingsStatus />
     <div class="transport-row">
-      <button class="button primary" disabled><Play size={17} />{ui.t('common.controls.start')}</button>
-      <button class="button" disabled><Square size={16} />{ui.t('common.controls.stop')}</button>
+      <button class="button primary" disabled={!session.canStart} title={startMessage}
+        aria-describedby={startMessage && session.active !== true ? 'start-reason' : undefined}
+        onclick={() => session.operate('start')}><Play size={17} />{ui.t('common.controls.start')}</button>
+      <button class="button" disabled={!session.canStop} onclick={() => session.operate('stop')}><Square size={16} />{ui.t('common.controls.stop')}</button>
       <button class="button" disabled><Repeat2 size={16} />{ui.t('common.controls.passthrough')}</button>
       <span class="spacer"></span><SettingsDialog />
     </div>
+    {#if session.operationError}
+      <p class="catalog-message" role="alert">{ui.t('forge.operation_failed')} {ui.t(`forge.write_error_${session.operationError.code}`, { status: session.operationError.status })} {session.operationError.detail ?? ''}</p>
+    {/if}
+    {#if session.statusError}<p class="catalog-message" role="status">{ui.t('forge.audio_status_error')}</p>{/if}
+    {#if startMessage && session.active !== true}<p id="start-reason" class="muted" role="status">{startMessage}</p>{/if}
     <div class="input-section">
       <div class="section-heading compact">
         <h3>{ui.t('common.controls.input_type')}</h3>
@@ -57,14 +66,18 @@
         <button class="button" disabled><Monitor size={16} />{ui.t('common.controls.capture')}</button>
         <button class="button" disabled><Circle size={14} />{ui.t('common.controls.record')}</button>
       </div>
-      <DeviceField label={ui.t('common.controls.mic_device')} id={settings?.inputDevice} direction="input" />
+      <DeviceField label={ui.t('common.controls.mic_device')} id={settings?.inputDevice} direction="input"
+        disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('inputDevice', id)} />
     </div>
     <details class="control-group" open>
       <summary><Volume2 size={17} />{ui.t('common.controls.volume_control')}</summary>
       <div class="control-group-body">
-        <RangeField label={ui.t('common.controls.input_volume')} value={settings?.inputGain ?? null} step={0.01} />
-        <RangeField label={ui.t('common.controls.output_volume')} value={settings?.outputGain ?? null} step={0.01} />
-        <RangeField label={ui.t('common.controls.monitor_volume')} value={settings?.monitorGain ?? null} step={0.01} />
+        <RangeField label={ui.t('common.controls.input_volume')} value={settings?.inputGain ?? null} step={0.01}
+          disabled={!session.canAdjustGain} onchange={value => session.setGain('inputGain', value)} oncommit={() => session.flush()} />
+        <RangeField label={ui.t('common.controls.output_volume')} value={settings?.outputGain ?? null} step={0.01}
+          disabled={!session.canAdjustGain} onchange={value => session.setGain('outputGain', value)} oncommit={() => session.flush()} />
+        <RangeField label={ui.t('common.controls.monitor_volume')} value={settings?.inputMode === 'server' ? settings.outputGain : settings?.monitorGain ?? null} step={0.01} />
+        <p class="muted">{ui.t('forge.monitor_follows_output')}</p>
       </div>
     </details>
     <details class="control-group" open>

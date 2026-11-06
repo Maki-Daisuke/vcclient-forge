@@ -4,14 +4,17 @@
   import Models from './components/Models.svelte';
   import Controls from './components/Controls.svelte';
   import Advanced from './components/Advanced.svelte';
+  import ConfigurationStatus from './components/ConfigurationStatus.svelte';
   import { provideUi, languages } from './lib/ui.svelte';
   import { provideCatalog } from './lib/catalog.svelte';
+  import { provideSession } from './lib/session.svelte';
   const ui = provideUi();
   const catalog = provideCatalog();
+  const session = provideSession(catalog);
 
   onMount(() => {
-    void catalog.reload();
-    return () => catalog.dispose();
+    void session.mount();
+    return () => session.dispose();
   });
 
   $effect(() => {
@@ -35,6 +38,7 @@
   </header>
   <main>
     <p class="preview-banner"><Info size={17} />{ui.t('forge.preview_description')}</p>
+    <ConfigurationStatus />
     <Models />
     <section class="panel conversion-panel"><Controls /></section>
     <Advanced />
