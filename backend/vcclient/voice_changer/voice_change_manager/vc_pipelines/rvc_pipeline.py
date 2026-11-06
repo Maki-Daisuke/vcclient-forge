@@ -9,7 +9,10 @@ from onnx import TensorProto
 from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_tensor_value_info
 
 from vcclient.logger import logger
-from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
+from vcclient.voice_changer.voice_change_manager.device_manager import (
+    create_inference_session,
+    get_onnx_execution_provider,
+)
 
 from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
@@ -110,12 +113,8 @@ class RVCPipeline(VCPipeline):
             resize_node = make_node("Resize", inputs=["in", "", "scales"], outputs=["out"], mode="nearest", axes=[2])
             graph = make_graph([resize_node], "upscaler", [input, scales], [output])
             onnx_model = make_model(graph, ir_version=ir_version, opset_imports=[make_opsetid("", 20)])
-            onnx_providers, onnx_provider_options = DeviceManager.get_instance().get_onnx_execution_provider(
-                gpu_device_id_int
-            )
-            return DeviceManager.get_instance().create_inference_session(
-                onnx_model.SerializeToString(), onnx_providers, onnx_provider_options
-            )
+            onnx_providers, onnx_provider_options = get_onnx_execution_provider(gpu_device_id_int)
+            return create_inference_session(onnx_model.SerializeToString(), onnx_providers, onnx_provider_options)
         except Exception as e:
             logger.error("make_onnx_upscaler failed. %s", e)
             print("make_onnx_upscaler failed.", e)

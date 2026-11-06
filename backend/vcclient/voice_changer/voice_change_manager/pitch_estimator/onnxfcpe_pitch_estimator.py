@@ -4,7 +4,7 @@ import numpy as np
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
-from ..device_manager.device_manager import DeviceManager
+from ..device_manager import create_inference_session, get_onnx_execution_provider
 from .pitch_estimator import PitchEstimator
 
 
@@ -26,13 +26,11 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
 
-        (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(device_id)
+        (onnx_providers, onnx_provider_options) = get_onnx_execution_provider(device_id)
         self.candidate_onnx_providers = onnx_providers
         self.candidate_onnx_provider_options = onnx_provider_options
 
-        self.onnx_session = DeviceManager.get_instance().create_inference_session(
-            self.file, onnx_providers, onnx_provider_options
-        )
+        self.onnx_session = create_inference_session(self.file, onnx_providers, onnx_provider_options)
 
     def estimate(
         self,

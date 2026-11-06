@@ -4,7 +4,7 @@ from pathlib import Path
 import onnxruntime as ort
 import pytest
 
-from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
+from vcclient.voice_changer.voice_change_manager.device_manager import get_onnx_execution_provider
 from vcclient.voice_changer.voice_changer_const import CoreMLCacheDir, SettingsDir
 
 
@@ -16,11 +16,9 @@ def test_coreml_device_constants():
 
 
 def test_device_manager_coreml_provider_configuration(monkeypatch: pytest.MonkeyPatch):
-    dev_mgr = DeviceManager.get_instance()
-
     # 1. When CoreMLExecutionProvider is available (e.g. on macOS)
     monkeypatch.setattr(ort, "get_available_providers", lambda: ["CoreMLExecutionProvider", "CPUExecutionProvider"])
-    providers, provider_options = dev_mgr.get_onnx_execution_provider(0)
+    providers, provider_options = get_onnx_execution_provider(0)
 
     assert "CoreMLExecutionProvider" in providers
     assert "CPUExecutionProvider" in providers
@@ -32,11 +30,11 @@ def test_device_manager_coreml_provider_configuration(monkeypatch: pytest.Monkey
     assert provider_options[0]["ModelCacheDirectory"] == str(CoreMLCacheDir.resolve())
 
     # 1b. When device_id=1 (GPU preferred), MLComputeUnits should be CPUAndGPU
-    providers_gpu, provider_options_gpu = dev_mgr.get_onnx_execution_provider(1)
+    providers_gpu, provider_options_gpu = get_onnx_execution_provider(1)
     assert provider_options_gpu[0]["MLComputeUnits"] == "CPUAndGPU"
 
     # 2. When CoreMLExecutionProvider is unavailable, fallback to CPU
     monkeypatch.setattr(ort, "get_available_providers", lambda: ["CPUExecutionProvider"])
-    providers_fallback, _ = dev_mgr.get_onnx_execution_provider(0)
+    providers_fallback, _ = get_onnx_execution_provider(0)
     assert "CoreMLExecutionProvider" not in providers_fallback
     assert "CPUExecutionProvider" in providers_fallback

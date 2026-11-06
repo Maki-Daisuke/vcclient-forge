@@ -223,9 +223,9 @@ class GPUDeviceManager:
 
         # 3. OpenVINO Execution Provider (GPU)
         try:
-            from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
+            from vcclient.voice_changer.voice_change_manager.device_manager import is_openvino_available
 
-            if DeviceManager.is_openvino_available():
+            if is_openvino_available():
                 all_sys.append(
                     GPUInfo(
                         name="OpenVINO (GPU)",

@@ -7,7 +7,7 @@ import onnxruntime
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import EmbedderInfo
-from ..device_manager.device_manager import DeviceManager
+from ..device_manager import create_inference_session, get_onnx_execution_provider
 from .embedder import Embedder
 
 
@@ -34,15 +34,11 @@ class ContentvecOnnx(Embedder):
         self.layer = layer
         self.useFinalProj = use_final_proj
 
-        (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(
-            self.deviceId
-        )
+        (onnx_providers, onnx_provider_options) = get_onnx_execution_provider(self.deviceId)
         self.candidate_onnx_providers = onnx_providers
         self.candidate_onnx_provider_options = onnx_provider_options
 
-        self.onnx_session = DeviceManager.get_instance().create_inference_session(
-            model_file, onnx_providers, onnx_provider_options
-        )
+        self.onnx_session = create_inference_session(model_file, onnx_providers, onnx_provider_options)
 
         first_input_type = self.onnx_session.get_inputs()[0].type
         if first_input_type == "tensor(float)":
