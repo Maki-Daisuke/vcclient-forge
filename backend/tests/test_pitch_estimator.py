@@ -59,7 +59,7 @@ def test_pitch_estimator_manager_load():
     """Verify that PitchEstimatorManager correctly dispatches to FCPE, RMVPE, and falls back for unsupported types."""
     with (
         patch(
-            "vcclient.voice_changer.module_manager.module_manager.ModuleManager.get_module_filepath",
+            "vcclient.voice_changer.voice_change_manager.pitch_estimator.pitch_estimator_manager.get_module_filepath",
             return_value="dummy.onnx",
         ),
         patch(

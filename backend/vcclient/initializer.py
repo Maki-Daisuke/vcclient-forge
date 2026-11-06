@@ -5,14 +5,13 @@ from tqdm import tqdm
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
 from vcclient.voice_changer.data_types.sample_manager_data_types import SampleDownloadStatus
-from vcclient.voice_changer.module_manager.module_manager import ModuleManager
+from vcclient.voice_changer.module_manager import download_rvc_modules, is_rvc_ready
 from vcclient.voice_changer.sample_manager import download_initial_samples
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 
 
 def _check_and_download_rvc_modules() -> None:
-    module_manager = ModuleManager.get_instance()
-    if module_manager.is_rvc_ready() is False:
+    if not is_rvc_ready():
         logger.info("RVC is not ready. Downloading RVC modules.")
         print("RVC is not ready. Downloading RVC modules (parallel)...", flush=True)
 
@@ -46,7 +45,7 @@ def _check_and_download_rvc_modules() -> None:
             )
             print(line, end="", flush=True)
 
-        module_manager.download_rvc_modules(download_callback)
+        download_rvc_modules(download_callback)
         logger.info("RVC is not ready. Downloading RVC modules. Done.")
         print("\nRVC is not ready. Downloading RVC modules. Done.\n", flush=True)
 

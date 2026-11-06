@@ -1,6 +1,6 @@
 from vcclient.logger import logger
 
-from ...module_manager.module_manager import ModuleManager
+from ...module_manager import get_module_filepath
 from ...voice_changer_const import EmbedderType
 from .contentvec_onnx import ContentvecOnnx
 from .embedder import Embedder
@@ -24,16 +24,16 @@ class EmbedderManager:
         hubert, hubert_jpはonnxモデルを使用する。torchはロードしない方針。
         """
         if embedder_type == "hubert_base_l9fp":
-            file = ModuleManager.get_instance().get_module_filepath("contentvec-f.onnx")
+            file = get_module_filepath("contentvec-f.onnx")
             return ContentvecOnnx().load_model(file, device_id, 9, True)
         elif embedder_type == "hubert_base_l12":
-            file = ModuleManager.get_instance().get_module_filepath("contentvec-f.onnx")
+            file = get_module_filepath("contentvec-f.onnx")
             return ContentvecOnnx().load_model(file, device_id, 12, False)
         elif embedder_type == "hubert_base_japanese_l9fp":
-            file = ModuleManager.get_instance().get_module_filepath("rinna_hubert_base-f.onnx")
+            file = get_module_filepath("rinna_hubert_base-f.onnx")
             return ContentvecOnnx().load_model(file, device_id, 9, True)
         elif embedder_type == "hubert_base_japanese_l12":
-            file = ModuleManager.get_instance().get_module_filepath("rinna_hubert_base-f.onnx")
+            file = get_module_filepath("rinna_hubert_base-f.onnx")
             return ContentvecOnnx().load_model(file, device_id, 12, False)
         elif embedder_type in (
             "applio_japanese_hubert_base_l12",

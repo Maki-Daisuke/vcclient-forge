@@ -36,7 +36,7 @@ from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.gpu_device_manager import reload_gpu_devices
-from vcclient.voice_changer.module_manager.module_manager import ModuleManager
+from vcclient.voice_changer.module_manager import reload_modules
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir, ModuleDir
@@ -188,8 +188,7 @@ def initialize():
     configuration_manager = ConfigurationManager.get_instance()
     configuration_manager.reload()
     reload_gpu_devices()
-    module_manager = ModuleManager.get_instance()
-    module_manager.reload()
+    reload_modules()
     slot_manager = SlotManager.get_instance()
     slot_manager.reload()
     voice_changer = VoiceChanger.get_instance()
