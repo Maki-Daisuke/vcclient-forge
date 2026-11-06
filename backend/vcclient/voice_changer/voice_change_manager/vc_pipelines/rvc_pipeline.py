@@ -113,8 +113,8 @@ class RVCPipeline(VCPipeline):
             onnx_providers, onnx_provider_options = DeviceManager.get_instance().get_onnx_execution_provider(
                 gpu_device_id_int
             )
-            return onnxruntime.InferenceSession(
-                onnx_model.SerializeToString(), providers=onnx_providers, provider_options=onnx_provider_options
+            return DeviceManager.get_instance().create_inference_session(
+                onnx_model.SerializeToString(), onnx_providers, onnx_provider_options
             )
         except Exception as e:
             logger.error("make_onnx_upscaler failed. %s", e)

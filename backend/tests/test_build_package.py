@@ -16,15 +16,17 @@ def load_builder(script_name: str = "build_package") -> ModuleType:
     return module
 
 
-def prepare_artifacts(builder: ModuleType) -> Path:
+def prepare_artifacts(builder: ModuleType, mock_freeze: bool = True) -> Path:
+    if mock_freeze:
+        builder.freeze_backend = Mock()
     root = builder.PROJECT_ROOT
-    frozen = builder.get_build_dir("cpu", "3.14") / "dist" / "main"
+    frozen = builder.get_build_dir("standard", "3.14") / "dist" / "main"
     executable = "main.exe" if builder.platform.system() == "Windows" else "main"
     for name in (executable, "_internal/runtime.dll"):
         destination = frozen / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"backend")
-    manifest = builder.get_build_dir("cpu", "3.14") / "backend-manifest.json"
+    manifest = builder.get_build_dir("standard", "3.14") / "backend-manifest.json"
     manifest.write_text(json.dumps({executable: 7, "_internal/runtime.dll": 7}), encoding="utf-8")
     for name in ("index.html", "index.js", "945.index.js", "assets/image.png"):
         for directory in ("web_front", "frontend/dist"):
@@ -55,12 +57,9 @@ def test_find_modern_7zip_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     assert builder.find_7z_binary() == "/usr/bin/7zz"
 
 
-@pytest.mark.parametrize("edition", ["cpu", "cuda", "dml", "mac"])
+@pytest.mark.parametrize("edition", ["standard", "cuda"])
 def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, edition: str) -> None:
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts"))
-    freezer = load_builder("build_backend")
     builder = load_builder()
-    monkeypatch.setattr(freezer, "package_tools", builder)
     monkeypatch.setattr(builder, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(builder.platform, "system", lambda: "Windows")
     commands: list[list[str]] = []
@@ -74,7 +73,7 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
             (frozen / "main.exe").write_bytes(b"backend")
 
     monkeypatch.setattr(builder, "run_cmd", fake_run)
-    package = freezer.freeze_backend(edition)
+    package = builder.freeze_backend(edition)
 
     assert (package / "main.exe").is_file()
     assert (package / "_internal").is_dir()
@@ -94,17 +93,17 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
 
 
 def test_linux_cuda_bundles_nvidia_wheel_binaries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    freezer = load_builder("build_backend")
+    builder = load_builder()
     for arch in ("x86_64", "aarch64"):
-        monkeypatch.setattr(freezer.platform, "system", lambda: "Linux")
-        monkeypatch.setattr(freezer.platform, "machine", lambda a=arch: a)
-        assert freezer.requires_nvidia_wheel_binaries("cuda")
-        assert not freezer.requires_nvidia_wheel_binaries("cpu")
+        monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
+        monkeypatch.setattr(builder.platform, "machine", lambda a=arch: a)
+        assert builder.requires_nvidia_wheel_binaries("cuda")
+        assert not builder.requires_nvidia_wheel_binaries("standard")
 
     cudnn_lib = tmp_path / ".venv/lib/python3.14/site-packages/nvidia/cudnn/lib/libcudnn.so.9"
     cudnn_lib.parent.mkdir(parents=True, exist_ok=True)
     cudnn_lib.write_bytes(b"cudnn")
-    assert freezer.collect_nvidia_binary_args(tmp_path / ".venv") == [
+    assert builder.collect_nvidia_binary_args(tmp_path / ".venv") == [
         "--add-binary",
         f"{cudnn_lib}:nvidia/cudnn/lib",
     ]
@@ -116,14 +115,14 @@ def test_existing_package_is_not_overwritten(
 ) -> None:
     builder = load_builder()
     monkeypatch.setattr(builder, "PROJECT_ROOT", tmp_path)
-    package = tmp_path / "dist" / f"vcclient_{builder.get_platform_tag()}_cpu_v{builder.VERSION}"
+    package = tmp_path / "dist" / f"vcclient-{builder.get_platform_tag()}-standard-v{builder.VERSION}"
     package.parent.mkdir(parents=True)
     if existing_artifact == "directory":
         package.mkdir()
     else:
         package.with_suffix(package.suffix + ".7z").touch()
     with pytest.raises(FileExistsError, match="choose a new --output-dir"):
-        builder.build_package("cpu", skip_archive=True)
+        builder.build_package("standard", skip_archive=True)
 
 
 @pytest.mark.parametrize("archive_limit, succeeds", [(2, True), (1, False)])
@@ -132,23 +131,24 @@ def test_archive_size_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, arch
     monkeypatch.setattr(builder, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(builder, "MAX_ARCHIVE_BYTES", archive_limit)
     monkeypatch.setattr(builder, "find_7z_binary", lambda: "7z")
+    monkeypatch.setattr(builder, "freeze_backend", lambda *a, **kw: None)
     prepare_artifacts(builder)
 
     def fake_run(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
         assert cmd[0] == "7z"
         assert "-snl" in cmd
         assert cwd is not None
-        expected_name = f"vcclient_{builder.get_platform_tag()}_cpu_v{builder.VERSION}"
+        expected_name = f"vcclient-{builder.get_platform_tag()}-standard-v{builder.VERSION}"
         assert cmd[-2] == f"{expected_name}.7z"
         assert cmd[-1] == expected_name
         (cwd / cmd[-2]).write_bytes(b"x")
 
     monkeypatch.setattr(builder, "run_cmd", fake_run)
     if succeeds:
-        assert builder.build_package("cpu").suffix == ".7z"
+        assert builder.build_package("standard").suffix == ".7z"
     else:
         with pytest.raises(RuntimeError, match="smaller than 2 GiB"):
-            builder.build_package("cpu")
+            builder.build_package("standard")
 
 
 def test_frozen_frontend_is_next_to_executable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,8 +166,8 @@ def test_desktop_package_keeps_complete_backend_next_to_tauri(tmp_path: Path, mo
     frozen = prepare_artifacts(builder)
     commands = Mock(side_effect=AssertionError("Packaging must not build anything"))
     monkeypatch.setattr(builder, "run_cmd", commands)
-    package = builder.build_package("cpu", skip_archive=True)
-    assert package.name == f"vcclient_{builder.get_platform_tag()}_cpu_v{builder.VERSION}"
+    package = builder.build_package("standard", skip_archive=True)
+    assert package.name == f"vcclient-{builder.get_platform_tag()}-standard-v{builder.VERSION}"
     assert (package / "vcclient-forge.exe").read_bytes() == b"desktop"
     assert (package / "main.exe").read_bytes() == b"backend"
     assert (package / "_internal").is_dir()
@@ -176,7 +176,7 @@ def test_desktop_package_keeps_complete_backend_next_to_tauri(tmp_path: Path, mo
     assert (package / "model_dir").is_dir()
     assert (frozen / "main.exe").is_file()
     commands.assert_not_called()
-    second = builder.build_package("cpu", output_dir=tmp_path / "another-output", skip_archive=True)
+    second = builder.build_package("standard", output_dir=tmp_path / "another-output", skip_archive=True)
     assert (second / "main.exe").is_file()
 
 
@@ -189,8 +189,8 @@ def test_non_windows_package_includes_desktop_and_backend(
     monkeypatch.setattr(builder.platform, "system", lambda: system)
     prepare_artifacts(builder)
     monkeypatch.setattr(builder, "run_cmd", Mock(side_effect=AssertionError("Must not build")))
-    package = builder.build_package("cpu", skip_archive=True)
-    assert package.name == f"vcclient_{builder.get_platform_tag()}_cpu_v{builder.VERSION}"
+    package = builder.build_package("standard", skip_archive=True)
+    assert package.name == f"vcclient-{builder.get_platform_tag()}-standard-v{builder.VERSION}"
     assert (package / "main").is_file()
     assert (package / "vcclient-forge").read_bytes() == b"desktop"
     assert not (package / "vcclient-forge.exe").exists()
@@ -206,9 +206,9 @@ def test_non_windows_package_includes_desktop_and_backend(
         "frontend/dist/assets/image.png",
         "start.bat",
         "LICENSE",
-        "build/packaging/{platform}_cpu_3.14/backend-manifest.json",
-        "build/packaging/{platform}_cpu_3.14/dist/main/main.exe",
-        "build/packaging/{platform}_cpu_3.14/dist/main/_internal/runtime.dll",
+        "build/packaging/{platform}-standard_3.14/backend-manifest.json",
+        "build/packaging/{platform}-standard_3.14/dist/main/main.exe",
+        "build/packaging/{platform}-standard_3.14/dist/main/_internal/runtime.dll",
     ],
 )
 def test_missing_artifact_fails_before_any_work(
@@ -222,7 +222,7 @@ def test_missing_artifact_fails_before_any_work(
     commands = Mock()
     monkeypatch.setattr(builder, "run_cmd", commands)
     with pytest.raises(FileNotFoundError, match="Run npm run build"):
-        builder.build_package("cpu")
+        builder.build_package("standard")
     commands.assert_not_called()
     assert not (tmp_path / "dist").exists()
 
@@ -233,22 +233,20 @@ def test_package_rejects_truncated_runtime(tmp_path: Path, monkeypatch: pytest.M
     frozen = prepare_artifacts(builder)
     (frozen / "_internal/runtime.dll").write_bytes(b"broken")
     with pytest.raises(FileNotFoundError, match="runtime.dll"):
-        builder.build_package("cpu", skip_archive=True)
+        builder.build_package("standard", skip_archive=True)
 
 
-def test_backend_cli_only_syncs_and_freezes_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts"))
-    freezer = load_builder("build_backend")
-    commands = Mock()
-    freeze = Mock()
-    monkeypatch.setattr(freezer.package_tools, "run_cmd", commands)
-    monkeypatch.setattr(freezer, "freeze_backend", freeze)
+def test_backend_cli_syncs_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend_builder = load_builder("build_backend")
+    commands = Mock(return_value=Mock(returncode=0))
+    monkeypatch.setattr(backend_builder.subprocess, "run", commands)
     monkeypatch.setattr("sys.argv", ["build_backend.py", "--edition", "cuda", "--python-version", "3.14"])
-    freezer.main()
+    backend_builder.main()
     commands.assert_called_once_with(
-        ["uv", "sync", "--project", "backend", "--extra", "cuda"], cwd=freezer.package_tools.PROJECT_ROOT
+        ["uv", "sync", "--project", "backend", "--extra", "cuda", "--python", "3.14"],
+        cwd=backend_builder.PROJECT_ROOT,
+        check=False,
     )
-    freeze.assert_called_once_with("cuda", "3.14")
 
 
 def test_npm_tasks_separate_build_from_packaging() -> None:
@@ -259,11 +257,11 @@ def test_npm_tasks_separate_build_from_packaging() -> None:
     assert tasks["package"].endswith("scripts/build_package.py")
     assert tasks["build:desktop"] == "wails3 task --dir desktop build"
     assert not hasattr(load_builder(), "build_application")
-    assert not hasattr(load_builder(), "build_backend")
+    assert hasattr(load_builder(), "freeze_backend")
     assert "--no-project" in tasks["package"]
     assert "build:package" not in tasks
     assert "build:desktop:package" not in tasks
-    for edition in ("cpu", "cuda", "dml", "mac"):
+    for edition in ("standard", "cuda"):
         assert f"build:{edition}" not in tasks
 
 
@@ -280,16 +278,23 @@ def test_package_cli_rejects_build_actions(monkeypatch: pytest.MonkeyPatch, acti
 
 
 def test_failed_rebuild_invalidates_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "scripts"))
-    freezer = load_builder("build_backend")
     builder = load_builder()
-    monkeypatch.setattr(freezer, "package_tools", builder)
     monkeypatch.setattr(builder, "PROJECT_ROOT", tmp_path)
-    prepare_artifacts(builder)
+    prepare_artifacts(builder, mock_freeze=False)
     monkeypatch.setattr(builder, "run_cmd", Mock(side_effect=RuntimeError("build failed")))
     with pytest.raises(RuntimeError, match="build failed"):
-        freezer.freeze_backend("cpu")
-    assert not (builder.get_build_dir("cpu", "3.14") / "backend-manifest.json").exists()
+        builder.freeze_backend("standard")
+    assert not (builder.get_build_dir("standard", "3.14") / "backend-manifest.json").exists()
+
+
+def test_package_automatically_invokes_freeze_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "PROJECT_ROOT", tmp_path)
+    prepare_artifacts(builder)
+    freeze_mock = Mock()
+    monkeypatch.setattr(builder, "freeze_backend", freeze_mock)
+    builder.build_package("standard", skip_archive=True)
+    freeze_mock.assert_called_once_with("standard", "3.14")
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import numpy as np
-import onnxruntime
+
+from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
@@ -25,10 +26,18 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
         self.candidate_onnx_providers = onnx_providers
         self.candidate_onnx_provider_options = onnx_provider_options
 
-        so = onnxruntime.SessionOptions()
-        so.log_severity_level = 3
-        self.onnx_session = onnxruntime.InferenceSession(
-            str(self.file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
+        model_payload: Path | str | bytes = self.file
+        if any("openvino" in p.lower() for p in onnx_providers):
+            try:
+                from ..inferencer.onnx_patch import patch_rmvpe_model_for_openvino
+
+                model_payload = patch_rmvpe_model_for_openvino(self.file)
+                logger.info("Applied OpenVINO Clip fix patch to RMVPE model: %s", self.file)
+            except Exception as e:
+                logger.warning("Failed to apply OpenVINO patch to RMVPE model %s: %s", self.file, e)
+
+        self.onnx_session = DeviceManager.get_instance().create_inference_session(
+            model_payload, onnx_providers, onnx_provider_options
         )
 
     def estimate(

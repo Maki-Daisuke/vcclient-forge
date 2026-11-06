@@ -199,7 +199,9 @@ class VoiceChanger:
 
         self.input_sample_rate = self.vc_info.input_sample_rate
         self.output_sample_rate = self.vc_info.output_sample_rate
-        self.monitor_sample_rate = self.vc_info.monitor_sample_rate
+        self.monitor_sample_rate = (
+            self.vc_info.monitor_sample_rate if self.vc_info.monitor_sample_rate > 0 else self.output_sample_rate
+        )
         self.vc_info.resample_ratio_in = self.vc_info.vc_input_sample_rate / self.input_sample_rate
         self.vc_info.resample_ratio_out = self.output_sample_rate / self.vc_info.vc_output_sample_rate
         self.vc_info.resample_ratio_monitor = self.monitor_sample_rate / self.vc_info.vc_output_sample_rate

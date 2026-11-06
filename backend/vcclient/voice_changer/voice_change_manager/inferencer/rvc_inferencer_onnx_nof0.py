@@ -1,5 +1,4 @@
 import numpy as np
-import onnxruntime
 
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
@@ -15,10 +14,8 @@ class RVCInferencerOnnxNoF0(RVCInferencer):
         self.candidate_onnx_providers = onnx_providers
         self.candidate_onnx_provider_options = onnx_provider_options
 
-        so = onnxruntime.SessionOptions()
-        so.log_severity_level = 3
-        self.onnx_session = onnxruntime.InferenceSession(
-            str(self.file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
+        self.onnx_session = DeviceManager.get_instance().create_inference_session(
+            self.file, onnx_providers, onnx_provider_options
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type

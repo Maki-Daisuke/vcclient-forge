@@ -84,7 +84,7 @@ In Forge, we isolate and bundle only the exact PyPI wheels needed by ONNX Runtim
 - Bundled (Windows / Linux x64 CUDA 12): `nvidia-cublas-cu12`, `nvidia-cudnn-cu12`, `nvidia-cufft-cu12`, `nvidia-cuda-runtime-cu12`, and `nvidia-curand-cu12` (Linux x64).
 - Bundled (Linux ARM64 CUDA 13): `nvidia-cublas`, `nvidia-cudnn-cu13`, `nvidia-cufft`, `nvidia-cuda-runtime`, and `nvidia-curand`.
 - Pruned: `nvidia-curand-cu12` on Windows (saving ~77 MB) and other non-inference components (`cusparse`, `cusolver`, `nccl`, etc.).
-- Path Resolution: `backend/vcclient/utils/cuda_env.py` automatically registers DLL directories on Windows and preloads shared libraries via `onnxruntime.preload_dlls` on Windows and Linux at startup.
+- Path Resolution: `backend/vcclient/utils/runtime_env.py` automatically registers DLL directories on Windows and preloads shared libraries via `onnxruntime.preload_dlls` on Windows and Linux at startup.
 
 ### 4. Standardized 7z (LZMA2) Multi-Threaded Packaging
 

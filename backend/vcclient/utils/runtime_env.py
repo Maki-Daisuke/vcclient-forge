@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -5,16 +6,18 @@ from pathlib import Path
 _initialized = False
 
 
-def setup_cuda_env() -> None:
-    """Setup platform-specific CUDA / GPU runtime environment transparently.
+def setup_runtime_env() -> None:
+    """Setup platform-specific CUDA / GPU / OpenVINO runtime environment transparently.
 
     - Windows: Python 3.8+ restricts DLL search paths. We explicitly register
       PyTorch's or nvidia-* wheels' bundled CUDA and cuDNN libraries via
       os.add_dll_directory and onnxruntime.preload_dlls so ONNX Runtime GPU can
       load cublas, cudart, and cudnn without requiring a system-wide CUDA Toolkit.
+      Also registers onnxruntime-ep-openvino plugin DLLs if installed.
     - Linux: Preload bundled nvidia-* wheel shared libraries (CUDA 12 / CUDA 13
       and cuDNN 9) via onnxruntime.preload_dlls so both source execution and
       PyInstaller portable builds work without system-wide CUDA / cuDNN packages.
+      Also sets LD_LIBRARY_PATH and registers onnxruntime-ep-openvino plugin if present.
     - macOS: Uses CoreML Execution Provider natively.
     """
     global _initialized
@@ -35,8 +38,6 @@ def setup_cuda_env() -> None:
             pass
 
         # 2. nvidia-* pip packages (for pure-ONNX mode with CPU PyTorch)
-        import importlib.util
-
         nvidia_pkgs = [
             "nvidia.cublas",
             "nvidia.cudnn",
@@ -69,8 +70,6 @@ def setup_cuda_env() -> None:
         except Exception:
             pass
     elif sys.platform == "linux":
-        import importlib.util
-
         nvidia_pkgs = [
             "nvidia.cublas",
             "nvidia.cudnn",
@@ -101,6 +100,32 @@ def setup_cuda_env() -> None:
                 onnxruntime.preload_dlls(directory="")
         except Exception:
             pass
-    elif sys.platform == "darwin":
-        # macOS uses CoreML Execution Provider natively
-        pass
+    # 3. OpenVINO Execution Provider Plugin registration (Windows & Linux)
+    try:
+        import onnxruntime_ep_openvino as openvino_ep
+
+        pkg_dir = Path(openvino_ep.__file__).parent
+        if sys.platform == "win32":
+            os.add_dll_directory(str(pkg_dir))
+            os.environ["PATH"] = str(pkg_dir) + os.pathsep + os.environ.get("PATH", "")
+        elif sys.platform == "linux":
+            existing = os.environ.get("LD_LIBRARY_PATH", "")
+            os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([str(pkg_dir)] + ([existing] if existing else []))
+
+        import onnxruntime
+
+        if hasattr(onnxruntime, "register_execution_provider_library"):
+            lib_path = openvino_ep.get_library_path()
+            ep_name = openvino_ep.get_ep_name()
+            onnxruntime.register_execution_provider_library(ep_name, lib_path)
+    except Exception as e:
+        try:
+            from vcclient.logger import logger
+
+            logger.warning("Failed to register OpenVINO EP library: %s", e)
+        except Exception:
+            pass
+
+
+# Backward compatibility alias
+setup_cuda_env = setup_runtime_env

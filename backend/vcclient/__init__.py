@@ -1,4 +1,4 @@
-from .utils.cuda_env import setup_cuda_env
+from .utils.runtime_env import setup_runtime_env
 
-# Transparently initialize platform GPU runtime environment
-setup_cuda_env()
+# Transparently initialize platform hardware acceleration runtime environment
+setup_runtime_env()

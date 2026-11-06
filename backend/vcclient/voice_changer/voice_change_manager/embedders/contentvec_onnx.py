@@ -40,10 +40,8 @@ class ContentvecOnnx(Embedder):
         self.candidate_onnx_providers = onnx_providers
         self.candidate_onnx_provider_options = onnx_provider_options
 
-        so = onnxruntime.SessionOptions()
-        so.log_severity_level = 3
-        self.onnx_session = onnxruntime.InferenceSession(
-            str(model_file), sess_options=so, providers=onnx_providers, provider_options=onnx_provider_options
+        self.onnx_session = DeviceManager.get_instance().create_inference_session(
+            model_file, onnx_providers, onnx_provider_options
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type

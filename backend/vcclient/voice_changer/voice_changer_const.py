@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 from typing import Literal, TypeAlias, get_args
 
@@ -16,6 +17,16 @@ ModuleDir = Path("modules")
 SLOT_PARAM_FILE = "params.json"
 MAX_SLOT_INDEX = 199
 GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE = -100
+OPENVINO_GPU_DEVICE_ID = 1000
+OPENVINO_AUTO_DEVICE_ID = OPENVINO_GPU_DEVICE_ID
+COREML_ANE_DEVICE_ID = 0
+COREML_GPU_DEVICE_ID = 1
+
+OpenVinoCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "openvino_cache"
+OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
+
+CoreMLCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "coreml_cache"
+CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
 
 AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]
 

@@ -10,7 +10,47 @@ from pathlib import Path
 
 MAX_ARCHIVE_BYTES = 2 * 1024**3
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-VERSION = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))["version"].removeprefix("v")
+VERSION = json.loads((PROJECT_ROOT / "package.json").read_text(encoding="utf-8"))[
+    "version"
+].removeprefix("v")
+
+NVIDIA_CUDA_PACKAGES = (
+    "nvidia.cublas",
+    "nvidia.cudnn",
+    "nvidia.cufft",
+    "nvidia.cuda_runtime",
+    "nvidia.curand",
+    "nvidia.cu13",
+)
+NVIDIA_BINARY_PATTERNS = ("*.dll", "*.dylib", "lib*.so", "lib*.so.*")
+
+
+def requires_nvidia_wheel_binaries(edition: str) -> bool:
+    return edition == "cuda"
+
+
+def has_openvino_plugin(runtime_dir: Path) -> bool:
+    for d in runtime_dir.rglob("site-packages/onnxruntime_ep_openvino"):
+        if d.is_dir():
+            return True
+    return False
+
+
+def collect_nvidia_binary_args(runtime_dir: Path) -> list[str]:
+    found: list[tuple[str, str]] = []
+    for nvidia_dir in sorted(runtime_dir.rglob("site-packages/nvidia")):
+        if not nvidia_dir.is_dir():
+            continue
+        base = nvidia_dir.parent
+        for pat in NVIDIA_BINARY_PATTERNS:
+            for f in sorted(nvidia_dir.rglob(pat)):
+                if f.is_file() or f.is_symlink():
+                    dest = f.parent.relative_to(base).as_posix()
+                    found.append((str(f), dest))
+    args: list[str] = []
+    for src, dest in dict.fromkeys(found):
+        args.extend(["--add-binary", f"{src}:{dest}"])
+    return args
 
 
 def get_platform_tag() -> str:
@@ -24,19 +64,23 @@ def get_platform_tag() -> str:
         arch = machine
 
     if system == "windows":
-        return f"win_{arch}"
+        return f"win-{arch}"
     elif system == "darwin":
-        return f"mac_{arch}"
+        return f"mac-{arch}"
     elif system == "linux":
-        return f"linux_{arch}"
-    return f"{system}_{arch}"
+        return f"linux-{arch}"
+    return f"{system}-{arch}"
 
 
-def run_cmd(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+def run_cmd(
+    cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
+) -> None:
     print(f"[RUN] {' '.join(str(c) for c in cmd)}")
     res = subprocess.run(cmd, cwd=cwd, env=env, check=False)
     if res.returncode != 0:
-        raise RuntimeError(f"Command failed with exit code {res.returncode}: {' '.join(str(c) for c in cmd)}")
+        raise RuntimeError(
+            f"Command failed with exit code {res.returncode}: {' '.join(str(c) for c in cmd)}"
+        )
 
 
 def find_7z_binary() -> str:
@@ -44,11 +88,123 @@ def find_7z_binary() -> str:
         p = shutil.which(cmd)
         if p:
             return p
-    raise RuntimeError("7-Zip executable ('7z', '7za', or '7zz') was not found in PATH.")
+    raise RuntimeError(
+        "7-Zip executable ('7z', '7za', or '7zz') was not found in PATH."
+    )
 
 
 def get_build_dir(edition: str, python_version: str) -> Path:
-    return PROJECT_ROOT / "build" / "packaging" / f"{get_platform_tag()}_{edition}_{python_version}"
+    return (
+        PROJECT_ROOT
+        / "build"
+        / "packaging"
+        / f"{get_platform_tag()}-{edition}_{python_version}"
+    )
+
+
+def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
+    build_dir = get_build_dir(edition, python_version)
+    manifest = build_dir / "backend-manifest.json"
+    manifest.unlink(missing_ok=True)
+    runtime_dir = build_dir / ".venv"
+    runtime_python = runtime_dir / (
+        "Scripts/python.exe" if platform.system() == "Windows" else "bin/python"
+    )
+
+    if not runtime_dir.exists():
+        print(">>> 1. Creating isolated build environment with uv...")
+        run_cmd(
+            ["uv", "venv", str(runtime_dir), "--python", python_version]
+        )
+    else:
+        print(">>> 1. Reusing isolated build environment...")
+
+    print(f">>> 2. Installing build dependencies for edition '{edition}'...")
+    backend_dir = PROJECT_ROOT / "backend"
+    env = os.environ.copy()
+    env["VIRTUAL_ENV"] = str(runtime_dir.resolve())
+    run_cmd(
+        [
+            "uv",
+            "sync",
+            "--locked",
+            "--active",
+            "--extra",
+            edition,
+            "--no-dev",
+            "--group",
+            "build",
+            "--no-install-project",
+            "--python",
+            python_version,
+        ],
+        cwd=backend_dir,
+        env=env,
+    )
+
+    print(">>> 3. Freezing backend with PyInstaller (onedir)...")
+    freeze_command = [
+        str(runtime_python),
+        "-m",
+        "PyInstaller",
+        "--onedir",
+        "--noupx",
+        "--noconfirm",
+        "--optimize",
+        "1",
+        "--name",
+        "main",
+        "--distpath",
+        str(build_dir / "dist"),
+        "--workpath",
+        str(build_dir / "work"),
+        "--specpath",
+        str(build_dir),
+        "--paths",
+        str(backend_dir),
+        "--add-data",
+        f"{PROJECT_ROOT / 'package.json'}:vcclient",
+        "--collect-submodules",
+        "uvicorn",
+        "--hidden-import",
+        "engineio.async_drivers.asgi",
+        "--hidden-import",
+        "vcclient.server.vcserver_socketio",
+    ]
+    if requires_nvidia_wheel_binaries(edition):
+        for package in (
+            "nvidia.cublas",
+            "nvidia.cudnn",
+            "nvidia.cufft",
+            "nvidia.cuda_runtime",
+        ):
+            freeze_command.extend(
+                ["--hidden-import", package, "--collect-binaries", package]
+            )
+        freeze_command.extend(collect_nvidia_binary_args(runtime_dir))
+    if has_openvino_plugin(runtime_dir):
+        freeze_command.extend(["--collect-all", "onnxruntime_ep_openvino"])
+    freeze_command.append(str(backend_dir / "main.py"))
+    run_cmd(freeze_command, cwd=PROJECT_ROOT, env=env)
+    frozen = build_dir / "dist" / "main"
+    executable = frozen / ("main.exe" if platform.system() == "Windows" else "main")
+    if (
+        not executable.is_file()
+        or executable.stat().st_size == 0
+        or not (frozen / "_internal").is_dir()
+    ):
+        raise FileNotFoundError(f"Incomplete PyInstaller output: {frozen}")
+    files = {
+        path.relative_to(frozen).as_posix(): path.stat().st_size
+        for path in sorted(frozen.rglob("*"))
+        if path.is_file()
+    }
+    if not any(name.startswith("_internal/") for name in files):
+        raise FileNotFoundError(
+            f"PyInstaller runtime files are missing: {frozen / '_internal'}"
+        )
+    manifest.write_text(json.dumps(files, indent=2) + "\n", encoding="utf-8")
+    return frozen
 
 
 def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
@@ -71,7 +227,9 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
             or not all(isinstance(size, int) and size >= 0 for size in files.values())
             or not any(name.startswith("_internal/") for name in files)
         ):
-            raise ValueError(f"Invalid backend build manifest: {manifest}; run npm run build -- --edition {edition}")
+            raise ValueError(
+                f"Invalid backend build manifest: {manifest}; run npm run build -- --edition {edition}"
+            )
         for name, size in files.items():
             artifact = frozen / name
             if not artifact.resolve().is_relative_to(frozen.resolve()):
@@ -82,11 +240,17 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
     frontend = PROJECT_ROOT / "frontend" / "dist"
     source = PROJECT_ROOT / "web_front"
     required_frontend = {Path("index.html")}
-    required_frontend.update(path.relative_to(source) for path in source.rglob("*") if path.is_file())
-    missing.extend(
-        str(frontend / relative) for relative in sorted(required_frontend) if not (frontend / relative).is_file()
+    required_frontend.update(
+        path.relative_to(source) for path in source.rglob("*") if path.is_file()
     )
-    desktop_name = "vcclient-forge.exe" if platform.system() == "Windows" else "vcclient-forge"
+    missing.extend(
+        str(frontend / relative)
+        for relative in sorted(required_frontend)
+        if not (frontend / relative).is_file()
+    )
+    desktop_name = (
+        "vcclient-forge.exe" if platform.system() == "Windows" else "vcclient-forge"
+    )
     desktop = PROJECT_ROOT / "desktop" / "bin" / desktop_name
     if not desktop.is_file() or desktop.stat().st_size == 0:
         missing.append(str(desktop))
@@ -109,11 +273,15 @@ def build_package(
     skip_archive: bool = False,
 ) -> Path:
     output_dir = (output_dir or PROJECT_ROOT / "dist").resolve()
-    package_name = f"vcclient_{get_platform_tag()}_{edition}_v{VERSION}"
+    package_name = f"vcclient-{get_platform_tag()}-{edition}-v{VERSION}"
     package_dir = output_dir / package_name
     archive_path = output_dir / f"{package_name}.7z"
     if package_dir.exists() or archive_path.exists():
-        raise FileExistsError(f"Package already exists; choose a new --output-dir: {package_dir}")
+        raise FileExistsError(
+            f"Package already exists; choose a new --output-dir: {package_dir}"
+        )
+    print(f">>> Freezing backend for edition '{edition}'...")
+    freeze_backend(edition, python_version)
     frozen, desktop_executable = validate_artifacts(edition, python_version)
     seven_zip = None if skip_archive else find_7z_binary()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -182,7 +350,9 @@ def build_package(
 
     archive_bytes = archive_path.stat().st_size
     if archive_bytes >= MAX_ARCHIVE_BYTES:
-        raise RuntimeError(f"Archive must be smaller than 2 GiB: {archive_path} ({archive_bytes} bytes)")
+        raise RuntimeError(
+            f"Archive must be smaller than 2 GiB: {archive_path} ({archive_bytes} bytes)"
+        )
     size_mb = archive_bytes / (1024 * 1024)
     size_gib = archive_bytes / (1024 * 1024 * 1024)
     print("\n[OK] Build complete!")
@@ -192,13 +362,15 @@ def build_package(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate and package an existing build")
+    parser = argparse.ArgumentParser(
+        description="Validate and package an existing build"
+    )
     parser.add_argument(
         "--edition",
         type=str,
-        default="cpu",
-        choices=["cuda", "dml", "cpu", "mac"],
-        help="Target edition (cuda, dml, cpu, mac, default: cpu)",
+        default="standard",
+        choices=["standard", "cuda"],
+        help="Target edition (standard, cuda, default: standard)",
     )
     parser.add_argument(
         "--python-version",

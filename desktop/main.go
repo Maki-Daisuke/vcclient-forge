@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -47,14 +48,7 @@ func main() {
 		OnShutdown: doCleanup,
 	})
 
-	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "VCClient Forge",
-		Width:     1000,
-		Height:    800,
-		MinWidth:  360,
-		MinHeight: 480,
-		URL:       "/",
-		JS: `
+	initJS := `
 		// Transparently redirect window.open() to default system browser
 		window.open = function(url) {
 			if (url && typeof url === 'string') {
@@ -81,7 +75,75 @@ func main() {
 				}
 			}
 		};
-		`,
+	`
+
+	if runtime.GOOS == "darwin" {
+		initJS += `
+		// Audio output compatibility polyfill (WebKit / Safari / macOS WKWebView)
+		(function() {
+			try {
+				var patchMediaDevices = function(proto) {
+					if (!proto || !proto.enumerateDevices || proto._patchedForDefaultSink) return;
+					var orig = proto.enumerateDevices;
+					proto.enumerateDevices = async function() {
+						var devices = await orig.apply(this, arguments);
+						if (Array.isArray(devices)) {
+							var hasDefault = devices.some(function(d) {
+								return d.kind === 'audiooutput' && d.deviceId === 'default';
+							});
+							if (!hasDefault) {
+								return devices.concat([{
+									deviceId: 'default',
+									kind: 'audiooutput',
+									label: 'Default Output Device',
+									groupId: 'default',
+									toJSON: function() { return this; }
+								}]);
+							}
+						}
+						return devices;
+					};
+					proto._patchedForDefaultSink = true;
+				};
+
+				if (typeof MediaDevices !== 'undefined' && MediaDevices.prototype) {
+					patchMediaDevices(MediaDevices.prototype);
+				}
+				if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+					patchMediaDevices(navigator.mediaDevices);
+				}
+
+				if (typeof HTMLMediaElement !== 'undefined') {
+					var origSetSinkId = HTMLMediaElement.prototype.setSinkId;
+					HTMLMediaElement.prototype.setSinkId = async function(sinkId) {
+						if (!sinkId || sinkId === 'default') {
+							if (origSetSinkId) {
+								try {
+									return await origSetSinkId.call(this, '');
+								} catch (_) {}
+							}
+							return;
+						}
+						if (origSetSinkId) {
+							try {
+								return await origSetSinkId.call(this, sinkId);
+							} catch (_) {}
+						}
+					};
+				}
+			} catch (_) {}
+		})();
+		`
+	}
+
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:     "VCClient Forge",
+		Width:     1000,
+		Height:    800,
+		MinWidth:  360,
+		MinHeight: 480,
+		URL:       "/",
+		JS:        initJS,
 	})
 
 	showFatalError := func(msg string) {
