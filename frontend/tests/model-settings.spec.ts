@@ -15,6 +15,61 @@ async function mockEditableModel(page: Page) {
   return state;
 }
 
+test('switches the selected model pitch estimator while stopped and confirms the pipeline', async ({ page }) => {
+  const state = await mockEditableModel(page);
+  let release!: () => void;
+  state.modelGate = new Promise(resolve => { release = resolve; });
+  await page.goto('/');
+  const rmvpe = page.getByRole('radio', { name: 'RMVPE' });
+  const fcpe = page.getByRole('radio', { name: 'FCPE' });
+  await expect(rmvpe).toBeChecked();
+  await expect(fcpe).toBeEnabled();
+  await fcpe.check();
+  await expect.poll(() => state.modelWrites.length).toBe(1);
+  await expect(fcpe).toBeDisabled();
+  state.modelGate = null;
+  release();
+  await saved(page);
+  await expect(fcpe).toBeChecked();
+  await expect(fcpe).toBeEnabled();
+  expect(state.modelWrites[0]).toMatchObject({ id: 7, data: { pitch_estimator: 'fcpe', future_model_setting: { keep: true } } });
+  expect(state.writes).toHaveLength(0);
+  await page.getByRole('button', { name: '再読み込み', exact: true }).click();
+  await expect(fcpe).toBeChecked();
+});
+
+test('keeps pitch estimator disabled during audio conversion', async ({ page }) => {
+  const state = await mockEditableModel(page);
+  state.active = true;
+  await page.goto('/');
+  await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();
+  expect(state.modelWrites).toHaveLength(0);
+});
+
+test('rechecks stopped audio before writing a pitch estimator', async ({ page }) => {
+  const state = await mockEditableModel(page);
+  await page.goto('/');
+  const fcpe = page.getByRole('radio', { name: 'FCPE' });
+  await expect(fcpe).toBeEnabled();
+  state.active = true;
+  await fcpe.check();
+  await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('音声を停止');
+  expect(state.modelWrites).toHaveLength(0);
+});
+
+test('reports a pitch estimator that was saved but not applied to the pipeline', async ({ page }) => {
+  const state = await mockEditableModel(page);
+  state.estimatorMismatch = true;
+  await page.goto('/');
+  await page.getByRole('radio', { name: 'FCPE' }).check();
+  await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
+  expect(state.models[0].pitch_estimator).toBe('fcpe');
+  state.estimatorMismatch = false;
+  await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
+  await saved(page);
+  await expect(page.getByRole('radio', { name: 'FCPE' })).toBeChecked();
+});
+
 test('updates pitch and index while running, preserving fresh full slot data and other models', async ({ page }) => {
   const state = await mockEditableModel(page);
   state.active = true;

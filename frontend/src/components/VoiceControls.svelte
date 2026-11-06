@@ -15,12 +15,13 @@
   <RangeField label={ui.t('forge.index_rate')} heading hint={modelSettings && !modelSettings.hasIndex ? ui.t('forge.index_unavailable') : undefined} value={modelSettings?.indexRatio ?? null} max={1} step={0.01}
     disabled={!session.canAdjustModel || !modelSettings?.hasIndex}
     onchange={value => session.setModelValue('indexRatio', value)} oncommit={() => session.flush()} />
-  <fieldset class="radio-field" disabled>
+  <fieldset class="radio-field" disabled={!session.canConfigure || session.settings?.inputMode !== 'server' || !modelSettings?.supportsPitch || !modelSettings?.pitchEstimator}>
     <legend><h3>{ui.t('common.voice_controls.pitch_estimator')}</h3></legend>
     {#each ['rmvpe', 'fcpe'] as estimator}
-      <label><input type="radio" name="pitch-estimator" value={estimator} checked={modelSettings?.pitchEstimator === estimator} />{estimator.toUpperCase()}</label>
+      <label><input type="radio" name="pitch-estimator" value={estimator} checked={modelSettings?.pitchEstimator === estimator}
+        onchange={() => session.setPitchEstimator(estimator as 'rmvpe' | 'fcpe')} />{estimator.toUpperCase()}</label>
     {/each}
     {#if !modelSettings?.pitchEstimator}<span class="muted">—</span>{/if}
   </fieldset>
-  <p class="muted">{ui.t('forge.pitch_estimator_readonly')}</p>
+  <p class="muted">{ui.t('forge.pitch_estimator_stopped')}</p>
 </section>

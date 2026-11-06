@@ -127,8 +127,8 @@ listening validation are still pending.
 The selected model's portrait, details, and voice controls appear inside the model list.
 The remaining controls are organized as Audio Devices, Volume, Noise Suppression,
 and Inference, each using native expandable details. Output/monitor volume uses one slider;
-the pitch estimator is displayed as disabled RMVPE/FCPE radio buttons, while
-client audio, sample-rate edits, and preferred-device selection remain unconnected.
+RMVPE/FCPE pitch estimator selection is available while server audio is stopped.
+Client audio, sample-rate edits, and preferred-device selection remain unconnected.
 Browser-only noise preferences remain visible and disabled under Client Mode Only
 within Noise Suppression.
 Save errors appear in a persistent bottom-right notification with retry and discard actions;

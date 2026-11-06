@@ -14,8 +14,8 @@ Audio runs on the backend's native devices; the browser does not capture audio.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
 independent expandable sections. Server Mode can be selected from Client Mode;
-switching back to Client Mode is not connected yet. Pitch estimator radios,
-sample rates, preferred device, and crossfade duration remain read-only.
+switching back to Client Mode is not connected yet. Sample rates, preferred device,
+and crossfade duration remain read-only.
 Chunk, extra frame, and crossfade durations use read-only logarithmic sliders with
 display ranges of 0.05–5, 0.08–10, and 0.01–0.15 seconds respectively. Values
 outside these display ranges remain visible and are indicated separately; these
@@ -132,6 +132,14 @@ continues saving these settings to `model_dir/{id}/params.json`; new listening
 validation for pitch/index adjustment is still pending. The real backend's slot
 GET and displayed values were checked using a browser-only simulated model selection;
 live model-setting PUTs and audible changes were not part of that check.
+
+For an f0 model, RMVPE/FCPE can be changed in Server Mode while audio is stopped.
+The client checks the stopped state before the slot update, then confirms both the
+saved slot and the active pipeline estimator. A failed update can still have saved
+the slot before pipeline initialization failed. Retrying may not repair that state;
+reselecting the model or restarting the backend may be needed.
+The stopped-state check is not atomic with changes from other clients. Browser tests
+use mocked APIs; real-backend switching and audible behavior have not been verified.
 
 The noise-gate slider in Noise Suppression uses the v2.1.4 range of −120 to 0 dB in 1 dB
 steps. The native pipeline disables the gate at −100 dB or below. It uses the same
