@@ -100,6 +100,13 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   the user separately confirmed native audio playback. Gain-adjustment latency
   and longer sessions remain to be validated; no backend changes.
 
+- **Live pitch/index controls implemented (2026-11-06)**: Existing slot GET/PUT/GET
+  preserves full model data and verifies target IDs and applied values. Per-slot
+  drafts share the serialized 100 ms gain coordinator, with completion flush and
+  retry/discard. Unsupported models/index-less slots stay disabled. All 49 mocked
+  browser checks passed; real-device pitch/index listening remains to be checked.
+  Backend APIs and persistence are unchanged.
+
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.

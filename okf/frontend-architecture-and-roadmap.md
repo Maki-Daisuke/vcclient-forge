@@ -106,6 +106,22 @@ validated. Each configuration PUT still persists the settings file; separating
 live application from disk persistence remains backend roadmap work. Playback
 confirmation alone does not establish all of Step 1's native-conversion exit criteria.
 
+### Live Pitch and Index Controls (2026-11-06)
+
+The selected RVC model's pitch and index sliders now use existing slot GET/PUT/GET
+requests. Each write merges only edits into the latest complete slot DTO and
+checks its ID and readback values. Per-slot drafts share the native session's
+100 ms throttle, completion flush, serialized requests, and explicit retry/discard.
+Configuration and model writes alternate when both are pending; acknowledgements
+clear only matching draft values. Selection/reload/start wait for pending edits,
+and Stop waits for the active write. Catalog updates replace only the confirmed
+slot. Unsupported pitch models and models without an index file show disabled
+controls with explanations. Backend code is unchanged, including its per-write
+`params.json` persistence. All 49 browser checks passed using mocked APIs;
+the existing slot GET and UI values were also checked against the real backend
+with a simulated selection in the browser. Live slot PUT and on-device pitch/index
+listening validation are still pending.
+
 Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
 `npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
 the legacy Python-served `frontend/dist`. `npm run build:frontend`, desktop

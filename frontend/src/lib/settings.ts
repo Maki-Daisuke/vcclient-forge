@@ -24,11 +24,18 @@ export interface ConfigurationSnapshot {
 }
 
 export interface ModelSettingsSnapshot {
+  supportsPitch: boolean;
+  hasIndex: boolean;
   pitch: number | null;
   indexRatio: number | null;
   pitchEstimator: string | null;
   embedder: string | null;
   chunkSeconds: number | null;
+}
+
+export interface ModelEdits {
+  pitch?: number;
+  indexRatio?: number;
 }
 
 // Only these fields can be changed by the native-audio UI.

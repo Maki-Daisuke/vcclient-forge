@@ -17,7 +17,9 @@ export const languages = [
 const previewMessages = {
   en: {
     preview: 'UI Preview',
-    preview_description: 'Server Mode supports model/device selection, start/stop, and live input/output volume. Other controls are still being connected.',
+    preview_description: 'Server Mode supports model/device selection, start/stop, live input/output volume, pitch, and index adjustment. Other controls are still being connected.',
+    pitch_unavailable: 'This model does not support pitch adjustment.',
+    index_unavailable: 'No index file is configured for this model.',
     settings_readonly: 'Select native audio devices while stopped. Other settings are read-only; unavailable values are shown as —.',
     use_server_mode: 'Use Server Mode',
     device_edit_hint: 'Device selection is available while stopped. Changing a device sets its sample rate to Auto.',
@@ -90,7 +92,9 @@ const previewMessages = {
   },
   ja: {
     preview: 'UI プレビュー',
-    preview_description: 'サーバーモードでモデル・デバイス選択、開始／停止、入力・出力音量の調整ができます。その他の操作は順次対応します。',
+    preview_description: 'サーバーモードでモデル・デバイス選択、開始／停止、入力・出力音量、ピッチ、インデックスの調整ができます。その他の操作は順次対応します。',
+    pitch_unavailable: 'このモデルはピッチ調整に対応していません。',
+    index_unavailable: 'このモデルにはインデックスファイルが設定されていません。',
     settings_readonly: '停止中に音声デバイスを選択できます。その他の設定は読み取り専用です。取得できない値は「—」で示しています。',
     use_server_mode: 'サーバーモードに切り替える',
     device_edit_hint: 'デバイスは停止中に変更できます。変更したデバイスのサンプルレートは「自動」になります。',

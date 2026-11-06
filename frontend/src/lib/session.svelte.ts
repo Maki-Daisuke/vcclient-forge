@@ -1,14 +1,18 @@
 import { getContext, setContext } from 'svelte';
-import { operateNative, readNativeActive, updateConfiguration } from './api';
+import { operateNative, readNativeActive, updateConfiguration, updateModelSettings } from './api';
 import { ApiError } from './api-error';
 import type { ModelCatalogState } from './catalog.svelte';
-import type { ConfigurationEdits } from './settings';
+import type { ConfigurationEdits, ModelEdits } from './settings';
 
 const contextKey = Symbol('native-session');
-const gainIntervalMs = 100;
+const updateIntervalMs = 100;
+type PendingWrite =
+  | { kind: 'configuration'; edits: ConfigurationEdits }
+  | { kind: 'model'; id: number; edits: ModelEdits };
 
 export class NativeSession {
   draft = $state<ConfigurationEdits>({});
+  modelDraft = $state<{ id: number; edits: ModelEdits } | null>(null);
   isSaving = $state(false);
   saved = $state(false);
   error = $state<ApiError | null>(null);
@@ -21,6 +25,7 @@ export class NativeSession {
   private flight: Promise<void> | null = null;
   private requests = new Set<AbortController>();
   private lastStarted = -Infinity;
+  private nextWrite: PendingWrite['kind'] = 'configuration';
   private urgent = false;
   private statusVersion = 0;
   private disposed = false;
@@ -30,13 +35,22 @@ export class NativeSession {
   get settings() { return this.catalog.settings ? { ...this.catalog.settings, ...this.draft } : null; }
   get currentModelId() { return this.draft.currentModelId ?? this.catalog.currentModelId; }
   get currentModel() { return this.catalog.models.find(model => model.id === this.currentModelId) ?? null; }
-  get dirty() { return Object.keys(this.draft).length > 0; }
+  get modelSettings() {
+    const model = this.currentModel;
+    if (!model?.settings) return null;
+    return this.modelDraft?.id === model.id ? { ...model.settings, ...this.modelDraft.edits } : model.settings;
+  }
+  get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get canReload() { return !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
   get canConfigure() {
     return this.catalog.state.status === 'ready' && this.active === false && !this.operation && !this.isSaving && !this.dirty;
   }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.operation;
+  }
+  get canAdjustModel() {
+    return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
+      && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
   get startBlockReason() {
     if (this.operation) return 'operation';
@@ -80,6 +94,18 @@ export class NativeSession {
     this.edit({ [key]: value });
   }
 
+  setModelValue(key: keyof ModelEdits, value: number) {
+    const model = this.currentModel;
+    const settings = this.modelSettings;
+    if (!this.canAdjustModel || !model || !settings || settings[key] === null || !Number.isFinite(value)) return;
+    if (key === 'pitch' && (!settings.supportsPitch || !Number.isInteger(value) || value < -24 || value > 24)) return;
+    if (key === 'indexRatio' && (!settings.hasIndex || value < 0 || value > 1)) return;
+    if (settings[key] === value) return;
+    this.modelDraft = { id: model.id, edits: { ...this.modelDraft?.edits, [key]: value } };
+    this.saved = false;
+    this.schedule();
+  }
+
   selectModel(id: number) {
     if (!this.canConfigure || !this.catalog.models.some(model => model.id === id && model.status === 'ready')) return;
     if (id !== this.currentModelId) this.edit({ currentModelId: id }, true);
@@ -119,6 +145,7 @@ export class NativeSession {
     if (this.isSaving || this.operation) return;
     clearTimeout(this.timer);
     this.draft = {};
+    this.modelDraft = null;
     await this.reload();
   }
 
@@ -127,7 +154,7 @@ export class NativeSession {
     this.urgent ||= immediate;
     if (this.disposed || this.isSaving || this.operation || this.error) return;
     clearTimeout(this.timer);
-    const delay = this.urgent ? 0 : Math.max(0, gainIntervalMs - (performance.now() - this.lastStarted));
+    const delay = this.urgent ? 0 : Math.max(0, updateIntervalMs - (performance.now() - this.lastStarted));
     this.timer = setTimeout(() => { void this.save(); }, delay);
   }
 
@@ -137,20 +164,36 @@ export class NativeSession {
     this.isSaving = true;
     this.urgent = false;
     this.lastStarted = performance.now();
-    const sent = { ...this.draft };
+    // Alternate when both have edits so a continuous volume drag cannot starve model settings.
+    const sent: PendingWrite = this.modelDraft && (this.nextWrite === 'model' || Object.keys(this.draft).length === 0)
+      ? { kind: 'model', id: this.modelDraft.id, edits: { ...this.modelDraft.edits } }
+      : { kind: 'configuration', edits: { ...this.draft } };
+    this.nextWrite = sent.kind === 'model' ? 'configuration' : 'model';
     this.flight = this.persist(sent);
     return this.flight;
   }
 
-  private async persist(sent: ConfigurationEdits) {
+  private async persist(sent: PendingWrite) {
     try {
-      const confirmed = await this.request(signal => updateConfiguration(sent, signal));
-      if (this.disposed) return;
-      this.catalog.applyConfiguration(confirmed);
-      // A response acknowledges only the values it sent, never newer interactions.
-      this.draft = Object.fromEntries(Object.entries(this.draft).filter(
-        ([key, value]) => sent[key as keyof ConfigurationEdits] !== value,
-      ));
+      if (sent.kind === 'configuration') {
+        const confirmed = await this.request(signal => updateConfiguration(sent.edits, signal));
+        if (this.disposed) return;
+        this.catalog.applyConfiguration(confirmed);
+        // A response acknowledges only the values it sent, never newer interactions.
+        this.draft = Object.fromEntries(Object.entries(this.draft).filter(
+          ([key, value]) => sent.edits[key as keyof ConfigurationEdits] !== value,
+        ));
+      } else {
+        const confirmed = await this.request(signal => updateModelSettings(sent.id, sent.edits, signal));
+        if (this.disposed) return;
+        this.catalog.applyModel(confirmed);
+        if (this.modelDraft?.id === sent.id) {
+          const edits = Object.fromEntries(Object.entries(this.modelDraft.edits).filter(
+            ([key, value]) => sent.edits[key as keyof ModelEdits] !== value,
+          ));
+          this.modelDraft = Object.keys(edits).length ? { id: sent.id, edits } : null;
+        }
+      }
       this.saved = !this.dirty;
     } catch (error) {
       if (!this.disposed) this.error = this.apiError(error);

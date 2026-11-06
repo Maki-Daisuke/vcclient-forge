@@ -1,42 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { configuration, fulfillCatalog, mockCatalog } from './catalog-fixtures';
-
-async function mockSession(page: Page) {
-  await mockCatalog(page);
-  const state = {
-    config: { ...configuration, pass_through: false, recording_started: false, future_setting: { keep: [1, 2] } } as Record<string, unknown>,
-    active: false, infoFail: false, putStatus: 200, startStatus: 200, rollback: false,
-    gate: null as Promise<void> | null,
-    writes: [] as Record<string, unknown>[], operations: [] as string[],
-    inFlight: 0, maxInFlight: 0,
-  };
-  await page.route('**/api/**', async route => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname;
-    if (path.endsWith('/configuration')) {
-      if (request.method() === 'GET') return route.fulfill({ json: state.config });
-      expect(request.method()).toBe('PUT');
-      const payload = request.postDataJSON();
-      state.writes.push(payload);
-      state.maxInFlight = Math.max(state.maxInFlight, ++state.inFlight);
-      if (state.gate) await state.gate;
-      if (state.putStatus === 200 && !state.rollback) state.config = payload;
-      await route.fulfill({ status: state.putStatus, json: state.putStatus === 200 ? null : { detail: 'Test save failure' } });
-      --state.inFlight;
-    } else if (path.endsWith('/information')) {
-      expect(request.method()).toBe('GET');
-      await route.fulfill({ status: state.infoFail ? 503 : 200, json: { local_voice_changer_interface_active: state.active } });
-    } else if (path.includes('/operation/')) {
-      expect(request.method()).toBe('POST');
-      const operation = path.split('/').at(-1)!;
-      state.operations.push(operation);
-      const status = operation === 'start' ? state.startStatus : 200;
-      if (status === 200) state.active = operation === 'start';
-      await route.fulfill({ status, json: status === 200 ? null : { detail: 'Test start failure' } });
-    } else await fulfillCatalog(route);
-  });
-  return state;
-}
+import { mockSession } from './session-fixtures';
 
 const inputGain = (page: Page) => page.getByRole('slider', { name: '入力音量', exact: true });
 const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toContainText('設定を反映しました');
