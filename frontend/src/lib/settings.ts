@@ -37,6 +37,7 @@ export interface ModelSettingsSnapshot {
 export interface ModelEdits {
   pitch?: number;
   indexRatio?: number;
+  pitchEstimator?: 'rmvpe' | 'fcpe';
 }
 
 // Only these fields can be changed by the native-audio UI.

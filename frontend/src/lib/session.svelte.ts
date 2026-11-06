@@ -110,7 +110,7 @@ export class NativeSession {
     this.edit({ [key]: value }, typeof value === 'boolean');
   }
 
-  setModelValue(key: keyof ModelEdits, value: number) {
+  setModelValue(key: 'pitch' | 'indexRatio', value: number) {
     const model = this.currentModel;
     const settings = this.modelSettings;
     if (!this.canAdjustModel || !model || !settings || settings[key] === null || !Number.isFinite(value)) return;
@@ -120,6 +120,15 @@ export class NativeSession {
     this.modelDraft = { id: model.id, edits: { ...this.modelDraft?.edits, [key]: value } };
     this.saved = false;
     this.schedule();
+  }
+
+  setPitchEstimator(value: 'rmvpe' | 'fcpe') {
+    const model = this.currentModel;
+    if (!this.canConfigure || this.settings?.inputMode !== 'server' || model?.status !== 'ready'
+      || !model.settings?.supportsPitch || !model.settings.pitchEstimator || model.settings.pitchEstimator === value) return;
+    this.modelDraft = { id: model.id, edits: { pitchEstimator: value } };
+    this.saved = false;
+    this.schedule(true);
   }
 
   selectModel(id: number) {

@@ -105,8 +105,9 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Main control sections reorganized (2026-11-06)**: Model-specific voice controls appear with
   the selected model; audio devices, volume, noise suppression, and inference controls
   are independently expandable in the main view.
-  Output/monitor share the existing output-volume slider; pitch-estimator radios
-  and other unconnected settings remain disabled. Backend APIs are unchanged.
+  Output/monitor share the existing output-volume slider. Pitch-estimator radios
+  are connected for stopped server audio; other unconnected settings remain disabled.
+  Backend APIs are unchanged.
 
 - **Filter controls implemented (2026-11-06)**: Server Mode with a selected model provides high/low-pass
   switches and cutoff sliders. The existing full PUT is preceded by current

@@ -242,11 +242,12 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
 
 export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal): Promise<ModelSummary> {
   if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
+  if (edits.pitchEstimator !== undefined && await readNativeActive(signal)) throw new ApiError('active');
   const url = `/api/slot-manager/slots/${id}`;
   const slot = object(await getJson(url, signal));
   const model = parseModel(slot);
   if (model.id !== id || !model.settings) invalidResponse();
-  const changes: Record<string, number> = {};
+  const changes: Record<string, number | string> = {};
   if (edits.pitch !== undefined) {
     if (!model.settings.supportsPitch || model.settings.pitch === null || !Number.isInteger(edits.pitch) || edits.pitch < -24 || edits.pitch > 24) invalidResponse();
     changes.pitch_shift = edits.pitch;
@@ -254,6 +255,10 @@ export async function updateModelSettings(id: number, edits: ModelEdits, signal:
   if (edits.indexRatio !== undefined) {
     if (!model.settings.hasIndex || model.settings.indexRatio === null || !Number.isFinite(edits.indexRatio) || edits.indexRatio < 0 || edits.indexRatio > 1) invalidResponse();
     changes.index_ratio = edits.indexRatio;
+  }
+  if (edits.pitchEstimator !== undefined) {
+    if (!model.settings.supportsPitch || !model.settings.pitchEstimator || !['rmvpe', 'fcpe'].includes(edits.pitchEstimator)) invalidResponse();
+    changes.pitch_estimator = edits.pitchEstimator;
   }
   // The endpoint consumes a complete RVCSlotInfo and uses its slot_index for persistence.
   await responseJson(await fetch(url, {
@@ -264,5 +269,14 @@ export async function updateModelSettings(id: number, edits: ModelEdits, signal:
   const result = parseModel(confirmed);
   if (result.id !== id || !result.settings) invalidResponse();
   if (Object.entries(changes).some(([key, value]) => confirmed[key] !== value)) throw new ApiError('not_applied');
+  if (edits.pitchEstimator !== undefined) {
+    const info = object(await getJson('/api/voice-changer-manager/information', signal));
+    const voice = object(info.voice_changer_information);
+    const pipeline = object(voice.pipeline_info);
+    const estimator = object(pipeline.pitch_estimator_info);
+    if (voice.slot_index !== id || pipeline.slot_index !== id || estimator.pitch_estimator_type !== edits.pitchEstimator) {
+      throw new ApiError('not_applied');
+    }
+  }
   return result;
 }
