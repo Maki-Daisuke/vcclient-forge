@@ -109,6 +109,10 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   are connected for stopped server audio; other unconnected settings remain disabled.
   Backend APIs are unchanged.
 
+- **Server passthrough control**: The Svelte UI can toggle the existing passthrough
+  configuration while native audio is running, with readback and retry/discard.
+  Mocked browser tests cover the control; live audio verification remains pending.
+
 - **Filter controls implemented (2026-11-06)**: Server Mode with a selected model provides high/low-pass
   switches and cutoff sliders. The existing full PUT is preceded by current
   configuration and voice-information reads and a cutoff/sample-rate check;

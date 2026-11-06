@@ -38,6 +38,7 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
   if (mode !== null && mode !== 'server' && mode !== 'client') invalidResponse();
   return {
     inputMode: mode,
+    passThrough: boolean(config.pass_through),
     inputGain: numeric(config.audio_input_device_gain),
     outputGain: numeric(config.audio_output_device_gain),
     monitorGain: numeric(config.audio_monitor_device_gain),
@@ -180,7 +181,7 @@ export async function loadAudioDevices(signal: AbortSignal): Promise<AudioDevice
 }
 
 const editFields: Record<keyof ConfigurationEdits, string> = {
-  currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode',
+  currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode', passThrough: 'pass_through',
   inputDevice: 'audio_input_device_index', outputDevice: 'audio_output_device_index',
   monitorDevice: 'audio_monitor_device_index',
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
@@ -192,7 +193,7 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
 };
 
 const filterKeys = ['highPassEnabled', 'lowPassEnabled', 'highPassCutoff', 'lowPassCutoff'];
-const liveKeys = ['inputGain', 'outputGain', 'noiseGate', ...filterKeys];
+const liveKeys = ['inputGain', 'outputGain', 'noiseGate', 'passThrough', ...filterKeys];
 
 export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
   const info = object(await getJson(`${nativeUrl}/information`, signal));

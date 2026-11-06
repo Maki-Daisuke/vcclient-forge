@@ -5,7 +5,7 @@ Bits UI supplies sliders and accessible dialogs; standard HTML supplies simple
 buttons, selects, and checkboxes. The model list, configured selection, metadata,
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
-live input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
+live passthrough, input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
 The audio button switches between Start and Stop based on the confirmed backend state.
 If the audio state cannot be read, Stop remains available.
 The Start/Stop, Passthrough, and Record buttons appear above the audio meters.
@@ -119,6 +119,15 @@ Gain and noise-gate drags send at most once per 100 ms while requests are availa
 key release, and focus loss flush the latest value. A slow request retains only the
 latest pending edits. Failed saves retain drafts and require explicit retry or discard.
 Reload/start are blocked while edits are pending; Stop waits for an in-flight write.
+
+The Passthrough button toggles the backend's `pass_through` configuration while
+Server Mode is selected, including during native audio. Its pressed state reflects
+the current draft or last confirmed value; it is disabled if that value is unknown.
+It shares the serialized configuration queue, readback, and retry/discard behavior.
+The backend resets passthrough on restart and does not persist it in the settings
+file. Changes by other clients are visible after reload or a subsequent confirmed
+configuration write. Reading this field from the real backend was verified; browser
+write tests mock the API, and audible passthrough has not been verified.
 
 Pitch and index ratio use GET/PUT/GET on `/api/slot-manager/slots/{id}`, preserving
 the complete latest slot payload and validating that the response ID matches the

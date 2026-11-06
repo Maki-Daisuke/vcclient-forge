@@ -128,6 +128,8 @@ The selected model's portrait, details, and voice controls appear inside the mod
 The remaining controls are organized as Audio Devices, Volume, Noise Suppression,
 and Inference, each using native expandable details. Output/monitor volume uses one slider;
 RMVPE/FCPE pitch estimator selection is available while server audio is stopped.
+The Passthrough button writes the existing configuration and confirms the result;
+it can be toggled during server audio. Live audio verification remains pending.
 Client audio, sample-rate edits, and preferred-device selection remain unconnected.
 Browser-only noise preferences remain visible and disabled under Client Mode Only
 within Noise Suppression.
