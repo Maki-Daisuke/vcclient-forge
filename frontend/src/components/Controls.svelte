@@ -12,7 +12,7 @@
   const ui = useUi();
   const session = useSession();
   const settings = $derived(session.settings);
-  const modelSettings = $derived(session.currentModel?.settings);
+  const modelSettings = $derived(session.modelSettings);
   const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
 </script>
 
@@ -83,9 +83,15 @@
     <details class="control-group" open>
       <summary><SlidersHorizontal size={17} />{ui.t('common.controls.voice_control')}</summary>
       <div class="control-group-body">
-        <RangeField label={ui.t('common.controls.pitch_adjust')} value={modelSettings?.pitch ?? null} min={-24} max={24} step={1} />
+        <RangeField label={ui.t('common.controls.pitch_adjust')} value={modelSettings?.pitch ?? null} min={-24} max={24} step={1}
+          disabled={!session.canAdjustModel || !modelSettings?.supportsPitch}
+          onchange={value => session.setModelValue('pitch', value)} oncommit={() => session.flush()} />
+        {#if modelSettings && !modelSettings.supportsPitch}<p class="muted">{ui.t('forge.pitch_unavailable')}</p>{/if}
         <RangeField label={ui.t('common.controls.formant_adjust')} value={null} min={-2} max={2} step={0.1} />
-        <RangeField label={ui.t('common.controls.index_adjust')} value={modelSettings?.indexRatio ?? null} max={1} step={0.01} />
+        <RangeField label={ui.t('common.controls.index_adjust')} value={modelSettings?.indexRatio ?? null} max={1} step={0.01}
+          disabled={!session.canAdjustModel || !modelSettings?.hasIndex}
+          onchange={value => session.setModelValue('indexRatio', value)} oncommit={() => session.flush()} />
+        {#if modelSettings && !modelSettings.hasIndex}<p class="muted">{ui.t('forge.index_unavailable')}</p>{/if}
         <div class="field-grid">
           <SelectField label={ui.t('common.voice_controls.pitch_estimator')} value={modelSettings?.pitchEstimator ?? '—'} />
           <SelectField label={ui.t('common.voice_controls.embedder')} value={modelSettings?.embedder ?? '—'} />

@@ -5,8 +5,8 @@ Bits UI supplies sliders and accessible dialogs; standard HTML supplies simple
 buttons, selects, and checkboxes. The model list, configured selection, metadata,
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
-live input/output gain adjustment through existing PUT/POST APIs. Upload, model
-editing, Client Mode audio, and other settings controls remain disabled.
+live input/output gain, pitch, and index adjustment through existing PUT/POST APIs.
+Upload, model metadata editing, Client Mode audio, and other settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 
 Run commands from the repository root:
@@ -45,8 +45,8 @@ The preview is not yet selected by the desktop host or portable packages.
 Browser checks run against the built preview with intercepted API responses;
 they do not require the Python backend or open native audio devices. They cover startup GETs, sparse
 slot IDs, metadata/selection, loading and error recovery, invalid responses,
-timeout, portrait fallback, native selection/start/stop, gain coalescing, full
-configuration preservation, failed writes and retries, no browser device access, dialog
+timeout, portrait fallback, native selection/start/stop, gain/model coalescing, full
+configuration/slot preservation, failed writes and retries, no browser device access, dialog
 focus/nesting, themes, and all 13 languages at a narrow viewport:
 
 ```sh
@@ -104,6 +104,19 @@ key release, and focus loss flush the latest value. A slow request retains only 
 latest pending edits. Failed saves retain drafts and require explicit retry or discard.
 Reload/start are blocked while edits are pending; Stop waits for an in-flight write.
 
+Pitch and index ratio use GET/PUT/GET on `/api/slot-manager/slots/{id}`, preserving
+the complete latest slot payload and validating that the response ID matches the
+target. Model drafts are tied to a slot ID and share the gain coordinator's 100 ms
+throttle, completion flush, serialization, and retry/discard behavior. When both
+have pending edits, configuration and model writes alternate. Confirmed slot data
+updates only that model in the catalog; no full model-list refresh is needed after
+each edit. Pitch requires an f0 model; index adjustment requires a configured
+index file. Unsupported controls remain disabled with an explanation. The backend
+continues saving these settings to `model_dir/{id}/params.json`; new listening
+validation for pitch/index adjustment is still pending. The real backend's slot
+GET and displayed values were checked using a browser-only simulated model selection;
+live model-setting PUTs and audible changes were not part of that check.
+
 To try native audio, start the backend, select a model card, open Settings, switch
 to Server Mode if necessary, and choose input/output devices (monitor is optional).
 Device changes reset that device's sample rate to Auto. Wait for settings to be
@@ -119,7 +132,7 @@ guarantee against another client; use one controlling UI. Requests time out afte
 30 seconds for writes/operations, with no automatic retry: a lost response does
 not prove the server did not apply a change. Runtime GET reports the native enable
 flag, not stream health or audible output. Live meters remain unavailable.
-Automated tests use mocked APIs (41 browser checks passed). The user confirmed
+Automated tests use mocked APIs. The user confirmed
 native audio playback from the new UI on 2026-11-06; subjective gain-adjustment
 latency and longer sessions still need validation. Each configuration PUT still
 writes the backend settings file. This does not complete the production cutover

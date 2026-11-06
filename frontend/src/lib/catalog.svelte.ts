@@ -1,6 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import { loadAudioDevices, loadModelCatalog } from './api';
-import type { CatalogLoader, ModelCatalog } from './catalog';
+import type { CatalogLoader, ModelCatalog, ModelSummary } from './catalog';
 import type { AudioDevices } from './audio-devices';
 import { ApiError } from './api-error';
 import type { ConfirmedConfiguration } from './settings';
@@ -46,6 +46,15 @@ export class ModelCatalogState {
   applyConfiguration(configuration: ConfirmedConfiguration) {
     if (this.state.status === 'ready') {
       this.state = { status: 'ready', catalog: { ...this.state.catalog, ...configuration } };
+    }
+  }
+
+  applyModel(model: ModelSummary) {
+    if (this.state.status === 'ready') {
+      this.state = { status: 'ready', catalog: {
+        ...this.state.catalog,
+        models: this.state.catalog.models.map(current => current.id === model.id ? model : current),
+      } };
     }
   }
 

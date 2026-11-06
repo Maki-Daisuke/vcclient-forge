@@ -1,6 +1,6 @@
 import type { ModelCatalog, ModelSummary } from './catalog';
 import { ApiError } from './api-error';
-import type { ConfigurationSnapshot, ConfigurationEdits, ConfirmedConfiguration } from './settings';
+import type { ConfigurationSnapshot, ConfigurationEdits, ConfirmedConfiguration, ModelEdits } from './settings';
 import type { AudioDevice, AudioDevices } from './audio-devices';
 
 const configurationUrl = '/api/configuration-manager/configuration';
@@ -76,44 +76,49 @@ function parseConfiguration(configuration: unknown): ConfirmedConfiguration {
   return { currentModelId: currentId >= 0 ? currentId : null, settings: parseSettings(config) };
 }
 
+function parseModel(slot: Record<string, unknown>): ModelSummary {
+  if (!Number.isSafeInteger(slot.slot_index) || (slot.slot_index as number) < 0) invalidResponse();
+  const id = slot.slot_index as number;
+  if (typeof slot.voice_changer_type !== 'string') invalidResponse();
+  const type = slot.voice_changer_type;
+  const tags = type === 'RVC' ? [type] : [];
+  if (type === 'RVC') {
+    if (typeof slot.is_onnx !== 'boolean' || typeof slot.is_f0 !== 'boolean') invalidResponse();
+    tags.push(`${slot.is_onnx ? 'onnx' : 'pth'} ${text(slot.version)}`.trim());
+    tags.push(slot.is_f0 ? 'f0' : 'non-f0');
+    const embedder = text(slot.embedder);
+    if (embedder) tags.push(embedder);
+  }
+  return {
+    id,
+    name: text(slot.name),
+    description: text(slot.description),
+    imageUrl: modelImage(id, slot.icon_file),
+    status: type === 'RVC' ? 'ready' : type === 'RESERVED_FOR_SAMPLE' ? 'pending' : type === 'BROKEN' ? 'broken' : 'unsupported',
+    tags,
+    settings: type === 'RVC' ? {
+      supportsPitch: slot.is_f0 === true,
+      hasIndex: text(slot.index_file).trim().length > 0,
+      pitch: numeric(slot.pitch_shift),
+      indexRatio: numeric(slot.index_ratio),
+      pitchEstimator: text(slot.pitch_estimator) || null,
+      embedder: text(slot.embedder) || null,
+      chunkSeconds: numeric(slot.chunk_sec),
+    } : null,
+  };
+}
+
 function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
   if (!Array.isArray(slots)) invalidResponse();
   const ids = new Set<number>();
   const models: ModelSummary[] = [];
-
   for (const value of slots) {
     const slot = object(value);
     if (!Number.isSafeInteger(slot.slot_index) || (slot.slot_index as number) < 0) invalidResponse();
     const id = slot.slot_index as number;
     if (ids.has(id)) invalidResponse();
     ids.add(id);
-    if (slot.voice_changer_type === null) continue;
-    if (typeof slot.voice_changer_type !== 'string') invalidResponse();
-
-    const type = slot.voice_changer_type;
-    const tags = type === 'RVC' ? [type] : [];
-    if (type === 'RVC') {
-      if (typeof slot.is_onnx !== 'boolean' || typeof slot.is_f0 !== 'boolean') invalidResponse();
-      tags.push(`${slot.is_onnx ? 'onnx' : 'pth'} ${text(slot.version)}`.trim());
-      tags.push(slot.is_f0 ? 'f0' : 'non-f0');
-      const embedder = text(slot.embedder);
-      if (embedder) tags.push(embedder);
-    }
-    models.push({
-      id,
-      name: text(slot.name),
-      description: text(slot.description),
-      imageUrl: modelImage(id, slot.icon_file),
-      status: type === 'RVC' ? 'ready' : type === 'RESERVED_FOR_SAMPLE' ? 'pending' : type === 'BROKEN' ? 'broken' : 'unsupported',
-      tags,
-      settings: type === 'RVC' ? {
-        pitch: numeric(slot.pitch_shift),
-        indexRatio: numeric(slot.index_ratio),
-        pitchEstimator: text(slot.pitch_estimator) || null,
-        embedder: text(slot.embedder) || null,
-        chunkSeconds: numeric(slot.chunk_sec),
-      } : null,
-    });
+    if (slot.voice_changer_type !== null) models.push(parseModel(slot));
   }
 
   return {
@@ -214,4 +219,31 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
   const active = await readNativeActive(signal);
   if (active !== (operation === 'start')) throw new ApiError('not_applied');
   return active;
+}
+
+export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal): Promise<ModelSummary> {
+  if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
+  const url = `/api/slot-manager/slots/${id}`;
+  const slot = object(await getJson(url, signal));
+  const model = parseModel(slot);
+  if (model.id !== id || !model.settings) invalidResponse();
+  const changes: Record<string, number> = {};
+  if (edits.pitch !== undefined) {
+    if (!model.settings.supportsPitch || model.settings.pitch === null || !Number.isInteger(edits.pitch) || edits.pitch < -24 || edits.pitch > 24) invalidResponse();
+    changes.pitch_shift = edits.pitch;
+  }
+  if (edits.indexRatio !== undefined) {
+    if (!model.settings.hasIndex || model.settings.indexRatio === null || !Number.isFinite(edits.indexRatio) || edits.indexRatio < 0 || edits.indexRatio > 1) invalidResponse();
+    changes.index_ratio = edits.indexRatio;
+  }
+  // The endpoint consumes a complete RVCSlotInfo and uses its slot_index for persistence.
+  await responseJson(await fetch(url, {
+    method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...slot, ...changes }),
+  }), signal);
+  const confirmed = object(await getJson(url, signal));
+  const result = parseModel(confirmed);
+  if (result.id !== id || !result.settings) invalidResponse();
+  if (Object.entries(changes).some(([key, value]) => confirmed[key] !== value)) throw new ApiError('not_applied');
+  return result;
 }
