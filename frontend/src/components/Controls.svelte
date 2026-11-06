@@ -54,7 +54,7 @@
           <button class="button" class:primary={!showStop} class:running={session.active === true} aria-disabled={showStop ? !session.canStop : !session.canStart}
             aria-describedby={showStartMessage ? 'start-reason' : undefined}
             onclick={() => session.operate(showStop ? 'stop' : 'start')}>
-            {#if showStop}<Square size={16} />{ui.t('common.controls.stop')}{:else}<Play size={17} />{ui.t('common.controls.start')}{/if}
+            {#if showStop}<Square size={16} fill="currentColor" />{ui.t('common.controls.stop')}{:else}<Play size={17} />{ui.t('common.controls.start')}{/if}
           </button>
           {#if showStartMessage}<span id="start-reason" class="start-tooltip" role="tooltip">{startMessage}</span>{/if}
         </span>
