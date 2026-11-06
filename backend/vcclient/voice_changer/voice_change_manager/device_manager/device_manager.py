@@ -8,6 +8,7 @@ from vcclient.logger import logger
 from vcclient.utils.runtime_env import setup_runtime_env
 from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
 from vcclient.voice_changer.voice_changer_const import (
+    COREML_GPU_DEVICE_ID,
     OPENVINO_AUTO_DEVICE_ID,
     OPENVINO_GPU_DEVICE_ID,
     CoreMLCacheDir,
@@ -212,9 +213,10 @@ class DeviceManager:
             return (["DmlExecutionProvider"], [{"device_id": device_id}])
 
         if device_id >= 0 and "CoreMLExecutionProvider" in available_providers:
+            compute_units = "CPUAndGPU" if device_id % 2 == 1 or device_id == COREML_GPU_DEVICE_ID else "ALL"
             coreml_options: dict[str, Any] = {
-                "ModelFormat": "MLProgram",
-                "MLComputeUnits": "ALL",
+                "ModelFormat": "NeuralNetwork",
+                "MLComputeUnits": compute_units,
                 "RequireStaticInputShapes": "0",
                 "EnableOnSubgraphs": "0",
             }

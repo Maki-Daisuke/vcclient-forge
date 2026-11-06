@@ -102,10 +102,18 @@ def _detect_macos_gpus() -> list[GPUInfo]:
                         pass
                 gpu_list.append(
                     GPUInfo(
-                        name=name,
-                        device_id=str(idx),
+                        name=f"{name} (ALL / ANE Preferred)",
+                        device_id=str(idx * 2),
                         adapter_ram=vram,
-                        device_id_int=idx,
+                        device_id_int=idx * 2,
+                    )
+                )
+                gpu_list.append(
+                    GPUInfo(
+                        name=f"{name} (CPU + GPU / GPU Preferred)",
+                        device_id=str(idx * 2 + 1),
+                        adapter_ram=vram,
+                        device_id_int=idx * 2 + 1,
                     )
                 )
     except Exception as e:

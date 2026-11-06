@@ -25,11 +25,15 @@ def test_device_manager_coreml_provider_configuration(monkeypatch: pytest.Monkey
     assert "CoreMLExecutionProvider" in providers
     assert "CPUExecutionProvider" in providers
     assert len(provider_options) == 2
-    assert provider_options[0]["ModelFormat"] == "MLProgram"
+    assert provider_options[0]["ModelFormat"] == "NeuralNetwork"
     assert provider_options[0]["MLComputeUnits"] == "ALL"
     assert provider_options[0]["RequireStaticInputShapes"] == "0"
     assert provider_options[0]["EnableOnSubgraphs"] == "0"
     assert provider_options[0]["ModelCacheDirectory"] == str(CoreMLCacheDir.resolve())
+
+    # 1b. When device_id=1 (GPU preferred), MLComputeUnits should be CPUAndGPU
+    providers_gpu, provider_options_gpu = dev_mgr.get_onnx_execution_provider(1)
+    assert provider_options_gpu[0]["MLComputeUnits"] == "CPUAndGPU"
 
     # 2. When CoreMLExecutionProvider is unavailable, fallback to CPU
     monkeypatch.setattr(ort, "get_available_providers", lambda: ["CPUExecutionProvider"])
