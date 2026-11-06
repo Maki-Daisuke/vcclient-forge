@@ -6,7 +6,7 @@ import onnxruntime
 
 from vcclient.logger import logger
 from vcclient.utils.runtime_env import setup_runtime_env
-from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
+from vcclient.voice_changer.gpu_device_manager import get_cuda_info, get_gpu_info
 from vcclient.voice_changer.voice_changer_const import (
     COREML_GPU_DEVICE_ID,
     OPENVINO_AUTO_DEVICE_ID,
@@ -165,8 +165,8 @@ def _resolve_onnx_execution_provider(device_id: int) -> tuple[list[str], list[di
             ],
         )
 
-    cuda_info = GPUDeviceManager.get_instance().get_cuda_info()
-    gpu_info = GPUDeviceManager.get_instance().get_gpu_info()
+    cuda_info = get_cuda_info()
+    gpu_info = get_gpu_info()
 
     cuda_len = len(cuda_info)
     gpu_len = len(gpu_info) - 1

@@ -175,97 +175,93 @@ def get_driver_and_cuda_version() -> tuple[str | None, str | None]:
     return driver_version, cuda_version
 
 
-class GPUDeviceManager:
-    _instance: GPUDeviceManager | None = None
-    gpu_info: list[GPUInfo]
-    cuda_info: list[GPUInfo]
-    cuda_available: bool
-    cuda_gpu_num: int
-    cuda_driver_version: str | None
-    cuda_version: str | None
-    cudnn_version: str | None
-    cuda_mps_enabled: bool
+_gpu_info: list[GPUInfo] = []
+_cuda_info: list[GPUInfo] = []
+_cuda_available: bool = False
 
-    @classmethod
-    def get_instance(cls) -> GPUDeviceManager:
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
 
-    def __init__(self) -> None:
-        self.reload()
+def reload_gpu_devices() -> list[GPUInfo]:
+    global _gpu_info, _cuda_info, _cuda_available
+    logger.info("Reloading GPU info")
 
-    def reload(self) -> list[GPUInfo]:
-        logger.info("Reloading GPU info")
+    # 1. NVIDIA GPU の検出 (Windows / Linux 共通)
+    nvidia_gpus = _detect_nvidia_gpus()
 
-        # 1. NVIDIA GPU の検出 (Windows / Linux 共通)
-        nvidia_gpus = _detect_nvidia_gpus()
+    # 2. プラットフォームごとのシステムGPU検出
+    system = platform.system()
+    if system == "Windows":
+        sys_gpus = _detect_windows_gpus()
+    elif system == "Darwin":
+        sys_gpus = _detect_macos_gpus()
+    elif system == "Linux":
+        sys_gpus = _detect_linux_gpus()
+    else:
+        sys_gpus = []
 
-        # 2. プラットフォームごとのシステムGPU検出
-        system = platform.system()
-        if system == "Windows":
-            sys_gpus = _detect_windows_gpus()
-        elif system == "Darwin":
-            sys_gpus = _detect_macos_gpus()
-        elif system == "Linux":
-            sys_gpus = _detect_linux_gpus()
-        else:
-            sys_gpus = []
+    cpu_entry = GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1)
 
-        cpu_entry = GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1)
+    # システムGPUリスト (CPU + 検出されたGPU)
+    all_sys = [cpu_entry]
+    detected = nvidia_gpus if nvidia_gpus else sys_gpus
+    for g in detected:
+        if g.name.lower() != "cpu":
+            all_sys.append(g)
 
-        # システムGPUリスト (CPU + 検出されたGPU)
-        all_sys = [cpu_entry]
-        detected = nvidia_gpus if nvidia_gpus else sys_gpus
-        for g in detected:
-            if g.name.lower() != "cpu":
-                all_sys.append(g)
+    # 3. OpenVINO Execution Provider (GPU)
+    try:
+        from vcclient.voice_changer.voice_change_manager.device_manager import is_openvino_available
 
-        # 3. OpenVINO Execution Provider (GPU)
-        try:
-            from vcclient.voice_changer.voice_change_manager.device_manager import is_openvino_available
-
-            if is_openvino_available():
-                all_sys.append(
-                    GPUInfo(
-                        name="OpenVINO (GPU)",
-                        device_id="openvino_gpu",
-                        adapter_ram=0,
-                        device_id_int=OPENVINO_GPU_DEVICE_ID,
-                    )
+        if is_openvino_available():
+            all_sys.append(
+                GPUInfo(
+                    name="OpenVINO (GPU)",
+                    device_id="openvino_gpu",
+                    adapter_ram=0,
+                    device_id_int=OPENVINO_GPU_DEVICE_ID,
                 )
-        except Exception as e:
-            logger.debug("OpenVINO detection skipped: %s", e)
+            )
+    except Exception as e:
+        logger.debug("OpenVINO detection skipped: %s", e)
 
-        self.gpu_info = all_sys
+    _gpu_info = all_sys
 
-        # CUDA/アクセラレータGPUリスト
-        all_cuda = [cpu_entry]
-        for g in nvidia_gpus:
-            all_cuda.append(g)
-        self.cuda_info = all_cuda
+    # CUDA/アクセラレータGPUリスト
+    all_cuda = [cpu_entry]
+    for g in nvidia_gpus:
+        all_cuda.append(g)
+    _cuda_info = all_cuda
 
-        self.cuda_available = len(nvidia_gpus) > 0
-        self.cuda_gpu_num = len(nvidia_gpus)
-        self.cuda_driver_version, self.cuda_version = get_driver_and_cuda_version()
-        self.cudnn_version = None
-        self.cuda_mps_enabled = system == "Darwin"
+    _cuda_available = len(nvidia_gpus) > 0
+    cuda_driver_version, _ = get_driver_and_cuda_version()
 
-        logger.info("GPU[sys]: %s", self.gpu_info)
-        logger.info(
-            "GPU[cuda]: available:%s, num:%s, driver_version:%s",
-            self.cuda_available,
-            self.cuda_gpu_num,
-            self.cuda_driver_version,
-        )
-        logger.info("GPU[cuda_info]: %s", self.cuda_info)
-        return self.gpu_info
+    logger.info("GPU[sys]: %s", _gpu_info)
+    logger.info(
+        "GPU[cuda]: available:%s, num:%s, driver_version:%s",
+        _cuda_available,
+        len(nvidia_gpus),
+        cuda_driver_version,
+    )
+    logger.info("GPU[cuda_info]: %s", _cuda_info)
+    return _gpu_info
 
-    def get_gpu_info(self) -> list[GPUInfo]:
-        return self.gpu_info
 
-    def get_cuda_info(self) -> list[GPUInfo]:
-        return self.cuda_info
+# Alias for backward-compatibility if needed
+reload = reload_gpu_devices
 
-    def is_cuda_available(self) -> bool:
-        return self.cuda_available
+
+def get_gpu_info() -> list[GPUInfo]:
+    if not _gpu_info:
+        reload_gpu_devices()
+    return _gpu_info
+
+
+def get_cuda_info() -> list[GPUInfo]:
+    if not _cuda_info:
+        reload_gpu_devices()
+    return _cuda_info
+
+
+def is_cuda_available() -> bool:
+    if not _gpu_info:
+        reload_gpu_devices()
+    return _cuda_available

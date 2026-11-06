@@ -8,7 +8,7 @@ import onnxruntime as ort
 import pytest
 from onnx import TensorProto, helper
 
-from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
+from vcclient.voice_changer.gpu_device_manager import reload_gpu_devices
 from vcclient.voice_changer.voice_change_manager.device_manager import (
     configure_session_options,
     create_inference_session,
@@ -166,13 +166,11 @@ def test_device_manager_configure_session_options():
 
 
 def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
-    gpu_mgr = GPUDeviceManager.get_instance()
-
     # When OpenVINO is available
     monkeypatch.setattr(
         "vcclient.voice_changer.voice_change_manager.device_manager.is_openvino_available", lambda: True
     )
-    info_list = gpu_mgr.reload()
+    info_list = reload_gpu_devices()
     device_ids = [info.device_id_int for info in info_list]
     assert OPENVINO_GPU_DEVICE_ID in device_ids
     openvino_info = next(info for info in info_list if info.device_id_int == OPENVINO_GPU_DEVICE_ID)
@@ -183,7 +181,7 @@ def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         "vcclient.voice_changer.voice_change_manager.device_manager.is_openvino_available", lambda: False
     )
-    info_list_no_ov = gpu_mgr.reload()
+    info_list_no_ov = reload_gpu_devices()
     device_ids_no_ov = [info.device_id_int for info in info_list_no_ov]
     assert OPENVINO_GPU_DEVICE_ID not in device_ids_no_ov
 

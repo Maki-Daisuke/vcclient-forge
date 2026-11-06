@@ -35,7 +35,7 @@ from vcclient.server.vcserver_rest_api_task_manager import RestAPITaskManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.voice_changer.audio_device_manager.audio_device_manager import AudioDeviceManager
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
-from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
+from vcclient.voice_changer.gpu_device_manager import reload_gpu_devices
 from vcclient.voice_changer.module_manager.module_manager import ModuleManager
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
@@ -188,8 +188,7 @@ def initialize():
     audio_device_manager.reload_device()
     configuration_manager = ConfigurationManager.get_instance()
     configuration_manager.reload()
-    gpu_device_manager = GPUDeviceManager.get_instance()
-    gpu_device_manager.reload()
+    reload_gpu_devices()
     module_manager = ModuleManager.get_instance()
     module_manager.reload()
     slot_manager = SlotManager.get_instance()
