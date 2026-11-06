@@ -54,14 +54,12 @@ npm ci
 npm --prefix desktop/frontend ci
 
 # Choose ONE edition matching your development/testing target:
-npm run build -- --edition cuda    # NVIDIA GPU (Windows / Linux)
-npm run build -- --edition dml     # Windows Universal GPU (DirectX 12: AMD, Intel, NVIDIA)
-npm run build -- --edition mac     # macOS (Apple Silicon M-series CoreML)
-npm run build -- --edition cpu     # Generic CPU fallback
+npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Windows DirectML, Apple CoreML, CPU)
+npm run build -- --edition cuda      # NVIDIA GPU (CUDA 12.x / cuDNN 9)
 ```
 
-* `npm run build` builds all supported components (CPU by default): frontend assets in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and a frozen backend.
-* `npm run build -- --edition <edition>` selects the hardware edition. `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` freezes the backend rather than just synchronizing dependencies.
+* `npm run build` builds all supported components (`standard` by default): frontend assets in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
+* `npm run build -- --edition <edition>` selects the hardware edition (`standard` or `cuda`). `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` synchronizes backend dependencies for the specified edition.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
 * Advanced: You can also synchronize the Python backend directly using `uv sync --project backend --extra <edition>`.
@@ -92,7 +90,7 @@ The desktop host lives in `desktop/`. Complete the Wails v3 toolchain setup unde
 ```bash
 npm ci
 npm --prefix desktop/frontend ci
-uv sync --project backend --extra cpu   # Or cuda / dml / mac; choose one hardware edition
+uv sync --project backend --extra standard   # Or cuda; choose one hardware edition
 npm run dev:desktop
 ```
 
@@ -104,23 +102,23 @@ Wails embeds `desktop/frontend/dist`, displays startup status/logs via `@xterm/x
 
 ## 3. Building Standalone Portable Packages
 
-Build commands are defined once in `package.json`. `npm run build` uses `scripts/build.js` only to invoke `build:frontend`, `build:desktop`, and `build:backend` in order, forwarding edition/version arguments to the backend task. `scripts/build_backend.py` contains only the backend-specific environment and PyInstaller **onedir** steps; it does not invoke frontend or desktop builds. PyInstaller bundles Python, its standard library, and edition-specific dependencies, including CUDA/cuDNN for CUDA. `npm run package` runs the separate `scripts/build_package.py` to validate, copy, and optionally archive existing artifacts; it does not compile anything or synchronize Python dependencies. Distribute the entire package directory, not just the executable:
+Build commands are defined once in `package.json`. `npm run build` uses `scripts/build.js` to invoke `build:frontend`, `build:desktop`, and `build:backend` in order, forwarding edition/version arguments to the backend task. `scripts/build_backend.py` synchronizes backend dependencies for the target edition during development. Standalone distribution packaging is handled by `npm run package` (via `scripts/build_package.py`), which freezes the backend with PyInstaller **onedir** mode, validates prerequisites, bundles desktop/frontend assets, and optionally archives the package:
 
 ```bash
 # Build all components, then package the SAME edition:
-npm run build -- --edition cpu
-npm run package -- --edition cpu
+npm run build -- --edition standard
+npm run package -- --edition standard
 
-# CUDA example (or choose dml / mac for both commands):
+# CUDA example:
 npm run build -- --edition cuda
 npm run package -- --edition cuda
 
-# Backend-only build and packaging CLI (frontend/desktop must already be built):
-uv run --no-project --python 3.14 python scripts/build_backend.py --edition cuda
+# Standalone packaging CLI:
+uv run --no-project --python 3.14 python scripts/build_package.py --edition standard
 uv run --no-project --python 3.14 python scripts/build_package.py --edition cuda
 ```
 
-* `--edition <edition>`: Target edition (`cuda`, `dml`, `mac`, `cpu`, default: `cpu`).
+* `--edition <edition>`: Target edition (`standard`, `cuda`, default: `standard`).
 * `--output-dir <path>`: Destination directory for artifacts (default: `dist/`).
 * `--skip-archive`: Create the uncompressed package folder without archiving to `.7z`.
 * `--python-version <version>`: Build-environment version (default: `3.14`). Use the same value when building and packaging.
@@ -149,7 +147,7 @@ End users extract the **entire directory** and launch `vcclient-forge.exe` (Wind
 
 Existing package folders and archives are never overwritten: use a new `--output-dir` for another build. Archive creation fails when the result is 2 GiB or larger. The Windows CUDA onedir archive measured on 2026-10-19 is **1,318,130,525 bytes (1.228 GiB)**, including Python and the selected CUDA libraries.
 
-For an import/startup check without starting a server or downloading models, use `main.exe --help` (`./main --help` on Linux/macOS). Windows CPU audio conversion has been confirmed manually. Python-free clean-machine validation and the non-Windows builds remain separate release checks.
+For an import/startup check without starting a server or downloading models, use `main.exe --help` (`./main --help` on Linux/macOS). Real-time audio conversion has been verified on physical hardware across Windows (NVIDIA CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and AVX-512 CPU) and macOS (Apple Silicon M2 via CoreML).
 
 ---
 

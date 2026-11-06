@@ -16,8 +16,8 @@ tags:
 
 # Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Standard Two-Tier Distribution
 
-> **Implementation Status & Roadmap Notice**:
-> This document records empirical micro-benchmarking data, hardware architecture evaluations, and the **target design specification for upcoming implementation milestones** (specifically Roadmap Item 9 / Hybrid Phase 5 and the Two-Tier Standard & CUDA Distribution transition). The current repository baseline maintains legacy backend device detection and distinct per-hardware packages. The cross-platform probing architecture and multi-EP packaging described herein represent the planned implementation roadmap for future releases.
+> **Implementation Status Notice**:
+> The layered platform baselines, dynamic hardware acceleration probing (`DeviceManager`), and Two-Tier Standard & CUDA distribution architecture described in this document **are fully implemented and verified** in VCClient Forge. Real-time inference has been empirically verified across physical hardware including Windows NVIDIA CUDA, Windows Intel Arc GPU (via OpenVINO GPU EP with in-memory 4D ONNX patching), Windows AMD Radeon (via DirectML), and macOS Apple Silicon (M2 via CoreML NeuralNetwork format on ANE and GPU).
 
 ## Executive Summary
 
@@ -418,9 +418,9 @@ Because the modular OpenVINO plugin is compact (~50–80 MB compressed) and Dire
 
 Thus, **wheel coexistence boundaries—not arbitrary size targets—naturally dictate Forge's two-tier distribution architecture**.
 
-### 5.3 The Platform Baseline Concept (Target Packaging Architecture)
+### 5.3 The Platform Baseline Concept (Production Packaging Architecture)
 
-Forge's distribution roadmap plans to establish non-CUDA components as **permanent platform baselines** across all operating systems:
+Forge's distribution establishes non-CUDA components as **permanent platform baselines** across all operating systems:
 
 ```mermaid
 flowchart TD
@@ -453,9 +453,9 @@ flowchart TD
 4. **macOS ARM64 Platform Baseline**:
    Bundles `CoreMLExecutionProvider`, which automatically delegates computation between the Apple Neural Engine (ANE) and Metal GPU, backed by NEON/Accelerate CPU execution.
 
-### 5.4 Consolidated Target Edition Matrix
+### 5.4 Consolidated Production Edition Matrix
 
-Under the consolidated roadmap, Forge organizes distribution packages into a clean, hierarchical matrix across OS, architecture, and compute tier (`<os>-<architecture>-<edition>`):
+Forge organizes distribution packages into a clean, hierarchical matrix across OS, architecture, and compute tier (`<os>-<architecture>-<edition>`):
 
 | OS          | Architecture | Edition    | Bundled Execution Providers   | Intended Hardware                                                                           | Package Name Example   |
 | :---------- | :----------- | :--------- | :---------------------------- | :------------------------------------------------------------------------------------------ | :--------------------- |
@@ -467,7 +467,7 @@ Under the consolidated roadmap, Forge organizes distribution packages into a cle
 | **Linux**   | `arm64`      | `cuda`     | **`CUDA`**, `CPU` (NEON/SVE)  | NVIDIA hardware (DGX Spark / GB10 Grace Blackwell, GPU cloud)                               | `linux-arm64-cuda`     |
 | **macOS**   | `arm64`      | `standard` | `CoreML`, `CPU` (NEON)        | Apple Silicon (M1/M2/M3/M4: ANE + Metal GPU)                                                | `mac-arm64-standard`   |
 
-### 5.5 Architectural Advantages of the Planned Bundled Baseline
+### 5.5 Architectural Advantages of the Bundled Baselines
 
 1. **Hybrid Multi-Device Offloading on Modern Laptops**:
    Modern laptops frequently combine an Intel Core Ultra or AMD Ryzen AI processor with an NVIDIA discrete GPU. By bundling OpenVINO into the CUDA Edition:
@@ -475,7 +475,7 @@ Under the consolidated roadmap, Forge organizes distribution packages into a cle
    - Synthesis (HiFi-GAN vocoding) runs simultaneously on the discrete NVIDIA GPU (via CUDA).
    - If OpenVINO were stripped from the CUDA edition, NVIDIA laptop users would lose access to their integrated Intel NPU/GPU hardware.
 2. **Unified Device Management Codebase**:
-   In the target refactoring, backend initialization (`device_manager.py`) will register the full platform provider stack uniformly across all installations. Edition detection will not require fragile conditional imports or guard statements; if CUDA is present, it will be prioritized for vocoder synthesis while maintaining baseline providers.
+   In VCClient Forge, backend initialization (`device_manager.py`) registers the full platform provider stack uniformly across all installations. Edition detection does not require fragile conditional imports or guard statements; if CUDA is present, it is prioritized for vocoder synthesis while maintaining baseline providers.
 3. **Negligible Packaging Footprint Impact**:
    Bundling OpenVINO adds only ~50–80 MB compressed to the distribution. The standalone archive growth remains well below the 2.00 GiB release asset threshold.
 4. **Elimination of User Confusion**:

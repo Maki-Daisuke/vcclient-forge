@@ -13,9 +13,24 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 
 ### 1. Download the Release Package
 
-Download the standalone package matching your hardware from **[GitHub Releases](https://github.com/Maki-Daisuke/vcclient-forge/releases)**:
+Download the standalone package matching your operating system and hardware from **[GitHub Releases](https://github.com/Maki-Daisuke/vcclient-forge/releases)**:
 
-If you have an NVIDIA GPU, download the package with the `cuda` edition for optimal performance; otherwise, the `cpu` edition is recommended.
+| OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                           |
+| :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :---------------------------------------------- |
+| **Windows** | x86_64                   | **NVIDIA GPU** (GeForce / RTX)    | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 12.x / cuDNN 9 (TF32 / Tensor Core) |
+|             |                          | AMD Radeon / Intel Arc / CPU      | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / AMD DirectML / AVX-512 CPU     |
+|             | ARM64                    | Any                               | _Not Supported_                          | —                                               |
+| **Linux**   | x86_64                   | **NVIDIA GPU**                    | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 12.x / cuDNN 9                      |
+|             |                          | AMD / Intel / CPU                 | **`vcclient-linux-x64-standard-*.7z`**   | Intel OpenVINO / AVX-512 CPU                    |
+|             | ARM64                    | **NVIDIA GPU** (DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     | NVIDIA CUDA 13.x                                |
+|             |                          | Non-NVIDIA / CPU                  | **`vcclient-linux-arm64-standard-*.7z`** | ARM NEON / SVE CPU                              |
+| **macOS**   | Apple Silicon (M-series) | Apple Neural Engine / Metal GPU   | **`vcclient-mac-arm64-standard-*.7z`**   | CoreML (NeuralNetwork format on ANE & GPU)      |
+|             | Intel x86_64             | Any                               | _Not Supported_                          | —                                               |
+
+> [!TIP]
+>
+> - **NVIDIA GPU users on Windows**: Select `win-x64-cuda` for optimal Tensor Core and CUDA performance.
+> - **Intel Arc / AMD Radeon / Mac users**: Select the universal `standard` package for your platform. Hardware acceleration (OpenVINO, DirectML, CoreML) is configured automatically out of the box!
 
 ### 2. Launch
 
@@ -76,8 +91,8 @@ To transfer your existing models and settings, simply copy the **`settings`** an
   - **Windows**: Primary target. Officially supported and validated for portable ZIP distributions and source execution.
   - **Linux & macOS**: Best-effort basis. Startup scripts and hardware extras are maintained, but formal validation is not guaranteed.
   - **Docker & Google Colab**: Explicitly out of scope. Containerized and cloud-hosted environments are not officially supported; users requiring these setups may adapt the source independently (though doing so should be significantly easier and cleaner than before thanks to `uv` and deterministic dependency locks).
-- **Multi-Edition Hardware Adapters**:
-  Providing tailored extras (`cuda`, `dml`, `mac`, `cpu`) so NVIDIA, AMD, Intel, and Apple Silicon users each get optimal hardware acceleration.
+- **Pragmatic Two-Tier Distribution (`standard` & `cuda`)**:
+  Instead of fragmented per-device packages, Forge consolidates releases into two streamlined tiers: a universal `standard` edition (supporting OpenVINO on Intel Arc GPU/iGPU, DirectML on AMD/Windows, CoreML on Apple Silicon, and AVX-512 CPU) and a high-performance `cuda` edition for NVIDIA hardware, both fitting well within the 2.00 GiB GitHub Release limit.
 - **Streamlined Pure-ONNX Pitch Estimation (RMVPE & FCPE Only)**:
   Consolidating pitch estimation exclusively to the gold standard (RMVPE) and a newer, ultra-fast alternative (FCPE) running torch-free via ONNX Runtime and NumPy. See [OKF Documentation](okf/streamlined-pitch-estimation-and-torch-free-pipeline.md) for details.
 - **Standalone Portable Packaging**:

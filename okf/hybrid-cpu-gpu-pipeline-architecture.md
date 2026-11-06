@@ -162,14 +162,15 @@ Consequently, Forge explicitly **abandons standalone ROCm support**:
 * Attempting to maintain a custom ROCm build imposes fragile host dependencies (~30 GB ROCm SDKs) without upstream maintenance.
 * Linux AMD users are instead directed to the bit-exact multi-threaded CPU pipeline or the upcoming WebGPU backend.
 
-### 6.2 Production Platform Strategy
-| Platform | Target Edition | Primary Acceleration Path | Latency Profile & Notes |
-| :--- | :--- | :--- | :--- |
-| **Windows (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | Dedicated Tensor Cores; optimal throughput. |
-| **Windows (AMD / Intel)** | `dml` | `DmlExecutionProvider` (DirectX 12) | Official Microsoft/AMD path; immune to Wave32 reduction issues. |
-| **macOS (Apple Silicon)** | `mac` | `CoreMLExecutionProvider` | Apple Neural Engine (ANE) & Metal acceleration. |
-| **Linux (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | Stable Linux CUDA stack. |
-| **Linux (AMD / Intel / Generic)** | `cpu` | `CPUExecutionProvider` (AVX2 / AVX-512) | **Measured latency profile (~112 ms)**; faster than RDNA GPU under current drivers; no additional driver dependencies. |
+### 6.2 Production Platform Strategy (Two-Tier Distribution)
+| Platform | Target Edition | Primary Acceleration Path | Support Tier | Latency Profile & Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Windows (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | **Tier 1 (First-Class)** | Native CUDA/cuDNN stack (TF32 Tensor Core enabled on Ampere+); optimal throughput; OpenVINO hybrid baseline included. |
+| **Windows (Intel Arc / iGPU)** | `standard` | `OpenVINOExecutionProvider` (Level Zero) | Tier 2 (Best Effort) | Verified on Lunar Lake Core Ultra 7 (Xe2 Arc GPU); in-memory 4D ONNX patch applied. |
+| **Windows (AMD / Generic)** | `standard` | `DmlExecutionProvider` (DirectX 12) | Tier 2 (Best Effort) | Official Microsoft/AMD path; immune to Wave32 reduction issues. |
+| **macOS (Apple Silicon)** | `standard` | `CoreMLExecutionProvider` | Tier 2 (Best Effort) | Verified on M2; NeuralNetwork format targeting ANE and Metal GPU. |
+| **Linux (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | Tier 2 (Best Effort) | Stable Linux CUDA stack; OpenVINO hybrid baseline included. |
+| **Linux (AMD / Intel / Generic)** | `standard` | `OpenVINOExecutionProvider` / `CPUExecutionProvider` (AVX2 / AVX-512) | Tier 2 / Tier 0 Baseline | High-performance CPU MLAS execution or Intel GPU offload; no driver lock-in. |
 
 ### 6.3 Pipelining Evolution (Next Steps)
 1. **Concurrent Producer-Consumer Decoupling**:
@@ -181,7 +182,11 @@ Consequently, Forge explicitly **abandons standalone ROCm support**:
 3. **Hardware Backends: Native Direct APIs vs. Universal Abstraction (WebGPU / Vulkan)**:
    - While WebGPU (`--edition webgpu`) provides a universal, driver-independent GPU backend across operating systems, empirical evidence (e.g., RTX 4090 executing significantly slower under DirectML than native CUDA) confirms that **native vendor APIs (`CUDA` on NVIDIA, `CoreML` on Apple Silicon) remain indispensable**.
    - Universal abstraction layers (DirectML, WebGPU/Dawn) must translate compute shaders through intermediate representations (HLSL/WGSL), which prevents full utilization of vendor-proprietary micro-architectures (such as NVIDIA Tensor Core cuDNN fused kernels or Apple Neural Engine / ANE coprocessors).
-   - Therefore, Forge adopts a tiered backend strategy:
-     - **Tier 1 (Native Direct)**: `cuda` (NVIDIA) and `mac` (Apple Silicon CoreML) provide maximum throughput, lowest latency, and best power efficiency.
-     - **Tier 2 (Universal Abstraction)**: `dml` (Windows AMD/Intel) and upcoming `webgpu` (Linux AMD/Intel / universal cross-platform) solve driver fragmentation where native vendor runtimes are unavailable or unstable.
-     - **Tier 0 (Ubiquitous Baseline)**: `cpu` (AVX2 / AVX-512) guarantees bit-exact execution without specialized GPU driver setup.
+   - Therefore, Forge adopts a tiered support and backend strategy aligned with its Windows-first philosophy:
+     - **Tier 1 (First-Class Citizen)**: Windows x64 + NVIDIA CUDA (`CUDAExecutionProvider`). Leverages native CUDA and cuDNN runtimes (with automatic TF32 Tensor Core acceleration on Ampere+ GPUs) for optimal throughput and minimal latency. The primary target officially supported and validated for portable distributions.
+     - **Tier 0 (Ubiquitous Baseline)**: Multi-threaded CPU (`CPUExecutionProvider` on AVX2 / AVX-512 / NEON). Guarantees bit-exact, driverless fallback across every client platform.
+     - **Tier 2 (Best-Effort Hardware Adapters)**: Extended hardware acceleration maintained on a best-effort basis:
+       - Windows DirectML (AMD Radeon / DirectX 12)
+       - Intel OpenVINO (Windows & Linux: Arc GPU, iGPU, and NPU via Level Zero / oneDNN)
+       - macOS Apple Silicon CoreML (Apple Neural Engine & Metal GPU via NeuralNetwork format)
+       - Linux NVIDIA CUDA (Linux x64 and ARM64)
