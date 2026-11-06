@@ -12,7 +12,7 @@ from ...exception import (
     ERROR_CODE_LOCAL_VOICE_CHANGER_INTERFACE_ACTIVE,
     VCClientError,
 )
-from ..audio_device_manager.audio_device_manager import AudioDeviceManager
+from ..audio_device_manager import check_available_sample_rate
 from ..data_types.data_types import VoiceChangerConfiguration
 from ..voice_changer_const import ConfigFile
 
@@ -99,21 +99,20 @@ class ConfigurationManager:
                 time.sleep(local_voice_changer_loop_interval_sec * 2)
 
             try:
-                audio_device_manager = AudioDeviceManager.get_instance()
                 if conf.audio_input_device_index != -1 and conf.audio_input_device_sample_rate != -1:
-                    available = audio_device_manager.check_available_sample_rate(
+                    available = check_available_sample_rate(
                         conf.audio_input_device_index, conf.audio_input_device_sample_rate, "audioinput"
                     )
                     if not available:
                         raise VCClientError(ERROR_CODE_LOCAL_INPUT_DEVICE_SAMPLE_RATE_CHECK_FAILED)
                 if conf.audio_output_device_index != -1 and conf.audio_output_device_sample_rate != -1:
-                    available = audio_device_manager.check_available_sample_rate(
+                    available = check_available_sample_rate(
                         conf.audio_output_device_index, conf.audio_output_device_sample_rate, "audiooutput"
                     )
                     if not available:
                         raise VCClientError(ERROR_CODE_LOCAL_OUTPUT_DEVICE_SAMPLE_RATE_CHECK_FAILED)
                 if conf.audio_monitor_device_index != -1 and conf.audio_monitor_device_sample_rate != -1:
-                    available = audio_device_manager.check_available_sample_rate(
+                    available = check_available_sample_rate(
                         conf.audio_monitor_device_index, conf.audio_monitor_device_sample_rate, "audiooutput"
                     )
                     if not available:

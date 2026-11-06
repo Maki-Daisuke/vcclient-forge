@@ -1,7 +1,11 @@
 from fastapi import APIRouter
 
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
-from vcclient.voice_changer.audio_device_manager.audio_device_manager import AudioDeviceManager
+from vcclient.voice_changer.audio_device_manager import (
+    get_audio_input_devices,
+    get_audio_output_devices,
+    reload_audio_devices,
+)
 
 
 class RestAPIAudioDeviceManager:
@@ -12,13 +16,11 @@ class RestAPIAudioDeviceManager:
         self.router.add_api_route("/api/audio-device-manager/output_devices", self.get_output_devices, methods=["GET"])
 
     def get_input_devices(self, reload: bool = False):
-        audio_device_manager = AudioDeviceManager.get_instance()
         if reload:
-            audio_device_manager.reload_device()
-        return audio_device_manager.get_audio_input_devices()
+            reload_audio_devices()
+        return get_audio_input_devices()
 
     def get_output_devices(self, reload: bool = False):
-        audio_device_manager = AudioDeviceManager.get_instance()
         if reload:
-            audio_device_manager.reload_device()
-        return audio_device_manager.get_audio_output_devices()
+            reload_audio_devices()
+        return get_audio_output_devices()

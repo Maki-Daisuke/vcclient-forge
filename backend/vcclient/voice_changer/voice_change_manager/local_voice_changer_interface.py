@@ -16,7 +16,11 @@ from ...exception import (
     ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED,
     VCClientError,
 )
-from ..audio_device_manager.audio_device_manager import AudioDeviceManager
+from ..audio_device_manager import (
+    get_audio_input_device,
+    get_audio_output_device,
+    get_default_sample_rate,
+)
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from .voice_changer import VoiceChanger
 
@@ -170,21 +174,19 @@ class LocalVoiceChangerInterface:
         self.vc_chunk_sec = self.vc_info.chunk_sec
 
         if conf.audio_input_device_sample_rate == -1:
-            self.audio_input_device_sample_rate = AudioDeviceManager.get_instance().get_default_sample_rate(
-                conf.audio_input_device_index, "audioinput"
-            )
+            self.audio_input_device_sample_rate = get_default_sample_rate(conf.audio_input_device_index, "audioinput")
         else:
             self.audio_input_device_sample_rate = conf.audio_input_device_sample_rate
 
         if conf.audio_output_device_sample_rate == -1:
-            self.audio_output_device_sample_rate = AudioDeviceManager.get_instance().get_default_sample_rate(
+            self.audio_output_device_sample_rate = get_default_sample_rate(
                 conf.audio_output_device_index, "audiooutput"
             )
         else:
             self.audio_output_device_sample_rate = conf.audio_output_device_sample_rate
 
         if conf.audio_monitor_device_index != -1 and conf.audio_monitor_device_sample_rate == -1:
-            self.audio_monitor_device_sample_rate = AudioDeviceManager.get_instance().get_default_sample_rate(
+            self.audio_monitor_device_sample_rate = get_default_sample_rate(
                 conf.audio_monitor_device_index, "audiooutput"
             )
         else:
@@ -214,21 +216,19 @@ class LocalVoiceChangerInterface:
         exclusive_mode = getattr(conf, "wasapi_exclusive_enabled", getattr(conf, "wasapi_exclude_emabled", False))
         logger.info("wasapi_exclusive_enabled:%s", exclusive_mode)
 
-        input_audio_device = AudioDeviceManager.get_instance().get_audio_input_device(conf.audio_input_device_index)
+        input_audio_device = get_audio_input_device(conf.audio_input_device_index)
         if input_audio_device is not None and "WASAPI" in input_audio_device.host_api and exclusive_mode is True:
             self.input_extra_settings = sd.WasapiSettings(exclusive=True)
         else:
             self.input_extra_settings = None
 
-        output_audio_device = AudioDeviceManager.get_instance().get_audio_output_device(conf.audio_output_device_index)
+        output_audio_device = get_audio_output_device(conf.audio_output_device_index)
         if output_audio_device is not None and "WASAPI" in output_audio_device.host_api and exclusive_mode is True:
             self.output_extra_settings = sd.WasapiSettings(exclusive=True)
         else:
             self.output_extra_settings = None
 
-        monitor_audio_device = AudioDeviceManager.get_instance().get_audio_output_device(
-            conf.audio_monitor_device_index
-        )
+        monitor_audio_device = get_audio_output_device(conf.audio_monitor_device_index)
         if monitor_audio_device is not None and "WASAPI" in monitor_audio_device.host_api and exclusive_mode is True:
             self.monitor_extra_settings = sd.WasapiSettings(exclusive=True)
         else:

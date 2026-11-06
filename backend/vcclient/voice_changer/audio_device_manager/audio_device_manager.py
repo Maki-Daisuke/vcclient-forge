@@ -104,46 +104,52 @@ def _get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
             return -1
 
 
-class AudioDeviceManager:
-    _instance: AudioDeviceManager | None = None
-    audio_input_devices: list[AudioDevice]
-    audio_output_devices: list[AudioDevice]
+_audio_input_devices: list[AudioDevice] = []
+_audio_output_devices: list[AudioDevice] = []
 
-    @classmethod
-    def get_instance(cls) -> AudioDeviceManager:
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
 
-    def __init__(self) -> None:
-        self.reload_device()
+def reload_audio_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
+    global _audio_input_devices, _audio_output_devices
+    logger.info("Reloading Audio Device info")
+    (_audio_input_devices, _audio_output_devices) = _list_device()
+    logger.info("Audio(input): %s", _audio_input_devices)
+    logger.info("Audio(output): %s", _audio_output_devices)
+    return (_audio_input_devices, _audio_output_devices)
 
-    def reload_device(self) -> None:
-        logger.info("Reloading Audio Device info")
-        (self.audio_input_devices, self.audio_output_devices) = _list_device()
-        logger.info("Audio(input): %s", self.audio_input_devices)
-        logger.info("Audio(output): %s", self.audio_output_devices)
 
-    def get_audio_input_devices(self) -> list[AudioDevice]:
-        return self.audio_input_devices
+# Alias for backward-compatibility if needed
+reload_device = reload_audio_devices
 
-    def get_audio_input_device(self, index: int) -> AudioDevice | None:
-        for d in self.audio_input_devices:
-            if d.index == index:
-                return d
-        return None
 
-    def get_audio_output_devices(self) -> list[AudioDevice]:
-        return self.audio_output_devices
+def get_audio_input_devices() -> list[AudioDevice]:
+    if not _audio_input_devices and not _audio_output_devices:
+        reload_audio_devices()
+    return _audio_input_devices
 
-    def get_audio_output_device(self, index: int) -> AudioDevice | None:
-        for d in self.audio_output_devices:
-            if d.index == index:
-                return d
-        return None
 
-    def check_available_sample_rate(self, device_id: int, desired_sampling_rate: int, type: AudioDeviceType) -> bool:
-        return _check_sample_rate(device_id, desired_sampling_rate, type)
+def get_audio_input_device(index: int) -> AudioDevice | None:
+    for d in get_audio_input_devices():
+        if d.index == index:
+            return d
+    return None
 
-    def get_default_sample_rate(self, device_id: int, type: AudioDeviceType) -> float:
-        return _get_default_sample_rate(device_id, type)
+
+def get_audio_output_devices() -> list[AudioDevice]:
+    if not _audio_input_devices and not _audio_output_devices:
+        reload_audio_devices()
+    return _audio_output_devices
+
+
+def get_audio_output_device(index: int) -> AudioDevice | None:
+    for d in get_audio_output_devices():
+        if d.index == index:
+            return d
+    return None
+
+
+def check_available_sample_rate(device_id: int, desired_sampling_rate: int, type: AudioDeviceType) -> bool:
+    return _check_sample_rate(device_id, desired_sampling_rate, type)
+
+
+def get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
+    return _get_default_sample_rate(device_id, type)

@@ -40,7 +40,7 @@ from vcclient.initializer import (
 )
 from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
-from vcclient.voice_changer.audio_device_manager.audio_device_manager import AudioDeviceManager
+from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.gpu_device_manager import reload_gpu_devices
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
@@ -75,7 +75,7 @@ def start_server(
         return
 
     reload_gpu_devices()
-    audio_manager = AudioDeviceManager.get_instance()
+    reload_audio_devices()
 
     vcserver = VCServer(
         host=host,
