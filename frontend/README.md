@@ -6,8 +6,24 @@ buttons, selects, and checkboxes. The model list, configured selection, metadata
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
 live input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
+The audio button switches between Start and Stop based on the confirmed backend state.
+If the audio state cannot be read, Stop remains available.
+The Start/Stop, Passthrough, and Record buttons appear above the audio meters.
 Upload, model metadata editing, Client Mode audio, and other settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
+The model list contains the selected model's portrait, details, and voice controls.
+Audio devices, volume, noise suppression, and inference controls are grouped into
+independent expandable sections. Server Mode can be selected from Client Mode;
+switching back to Client Mode is not connected yet. Pitch estimator radios,
+sample rates, preferred device, and crossfade duration remain read-only.
+Chunk, extra frame, and crossfade durations use read-only logarithmic sliders with
+display ranges of 0.05–5, 0.08–10, and 0.01–0.15 seconds respectively. Values
+outside these display ranges remain visible and are indicated separately; these
+ranges do not enforce backend limits.
+Each filter's cutoff slider is available only when that filter is enabled.
+Sections start closed, and their open/closed state is stored in the browser's
+local storage. It is separate for each browser or webview and origin; if storage
+is unavailable or invalid, sections start closed.
 
 Run commands from the repository root:
 
@@ -84,7 +100,7 @@ native backend settings even when the configured input mode is Client Mode;
 browser devices are not enumerated.
 
 Unavailable fields display `—`; unknown checkbox values use an indeterminate
-state. Formant and browser-only preferences are not provided by these GETs and
+state. Browser-only preferences are not provided by these GETs and
 are not populated with guessed defaults. Unconnected controls remain disabled. Reload
 refreshes both the catalog and settings, and failed loads clear previous values.
 
@@ -117,12 +133,14 @@ validation for pitch/index adjustment is still pending. The real backend's slot
 GET and displayed values were checked using a browser-only simulated model selection;
 live model-setting PUTs and audible changes were not part of that check.
 
-The noise-gate slider in Settings uses the v2.1.4 range of −120 to 0 dB in 1 dB
+The noise-gate slider in Noise Suppression uses the v2.1.4 range of −120 to 0 dB in 1 dB
 steps. The native pipeline disables the gate at −100 dB or below. It uses the same
 configuration write queue as gain, including throttling and retry/discard. The
 displayed value has been checked against the real backend via GET. Configuration
 writes have been covered by mocked browser requests; real-backend PUT and audible
 noise-gate behavior have not yet been verified.
+Browser-side echo cancellation and noise-suppression options are grouped under
+Client Mode Only and remain disabled until Client Mode audio is connected.
 
 High/low-pass switches and cutoffs are editable in Server Mode when a usable model
 is selected. Before a filter
@@ -137,7 +155,7 @@ client-side check, not an atomic guarantee against changes by another client.
 Real-backend GET display has been checked; real PUT and audible filter changes
 remain to be tested. Backend APIs are unchanged.
 
-To try native audio, start the backend, select a model card, open Settings, switch
+To try native audio, start the backend, select a model card, open Audio Devices, switch
 to Server Mode if necessary, and choose input/output devices (monitor is optional).
 Device changes reset that device's sample rate to Auto. Wait for settings to be
 confirmed, then press Start and adjust input/output volume while speaking. A disabled
@@ -145,7 +163,7 @@ Start button shows the specific missing prerequisite below it, such as selecting
 a model card or replacing an unavailable device. Stop
 before changing devices or models. Monitor volume currently follows output gain
 in the backend; the independent monitor gain setting is not applied by its native
-callback, so that slider shows linked output gain and remains disabled.
+callback, so output and monitor share the single output-volume control.
 
 The backend is unchanged. Full GET/PUT updates have no revision/atomic-merge
 guarantee against another client; use one controlling UI. Requests time out after

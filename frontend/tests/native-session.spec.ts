@@ -1,16 +1,23 @@
+import { openControlSections } from './catalog-fixtures';
 import { test, expect, type Page } from '@playwright/test';
 import { mockSession } from './session-fixtures';
 
 const inputGain = (page: Page) => page.getByRole('slider', { name: '入力音量', exact: true });
-const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toContainText('設定を反映しました');
+const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toHaveAttribute('data-state', 'saved');
 
 test('an unselected model explains the disabled Start button and selecting a card enables it', async ({ page }) => {
   const state = await mockSession(page);
   state.config.current_slot_index = -1;
   await page.goto('/');
+  await openControlSections(page);
   const start = page.getByRole('button', { name: '開始', exact: true });
   await expect(start).toBeDisabled();
   await expect(start).toHaveAccessibleDescription('使用するモデルが選択されていません。画面上部のモデルカードを選んでください。');
+  await expect(page.locator('#start-reason')).toBeHidden();
+  await start.hover();
+  await expect(page.locator('#start-reason')).toBeVisible();
+  await page.mouse.move(0, 0);
+  await start.focus();
   await expect(page.locator('#start-reason')).toBeVisible();
   expect(state.writes).toHaveLength(0);
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
@@ -21,60 +28,112 @@ test('an unselected model explains the disabled Start button and selecting a car
   expect(state.operations).toEqual([]);
 });
 
+test('shows missing device guidance even when no model is selected', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.current_slot_index = -1;
+  state.config.audio_input_device_index = -1;
+  state.config.audio_output_device_index = -1;
+  await page.goto('/');
+  await openControlSections(page);
+  const reason = page.locator('#start-reason');
+  await expect(reason).toContainText('入力デバイスが未選択');
+  await page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true }).selectOption('8');
+  await saved(page);
+  await expect(reason).toContainText('出力デバイスが未選択');
+  await page.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true }).selectOption('11');
+  await saved(page);
+  await expect(reason).toContainText('使用するモデルが選択されていません');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
+});
+
+test('saving a volume change does not move the audio meters', async ({ page }) => {
+  const state = await mockSession(page);
+  let release!: () => void;
+  state.gate = new Promise(resolve => { release = resolve; });
+  await page.goto('/');
+  await openControlSections(page);
+  const position = () => page.locator('.performance').evaluate(element => element.getBoundingClientRect().top + window.scrollY);
+  const before = await position();
+  await inputGain(page).press('ArrowRight');
+  await expect.poll(() => state.writes.length).toBe(1);
+  expect(Math.abs((await position()) - before)).toBeLessThanOrEqual(1);
+  state.gate = null;
+  release();
+  await saved(page);
+  expect(Math.abs((await position()) - before)).toBeLessThanOrEqual(1);
+});
+
 test('an unavailable monitor explains how to unblock Start without requiring monitor output', async ({ page }) => {
   const state = await mockSession(page);
   state.config.audio_monitor_device_index = 99;
   await page.goto('/');
+  await openControlSections(page);
   const start = page.getByRole('button', { name: '開始', exact: true });
   await expect(start).toBeDisabled();
   await expect(page.locator('#start-reason')).toContainText('モニターデバイスが見つかりません');
-  await page.getByRole('button', { name: '設定', exact: true }).click();
-  await page.getByRole('dialog').getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).selectOption('-1');
-  await expect(page.getByRole('dialog').locator('.configuration-status')).toContainText('設定を反映しました');
-  await page.keyboard.press('Escape');
+  await page.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).selectOption('-1');
+  await saved(page);
   await expect(start).toBeEnabled();
   expect(state.config.audio_monitor_device_index).toBe(-1);
+});
+
+test('switches from client to server mode with the keyboard', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  await page.goto('/');
+  await openControlSections(page);
+  const client = page.getByRole('radio', { name: 'クライアントモード' });
+  const server = page.getByRole('radio', { name: 'サーバーモード' });
+  await expect(client).toBeChecked();
+  await expect(client).toBeDisabled();
+  await server.focus();
+  await server.press('Space');
+  await saved(page);
+  await expect(server).toBeChecked();
+  expect(state.config.voice_changer_input_mode).toBe('server');
 });
 
 test('selects a model and native devices, starts, adjusts volume, and stops using existing APIs', async ({ page }) => {
   const state = await mockSession(page);
   state.config.voice_changer_input_mode = 'client';
   await page.goto('/');
+  await openControlSections(page);
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await saved(page);
   expect(state.config.current_slot_index).toBe(2);
   await expect(page.getByRole('heading', { name: '3. Test model A' })).toBeVisible();
-  await page.getByRole('button', { name: '設定', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'サーバーモードに切り替える' }).click();
-  await expect(dialog.locator('.configuration-status')).toContainText('設定を反映しました');
+  const dialog = page;
+  await dialog.getByText('サーバーモード', { exact: true }).click();
+  await expect(dialog.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
+  await saved(page);
   for (const [label, id, key] of [
     ['入力デバイス（マイク）', '11', 'audio_input_device_index'],
     ['出力デバイス（スピーカー）', '25', 'audio_output_device_index'],
     ['モニター用出力デバイス（スピーカー）', '11', 'audio_monitor_device_index'],
   ]) {
     await dialog.getByRole('combobox', { name: label, exact: true }).selectOption(id);
-    await expect(dialog.locator('.configuration-status')).toContainText('設定を反映しました');
+    await expect(dialog.locator('.configuration-status')).toHaveAttribute('data-state', 'saved');
     expect(state.config[key]).toBe(Number(id));
   }
   expect(state.config.audio_input_device_sample_rate).toBe(-1);
   expect(state.config.audio_output_device_sample_rate).toBe(-1);
-  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.locator('.portrait-column .status')).toContainText('音声処理が有効');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeDisabled();
-  await expect(page.locator('.input-section select')).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toBeDisabled();
   await expect(inputGain(page)).toBeEnabled();
   await inputGain(page).press('ArrowRight');
   await saved(page);
   expect(state.config.audio_input_device_gain).toBe(2.71);
   await page.getByRole('slider', { name: '出力音量', exact: true }).press('ArrowRight');
   await saved(page);
-  await expect(page.getByRole('slider', { name: 'モニター音量', exact: true })).toHaveAttribute('aria-valuenow', '0.66');
   expect(state.config.audio_monitor_device_gain).toBe(0.35);
   await page.getByRole('button', { name: '停止', exact: true }).click();
-  await expect(page.locator('.portrait-column .status')).toContainText('停止中');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['start', 'stop']);
   expect(state.maxInFlight).toBe(1);
   expect(state.config.future_setting).toEqual({ keep: [1, 2] });
@@ -84,6 +143,7 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
 test('reads fresh full configuration before each write and preserves unrelated fields', async ({ page }) => {
   const state = await mockSession(page);
   await page.goto('/');
+  await openControlSections(page);
   await expect(inputGain(page)).toBeEnabled();
   state.config.noise_gate = -71;
   state.config.future_setting = { keep: 'changed by another client' };
@@ -98,6 +158,7 @@ test('sends during dragging at bounded intervals and flushes the final pointer v
   const state = await mockSession(page);
   await page.clock.install({ time: 0 });
   await page.goto('/');
+  await openControlSections(page);
   await expect(inputGain(page)).toBeEnabled();
   const track = page.locator('.range-field').filter({ hasText: '入力音量' }).locator('.slider');
   await track.scrollIntoViewIfNeeded();
@@ -130,6 +191,7 @@ test('slow writes coalesce edits and old acknowledgements never overwrite the ne
   let release!: () => void;
   state.gate = new Promise(resolve => { release = resolve; });
   await page.goto('/');
+  await openControlSections(page);
   await inputGain(page).press('ArrowRight');
   await expect.poll(() => state.writes.length).toBe(1);
   await inputGain(page).press('End');
@@ -150,6 +212,7 @@ test('held arrow keys are throttled and key release flushes the final value', as
   const state = await mockSession(page);
   await page.clock.install({ time: 0 });
   await page.goto('/');
+  await openControlSections(page);
   await expect(inputGain(page)).toBeEnabled();
   await inputGain(page).focus();
   await page.clock.pauseAt(60_000);
@@ -178,6 +241,7 @@ test('a timed-out write remains uncertain and does not automatically resend pend
     else state.writes.push(route.request().postDataJSON());
   });
   await page.goto('/');
+  await openControlSections(page);
   await inputGain(page).press('ArrowRight');
   await expect.poll(() => state.writes.length).toBe(1);
   await inputGain(page).press('End');
@@ -197,6 +261,7 @@ test('failed saves retain the draft and retry only on request with fresh setting
   const state = await mockSession(page);
   state.putStatus = 500;
   await page.goto('/');
+  await openControlSections(page);
   await inputGain(page).press('ArrowRight');
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('HTTP 500');
   await inputGain(page).press('End');
@@ -210,10 +275,32 @@ test('failed saves retain the draft and retry only on request with fresh setting
   expect(state.config.noise_gate).toBe(-88);
 });
 
+test('save errors stay visible while scrolling and disappear after a successful retry', async ({ page }) => {
+  const state = await mockSession(page);
+  state.putStatus = 500;
+  await page.goto('/');
+  await openControlSections(page);
+  await inputGain(page).press('ArrowRight');
+  const notice = page.locator('main > .configuration-status');
+  await expect(notice.getByRole('alert')).toContainText('HTTP 500');
+  const position = () => notice.evaluate(element => ({ top: element.getBoundingClientRect().top, left: element.getBoundingClientRect().left }));
+  const before = await position();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  const after = await position();
+  expect(Math.abs(after.top - before.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.left - before.left)).toBeLessThanOrEqual(1);
+  state.putStatus = 200;
+  await notice.getByRole('button', { name: '保存を再試行' }).click();
+  await saved(page);
+  await expect(notice).toBeHidden();
+});
+
 test('detects silent model rollback and discard reloads the actual model', async ({ page }) => {
   const state = await mockSession(page);
   state.rollback = true;
   await page.goto('/');
+  await openControlSections(page);
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
@@ -226,12 +313,13 @@ test('start failures are visible, do not claim success, and can be retried', asy
   const state = await mockSession(page);
   state.startStatus = 500;
   await page.goto('/');
+  await openControlSections(page);
   await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.locator('.controls-column').getByRole('alert')).toContainText('Test start failure');
-  await expect(page.locator('.portrait-column .status')).toContainText('停止中');
+  await expect(page.locator('.transport-block').getByRole('alert')).toContainText('Test start failure');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   state.startStatus = 200;
   await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.locator('.portrait-column .status')).toContainText('音声処理が有効');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['start', 'start']);
 });
 
@@ -239,13 +327,32 @@ test('unknown runtime state blocks start and device edits but still permits stop
   const state = await mockSession(page);
   state.infoFail = true;
   await page.goto('/');
-  await expect(page.locator('.controls-column')).toContainText('音声の状態を取得できません');
-  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
-  await expect(page.locator('.input-section select')).toBeDisabled();
+  await openControlSections(page);
+  await expect(page.locator('.transport-block')).toContainText('音声の状態を取得できません');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).not.toHaveClass(/\brunning\b/);
+  await expect(page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toBeDisabled();
   state.infoFail = false;
   await page.getByRole('button', { name: '停止', exact: true }).click();
-  await expect(page.locator('.portrait-column .status')).toContainText('停止中');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['stop']);
+});
+
+test('the combined button follows backend state changes', async ({ page }) => {
+  await page.clock.install();
+  const state = await mockSession(page);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
+  state.active = true;
+  await page.clock.fastForward(2_100);
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toHaveClass(/\brunning\b/);
+  state.active = false;
+  await page.clock.fastForward(2_100);
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '開始', exact: true })).not.toHaveClass(/\brunning\b/);
+  expect(state.operations).toEqual([]);
 });
 
 test('stop waits for the in-flight gain update without racing it', async ({ page }) => {
@@ -254,13 +361,14 @@ test('stop waits for the in-flight gain update without racing it', async ({ page
   let release!: () => void;
   state.gate = new Promise(resolve => { release = resolve; });
   await page.goto('/');
-  await expect(page.locator('.portrait-column .status')).toContainText('音声処理が有効');
+  await openControlSections(page);
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
   await inputGain(page).press('ArrowRight');
   await expect.poll(() => state.writes.length).toBe(1);
   await page.getByRole('button', { name: '停止', exact: true }).click();
   expect(state.operations).toEqual([]);
   state.gate = null;
   release();
-  await expect(page.locator('.portrait-column .status')).toContainText('停止中');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['stop']);
 });

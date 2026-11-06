@@ -1,23 +1,24 @@
+import { openControlSections } from './catalog-fixtures';
 import { test, expect, type Page } from '@playwright/test';
 import { mockSession } from './session-fixtures';
 
 async function openNoiseGate(page: Page) {
-  await page.getByRole('button', { name: '設定', exact: true }).click();
-  return page.getByRole('dialog').getByRole('slider', { name: 'ノイズゲートのしきい値', exact: true });
+  return page.getByRole('slider', { name: 'ノイズゲートのしきい値', exact: true });
 }
 
-const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toContainText('設定を反映しました');
+const saved = (page: Page) => expect(page.locator('main > .configuration-status')).toHaveAttribute('data-state', 'saved');
 
 test('updates the noise gate during native audio while retaining the complete configuration', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;
   await page.goto('/');
+  await openControlSections(page);
   const gate = await openNoiseGate(page);
   await expect(gate).toBeEnabled();
   await expect(gate).toHaveAttribute('aria-valuetext', '-55 dB');
   await expect(gate).toHaveAttribute('aria-valuemin', '-120');
   await expect(gate).toHaveAttribute('aria-valuemax', '0');
-  await expect(page.getByRole('dialog')).toContainText('−100 dB 以下ではノイズゲートが無効');
+  await expect(page.locator('.noise-section')).toContainText('−100 dB 以下ではノイズゲートが無効');
   state.config.high_pass_filter_cutoff = 188;
   await gate.press('ArrowRight');
   await saved(page);
@@ -31,6 +32,7 @@ test('throttles a held key and flushes its final noise-gate value on release', a
   const state = await mockSession(page);
   await page.clock.install({ time: 0 });
   await page.goto('/');
+  await openControlSections(page);
   const gate = await openNoiseGate(page);
   await expect(gate).toBeEnabled();
   await gate.focus();
@@ -57,12 +59,12 @@ test('coalesces newer noise-gate and gain edits behind a slow save', async ({ pa
   let release!: () => void;
   state.gate = new Promise(resolve => { release = resolve; });
   await page.goto('/');
+  await openControlSections(page);
   const gate = await openNoiseGate(page);
   await gate.press('ArrowRight');
   await expect.poll(() => state.writes.length).toBe(1);
   await gate.press('End');
   await expect(gate).toHaveAttribute('aria-valuenow', '0');
-  await page.keyboard.press('Escape');
   await page.getByRole('slider', { name: '入力音量', exact: true }).press('End');
   expect(state.writes).toHaveLength(1);
   state.gate = null;
@@ -75,20 +77,26 @@ test('coalesces newer noise-gate and gain edits behind a slow save', async ({ pa
 });
 
 test('keeps failed edits for explicit retry and merges fresh settings', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
   const state = await mockSession(page);
   state.putStatus = 500;
   await page.goto('/');
+  await openControlSections(page);
   const gate = await openNoiseGate(page);
   await gate.press('ArrowRight');
-  const status = page.getByRole('dialog').locator('.configuration-status');
+  const status = page.locator('main > .configuration-status');
   await expect(status.getByRole('alert')).toContainText('HTTP 500');
+  const bounds = await status.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(812);
   await gate.press('Home');
   await expect(gate).toHaveAttribute('aria-valuenow', '-120');
   expect(state.writes).toHaveLength(1);
   state.config.high_pass_filter_cutoff = 222;
   state.putStatus = 200;
   await status.getByRole('button', { name: '保存を再試行' }).click();
-  await expect(status).toContainText('設定を反映しました');
+  await expect(status).toHaveAttribute('data-state', 'saved');
   expect(state.config.noise_gate).toBe(-120);
   expect(state.config.high_pass_filter_cutoff).toBe(222);
 });
@@ -97,6 +105,7 @@ test('missing noise-gate configuration remains unknown and disabled', async ({ p
   const state = await mockSession(page);
   delete state.config.noise_gate;
   await page.goto('/');
+  await openControlSections(page);
   const gate = await openNoiseGate(page);
   await expect(gate).toBeDisabled();
   await expect(gate).toHaveAttribute('aria-valuetext', '—');
@@ -107,6 +116,7 @@ test('noise-gate editing stays disabled in Client Mode', async ({ page }) => {
   const state = await mockSession(page);
   state.config.voice_changer_input_mode = 'client';
   await page.goto('/');
+  await openControlSections(page);
   const gate = await openNoiseGate(page);
   await expect(gate).toBeDisabled();
   await expect(gate).toHaveAttribute('aria-valuetext', '-55 dB');

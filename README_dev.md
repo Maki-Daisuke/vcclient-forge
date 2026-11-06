@@ -92,7 +92,8 @@ filters, analysis settings, configured device names/hosts, and selected-model pa
 are reflected in controls; unavailable values show `—`. Server Mode supports
 model/device selection while stopped, start/stop, and live input/output gain,
 pitch, index, noise-gate, and filter adjustment using existing APIs. Other settings and browser audio remain disabled.
-Monitor volume follows output volume in the current native backend. See the
+Audio devices, volume, noise suppression, and inference controls use expandable sections in
+the main view. Monitor volume follows output volume in the current native backend. See the
 frontend README for the setup flow. Native playback was confirmed by the user;
 gain-adjustment latency and longer sessions remain to be validated.
 

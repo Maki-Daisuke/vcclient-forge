@@ -38,6 +38,7 @@ export const configuration = {
   low_pass_filter_cutoff: 9500,
   noise_gate: -55,
   extra_frame_sec: 0.68,
+  crossfade_sec: 0.1,
   realtime_output_status_enabled: true,
   realtime_output_status_send_interval_sec: 0.4,
   realtime_process_status_enabled: false,
@@ -80,4 +81,10 @@ export async function mockCatalog(page: Page) {
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="steelblue"/></svg>',
   }));
+}
+
+export async function openControlSections(page: Page) {
+  for (const summary of await page.locator('.controls-column > details.control-group > summary').all()) {
+    if (!await summary.locator('..').evaluate(element => (element as HTMLDetailsElement).open)) await summary.click();
+  }
 }

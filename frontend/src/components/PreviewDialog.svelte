@@ -19,7 +19,7 @@
         <Dialog.Title class="dialog-title">{title}</Dialog.Title>
         <Dialog.Close class="icon-button" aria-label={ui.t('forge.close')}><X size={20} /></Dialog.Close>
       </header>
-      <Dialog.Description class="preview-notice">{description ?? ui.t('forge.preview_dialog')}</Dialog.Description>
+      {#if description}<Dialog.Description class="preview-notice">{description}</Dialog.Description>{/if}
       <div class="dialog-body">{@render children()}</div>
       <footer class="dialog-footer"><Dialog.Close class="button">{ui.t('forge.close')}</Dialog.Close></footer>
     </Dialog.Content>

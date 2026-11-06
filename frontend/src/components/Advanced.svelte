@@ -12,7 +12,7 @@
 </script>
 
 <nav class="advanced-actions" aria-label={ui.t('common.advanced_area.advanced_settings')}>
-  <PreviewDialog title={ui.t('common.advanced_settings_dialog.title')} description={ui.t('forge.settings_readonly')}>
+  <PreviewDialog title={ui.t('common.advanced_settings_dialog.title')} description={ui.t('forge.advanced_readonly')}>
     {#snippet trigger()}<SlidersHorizontal size={16} />{ui.t('common.advanced_area.advanced_settings')}{/snippet}
     <section class="settings-section">
       <h3>{ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}</h3>
@@ -46,9 +46,7 @@
   <PreviewDialog title={ui.t('forge.about')}>
     {#snippet trigger()}<Info size={16} />{ui.t('forge.about')}{/snippet}
     <h3>VCClient Forge</h3>
-    <p>{ui.t('forge.preview_description')}</p>
     <p class="muted">{ui.t('forge.licenses')}</p>
-    <p class="muted">Copyright (c) 2025 Wataru Okada</p>
     <h3>{ui.t('common.copyright.disclaimer')}</h3>
     <p class="muted">{ui.t('common.copyright.disclaimer_text')}</p>
   </PreviewDialog>

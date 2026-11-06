@@ -1,7 +1,8 @@
+import { openControlSections } from './catalog-fixtures';
 import { test, expect, type Page } from '@playwright/test';
 import { configuration, inputDevices, mockCatalog } from './catalog-fixtures';
 
-const microphone = (page: Page) => page.locator('.input-section select');
+const microphone = (page: Page) => page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true });
 
 test.beforeEach(async ({ page }) => { await mockCatalog(page); });
 
@@ -17,9 +18,9 @@ test('matches sparse IDs and uses output devices for the monitor without request
     json: { ...configuration, audio_monitor_device_index: 25 },
   }));
   await page.goto('/');
+  await openControlSections(page);
   await expect(microphone(page).locator('option:checked')).toHaveText('USB microphone (Windows WASAPI)');
-  await page.getByRole('button', { name: '設定', exact: true }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page;
   await expect(dialog.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true }).locator('option:checked')).toHaveText('USB microphone (Windows WASAPI)');
   await expect(dialog.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('USB speakers (Windows WASAPI)');
   await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('Monitor headphones (Windows WASAPI)');
@@ -35,15 +36,16 @@ test('missing and empty device lists retain configured IDs instead of selecting 
   await page.route('**/api/audio-device-manager/input_devices', route => route.fulfill({ json: [inputDevices[0]] }));
   await page.route('**/api/audio-device-manager/output_devices', route => route.fulfill({ json: [] }));
   await page.goto('/');
+  await openControlSections(page);
   await expect(microphone(page).locator('option:checked')).toHaveText('デバイス #8（一覧にありません）');
-  await page.getByRole('button', { name: '設定', exact: true }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page;
   await expect(dialog.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('デバイス #11（一覧にありません）');
   await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('未選択');
 });
 
 test('failed device refresh clears old names without clearing settings, and retry updates names', async ({ page }) => {
   await page.goto('/');
+  await openControlSections(page);
   await expect(microphone(page)).toContainText('USB microphone');
   await page.route('**/api/audio-device-manager/input_devices', route => route.fulfill({ status: 503 }));
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
@@ -61,6 +63,7 @@ test('slow device lists do not block settings, time out, and recover on reload',
   await page.clock.install();
   await page.route('**/api/audio-device-manager/input_devices', () => {});
   await page.goto('/');
+  await openControlSections(page);
   await expect(microphone(page)).toContainText('デバイス #8（一覧を読み込み中');
   await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '2.7');
   await page.clock.fastForward(8_001);
@@ -77,6 +80,7 @@ for (const invalid of [
   test(`rejects device ${invalid.name} without losing configuration`, async ({ page }) => {
     await page.route('**/api/audio-device-manager/input_devices', route => route.fulfill({ json: invalid.data }));
     await page.goto('/');
+  await openControlSections(page);
     await expect(microphone(page)).toContainText('一覧を取得できません');
     await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '2.7');
   });
