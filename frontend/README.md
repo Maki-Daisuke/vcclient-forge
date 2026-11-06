@@ -5,7 +5,7 @@ Bits UI supplies sliders and accessible dialogs; standard HTML supplies simple
 buttons, selects, and checkboxes. The model list, configured selection, metadata,
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
-live input/output gain, pitch, and index adjustment through existing PUT/POST APIs.
+live input/output gain, pitch, index, and noise-gate adjustment through existing PUT/POST APIs.
 Upload, model metadata editing, Client Mode audio, and other settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 
@@ -99,7 +99,7 @@ serialized writes and audio operations, errors, explicit retry/discard, and runt
 status polling every two seconds. Each update fetches the full current configuration,
 merges only edited fields, PUTs the full payload, then reads back to confirm. A silent
 model rollback is treated as failure. The UI never constructs backend DTOs.
-Gain drags send at most once per 100 ms while requests are available; pointer release,
+Gain and noise-gate drags send at most once per 100 ms while requests are available; pointer release,
 key release, and focus loss flush the latest value. A slow request retains only the
 latest pending edits. Failed saves retain drafts and require explicit retry or discard.
 Reload/start are blocked while edits are pending; Stop waits for an in-flight write.
@@ -116,6 +116,13 @@ continues saving these settings to `model_dir/{id}/params.json`; new listening
 validation for pitch/index adjustment is still pending. The real backend's slot
 GET and displayed values were checked using a browser-only simulated model selection;
 live model-setting PUTs and audible changes were not part of that check.
+
+The noise-gate slider in Settings uses the v2.1.4 range of −120 to 0 dB in 1 dB
+steps. The native pipeline disables the gate at −100 dB or below. It uses the same
+configuration write queue as gain, including throttling and retry/discard. The
+displayed value has been checked against the real backend via GET. Configuration
+writes have been covered by mocked browser requests; real-backend PUT and audible
+noise-gate behavior have not yet been verified.
 
 To try native audio, start the backend, select a model card, open Settings, switch
 to Server Mode if necessary, and choose input/output devices (monitor is optional).

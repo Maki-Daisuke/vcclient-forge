@@ -94,6 +94,11 @@ export class NativeSession {
     this.edit({ [key]: value });
   }
 
+  setNoiseGate(value: number) {
+    if (!this.canAdjustGain || this.settings?.noiseGate == null || !Number.isInteger(value) || value < -120 || value > 0) return;
+    if (this.settings.noiseGate !== value) this.edit({ noiseGate: value });
+  }
+
   setModelValue(key: keyof ModelEdits, value: number) {
     const model = this.currentModel;
     const settings = this.modelSettings;

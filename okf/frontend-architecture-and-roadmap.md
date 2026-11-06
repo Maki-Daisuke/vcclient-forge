@@ -122,6 +122,16 @@ the existing slot GET and UI values were also checked against the real backend
 with a simulated selection in the browser. Live slot PUT and on-device pitch/index
 listening validation are still pending.
 
+### Noise-Gate Control (2026-11-06)
+
+The Settings dialog exposes the noise-gate threshold in Server Mode using the
+v2.1.4 range of −120 to 0 dB and 1 dB steps. The existing pipeline bypasses the
+gate at −100 dB or below. Its configuration edits share the gain/model coordinator
+and use the existing full-configuration GET/PUT/GET flow. Backend APIs are unchanged.
+All 55 browser checks passed with mocked writes; the displayed threshold was also
+checked against a real backend GET. Real-backend PUT and audible adjustment have
+not yet been verified for this control.
+
 Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
 `npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
 the legacy Python-served `frontend/dist`. `npm run build:frontend`, desktop
