@@ -1,5 +1,6 @@
 export interface ConfigurationSnapshot {
   inputMode: 'server' | 'client' | null;
+  passThrough: boolean | null;
   inputGain: number | null;
   outputGain: number | null;
   monitorGain: number | null;
@@ -44,6 +45,7 @@ export interface ModelEdits {
 export interface ConfigurationEdits {
   currentModelId?: number;
   inputMode?: 'server';
+  passThrough?: boolean;
   inputDevice?: number;
   outputDevice?: number;
   monitorDevice?: number;

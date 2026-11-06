@@ -102,6 +102,11 @@ export class NativeSession {
     if (this.settings.noiseGate !== value) this.edit({ noiseGate: value });
   }
 
+  togglePassThrough() {
+    if (!this.canAdjustGain || this.settings?.passThrough == null) return;
+    this.edit({ passThrough: !this.settings.passThrough }, true);
+  }
+
   setFilter(key: 'highPassEnabled' | 'lowPassEnabled', value: boolean): void;
   setFilter(key: 'highPassCutoff' | 'lowPassCutoff', value: number): void;
   setFilter(key: 'highPassEnabled' | 'lowPassEnabled' | 'highPassCutoff' | 'lowPassCutoff', value: boolean | number) {

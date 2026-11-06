@@ -58,7 +58,10 @@
           </button>
           {#if showStartMessage}<span id="start-reason" class="start-tooltip" role="tooltip">{startMessage}</span>{/if}
         </span>
-        <button class="button" disabled><Repeat2 size={16} />{ui.t('common.controls.passthrough')}</button>
+        <button class="button" aria-pressed={settings?.passThrough === true}
+          disabled={!session.canAdjustGain || settings?.passThrough == null} onclick={() => session.togglePassThrough()}>
+          <Repeat2 size={16} />{ui.t('common.controls.passthrough')}
+        </button>
         <button class="button" disabled><Circle size={14} />{ui.t('common.controls.record')}</button>
       </div>
       {#if session.operation}<p class="operation-status" role="status">{ui.t(`forge.audio_${session.operation}`)}</p>{/if}
