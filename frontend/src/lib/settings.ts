@@ -51,6 +51,10 @@ export interface ConfigurationEdits {
   inputGain?: number;
   outputGain?: number;
   noiseGate?: number;
+  highPassEnabled?: boolean;
+  lowPassEnabled?: boolean;
+  highPassCutoff?: number;
+  lowPassCutoff?: number;
 }
 
 export interface ConfirmedConfiguration {

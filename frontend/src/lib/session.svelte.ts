@@ -52,6 +52,9 @@ export class NativeSession {
     return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
       && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
+  get canAdjustFilter() {
+    return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
+  }
   get startBlockReason() {
     if (this.operation) return 'operation';
     if (this.catalog.state.status === 'loading') return 'loading';
@@ -97,6 +100,14 @@ export class NativeSession {
   setNoiseGate(value: number) {
     if (!this.canAdjustGain || this.settings?.noiseGate == null || !Number.isInteger(value) || value < -120 || value > 0) return;
     if (this.settings.noiseGate !== value) this.edit({ noiseGate: value });
+  }
+
+  setFilter(key: 'highPassEnabled' | 'lowPassEnabled', value: boolean): void;
+  setFilter(key: 'highPassCutoff' | 'lowPassCutoff', value: number): void;
+  setFilter(key: 'highPassEnabled' | 'lowPassEnabled' | 'highPassCutoff' | 'lowPassCutoff', value: boolean | number) {
+    if (!this.canAdjustFilter || this.settings?.[key] == null || this.settings[key] === value) return;
+    if (typeof value === 'number' && (!Number.isInteger(value) || value <= 0 || value > 15000)) return;
+    this.edit({ [key]: value }, typeof value === 'boolean');
   }
 
   setModelValue(key: keyof ModelEdits, value: number) {

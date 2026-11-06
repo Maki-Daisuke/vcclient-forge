@@ -29,6 +29,7 @@ export const configuration = {
   audio_input_device_sample_rate: 44100,
   audio_output_device_sample_rate: 48000,
   audio_monitor_device_sample_rate: -1,
+  input_sample_rate: 48000,
   gpu_device_id_int: 2,
   wasapi_exclude_emabled: true,
   enable_high_pass_filter: true,
@@ -66,6 +67,8 @@ export async function fulfillCatalog(route: Route, data: unknown = slots, curren
     await route.fulfill({ json: outputDevices });
   } else if (path === '/api/local-voice-changer-interface/information') {
     await route.fulfill({ json: { local_voice_changer_interface_active: false } });
+  } else if (path === '/api/voice-changer-manager/information') {
+    await route.fulfill({ json: { voice_changer_information: { slot_index: currentId, input_sample_rate: 48000, output_sample_rate: 48000 } } });
   } else {
     throw new Error(`Unexpected API request: ${path}`);
   }

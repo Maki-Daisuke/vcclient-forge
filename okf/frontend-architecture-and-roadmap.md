@@ -122,6 +122,19 @@ the existing slot GET and UI values were also checked against the real backend
 with a simulated selection in the browser. Live slot PUT and on-device pitch/index
 listening validation are still pending.
 
+### Filter Controls (2026-11-06)
+
+High/low-pass switches and cutoffs can be edited in Server Mode with a usable
+model selected. Before using the
+existing full-configuration PUT, the frontend reads current configuration and
+voice-changer information, and rejects mismatched model IDs, unavailable sample rates or invalid cutoff
+combinations. This avoids sending the checked invalid combinations to a backend
+that persists configuration before regenerating filter coefficients. Concurrent
+changes by another client are not atomic with that check. The common slider only
+emits edits for user interaction, preventing out-of-range loaded values from
+being silently clamped and saved. Browser tests use mocked writes; real-backend
+GET values were checked in the UI. Real PUT and listening validation are pending.
+
 ### Noise-Gate Control (2026-11-06)
 
 The Settings dialog exposes the noise-gate threshold in Server Mode using the

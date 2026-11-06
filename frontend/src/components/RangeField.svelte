@@ -7,16 +7,18 @@
     disabled?: boolean; onchange?: (value: number) => void; oncommit?: () => void;
   } = $props();
   let keyboardActive = false;
+  let interacting = false;
 </script>
 
 <div class="range-field">
   <div class="range-label"><span>{label}</span><output>{value === null ? '—' : `${value.toFixed(step < 1 ? 2 : 0)}${unit}`}</output></div>
   <Slider.Root type="single" value={value ?? 0} {min} {max} {step} disabled={disabled || value === null}
-    onValueChange={onchange} class="slider" aria-label={label}
-    onValueCommit={() => { if (!keyboardActive) oncommit?.(); }}
-    onkeydowncapture={() => { keyboardActive = true; }}
-    onkeyup={() => { keyboardActive = false; oncommit?.(); }}
-    onfocusout={() => { keyboardActive = false; oncommit?.(); }}>
+    onValueChange={value => { if (interacting) onchange?.(value); }} class="slider" aria-label={label}
+    onValueCommit={() => { if (!keyboardActive) { interacting = false; oncommit?.(); } }}
+    onpointerdowncapture={() => { interacting = true; }}
+    onkeydowncapture={() => { keyboardActive = true; interacting = true; }}
+    onkeyup={() => { keyboardActive = false; interacting = false; oncommit?.(); }}
+    onfocusout={() => { keyboardActive = false; interacting = false; oncommit?.(); }}>
     <span class="slider-track"><Slider.Range class="slider-range" /></span>
     <Slider.Thumb index={0} class="slider-thumb" aria-label={label} aria-valuetext={value === null ? '—' : `${value}${unit}`} />
   </Slider.Root>

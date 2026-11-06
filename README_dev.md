@@ -91,7 +91,7 @@ portraits, and current configuration from the existing backend GET APIs. Gains,
 filters, analysis settings, configured device names/hosts, and selected-model parameters
 are reflected in controls; unavailable values show `—`. Server Mode supports
 model/device selection while stopped, start/stop, and live input/output gain,
-pitch, index, and noise-gate adjustment using existing APIs. Other settings and browser audio remain disabled.
+pitch, index, noise-gate, and filter adjustment using existing APIs. Other settings and browser audio remain disabled.
 Monitor volume follows output volume in the current native backend. See the
 frontend README for the setup flow. Native playback was confirmed by the user;
 gain-adjustment latency and longer sessions remain to be validated.

@@ -19,5 +19,7 @@
     <p class="catalog-message" role="status">{ui.t(session.isSaving ? 'forge.saving' : 'forge.save_pending')}</p>
   {:else if session.saved}
     <p class="catalog-message" role="status">{ui.t('forge.saved')}</p>
+  {:else if session.catalog.state.status === 'ready'}
+    <p class="catalog-message" role="status">{ui.t('forge.settings_displayed')}</p>
   {/if}
 </div>

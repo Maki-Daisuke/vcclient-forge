@@ -34,8 +34,8 @@ test('existing configuration and selected model values populate controls without
   await expect(dialog.getByRole('checkbox', { name: 'WASAPI排他モードを有効にする' })).toBeChecked();
   await expect(dialog.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeChecked();
   await expect(dialog.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' })).not.toBeChecked();
-  await expect(dialog.getByRole('combobox', { name: 'ハイパスのカットオフ', exact: true })).toContainText('140 Hz');
-  await expect(dialog.getByRole('combobox', { name: 'ローパスのカットオフ', exact: true })).toContainText('9500 Hz');
+  await expect(dialog.getByRole('slider', { name: 'ハイパスのカットオフ', exact: true })).toHaveAttribute('aria-valuetext', '140 Hz');
+  await expect(dialog.getByRole('slider', { name: 'ローパスのカットオフ', exact: true })).toHaveAttribute('aria-valuetext', '9500 Hz');
   await expect(dialog.getByRole('slider', { name: 'ノイズゲートのしきい値', exact: true })).toHaveAttribute('aria-valuetext', '-55 dB');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '詳細設定', exact: true }).click();
