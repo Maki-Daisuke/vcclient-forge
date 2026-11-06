@@ -50,6 +50,7 @@ export interface ConfigurationEdits {
   monitorDeviceRate?: number;
   inputGain?: number;
   outputGain?: number;
+  noiseGate?: number;
 }
 
 export interface ConfirmedConfiguration {

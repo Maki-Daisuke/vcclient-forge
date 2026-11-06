@@ -2,6 +2,7 @@
   import { Settings } from '@lucide/svelte';
   import PreviewDialog from './PreviewDialog.svelte';
   import SelectField from './SelectField.svelte';
+  import RangeField from './RangeField.svelte';
   import DeviceField from './DeviceField.svelte';
   import CheckField from './CheckField.svelte';
   import SettingsStatus from './SettingsStatus.svelte';
@@ -60,7 +61,9 @@
   </section>
   <section class="settings-section">
     <h3>{ui.t('common.settings_dialog.noise_gate')}</h3>
-    <SelectField label={ui.t('forge.noise_gate_threshold')} value={displayNumber(settings?.noiseGate, ' dB')} />
+    <RangeField label={ui.t('forge.noise_gate_threshold')} value={settings?.noiseGate ?? null} min={-120} max={0} step={1} unit=" dB"
+      disabled={!session.canAdjustGain} onchange={value => session.setNoiseGate(value)} oncommit={() => session.flush()} />
+    <p class="muted">{ui.t('forge.noise_gate_disabled_hint')}</p>
     <CheckField label={ui.t('common.settings_dialog.enable_high_pass_filter')} checked={settings?.highPassEnabled ?? null} />
     <SelectField label={ui.t('forge.high_pass_cutoff')} value={displayNumber(settings?.highPassCutoff, ' Hz')} />
     <CheckField label={ui.t('common.settings_dialog.enable_low_pass_filter')} checked={settings?.lowPassEnabled ?? null} />

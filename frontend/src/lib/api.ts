@@ -185,6 +185,7 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
   monitorDeviceRate: 'audio_monitor_device_sample_rate',
   inputGain: 'audio_input_device_gain', outputGain: 'audio_output_device_gain',
+  noiseGate: 'noise_gate',
 };
 
 export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
@@ -195,7 +196,7 @@ export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
 
 export async function updateConfiguration(edits: ConfigurationEdits, signal: AbortSignal): Promise<ConfirmedConfiguration> {
   // Topology changes are only allowed while stopped, including changes from other clients.
-  if (Object.keys(edits).some(key => key !== 'inputGain' && key !== 'outputGain') && await readNativeActive(signal)) {
+  if (Object.keys(edits).some(key => !['inputGain', 'outputGain', 'noiseGate'].includes(key)) && await readNativeActive(signal)) {
     throw new ApiError('active');
   }
   const config = object(await getJson(configurationUrl, signal));

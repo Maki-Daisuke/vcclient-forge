@@ -102,6 +102,12 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   browser checks passed; real-device pitch/index listening remains to be checked.
   Backend APIs and persistence are unchanged.
 
+- **Noise-gate control implemented (2026-11-06)**: The Server Mode settings dialog
+  adjusts the threshold over −120 to 0 dB, with the existing ≤ −100 dB bypass
+  explained. It shares the serialized settings queue and existing full PUT API.
+  All 55 mocked browser checks passed and real-backend GET display was confirmed;
+  real PUT and audible adjustment remain to be checked.
+
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.
