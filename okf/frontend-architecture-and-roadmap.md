@@ -73,11 +73,38 @@ so slow or failed lists do not hide current settings. Missing IDs and failed
 lists display the configured ID and status, never an arbitrary fallback device.
 Mount and Reload read cached lists without requesting a PortAudio rescan.
 
-No backend API changes or setting writes are part of this milestone. Subsequent
-UI editing must use the existing GET/PUT contract: preserve the complete current
-configuration, merge the user's edits, and send the full configuration. Draft
-state, coalescing, ordering, and failure recovery are still pending. Do not send
-partial objects to the full-replacement PUT endpoint.
+No backend API changes or setting writes were part of the read-only milestone.
+The native-controls implementation below builds on it using the existing full
+configuration GET/PUT contract.
+
+### Native Controls and Live Gain Updates (2026-11-06)
+
+`frontend/src/lib/session.svelte.ts` now coordinates per-app drafts and confirmed
+settings. Model cards and native input/output/monitor selectors are enabled while
+stopped. A changed device uses Auto sample rate. Server Mode can be selected from
+Settings; existing native start/stop POSTs and information GET are connected.
+Runtime polling runs every two seconds without Socket.IO. The returned enable
+flag does not guarantee a healthy stream or audible output; live meters are still
+unavailable. The current native monitor callback uses output gain, so the UI shows
+that linkage rather than enabling an ineffective independent monitor slider.
+
+Input/output gain sends the latest edit at 100 ms intervals while dragging, with
+immediate flush on pointer/key release or focus loss. Requests are serialized and
+coalesced; an acknowledgement cannot overwrite newer draft values. Every write
+GETs fresh full configuration, merges only edits, PUTs the full DTO, and GETs the
+result to detect failures including silent model rollback. Failed saves retain
+drafts for explicit retry/discard. Start waits for confirmed settings; Stop queues
+behind the in-flight write. Writes/operations have a 30-second timeout, and a lost
+response is reported as uncertain rather than automatically retried. The existing
+API cannot provide atomic conflict resolution against another controlling client.
+
+Backend code and APIs are unchanged. Browser tests mock the API to exercise the
+control sequence, preservation, coalescing, stale acknowledgements, and failures.
+All 41 browser checks passed. The user confirmed native audio playback from the
+new UI on 2026-11-06; perceived gain latency and longer sessions remain to be
+validated. Each configuration PUT still persists the settings file; separating
+live application from disk persistence remains backend roadmap work. Playback
+confirmation alone does not establish all of Step 1's native-conversion exit criteria.
 
 Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
 `npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
@@ -86,9 +113,9 @@ startup, and portable packaging still use the legacy UI. Type checks and preview
 builds run in CI; browser checks are available via `npm run test:frontend` (see
 `frontend/README.md` for browser installation).
 
-This completes the visual scaffold and read-only model/settings integration, not Step 1's native-conversion exit
-criteria. Next, introduce draft/confirmed settings and the synchronization
-coordinator described below as native controls are connected. Copying assets to
+The visual scaffold, read-only integration, and initial native control coordinator
+are implemented, with native playback confirmed. Remaining settings and broader on-device validation precede Step 1's
+native-conversion exit criteria. Copying assets to
 their final home, switching the production build, and retiring the old UI remain
 later migration work.
 

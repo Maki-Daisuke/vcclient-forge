@@ -6,7 +6,7 @@ async function openSettings(page: Page) {
   return page.getByRole('dialog');
 }
 
-test('existing configuration and selected model values populate disabled controls', async ({ page }) => {
+test('existing configuration and selected model values populate controls without writing on mount', async ({ page }) => {
   const writes: string[] = [];
   page.on('request', request => {
     if (request.method() !== 'GET') writes.push(request.method());
@@ -15,7 +15,7 @@ test('existing configuration and selected model values populate disabled control
   await page.goto('/');
   await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '2.7');
   await expect(page.getByRole('slider', { name: '出力音量', exact: true })).toHaveAttribute('aria-valuenow', '0.65');
-  await expect(page.getByRole('slider', { name: 'モニター音量', exact: true })).toHaveAttribute('aria-valuenow', '0.35');
+  await expect(page.getByRole('slider', { name: 'モニター音量', exact: true })).toHaveAttribute('aria-valuenow', '0.65');
   await expect(page.getByRole('slider', { name: 'ピッチ調整', exact: true })).toHaveAttribute('aria-valuenow', '-5');
   await expect(page.getByRole('slider', { name: 'インデックス調整', exact: true })).toHaveAttribute('aria-valuenow', '0.63');
   await expect(page.locator('.range-field').filter({ hasText: 'フォルマント調整' }).locator('output')).toHaveText('—');
@@ -43,7 +43,7 @@ test('existing configuration and selected model values populate disabled control
   await expect(page.getByRole('dialog').getByRole('checkbox', { name: 'リアルタイム音声処理解析を有効にする' })).not.toBeChecked();
   await expect(page.getByRole('dialog').getByRole('combobox', { name: '入出力解析の送信間隔' })).toContainText('0.4 s');
   await expect(page.getByRole('dialog').getByRole('combobox', { name: '音声処理解析の送信間隔' })).toContainText('2.2 s');
-  for (const field of await page.locator('input, textarea, select:not(.header-actions select), [role=slider]').all()) {
+  for (const field of await page.getByRole('dialog').locator('input, textarea, select, [role=slider]').all()) {
     await expect(field).toBeDisabled();
   }
   expect(writes).toEqual([]);

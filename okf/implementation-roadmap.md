@@ -82,9 +82,18 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   including monitor output. Device failures preserve the settings display and
   show IDs with status; reload reads cached lists without a native rescan.
   Missing fields are shown as unknown; failed loads clear prior values. Backend
-  APIs are unchanged. Subsequent editing will preserve the complete current
-  configuration and merge UI edits before using the existing PUT endpoint;
-  draft state and ordered write coordination are not implemented yet.
+  APIs are unchanged. The following native-controls milestone extends this baseline.
+
+- **Native controls implemented; playback confirmed (2026-11-06)**:
+  Model/device selection while stopped, Server Mode selection, start/stop, and live
+  input/output gain use existing APIs. Drafts and confirmed state are separated;
+  a coordinator throttles gains to 100 ms, flushes completion, serializes/coalesces
+  writes, and retains failures for explicit retry/discard. Fresh full GET/PUT/GET
+  preserves unrelated fields and detects silent rollback. Runtime enable state is
+  polled; no stream-health claim or live meters. Monitor gain follows output gain
+  because of existing backend behavior. All 41 API-mocked browser checks passed;
+  the user separately confirmed native audio playback. Gain-adjustment latency
+  and longer sessions remain to be validated; no backend changes.
 
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.

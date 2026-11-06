@@ -3,6 +3,7 @@ import { loadAudioDevices, loadModelCatalog } from './api';
 import type { CatalogLoader, ModelCatalog } from './catalog';
 import type { AudioDevices } from './audio-devices';
 import { ApiError } from './api-error';
+import type { ConfirmedConfiguration } from './settings';
 
 type CatalogState =
   | { status: 'loading' }
@@ -40,6 +41,12 @@ export class ModelCatalogState {
 
   get settings() {
     return this.state.status === 'ready' ? this.state.catalog.settings : null;
+  }
+
+  applyConfiguration(configuration: ConfirmedConfiguration) {
+    if (this.state.status === 'ready') {
+      this.state = { status: 'ready', catalog: { ...this.state.catalog, ...configuration } };
+    }
   }
 
   async reload() {

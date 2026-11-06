@@ -6,10 +6,12 @@
   import ModelImage from './ModelImage.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useCatalog } from '../lib/catalog.svelte';
+  import { useSession } from '../lib/session.svelte';
   import type { ModelSummary } from '../lib/catalog';
   const ui = useUi();
   const catalog = useCatalog();
-  const currentModel = $derived(catalog.currentModel);
+  const session = useSession();
+  const currentModel = $derived(session.currentModel);
 
   function modelName(model: ModelSummary) {
     return model.name || ui.t('common.model_editor.slot', { number: model.id + 1 });
@@ -25,7 +27,7 @@
       {/if}
     </h2>
     <div class="button-row">
-      <button class="button" disabled={catalog.state.status === 'loading'} onclick={() => catalog.reload()}>
+      <button class="button" disabled={!session.canReload} onclick={() => session.reload()}>
         <RefreshCw size={16} />{ui.t('forge.reload_models')}
       </button>
       <UploadDialog />
@@ -65,11 +67,12 @@
     <div class="model-cards">
       {#each catalog.models as model (model.id)}
         <button
-          class:selected={model.id === catalog.currentModelId}
+          class:selected={model.id === session.currentModelId}
           class="model-card"
-          disabled
+          disabled={!session.canConfigure || model.status !== 'ready'}
+          onclick={() => session.selectModel(model.id)}
           aria-label={modelName(model)}
-          aria-current={model.id === catalog.currentModelId ? 'true' : undefined}
+          aria-current={model.id === session.currentModelId ? 'true' : undefined}
         >
           <span class="slot-number">{model.id + 1}</span>
           <ModelImage src={model.imageUrl} />

@@ -18,17 +18,19 @@ test('initialization only reads backend data and keeps browser audio and device 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'VCClient Forge' })).toBeVisible();
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
-  for (const name of ['開始', '停止', 'パススルー', '録音']) {
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
+  for (const name of ['停止', 'パススルー', '録音']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
   }
   const sliders = page.getByRole('slider');
   await expect(sliders).toHaveCount(6);
-  for (const slider of await sliders.all()) await expect(slider).toBeDisabled();
+  for (const name of ['入力音量', '出力音量']) await expect(page.getByRole('slider', { name, exact: true })).toBeEnabled();
+  for (const name of ['モニター音量', 'ピッチ調整', 'フォルマント調整', 'インデックス調整']) await expect(page.getByRole('slider', { name, exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '配色を切り替える' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  expect(backendRequests.map(url => new URL(url).pathname).sort()).toEqual([
+  expect([...new Set(backendRequests.map(url => new URL(url).pathname))].sort()).toEqual([
     '/api/audio-device-manager/input_devices', '/api/audio-device-manager/output_devices',
-    '/api/configuration-manager/configuration', '/api/slot-manager/slots',
+    '/api/configuration-manager/configuration', '/api/local-voice-changer-interface/information', '/api/slot-manager/slots',
   ]);
   expect(errors).toEqual([]);
 });
@@ -41,7 +43,7 @@ test('dialogs open, trap focus, close with Escape, and restore focus', async ({ 
     await trigger.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    for (const field of await dialog.locator('input, select, textarea').all()) await expect(field).toBeDisabled();
+    for (const field of await dialog.locator('input, select:not(.device-row select), textarea').all()) await expect(field).toBeDisabled();
     await page.keyboard.press('Tab');
     await expect(dialog.locator('.preview-notice')).toContainText(/サンプル|読み取り専用/);
     expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);

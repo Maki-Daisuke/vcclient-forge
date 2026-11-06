@@ -17,25 +17,29 @@ test('matches sparse IDs and uses output devices for the monitor without request
     json: { ...configuration, audio_monitor_device_index: 25 },
   }));
   await page.goto('/');
-  await expect(microphone(page)).toHaveText('USB microphone (Windows WASAPI)');
+  await expect(microphone(page).locator('option:checked')).toHaveText('USB microphone (Windows WASAPI)');
   await page.getByRole('button', { name: '設定', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toHaveText('USB microphone (Windows WASAPI)');
-  await expect(dialog.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true })).toHaveText('USB speakers (Windows WASAPI)');
-  await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true })).toHaveText('Monitor headphones (Windows WASAPI)');
-  for (const field of await dialog.getByRole('combobox').all()) await expect(field).toBeDisabled();
-  expect(requests).toEqual(['', '', '', '']);
+  await expect(dialog.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true }).locator('option:checked')).toHaveText('USB microphone (Windows WASAPI)');
+  await expect(dialog.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('USB speakers (Windows WASAPI)');
+  await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('Monitor headphones (Windows WASAPI)');
+  for (const field of await dialog.locator('.device-row select').all()) {
+    if (await field.getAttribute('aria-label')) await expect(field).toBeDisabled();
+    else await expect(field).toBeEnabled();
+  }
+  expect(requests.length).toBeGreaterThanOrEqual(5);
+  expect(requests.every(query => query === '')).toBe(true);
 });
 
 test('missing and empty device lists retain configured IDs instead of selecting another device', async ({ page }) => {
   await page.route('**/api/audio-device-manager/input_devices', route => route.fulfill({ json: [inputDevices[0]] }));
   await page.route('**/api/audio-device-manager/output_devices', route => route.fulfill({ json: [] }));
   await page.goto('/');
-  await expect(microphone(page)).toHaveText('デバイス #8（一覧にありません）');
+  await expect(microphone(page).locator('option:checked')).toHaveText('デバイス #8（一覧にありません）');
   await page.getByRole('button', { name: '設定', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true })).toHaveText('デバイス #11（一覧にありません）');
-  await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true })).toHaveText('未選択');
+  await expect(dialog.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('デバイス #11（一覧にありません）');
+  await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).locator('option:checked')).toHaveText('未選択');
 });
 
 test('failed device refresh clears old names without clearing settings, and retry updates names', async ({ page }) => {
@@ -50,7 +54,7 @@ test('failed device refresh clears old names without clearing settings, and retr
     json: [{ index: 8, name: 'Renamed microphone', host_api: 'MME' }],
   }));
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(microphone(page)).toHaveText('Renamed microphone (MME)');
+  await expect(microphone(page).locator('option:checked')).toHaveText('Renamed microphone (MME)');
 });
 
 test('slow device lists do not block settings, time out, and recover on reload', async ({ page }) => {
@@ -63,7 +67,7 @@ test('slow device lists do not block settings, time out, and recover on reload',
   await expect(microphone(page)).toContainText('一覧を取得できません');
   await page.unroute('**/api/audio-device-manager/input_devices');
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(microphone(page)).toHaveText('USB microphone (Windows WASAPI)');
+  await expect(microphone(page).locator('option:checked')).toHaveText('USB microphone (Windows WASAPI)');
 });
 
 for (const invalid of [

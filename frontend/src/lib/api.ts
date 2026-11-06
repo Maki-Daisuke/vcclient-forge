@@ -1,9 +1,10 @@
 import type { ModelCatalog, ModelSummary } from './catalog';
 import { ApiError } from './api-error';
-import type { ConfigurationSnapshot } from './settings';
+import type { ConfigurationSnapshot, ConfigurationEdits, ConfirmedConfiguration } from './settings';
 import type { AudioDevice, AudioDevices } from './audio-devices';
 
 const configurationUrl = '/api/configuration-manager/configuration';
+const nativeUrl = '/api/local-voice-changer-interface';
 
 function invalidResponse(): never {
   throw new ApiError('invalid_response');
@@ -68,11 +69,15 @@ function modelImage(id: number, value: unknown): string | null {
   return `/model_dir/${id}/${encodeURIComponent(filename)}`;
 }
 
-function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
-  if (!Array.isArray(slots)) invalidResponse();
+function parseConfiguration(configuration: unknown): ConfirmedConfiguration {
   const config = object(configuration);
   if (!Number.isSafeInteger(config.current_slot_index)) invalidResponse();
   const currentId = config.current_slot_index as number;
+  return { currentModelId: currentId >= 0 ? currentId : null, settings: parseSettings(config) };
+}
+
+function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
+  if (!Array.isArray(slots)) invalidResponse();
   const ids = new Set<number>();
   const models: ModelSummary[] = [];
 
@@ -113,13 +118,17 @@ function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
 
   return {
     models: models.sort((a, b) => a.id - b.id),
-    currentModelId: currentId >= 0 ? currentId : null,
-    settings: parseSettings(config),
+    ...parseConfiguration(configuration),
   };
 }
 
 async function responseJson(response: Response, signal: AbortSignal): Promise<unknown> {
-  if (!response.ok) throw new ApiError('http', response.status);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail = body?.detail;
+    throw new ApiError('http', response.status,
+      typeof detail === 'string' ? detail : typeof detail?.message === 'string' ? detail.message : undefined);
+  }
   try {
     return await response.json();
   } catch (error) {
@@ -162,4 +171,47 @@ export async function loadAudioDevices(signal: AbortSignal): Promise<AudioDevice
     getJson('/api/audio-device-manager/output_devices', signal),
   ]);
   return { input: parseDevices(input), output: parseDevices(output) };
+}
+
+const editFields: Record<keyof ConfigurationEdits, string> = {
+  currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode',
+  inputDevice: 'audio_input_device_index', outputDevice: 'audio_output_device_index',
+  monitorDevice: 'audio_monitor_device_index',
+  inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
+  monitorDeviceRate: 'audio_monitor_device_sample_rate',
+  inputGain: 'audio_input_device_gain', outputGain: 'audio_output_device_gain',
+};
+
+export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
+  const info = object(await getJson(`${nativeUrl}/information`, signal));
+  if (typeof info.local_voice_changer_interface_active !== 'boolean') invalidResponse();
+  return info.local_voice_changer_interface_active;
+}
+
+export async function updateConfiguration(edits: ConfigurationEdits, signal: AbortSignal): Promise<ConfirmedConfiguration> {
+  // Topology changes are only allowed while stopped, including changes from other clients.
+  if (Object.keys(edits).some(key => key !== 'inputGain' && key !== 'outputGain') && await readNativeActive(signal)) {
+    throw new ApiError('active');
+  }
+  const config = object(await getJson(configurationUrl, signal));
+  parseConfiguration(config);
+  const changes = Object.entries(edits).map(([key, value]) => [editFields[key as keyof ConfigurationEdits], value] as const);
+  if (changes.some(([field]) => !Object.hasOwn(config, field))) invalidResponse();
+  // PUT replaces the entire DTO. Retain all fields, including ones this UI does not understand.
+  await responseJson(await fetch(configurationUrl, {
+    method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...config, ...Object.fromEntries(changes) }),
+  }), signal);
+  // The legacy endpoint returns null and may silently roll back a failed model switch.
+  const confirmed = object(await getJson(configurationUrl, signal));
+  const snapshot = parseConfiguration(confirmed);
+  if (changes.some(([field, value]) => confirmed[field] !== value)) throw new ApiError('not_applied');
+  return snapshot;
+}
+
+export async function operateNative(operation: 'start' | 'stop', signal: AbortSignal): Promise<boolean> {
+  await responseJson(await fetch(`${nativeUrl}/operation/${operation}`, { method: 'POST', signal }), signal);
+  const active = await readNativeActive(signal);
+  if (active !== (operation === 'start')) throw new ApiError('not_applied');
+  return active;
 }

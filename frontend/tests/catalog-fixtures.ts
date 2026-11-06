@@ -64,6 +64,8 @@ export async function fulfillCatalog(route: Route, data: unknown = slots, curren
     await route.fulfill({ json: inputDevices });
   } else if (path === '/api/audio-device-manager/output_devices') {
     await route.fulfill({ json: outputDevices });
+  } else if (path === '/api/local-voice-changer-interface/information') {
+    await route.fulfill({ json: { local_voice_changer_interface_active: false } });
   } else {
     throw new Error(`Unexpected API request: ${path}`);
   }

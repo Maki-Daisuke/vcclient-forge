@@ -89,9 +89,12 @@ The Svelte 5 UI under `frontend/` is a standalone development UI based on the
 v2.1.4 layout. It reads the model list, current selection, descriptions,
 portraits, and current configuration from the existing backend GET APIs. Gains,
 filters, analysis settings, configured device names/hosts, and selected-model parameters
-are reflected in disabled controls; unavailable values show `—`.
-Audio and settings controls remain disabled;
-dialogs, language selection, section expansion, and light/dark themes work.
+are reflected in controls; unavailable values show `—`. Server Mode supports
+model/device selection while stopped, start/stop, and live input/output gain
+adjustment using existing APIs. Other settings and browser audio remain disabled.
+Monitor volume follows output volume in the current native backend. See the
+frontend README for the setup flow. Native playback was confirmed by the user;
+gain-adjustment latency and longer sessions remain to be validated.
 
 ```bash
 npm --prefix frontend ci

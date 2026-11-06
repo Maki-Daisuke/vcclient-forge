@@ -31,6 +31,25 @@ export interface ModelSettingsSnapshot {
   chunkSeconds: number | null;
 }
 
+// Only these fields can be changed by the native-audio UI.
+export interface ConfigurationEdits {
+  currentModelId?: number;
+  inputMode?: 'server';
+  inputDevice?: number;
+  outputDevice?: number;
+  monitorDevice?: number;
+  inputDeviceRate?: number;
+  outputDeviceRate?: number;
+  monitorDeviceRate?: number;
+  inputGain?: number;
+  outputGain?: number;
+}
+
+export interface ConfirmedConfiguration {
+  currentModelId: number | null;
+  settings: ConfigurationSnapshot;
+}
+
 export function displayNumber(value: number | null | undefined, unit = ''): string {
   return value === null || value === undefined ? '—' : `${value}${unit}`;
 }
