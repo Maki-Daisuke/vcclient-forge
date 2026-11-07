@@ -9,7 +9,7 @@ import sounddevice as sd
 
 from vcclient.app_status import AppStatus
 from vcclient.logger import logger
-from vcclient.server.event_emitter_manager import EventEmitterManager
+from vcclient.server.event_emitter import emit_event
 
 from ...exception import (
     ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED,
@@ -127,20 +127,18 @@ class LocalVoiceChangerInterface:
         self.input_volume = self.calc_vol(input_combined_data, self.input_volume)
         self.output_volume = self.calc_vol(output_combined_data, self.output_volume)
 
-        event_emitter = EventEmitterManager.get_instance().get_event_emitter()
-        if event_emitter is not None:
-            import json
+        import json
 
-            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-            realtime_output_status_data = {
-                "realtimeOutputStatusSendIntervalSec": conf.realtime_output_status_send_interval_sec,
-                "realtimeOutputStatusSendInterval": conf.realtime_output_status_send_interval_sec
-                / local_voice_changer_callback_chunk_sec,
-                "outputBufferSize": self.out_queue.qsize() * getattr(self, "output_block_size", 0),
-                "inputRms": float(self.input_volume),
-                "outputRms": float(self.output_volume),
-            }
-            event_emitter.emit_coroutine("data", ["realtime_output_status", json.dumps(realtime_output_status_data)])
+        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+        realtime_output_status_data = {
+            "realtimeOutputStatusSendIntervalSec": conf.realtime_output_status_send_interval_sec,
+            "realtimeOutputStatusSendInterval": conf.realtime_output_status_send_interval_sec
+            / local_voice_changer_callback_chunk_sec,
+            "outputBufferSize": self.out_queue.qsize() * getattr(self, "output_block_size", 0),
+            "inputRms": float(self.input_volume),
+            "outputRms": float(self.output_volume),
+        }
+        emit_event("data", ["realtime_output_status", json.dumps(realtime_output_status_data)])
 
         self.input_volume_calculation_buffer = []
         self.output_volume_calculation_buffer = []
@@ -336,9 +334,8 @@ class LocalVoiceChangerInterface:
             if conf.realtime_output_status_enabled:
                 self.input_volume_calculation_buffer.append(indata)
             converted, converted_for_monitor, performance_data = self.vc.convert_chunk_bulk(indata)
-            event_emitter = EventEmitterManager.get_instance().get_event_emitter()
-            if event_emitter is not None and performance_data is not None:
-                event_emitter.emit_coroutine("perf", performance_data.model_dump_json())
+            if performance_data is not None:
+                emit_event("perf", performance_data.model_dump_json())
 
             if converted is not None:
                 if self.waveform_rest_output.dtype != converted.dtype:

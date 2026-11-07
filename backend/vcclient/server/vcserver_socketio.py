@@ -15,8 +15,7 @@ from vcclient.const import (
     SERVER_IO_RECORDING_FILE_OUT,
 )
 from vcclient.logger import logger
-from vcclient.server.event_emitter import EventEmitter
-from vcclient.server.event_emitter_manager import EventEmitterManager
+from vcclient.server.event_emitter import set_event_emitter
 from vcclient.server.server_const import get_frontend_path
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
@@ -29,7 +28,7 @@ __all__ = [
 ]
 
 
-class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
+class SocketIONamespace(socketio.AsyncNamespace):
     sid: int = 0
 
     def __init__(
@@ -40,7 +39,7 @@ class SocketIONamespace(EventEmitter, socketio.AsyncNamespace):
         super().__init__(namespace)
         self.namespace = namespace
         self.list_all_sids = list_all_sids
-        EventEmitterManager.get_instance().set_event_emitter(self)
+        set_event_emitter(self)
 
     async def emit_to(self, event: str, data: Any, to: str | None) -> None:
         await self.emit(event, data, to=to)

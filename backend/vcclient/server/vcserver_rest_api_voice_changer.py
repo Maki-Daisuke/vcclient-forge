@@ -4,7 +4,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from vcclient.logger import logger
-from vcclient.server.event_emitter_manager import EventEmitterManager
+from vcclient.server.event_emitter import emit_event
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.data_types.voice_changer_data_types import VoiceChangerManagerInfo
@@ -106,10 +106,7 @@ class RestAPIVoiceChanger:
         if conf.voice_changer_input_mode == "server":
             vc = LocalVoiceChangerInterface.get_instance()
             vc.start()
-            event_emitter = EventEmitterManager.get_instance().get_event_emitter()
-            if event_emitter is not None:
-                event_emitter.emit_coroutine("command", ["reload"])
-                return None
+            emit_event("command", ["reload"])
             return None
         raise Exception("Voice changer input mode is not server.")
 

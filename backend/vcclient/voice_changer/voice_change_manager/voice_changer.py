@@ -29,7 +29,7 @@ except ImportError:
 
 
 from vcclient.logger import logger
-from vcclient.server.event_emitter_manager import EventEmitterManager
+from vcclient.server.event_emitter import emit_event
 
 from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_MONITOR, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
@@ -530,11 +530,7 @@ class VoiceChanger:
                 if self.performance_listener is not None:
                     self.performance_listener(performance_data)
 
-                event_emitter = EventEmitterManager.get_instance().get_event_emitter()
-                if event_emitter is not None:
-                    event_emitter.emit_coroutine(
-                        "data", ["realtime_process_status", performance_data.model_dump_json()]
-                    )
+                emit_event("data", ["realtime_process_status", performance_data.model_dump_json()])
 
                 return (output, monitor, performance_data)
 
