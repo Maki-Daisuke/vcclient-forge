@@ -11,9 +11,13 @@ case "$OSTYPE" in
       echo "MacOS"
       echo "Using Xattr to remove Downloaded flag to avoid Gatekeeper refuse..."
       echo "使用Xattr以移除下载的文件表示防止Gatekeeper截拦..."
-      xattr -rd com.apple.quarantine "$SCRIPT_DIR"
+      if xattr -rd com.apple.quarantine "$SCRIPT_DIR" >/dev/null; then
       echo "Processing complet!"
       echo "处理完成!"
+        else
+        echo "Processing complet!"
+      echo "处理完成!"
+        fi
     ;; 
   linux*)   echo "Linux" ;;
   bsd*)     echo "BSD" ;;
