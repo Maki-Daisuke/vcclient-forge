@@ -45,9 +45,10 @@ def test_convert_chunk_endpoint(client):
 
 
 def test_frontend_root():
-    from vcclient.server.vcserver_socketio import serverio_app
+    from vcclient.server.vcserver import VCServer
 
-    c = TestClient(serverio_app)
+    server = VCServer(host="127.0.0.1", port=0)
+    c = TestClient(server.app)
     response = c.get("/")
     assert response.status_code == 200
     assert "html" in response.headers.get("content-type", "")

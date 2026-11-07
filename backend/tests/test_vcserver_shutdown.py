@@ -162,8 +162,8 @@ async def test_stop_all_sockets_disconnects_registered_clients(namespace: str, m
     engineio_socket = AsyncSocket(sio.eio, engineio_sid)
     monkeypatch.setattr(engineio_socket.queue, "join", AsyncMock())
     sio.eio.sockets[engineio_sid] = engineio_socket
-    monkeypatch.setattr("vcclient.server.vcserver.SocketIOServer.get_instance", lambda: sio)
     server = VCServer(host="127.0.0.1", port=0)
+    server.sio = sio
     try:
         assert socketio_sid != engineio_sid
         assert sio.manager.is_connected(socketio_sid, namespace)
@@ -205,7 +205,7 @@ def test_shutdown_finishes_with_unconsumed_polling_packets(
             finished.set()
 
     server.server = SimpleNamespace(serve=serve)
-    monkeypatch.setattr("vcclient.server.vcserver.SocketIOServer.get_instance", lambda: sio)
+    server.sio = sio
     server.server_thread = threading.Thread(target=run_server, daemon=True)
     caplog.set_level(logging.ERROR, logger="asyncio")
     server.server_thread.start()

@@ -1,35 +1,32 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import os
 import threading
+from typing import TYPE_CHECKING
 
 import portpicker
 import uvicorn
 
 from vcclient.logger import logger
-from vcclient.server.vcserver_socketio_server import SocketIOServer
+from vcclient.server.vcserver_rest_api import get_rest_api
+from vcclient.server.vcserver_socketio import (
+    SocketIOServer,
+    create_socketio_app,
+    create_socketio_server,
+)
+
+if TYPE_CHECKING:
+    import socketio
 
 
 class VCServer:
-    _instance: VCServer | None = None
     port: int = 0
     server_thread: threading.Thread | None = None
     server: uvicorn.Server
     loop: asyncio.AbstractEventLoop
-
-    @classmethod
-    def get_instance(
-        cls,
-        host: str = "127.0.0.1",
-        port: int | None = None,
-        allow_origins: list[str] | None = None,
-    ) -> VCServer:
-        if cls._instance is None:
-            app_fastapi = VCServer(host=host, port=port, allow_origins=allow_origins)
-            cls._instance = app_fastapi
-        return cls._instance
+    sio: SocketIOServer
+    app: socketio.ASGIApp
 
     def __init__(
         self,
@@ -40,19 +37,13 @@ class VCServer:
         super().__init__()
         self.host = host
         self.allow_origins = allow_origins if allow_origins is not None else ["*"]
-        if port is not None:
-            self.port = port
-            return
-        self.port = portpicker.pick_unused_port()
+        self.port = port if port is not None else portpicker.pick_unused_port()
+        self.sio = create_socketio_server(allowed_origins=self.allow_origins)
+        self.app = create_socketio_app(sio=self.sio, app_fastapi=get_rest_api())
 
     def start(self):
-        this_modeule = importlib.util.find_spec(__name__)
-        if this_modeule is None:
-            raise Exception("FastAPI instance is not initialized.")
-
-        module_parent = this_modeule.parent
         config = uvicorn.Config(
-            f"{module_parent}.vcserver_socketio:serverio_app",
+            self.app,
             host=self.host,
             port=self.port,
             log_level="info",
@@ -67,7 +58,7 @@ class VCServer:
 
     async def stop_all_sockets(self):
         try:
-            sio = SocketIOServer.get_instance()
+            sio = self.sio
             if hasattr(sio, "manager"):
                 for ns in list(sio.manager.get_namespaces()):
                     if ns in sio.manager.rooms and None in sio.manager.rooms[ns]:
