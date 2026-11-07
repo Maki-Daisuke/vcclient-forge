@@ -10,9 +10,9 @@ from vcclient.const import (
 )
 from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
-from vcclient.server.vcserver_rest_api import RestAPI
+from vcclient.server.vcserver_rest_api import get_rest_api
 
-from .server_const import VoiceChangerParams, get_frontend_path
+from .server_const import get_frontend_path
 from .vcserver_socketio_server import SocketIOServer
 
 
@@ -49,9 +49,7 @@ class SocketIOApp:
         return cls._instance
 
 
-voice_changer_params = VoiceChangerParams(vc_model_dir="model_dir")
-
-rest = RestAPI.get_instance(voice_changer_params)
+rest = get_rest_api()
 
 allow_origins = VCServer.get_instance().allow_origins
 

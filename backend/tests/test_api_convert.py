@@ -2,12 +2,12 @@ import numpy as np
 import pytest
 from starlette.testclient import TestClient
 
-from vcclient.server.vcserver_rest_api import RestAPI
+from vcclient.server.vcserver_rest_api import get_rest_api
 
 
 @pytest.fixture(scope="module")
 def client():
-    app = RestAPI.get_instance()
+    app = get_rest_api()
     return TestClient(app)
 
 

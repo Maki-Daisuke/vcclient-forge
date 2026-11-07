@@ -2,7 +2,7 @@ from pathlib import Path
 
 from starlette.testclient import TestClient
 
-from vcclient.server.vcserver_rest_api import RestAPI
+from vcclient.server.vcserver_rest_api import get_rest_api
 
 
 def test_ui_switcher_assets_and_integration():
@@ -29,7 +29,7 @@ def test_ui_switcher_assets_and_integration():
 
 def test_root_redirect_preserves_query_parameters():
     """Verify that root redirect preserves query parameters such as app_mode."""
-    client = TestClient(RestAPI.get_instance(), follow_redirects=False)
+    client = TestClient(get_rest_api(), follow_redirects=False)
 
     res_root = client.get("/")
     assert res_root.status_code == 307

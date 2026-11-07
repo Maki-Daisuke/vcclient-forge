@@ -9,13 +9,13 @@ from vcclient.const import (
     SERVER_IO_RECORDING_FILE_MONITOR,
     SERVER_IO_RECORDING_FILE_OUT,
 )
-from vcclient.server.vcserver_rest_api import RestAPI
+from vcclient.server.vcserver_rest_api import get_rest_api
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 
 
 @pytest.fixture(scope="module")
 def client():
-    app = RestAPI.get_instance()
+    app = get_rest_api()
     return TestClient(app)
 
 
