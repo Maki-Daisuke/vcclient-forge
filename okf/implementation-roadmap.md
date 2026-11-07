@@ -118,6 +118,15 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   configuration while native audio is running, with readback and retry/discard.
   Mocked browser tests cover the control; live audio verification remains pending.
 
+- **WASAPI exclusive mode**: The Svelte UI can change the existing setting while
+  native audio is stopped. Real-device verification remains pending.
+
+- **Server recording**: The Svelte UI can start and stop recording using existing
+  APIs and download the output WAV. Recording can be armed before starting audio;
+  stopping audio saves a take and returns to the armed state. Recording uses fixed
+  backend filenames and cannot be combined with passthrough. Real audio verification
+  remains pending.
+
 - **Filter controls implemented (2026-11-06)**: Server Mode with a selected model provides high/low-pass
   switches and cutoff sliders. The existing full PUT is preceded by current
   configuration and voice-information reads and a cutoff/sample-rate check;

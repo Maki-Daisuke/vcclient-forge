@@ -18,6 +18,8 @@ export class NativeSession {
   error = $state<ApiError | null>(null);
   active = $state<boolean | null>(null);
   statusError = $state(false);
+  recordingCompleted = $state(false);
+  recordingArmed = $state(false);
   operation = $state<'start' | 'stop' | null>(null);
   operationError = $state<ApiError | null>(null);
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -103,8 +105,30 @@ export class NativeSession {
   }
 
   togglePassThrough() {
-    if (!this.canAdjustGain || this.settings?.passThrough == null) return;
+    if (!this.canAdjustGain || this.settings?.passThrough == null || this.settings.recording !== false || this.recordingArmed) return;
     this.edit({ passThrough: !this.settings.passThrough }, true);
+  }
+
+  get canToggleRecording() {
+    const settings = this.settings;
+    return this.catalog.state.status === 'ready' && settings?.inputMode === 'server' && settings.recording !== null
+      && !this.operation && !this.isSaving && !this.dirty
+      && this.active !== null && (settings.recording === true || settings.passThrough === false);
+  }
+
+  toggleRecording() {
+    if (!this.canToggleRecording || !this.settings) return;
+    this.recordingCompleted = false;
+    if (this.settings.recording === false && this.active === false) {
+      this.recordingArmed = !this.recordingArmed;
+      return;
+    }
+    if (this.settings.recording === false && this.recordingArmed) {
+      this.recordingArmed = false;
+      return;
+    }
+    this.recordingArmed = !this.settings.recording;
+    this.edit({ recording: !this.settings.recording }, true);
   }
 
   setFilter(key: 'highPassEnabled' | 'lowPassEnabled', value: boolean): void;
@@ -155,6 +179,12 @@ export class NativeSession {
 
   useServerMode() {
     if (this.canConfigure && this.settings?.inputMode !== 'server') this.edit({ inputMode: 'server' }, true);
+  }
+
+  setWasapiExclusive(value: boolean) {
+    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.wasapiExclusive == null
+      || this.settings.wasapiExclusive === value) return;
+    this.edit({ wasapiExclusive: value }, true);
   }
 
   private edit(edits: ConfigurationEdits, immediate = false) {
@@ -209,6 +239,7 @@ export class NativeSession {
         const confirmed = await this.request(signal => updateConfiguration(sent.edits, signal));
         if (this.disposed) return;
         this.catalog.applyConfiguration(confirmed);
+        if (sent.edits.recording === false) this.recordingCompleted = true;
         // A response acknowledges only the values it sent, never newer interactions.
         this.draft = Object.fromEntries(Object.entries(this.draft).filter(
           ([key, value]) => sent.edits[key as keyof ConfigurationEdits] !== value,
@@ -251,8 +282,29 @@ export class NativeSession {
           const confirmed = await updateConfiguration({ currentModelId: this.currentModelId! }, signal);
           if (!this.disposed) this.catalog.applyConfiguration(confirmed);
           if (confirmed.settings.inputMode !== 'server') throw new ApiError('not_applied');
+          const active = await operateNative('start', signal);
+          if (this.recordingArmed) {
+            this.recordingCompleted = false;
+            const recording = await updateConfiguration({ recording: true }, signal);
+            if (!this.disposed) this.catalog.applyConfiguration(recording);
+          }
+          return active;
         }
-        return operateNative(operation, signal);
+        let recordingError: unknown;
+        if (this.settings?.recording === true) {
+          try {
+            const recording = await updateConfiguration({ recording: false }, signal);
+            if (!this.disposed) {
+              this.catalog.applyConfiguration(recording);
+              this.recordingArmed = true;
+              this.recordingCompleted = false;
+              this.recordingCompleted = true;
+            }
+          } catch (error) { recordingError = error; }
+        }
+        const active = await operateNative('stop', signal);
+        if (recordingError) throw recordingError;
+        return active;
       });
       this.statusError = false;
     } catch (error) {

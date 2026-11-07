@@ -1,6 +1,7 @@
 export interface ConfigurationSnapshot {
   inputMode: 'server' | 'client' | null;
   passThrough: boolean | null;
+  recording: boolean | null;
   inputGain: number | null;
   outputGain: number | null;
   monitorGain: number | null;
@@ -46,12 +47,14 @@ export interface ConfigurationEdits {
   currentModelId?: number;
   inputMode?: 'server';
   passThrough?: boolean;
+  recording?: boolean;
   inputDevice?: number;
   outputDevice?: number;
   monitorDevice?: number;
   inputDeviceRate?: number;
   outputDeviceRate?: number;
   monitorDeviceRate?: number;
+  wasapiExclusive?: boolean;
   inputGain?: number;
   outputGain?: number;
   noiseGate?: number;

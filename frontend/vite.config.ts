@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const proxy = {
     '/api': { target, changeOrigin: true },
     '/model_dir': { target, changeOrigin: true },
+    '/output.wav': { target, changeOrigin: true },
   };
   return {
     plugins: [svelte()],

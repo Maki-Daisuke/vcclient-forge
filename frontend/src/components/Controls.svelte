@@ -44,6 +44,14 @@
   const showStop = $derived(session.active === true || (session.active === null && session.statusError));
   const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
   const showStartMessage = $derived(!showStop && !session.canStart && !!startMessage);
+  $effect(() => {
+    if (session.recordingCompleted) {
+      const link = document.createElement('a');
+      link.href = '/output.wav';
+      link.download = 'output.wav';
+      link.click();
+    }
+  });
 </script>
 
 <div class="conversion-layout">
@@ -59,10 +67,13 @@
           {#if showStartMessage}<span id="start-reason" class="start-tooltip" role="tooltip">{startMessage}</span>{/if}
         </span>
         <button class="button" aria-pressed={settings?.passThrough === true}
-          disabled={!session.canAdjustGain || settings?.passThrough == null} onclick={() => session.togglePassThrough()}>
+          disabled={!session.canAdjustGain || settings?.passThrough == null || settings.recording !== false || session.recordingArmed} onclick={() => session.togglePassThrough()}>
           <Repeat2 size={16} />{ui.t('common.controls.passthrough')}
         </button>
-        <button class="button" disabled><Circle size={14} />{ui.t('common.controls.record')}</button>
+        <button class="button recording-button" class:recording-armed={session.recordingArmed && settings?.recording !== true}
+          aria-label={ui.t('common.controls.record')} aria-pressed={settings?.recording === true || session.recordingArmed} disabled={!session.canToggleRecording} onclick={() => session.toggleRecording()}>
+          {#if settings?.recording}<Square size={14} fill="currentColor" />{:else}<Circle size={14} />{/if}{ui.t(settings?.recording ? 'forge.recording_active' : session.recordingArmed ? 'forge.recording_armed' : 'common.controls.record')}
+        </button>
       </div>
       {#if session.operation}<p class="operation-status" role="status">{ui.t(`forge.audio_${session.operation}`)}</p>{/if}
       {#if session.operationError}

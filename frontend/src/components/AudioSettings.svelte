@@ -40,7 +40,8 @@
       disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('monitorDevice', id)} />
     <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.monitor_device_rate')} value={rateLabel(settings?.monitorDeviceRate)} />
   </div>
-  <CheckField label={ui.t('common.settings_dialog.wasapi_exclusive_mode')} checked={settings?.wasapiExclusive ?? null} />
+  <CheckField label={ui.t('common.settings_dialog.wasapi_exclusive_mode')} checked={settings?.wasapiExclusive ?? null}
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={value => session.setWasapiExclusive(value)} />
 </section>
 <style>
   .mode-field { border: 0; padding: 8px 0; margin: 0; min-width: 0; }

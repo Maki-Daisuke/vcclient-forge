@@ -47,7 +47,7 @@ export async function mockSession(page: Page) {
       --state.inFlight;
     } else if (path === '/api/voice-changer-manager/information') {
       const model = state.models.find(item => item.slot_index === state.config.current_slot_index);
-      await route.fulfill({ json: { voice_changer_information: { slot_index: state.config.current_slot_index, input_sample_rate: state.config.input_sample_rate, output_sample_rate: 48000, pipeline_info: { slot_index: state.config.current_slot_index, pitch_estimator_info: { pitch_estimator_type: state.estimatorMismatch ? 'incorrect' : model?.pitch_estimator } } } } });
+      await route.fulfill({ json: { voice_changer_information: { recording_start_flag: state.config.recording_started, slot_index: state.config.current_slot_index, input_sample_rate: state.config.input_sample_rate, output_sample_rate: 48000, pipeline_info: { slot_index: state.config.current_slot_index, pitch_estimator_info: { pitch_estimator_type: state.estimatorMismatch ? 'incorrect' : model?.pitch_estimator } } } } });
     } else if (path.endsWith('/information')) {
       expect(request.method()).toBe('GET');
       await route.fulfill({ status: state.infoFail ? 503 : 200, json: { local_voice_changer_interface_active: state.active } });

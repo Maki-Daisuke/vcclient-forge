@@ -130,6 +130,14 @@ and Inference, each using native expandable details. Output/monitor volume uses 
 RMVPE/FCPE pitch estimator selection is available while server audio is stopped.
 The Passthrough button writes the existing configuration and confirms the result;
 it can be toggled during server audio. Live audio verification remains pending.
+WASAPI exclusive mode can be changed while native audio is stopped; real-device
+verification remains pending.
+Server recording uses the existing configuration API and starts an output WAV
+download after a successful stop. Recording can be armed before audio starts, and
+stopping audio saves the take and returns to the armed state. Passthrough is blocked
+while recording is armed or active. Backend
+recordings use fixed paths and may overwrite earlier recordings; real audio testing
+remains pending.
 Client audio, sample-rate edits, and preferred-device selection remain unconnected.
 Browser-only noise preferences remain visible and disabled under Client Mode Only
 within Noise Suppression.

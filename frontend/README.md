@@ -6,9 +6,22 @@ buttons, selects, and checkboxes. The model list, configured selection, metadata
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
 live passthrough, input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
+WASAPI exclusive mode can be changed while native audio is stopped.
 The audio button switches between Start and Stop based on the confirmed backend state.
 If the audio state cannot be read, Stop remains available.
 The Start/Stop, Passthrough, and Record buttons appear above the audio meters.
+Server-mode recording can be armed before starting native audio with passthrough off.
+Starting audio starts recording; stopping audio saves and downloads the take, then
+returns to the armed state. The Record button can also start or stop recording
+during audio. Arming is local to the page and is cleared on a browser reload.
+Recording starts after the audio start is confirmed, so its initial audio may not
+be included. A successful recording stop starts an output WAV download.
+The backend stores input.wav, output.wav, and optionally monitor.wav at fixed paths,
+overwriting prior recordings. Audio is held in memory until recording stops.
+The UI prevents enabling passthrough during recording because the existing backend
+does not collect input audio in that mode. Failed recording saves are reported;
+the backend's recording state can become inconsistent after a save error, so a
+retry is not guaranteed to recover audio. Real recording has not been verified.
 Upload, model metadata editing, Client Mode audio, and other settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 The model list contains the selected model's portrait, details, and voice controls.
@@ -36,7 +49,7 @@ npm run build:frontend:preview
 
 Run `npm start` in a separate terminal to start the Python backend for real model
 information (normal backend startup may download required model assets).
-Vite forwards `/api` and `/model_dir` to `http://127.0.0.1:18888` in both dev and
+Vite forwards `/api`, `/model_dir`, and `/output.wav` to `http://127.0.0.1:18888` in both dev and
 preview. To use another backend, set `VCCLIENT_BACKEND_URL` before starting Vite:
 
 ```powershell
@@ -128,6 +141,11 @@ The backend resets passthrough on restart and does not persist it in the setting
 file. Changes by other clients are visible after reload or a subsequent confirmed
 configuration write. Reading this field from the real backend was verified; browser
 write tests mock the API, and audible passthrough has not been verified.
+
+WASAPI exclusive mode uses the existing configuration write queue and checks that
+native audio is stopped before writing. It applies to devices using WASAPI on the
+next audio start. Browser tests mock the API; actual exclusive-mode audio has not
+been verified. The stopped-state check is not atomic with other clients.
 
 Pitch and index ratio use GET/PUT/GET on `/api/slot-manager/slots/{id}`, preserving
 the complete latest slot payload and validating that the response ID matches the

@@ -39,6 +39,7 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
   return {
     inputMode: mode,
     passThrough: boolean(config.pass_through),
+    recording: boolean(config.recording_started),
     inputGain: numeric(config.audio_input_device_gain),
     outputGain: numeric(config.audio_output_device_gain),
     monitorGain: numeric(config.audio_monitor_device_gain),
@@ -181,11 +182,12 @@ export async function loadAudioDevices(signal: AbortSignal): Promise<AudioDevice
 }
 
 const editFields: Record<keyof ConfigurationEdits, string> = {
-  currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode', passThrough: 'pass_through',
+  currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode', passThrough: 'pass_through', recording: 'recording_started',
   inputDevice: 'audio_input_device_index', outputDevice: 'audio_output_device_index',
   monitorDevice: 'audio_monitor_device_index',
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
   monitorDeviceRate: 'audio_monitor_device_sample_rate',
+  wasapiExclusive: 'wasapi_exclude_emabled',
   inputGain: 'audio_input_device_gain', outputGain: 'audio_output_device_gain',
   noiseGate: 'noise_gate',
   highPassEnabled: 'enable_high_pass_filter', lowPassEnabled: 'enable_low_pass_filter',
@@ -193,7 +195,7 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
 };
 
 const filterKeys = ['highPassEnabled', 'lowPassEnabled', 'highPassCutoff', 'lowPassCutoff'];
-const liveKeys = ['inputGain', 'outputGain', 'noiseGate', 'passThrough', ...filterKeys];
+const liveKeys = ['inputGain', 'outputGain', 'noiseGate', 'passThrough', 'recording', ...filterKeys];
 
 export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
   const info = object(await getJson(`${nativeUrl}/information`, signal));
@@ -208,6 +210,14 @@ export async function updateConfiguration(edits: ConfigurationEdits, signal: Abo
   }
   const config = object(await getJson(configurationUrl, signal));
   parseConfiguration(config);
+  if (edits.recording === true && (config.pass_through !== false || !(await readNativeActive(signal)))) throw new ApiError('recording_unavailable');
+  if (edits.passThrough === true && config.recording_started !== false) throw new ApiError('recording_unavailable');
+  if (edits.recording !== undefined) {
+    const info = object(await getJson('/api/voice-changer-manager/information', signal));
+    const voice = object(info.voice_changer_information);
+    if (typeof voice.recording_start_flag !== 'boolean' || voice.recording_start_flag !== config.recording_started) throw new ApiError('recording_unavailable');
+    if (voice.recording_start_flag === edits.recording) throw new ApiError('recording_unavailable');
+  }
   const changes = Object.entries(edits).map(([key, value]) => [editFields[key as keyof ConfigurationEdits], value] as const);
   if (changes.some(([field]) => !Object.hasOwn(config, field))) invalidResponse();
   if (Object.keys(edits).some(key => filterKeys.includes(key))) {
@@ -231,6 +241,10 @@ export async function updateConfiguration(edits: ConfigurationEdits, signal: Abo
   const confirmed = object(await getJson(configurationUrl, signal));
   const snapshot = parseConfiguration(confirmed);
   if (changes.some(([field, value]) => confirmed[field] !== value)) throw new ApiError('not_applied');
+  if (edits.recording !== undefined) {
+    const info = object(await getJson('/api/voice-changer-manager/information', signal));
+    if (object(info.voice_changer_information).recording_start_flag !== edits.recording) throw new ApiError('not_applied');
+  }
   return snapshot;
 }
 
