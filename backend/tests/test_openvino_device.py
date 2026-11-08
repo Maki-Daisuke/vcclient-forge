@@ -166,6 +166,7 @@ def test_device_manager_configure_session_options():
 def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
     # When OpenVINO is available
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: True)
+    monkeypatch.setattr(dm_module.providers.openvino, "is_openvino_available", lambda: True)
     info_list = reload_gpu_devices()
     device_ids = [info.device_id_int for info in info_list]
     assert OPENVINO_GPU_DEVICE_ID in device_ids
@@ -175,6 +176,7 @@ def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
 
     # When OpenVINO is unavailable
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: False)
+    monkeypatch.setattr(dm_module.providers.openvino, "is_openvino_available", lambda: False)
     info_list_no_ov = reload_gpu_devices()
     device_ids_no_ov = [info.device_id_int for info in info_list_no_ov]
     assert OPENVINO_GPU_DEVICE_ID not in device_ids_no_ov
