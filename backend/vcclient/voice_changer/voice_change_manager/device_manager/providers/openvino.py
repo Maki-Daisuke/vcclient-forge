@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -8,7 +10,6 @@ from typing import Any
 import onnxruntime
 
 from vcclient.logger import logger
-from vcclient.utils.runtime_env import setup_runtime_env
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 OPENVINO_GPU_DEVICE_ID = 1000
@@ -16,10 +17,38 @@ OPENVINO_AUTO_DEVICE_ID = OPENVINO_GPU_DEVICE_ID
 OpenVinoCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "openvino_cache"
 OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
 
+_openvino_runtime_initialized = False
+
+
+def setup_openvino_runtime() -> None:
+    """Setup platform-specific OpenVINO Execution Provider runtime and register plugin."""
+    global _openvino_runtime_initialized
+    if _openvino_runtime_initialized:
+        return
+    _openvino_runtime_initialized = True
+
+    try:
+        import onnxruntime_ep_openvino as openvino_ep
+
+        pkg_dir = Path(openvino_ep.__file__).parent
+        if sys.platform == "win32":
+            os.add_dll_directory(str(pkg_dir))
+            os.environ["PATH"] = str(pkg_dir) + os.pathsep + os.environ.get("PATH", "")
+        elif sys.platform == "linux":
+            existing = os.environ.get("LD_LIBRARY_PATH", "")
+            os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([str(pkg_dir)] + ([existing] if existing else []))
+
+        if hasattr(onnxruntime, "register_execution_provider_library"):
+            lib_path = openvino_ep.get_library_path()
+            ep_name = openvino_ep.get_ep_name()
+            onnxruntime.register_execution_provider_library(ep_name, lib_path)
+    except Exception as e:
+        logger.warning("Failed to register OpenVINO EP library: %s", e)
+
 
 def is_openvino_available() -> bool:
     """Check if OpenVINOExecutionProvider is available in the current runtime environment."""
-    setup_runtime_env()
+    setup_openvino_runtime()
     available = onnxruntime.get_available_providers()
     if "OpenVINOExecutionProvider" in available:
         return True

@@ -14,6 +14,21 @@ COREML_GPU_DEVICE_ID = 1
 CoreMLCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "coreml_cache"
 CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
 
+_coreml_runtime_initialized = False
+
+
+def setup_coreml_runtime() -> None:
+    """Setup CoreML runtime environment and ensure cache directory exists."""
+    global _coreml_runtime_initialized
+    if _coreml_runtime_initialized:
+        return
+    _coreml_runtime_initialized = True
+
+    try:
+        CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.debug("Failed to create CoreML cache dir: %s", e)
+
 
 def detect_macos_gpus() -> list[GPUInfo]:
     """Detect available GPUs on macOS via system_profiler."""

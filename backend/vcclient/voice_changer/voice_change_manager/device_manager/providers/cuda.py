@@ -1,21 +1,119 @@
 from __future__ import annotations
 
+import importlib.util
+import os
 import re
 import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import onnxruntime
 
 from vcclient.logger import logger
-from vcclient.utils.runtime_env import setup_runtime_env
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 from .util import parse_vram_string
 
+_cuda_runtime_initialized = False
+
+
+def setup_cuda_runtime() -> None:
+    """Setup platform-specific CUDA / cuDNN runtime environment and register plugins."""
+    global _cuda_runtime_initialized
+    if _cuda_runtime_initialized:
+        return
+    _cuda_runtime_initialized = True
+
+    if sys.platform == "win32":
+        # 1. PyTorch's bundled lib (if CUDA-enabled PyTorch is present)
+        try:
+            import torch
+
+            torch_lib = Path(torch.__file__).parent / "lib"
+            if torch_lib.exists():
+                os.add_dll_directory(str(torch_lib))
+                os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
+        except Exception:
+            pass
+
+        # 2. nvidia-* pip packages (for pure-ONNX mode with CPU PyTorch)
+        nvidia_pkgs = [
+            "nvidia.cublas",
+            "nvidia.cudnn",
+            "nvidia.cuda_runtime",
+            "nvidia.cufft",
+            "nvidia.curand",
+            "nvidia.cu13",
+        ]
+        for pkg in nvidia_pkgs:
+            try:
+                spec = importlib.util.find_spec(pkg)
+                if spec and spec.submodule_search_locations:
+                    loc = Path(list(spec.submodule_search_locations)[0])
+                    bin_dir = loc / "bin"
+                    if bin_dir.exists():
+                        os.add_dll_directory(str(bin_dir))
+                        os.environ["PATH"] = str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
+                        for arch_dir in bin_dir.iterdir():
+                            if arch_dir.is_dir():
+                                os.add_dll_directory(str(arch_dir))
+                                os.environ["PATH"] = str(arch_dir) + os.pathsep + os.environ.get("PATH", "")
+            except Exception:
+                pass
+
+        try:
+            if hasattr(onnxruntime, "preload_dlls") and getattr(onnxruntime, "cuda_version", None):
+                onnxruntime.preload_dlls(directory="")
+        except Exception:
+            pass
+    elif sys.platform == "linux":
+        nvidia_pkgs = [
+            "nvidia.cublas",
+            "nvidia.cudnn",
+            "nvidia.cuda_runtime",
+            "nvidia.cufft",
+            "nvidia.curand",
+            "nvidia.cu13",
+        ]
+        lib_dirs: list[str] = []
+        for pkg in nvidia_pkgs:
+            try:
+                spec = importlib.util.find_spec(pkg)
+                if spec and spec.submodule_search_locations:
+                    for search_loc in spec.submodule_search_locations:
+                        lib_dir = Path(search_loc) / "lib"
+                        if lib_dir.is_dir():
+                            lib_dirs.append(str(lib_dir))
+            except Exception:
+                pass
+        if lib_dirs:
+            existing = os.environ.get("LD_LIBRARY_PATH", "")
+            os.environ["LD_LIBRARY_PATH"] = os.pathsep.join(lib_dirs + ([existing] if existing else []))
+
+        try:
+            if hasattr(onnxruntime, "preload_dlls") and getattr(onnxruntime, "cuda_version", None):
+                onnxruntime.preload_dlls(directory="")
+        except Exception:
+            pass
+
+    # 3. CUDA Execution Provider Plugin registration (Windows & Linux)
+    try:
+        if hasattr(onnxruntime, "register_execution_provider_library"):
+            capi_dir = Path(onnxruntime.__file__).parent / "capi"
+            cuda_lib_name = (
+                "onnxruntime_providers_cuda.dll" if sys.platform == "win32" else "libonnxruntime_providers_cuda.so"
+            )
+            cuda_lib_path = capi_dir / cuda_lib_name
+            if cuda_lib_path.exists():
+                onnxruntime.register_execution_provider_library("CUDAExecutionProvider", str(cuda_lib_path))
+    except Exception as e:
+        logger.debug("Failed to register CUDA EP library: %s", e)
+
 
 def is_cuda_available() -> bool:
     """Check if CUDAExecutionProvider is available in the current runtime environment."""
-    setup_runtime_env()
+    setup_cuda_runtime()
     available = onnxruntime.get_available_providers()
     if "CUDAExecutionProvider" in available:
         return True

@@ -11,6 +11,16 @@ from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 from .util import parse_vram_string
 
+_directml_runtime_initialized = False
+
+
+def setup_directml_runtime() -> None:
+    """Setup DirectML runtime environment (reserved for future DML configuration)."""
+    global _directml_runtime_initialized
+    if _directml_runtime_initialized:
+        return
+    _directml_runtime_initialized = True
+
 
 def _filter_directml_devices(
     raw_devices: list[dict[str, str]],
