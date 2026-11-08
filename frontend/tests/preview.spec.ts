@@ -124,7 +124,10 @@ test('dialogs open, trap focus, close with Escape, and restore focus', async ({ 
     await trigger.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    for (const field of await dialog.locator('input, select, textarea').all()) await expect(field).toBeDisabled();
+    for (const field of await dialog.locator('input, select, textarea').all()) {
+      if (name === 'アップロード') await expect(field).toBeEnabled();
+      else await expect(field).toBeDisabled();
+    }
     await page.keyboard.press('Tab');
     await expect(dialog).not.toContainText('表示はサンプルです。設定の変更や音声の操作は、まだ利用できません。');
     expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);

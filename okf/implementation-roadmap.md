@@ -125,6 +125,11 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   crossfade with logarithmic sliders while audio is stopped. Chunk is model-specific;
   the other settings are shared. Real audio validation remains pending.
 
+- **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
+  optional index to a vacant slot through existing APIs while audio is stopped.
+  Browser tests mock the APIs. The user confirmed a real model upload; the tested
+  model format and index presence were not specified.
+
 - **Server recording**: The Svelte UI can start and stop recording using existing
   APIs and download the output WAV. Recording can be armed before starting audio;
   stopping audio saves a take and returns to the armed state. Recording uses fixed

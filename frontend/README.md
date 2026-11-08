@@ -22,7 +22,7 @@ The UI prevents enabling passthrough during recording because the existing backe
 does not collect input audio in that mode. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
 retry is not guaranteed to recover audio. Real recording has not been verified.
-Upload, model metadata editing, Client Mode audio, and other settings controls remain disabled.
+Model metadata editing, Client Mode audio, and other unconnected settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
@@ -42,6 +42,16 @@ Each filter's cutoff slider is available only when that filter is enabled.
 Sections start closed, and their open/closed state is stored in the browser's
 local storage. It is separate for each browser or webview and origin; if storage
 is unavailable or invalid, sections start closed.
+
+While native audio is stopped, the upload dialog accepts an RVC `.pth` or `.onnx`
+model and an optional `.index` file. Files are uploaded in 4 MiB chunks using unique
+temporary names and registered in an automatically selected empty slot. The
+backend converts `.pth` to ONNX during import. The list is refreshed after success.
+Import may take time; other settings and audio start are disabled while it runs.
+If the registration response is lost, reload and inspect the list before retrying.
+An interrupted upload can leave temporary files because the existing API has no
+cleanup operation. Browser tests mock uploads; the user confirmed an upload to the
+real backend, but did not specify the model format or whether an index was included.
 
 Run commands from the repository root:
 

@@ -1,6 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { operateNative, readNativeActive, updateConfiguration, updateModelSettings } from './api';
 import { ApiError } from './api-error';
+import { importModel } from './model-upload';
 import type { ModelCatalogState } from './catalog.svelte';
 import type { ConfigurationEdits, ModelEdits } from './settings';
 
@@ -20,6 +21,10 @@ export class NativeSession {
   statusError = $state(false);
   recordingCompleted = $state(false);
   recordingArmed = $state(false);
+  uploadStatus = $state<'idle' | 'uploading' | 'registering' | 'success' | 'refresh_failed' | 'error' | 'uncertain'>('idle');
+  uploadError = $state<ApiError | null>(null);
+  uploadBytes = $state(0);
+  uploadTotal = $state(0);
   operation = $state<'start' | 'stop' | null>(null);
   operationError = $state<ApiError | null>(null);
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -43,12 +48,13 @@ export class NativeSession {
     return this.modelDraft?.id === model.id ? { ...model.settings, ...this.modelDraft.edits } : model.settings;
   }
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
-  get canReload() { return !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
+  get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
+  get canReload() { return !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
   get canConfigure() {
-    return this.catalog.state.status === 'ready' && this.active === false && !this.operation && !this.isSaving && !this.dirty;
+    return this.catalog.state.status === 'ready' && this.active === false && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
   get canAdjustGain() {
-    return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.operation;
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.importing && !this.operation;
   }
   get canAdjustModel() {
     return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
@@ -58,6 +64,7 @@ export class NativeSession {
     return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
   }
   get startBlockReason() {
+    if (this.importing) return 'saving';
     if (this.operation) return 'operation';
     if (this.catalog.state.status === 'loading') return 'loading';
     if (this.catalog.state.status === 'error') return 'load_error';
@@ -82,6 +89,31 @@ export class NativeSession {
   async mount() {
     await this.reload();
     this.schedulePoll();
+  }
+
+  async uploadModel(model: File, index: File | null) {
+    if (!this.canConfigure) return;
+    this.uploadStatus = 'uploading';
+    this.uploadError = null;
+    this.uploadBytes = 0;
+    this.uploadTotal = model.size + (index?.size ?? 0);
+    const phase = { registering: false };
+    try {
+      await this.request(signal => importModel(model, index, signal,
+        bytes => { this.uploadBytes += bytes; }, () => { phase.registering = true; this.uploadStatus = 'registering'; }), 30 * 60_000);
+      if (this.disposed) return;
+      await this.catalog.reload();
+      if (!this.disposed) this.uploadStatus = this.catalog.state.status === 'ready' ? 'success' : 'refresh_failed';
+    } catch (error) {
+      if (!this.disposed) {
+        this.uploadError = this.apiError(error);
+        this.uploadStatus = phase.registering && (this.uploadError.code === 'network' || this.uploadError.code === 'timeout' || this.uploadError.code === 'invalid_response') ? 'uncertain' : 'error';
+      }
+    }
+  }
+
+  resetUpload() {
+    if (!this.importing) { this.uploadStatus = 'idle'; this.uploadError = null; }
   }
 
   async reload() {
@@ -112,7 +144,7 @@ export class NativeSession {
   get canToggleRecording() {
     const settings = this.settings;
     return this.catalog.state.status === 'ready' && settings?.inputMode === 'server' && settings.recording !== null
-      && !this.operation && !this.isSaving && !this.dirty
+      && !this.importing && !this.operation && !this.isSaving && !this.dirty
       && this.active !== null && (settings.recording === true || settings.passThrough === false);
   }
 

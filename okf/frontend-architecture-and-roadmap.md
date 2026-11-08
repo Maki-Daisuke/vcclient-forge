@@ -142,6 +142,10 @@ while recording is armed or active. Backend
 recordings use fixed paths and may overwrite earlier recordings; real audio testing
 remains pending.
 Client audio, sample-rate edits, and preferred-device selection remain unconnected.
+Model upload uses the existing chunk uploader and slot import APIs for `.pth` and
+`.onnx` files with an optional index. Native audio must be stopped; import is
+serialized with UI settings and audio start. The user confirmed a real model upload;
+the tested model format and index presence were not specified.
 Browser-only noise preferences remain visible and disabled under Client Mode Only
 within Noise Suppression.
 Save errors appear in a persistent bottom-right notification with retry and discard actions;
