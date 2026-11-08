@@ -3,23 +3,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import onnx
 import onnxruntime as ort
 import pytest
-from onnx import TensorProto, helper
+from onnx import TensorProto, helper, numpy_helper
 
 from vcclient.device import (
     configure_session_options,
     create_inference_session,
+    create_pipeline_session,
     find_openvino_ep_device,
     get_onnx_execution_provider,
     reload_gpu_devices,
 )
 from vcclient.device import device_manager as dm_module
-from vcclient.voice_changer.voice_change_manager.inferencer.onnx_patch import (
+from vcclient.device.openvino_patch import (
     patch_rmvpe_model_for_openvino,
     patch_rvc_model_for_openvino,
-    verify_3d_to_4d_resize_parity,
 )
 from vcclient.voice_changer.voice_changer_const import (
     OPENVINO_AUTO_DEVICE_ID,
@@ -36,6 +37,63 @@ def test_openvino_device_constants():
     assert OpenVinoCacheDir.exists()
     assert OpenVinoCacheDir != SettingsDir / "openvino_cache"
     assert Path(tempfile.gettempdir()) in OpenVinoCacheDir.parents
+
+
+def verify_3d_to_4d_resize_parity(scale_factor: float) -> float:
+    """Validate numerical equivalence between 3D linear Resize and 4D Unsqueeze+Resize+Squeeze."""
+    x_3d = np.linspace(-1.0, 1.0, 16, dtype=np.float32).reshape(1, 1, 16)
+
+    # 1. 3D reference graph
+    sc3_init = numpy_helper.from_array(np.array([1.0, 1.0, scale_factor], dtype=np.float32), name="sc3")
+    r3 = helper.make_node(
+        "Resize",
+        ["x3", "", "sc3"],
+        ["y3"],
+        mode="linear",
+        coordinate_transformation_mode="half_pixel",
+    )
+    g3 = helper.make_graph(
+        [r3],
+        "ref3d",
+        [helper.make_tensor_value_info("x3", onnx.TensorProto.FLOAT, [1, 1, 16])],
+        [helper.make_tensor_value_info("y3", onnx.TensorProto.FLOAT, [1, 1, None])],
+        [sc3_init],
+    )
+    m3 = helper.make_model(g3, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
+
+    # 2. 4D patched graph
+    ax_init = numpy_helper.from_array(np.array([2], dtype=np.int64), name="ax")
+    sc4_init = numpy_helper.from_array(np.array([1.0, 1.0, 1.0, scale_factor], dtype=np.float32), name="sc4")
+    unsq = helper.make_node("Unsqueeze", ["x4", "ax"], ["x4_4d"])
+    r4 = helper.make_node(
+        "Resize",
+        ["x4_4d", "", "sc4"],
+        ["y4_4d"],
+        mode="linear",
+        coordinate_transformation_mode="half_pixel",
+    )
+    sq = helper.make_node("Squeeze", ["y4_4d", "ax"], ["y4"])
+    g4 = helper.make_graph(
+        [unsq, r4, sq],
+        "patch4d",
+        [helper.make_tensor_value_info("x4", onnx.TensorProto.FLOAT, [1, 1, 16])],
+        [helper.make_tensor_value_info("y4", onnx.TensorProto.FLOAT, [1, 1, None])],
+        [ax_init, sc4_init],
+    )
+    m4 = helper.make_model(g4, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
+
+    so = ort.SessionOptions()
+    so.log_severity_level = 3
+    s3 = ort.InferenceSession(m3.SerializeToString(), so, providers=["CPUExecutionProvider"])
+    s4 = ort.InferenceSession(m4.SerializeToString(), so, providers=["CPUExecutionProvider"])
+
+    y3 = s3.run(None, {"x3": x_3d})[0]
+    y4 = s4.run(None, {"x4": x_3d})[0]
+
+    max_diff = float(np.max(np.abs(y3 - y4)))
+    if max_diff > 1e-5:
+        raise ValueError(f"3D-to-4D Resize transformation parity check failed (max diff: {max_diff} > 1e-5)")
+    return max_diff
 
 
 def test_3d_to_4d_resize_parity():
@@ -234,3 +292,55 @@ def test_device_manager_create_inference_session_avoids_provider_argument_collis
     assert captured_kwargs["kwargs"]["providers"] == ["CPUExecutionProvider"]
     assert captured_kwargs["kwargs"]["provider_options"] == [{}]
     assert "sess_options" in captured_kwargs["kwargs"]
+
+
+def test_create_pipeline_session_cpu_and_openvino_patching(monkeypatch):
+    # Minimal ONNX model with a 3D linear Resize (simulating SineGen)
+    x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 1, 10])
+    scales = helper.make_tensor("scales", TensorProto.FLOAT, [3], [1.0, 1.0, 2.0])
+    y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 1, 20])
+    resize_node = helper.make_node(
+        "Resize",
+        inputs=["x", "", "scales"],
+        outputs=["y"],
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
+    graph = helper.make_graph([resize_node], "test_graph", [x], [y], [scales])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9)
+    model_bytes = model.SerializeToString()
+
+    # 1. CPU execution: patch_type="rvc" does NOT patch if OpenVINO is not in providers
+    session, providers, provider_opts = create_pipeline_session(model_bytes, device_id=-1, patch_type="rvc")
+    assert "CPUExecutionProvider" in session.get_providers()
+    assert providers == ["CPUExecutionProvider"]
+
+    # 2. OpenVINO execution: patch_type="rvc" applies SineGen patch
+    received_payload: list[bytes] = []
+
+    class DummySession:
+        def get_providers(self):
+            return ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
+
+    def mock_create_inference_session(model_payload, providers, provider_options=None, so=None):
+        received_payload.append(model_payload if isinstance(model_payload, bytes) else str(model_payload).encode())
+        return DummySession()
+
+    monkeypatch.setattr(dm_module, "create_inference_session", mock_create_inference_session)
+    monkeypatch.setattr(
+        dm_module,
+        "get_onnx_execution_provider",
+        lambda dev_id: (["OpenVINOExecutionProvider", "CPUExecutionProvider"], [{}, {}]),
+    )
+
+    session_ov, ov_providers, _ = create_pipeline_session(model_bytes, device_id=1000, patch_type="rvc")
+    assert isinstance(session_ov, DummySession)
+    assert ov_providers[0] == "OpenVINOExecutionProvider"
+    assert len(received_payload) == 1
+    assert received_payload[0] != model_bytes  # Patched!
+
+    # Verify patched graph contains Unsqueeze & Squeeze
+    patched_model = onnx.load_model_from_string(received_payload[0])
+    op_types = [node.op_type for node in patched_model.graph.node]
+    assert "Unsqueeze" in op_types
+    assert "Squeeze" in op_types

@@ -278,7 +278,7 @@ During end-to-end audio validation with actual voice samples (`web_front/ui/2.1.
    - The OpenVINO Intel GPU plugin (`intel_gpu`) has a compiler bug where an ONNX `Clip` node with missing `min` zeroes out all tensor elements instead of clamping to `(-inf, max]`.
    - As a result, the centroid mask (`indices < Clip_1`) evaluated to False for all frequency bins, zeroing out the weighted centroid and causing RMVPE to emit a constant flat `10.0 Hz` (unvoiced silence). RVC's SineGen vocoder responded to the unvoiced pitch by injecting Gaussian noise rather than harmonic sine waves, producing a "whisper" artifact.
 2. **Resolution (`patch_rmvpe_model_for_openvino`)**:
-   - An in-memory graph patch utility (`backend/vcclient/voice_changer/voice_change_manager/inferencer/onnx_patch.py`) scans for `Clip` nodes with `min == ""` and injects an explicit constant initializer `min = 0` (matching the dtype of `max`, `int64`).
+   - An in-memory graph patch utility (`backend/vcclient/device/openvino_patch.py`) scans for `Clip` nodes with `min == ""` and injects an explicit constant initializer `min = 0` (matching the dtype of `max`, `int64`).
    - Because the input to `Clip_1` is `ArgMax + 5 >= 5`, `min = 0` is mathematically unconstraining and exact.
    - When loaded under OpenVINO GPU, `RMVPEOnnxPitchEstimator` achieves pitch estimation parity with CPU (`301.18 Hz` mean vs CPU `301.18 Hz`, max diff `< 0.002 Hz`), and end-to-end vocoder synthesis matches CPU frequency band energy within 0.8%, completely eliminating the whisper distortion.
 

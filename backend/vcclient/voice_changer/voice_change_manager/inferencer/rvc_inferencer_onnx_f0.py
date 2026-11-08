@@ -1,6 +1,6 @@
 import numpy as np
 
-from vcclient.device import create_inference_session, get_onnx_execution_provider
+from vcclient.device import create_pipeline_session
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
@@ -11,21 +11,9 @@ class RVCInferencerOnnxF0(RVCInferencer):
     def load_model(self, file=None, device_id=None, inferencer_type_version=None):
         self.file = file
         self.device_id = device_id
-        (onnx_providers, onnx_provider_options) = get_onnx_execution_provider(device_id)
-        self.candidate_onnx_providers = onnx_providers
-        self.candidate_onnx_provider_options = onnx_provider_options
-
-        model_payload: str | bytes = str(self.file)
-        if any("openvino" in p.lower() for p in onnx_providers):
-            try:
-                from .onnx_patch import patch_rvc_model_for_openvino
-
-                model_payload = patch_rvc_model_for_openvino(self.file)
-                logger.info("Applied OpenVINO 4D SineGen patch to %s", self.file)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", self.file, e)
-
-        self.onnx_session = create_inference_session(model_payload, onnx_providers, onnx_provider_options)
+        self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
+            create_pipeline_session(self.file, self.device_id, patch_type="rvc")
+        )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
         if first_input_type == "tensor(float)":

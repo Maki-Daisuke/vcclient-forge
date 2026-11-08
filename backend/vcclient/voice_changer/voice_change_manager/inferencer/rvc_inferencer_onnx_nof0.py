@@ -1,6 +1,6 @@
 import numpy as np
 
-from vcclient.device import create_inference_session, get_onnx_execution_provider
+from vcclient.device import create_pipeline_session
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
 from .rvc_inferencer import RVCInferencer
@@ -10,11 +10,9 @@ class RVCInferencerOnnxNoF0(RVCInferencer):
     def load_model(self, file=None, device_id=None, inferencer_type_version=None):
         self.file = file
         self.device_id = device_id
-        (onnx_providers, onnx_provider_options) = get_onnx_execution_provider(device_id)
-        self.candidate_onnx_providers = onnx_providers
-        self.candidate_onnx_provider_options = onnx_provider_options
-
-        self.onnx_session = create_inference_session(self.file, onnx_providers, onnx_provider_options)
+        self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
+            create_pipeline_session(self.file, self.device_id, patch_type="rvc")
+        )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
         if first_input_type == "tensor(float)":

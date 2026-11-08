@@ -228,3 +228,42 @@ def get_onnx_execution_provider(device_id: int) -> tuple[list[str], list[dict[st
     res = _resolve_onnx_execution_provider(device_id)
     logger.info("get_onnx_execution_provider: %s", res)
     return res
+
+
+def create_pipeline_session(
+    model_payload: str | bytes | Path,
+    device_id: int,
+    patch_type: str | None = None,
+    so: onnxruntime.SessionOptions | None = None,
+) -> tuple[onnxruntime.InferenceSession, list[str], list[dict[str, Any]]]:
+    """Create an ONNX InferenceSession for pipeline components, resolving EPs and hardware patches.
+
+    Args:
+        model_payload: Model file path or in-memory bytes.
+        device_id: Target device identifier (-1 for CPU, >= 0 for accelerators).
+        patch_type: Optional hardware patch mode ("rvc" for SineGen 3D->4D, "rmvpe" for Clip min bound).
+        so: Optional custom SessionOptions.
+
+    Returns:
+        tuple of (session, candidate_providers, candidate_provider_options).
+    """
+    providers, provider_options = get_onnx_execution_provider(device_id)
+
+    if any("openvino" in p.lower() for p in providers):
+        if patch_type == "rvc":
+            try:
+                from .openvino_patch import patch_rvc_model_for_openvino
+
+                model_payload = patch_rvc_model_for_openvino(model_payload)
+            except Exception as e:
+                logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", model_payload, e)
+        elif patch_type == "rmvpe":
+            try:
+                from .openvino_patch import patch_rmvpe_model_for_openvino
+
+                model_payload = patch_rmvpe_model_for_openvino(model_payload)
+            except Exception as e:
+                logger.warning("Failed to apply OpenVINO patch to RMVPE model %s: %s", model_payload, e)
+
+    session = create_inference_session(model_payload, providers, provider_options, so=so)
+    return session, providers, provider_options

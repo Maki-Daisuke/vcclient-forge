@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 import onnxruntime
 
-from vcclient.device import create_inference_session, get_onnx_execution_provider
+from vcclient.device import create_pipeline_session
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import EmbedderInfo
@@ -34,11 +34,9 @@ class ContentvecOnnx(Embedder):
         self.layer = layer
         self.useFinalProj = use_final_proj
 
-        (onnx_providers, onnx_provider_options) = get_onnx_execution_provider(self.deviceId)
-        self.candidate_onnx_providers = onnx_providers
-        self.candidate_onnx_provider_options = onnx_provider_options
-
-        self.onnx_session = create_inference_session(model_file, onnx_providers, onnx_provider_options)
+        self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
+            create_pipeline_session(model_file, self.deviceId)
+        )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
         if first_input_type == "tensor(float)":

@@ -23,7 +23,7 @@ import numpy as np
 import onnxruntime as ort
 import samplerate
 
-from vcclient.voice_changer.voice_change_manager.inferencer.onnx_patch import patch_rvc_model_for_openvino
+from vcclient.device.openvino_patch import patch_rvc_model_for_openvino
 
 
 def load_wav_as_float32(path: Path) -> tuple[np.ndarray, int]:
