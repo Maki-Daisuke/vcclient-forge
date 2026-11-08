@@ -96,7 +96,7 @@ def reload_gpu_devices() -> list[GPUInfo]:
         all_cuda.append(g)
     _cuda_info = all_cuda
 
-    _cuda_available = len(nvidia_gpus) > 0
+    _cuda_available = is_cuda_available()
     cuda_driver_version, _ = get_driver_and_cuda_version()
 
     logger.info("GPU[sys]: %s", _gpu_info)
@@ -127,9 +127,8 @@ def get_cuda_info() -> list[GPUInfo]:
 
 
 def is_cuda_available() -> bool:
-    if not _gpu_info:
-        reload_gpu_devices()
-    return _cuda_available
+    """Check if CUDAExecutionProvider is available in the current runtime environment."""
+    return providers.cuda.is_cuda_available()
 
 
 # --- ONNX Runtime Execution Provider & Session Management ---

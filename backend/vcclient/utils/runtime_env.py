@@ -13,11 +13,12 @@ def setup_runtime_env() -> None:
       PyTorch's or nvidia-* wheels' bundled CUDA and cuDNN libraries via
       os.add_dll_directory and onnxruntime.preload_dlls so ONNX Runtime GPU can
       load cublas, cudart, and cudnn without requiring a system-wide CUDA Toolkit.
-      Also registers onnxruntime-ep-openvino plugin DLLs if installed.
+      Also registers onnxruntime-ep-openvino and onnxruntime_providers_cuda plugin DLLs
+      if installed, enabling hardware device discovery via ort.get_ep_devices().
     - Linux: Preload bundled nvidia-* wheel shared libraries (CUDA 12 / CUDA 13
       and cuDNN 9) via onnxruntime.preload_dlls so both source execution and
       PyInstaller portable builds work without system-wide CUDA / cuDNN packages.
-      Also sets LD_LIBRARY_PATH and registers onnxruntime-ep-openvino plugin if present.
+      Also sets LD_LIBRARY_PATH and registers OpenVINO and CUDA EP plugins if present.
     - macOS: Uses CoreML Execution Provider natively.
     """
     global _initialized
@@ -123,6 +124,26 @@ def setup_runtime_env() -> None:
             from vcclient.logger import logger
 
             logger.warning("Failed to register OpenVINO EP library: %s", e)
+        except Exception:
+            pass
+
+    # 4. CUDA Execution Provider Plugin registration (Windows & Linux)
+    try:
+        import onnxruntime
+
+        if hasattr(onnxruntime, "register_execution_provider_library"):
+            capi_dir = Path(onnxruntime.__file__).parent / "capi"
+            cuda_lib_name = (
+                "onnxruntime_providers_cuda.dll" if sys.platform == "win32" else "libonnxruntime_providers_cuda.so"
+            )
+            cuda_lib_path = capi_dir / cuda_lib_name
+            if cuda_lib_path.exists():
+                onnxruntime.register_execution_provider_library("CUDAExecutionProvider", str(cuda_lib_path))
+    except Exception as e:
+        try:
+            from vcclient.logger import logger
+
+            logger.debug("Failed to register CUDA EP library: %s", e)
         except Exception:
             pass
 

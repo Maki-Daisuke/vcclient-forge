@@ -4,13 +4,67 @@ import re
 import subprocess
 from typing import Any
 
+import onnxruntime
+
 from vcclient.logger import logger
+from vcclient.utils.runtime_env import setup_runtime_env
 from vcclient.voice_changer.data_types.data_types import GPUInfo
+
+from .directml import _parse_vram_string
+
+
+def is_cuda_available() -> bool:
+    """Check if CUDAExecutionProvider is available in the current runtime environment."""
+    setup_runtime_env()
+    available = onnxruntime.get_available_providers()
+    if "CUDAExecutionProvider" in available:
+        return True
+    if hasattr(onnxruntime, "get_ep_devices"):
+        try:
+            for d in onnxruntime.get_ep_devices():
+                if getattr(d, "ep_name", "") == "CUDAExecutionProvider":
+                    return True
+        except Exception:
+            pass
+    return False
 
 
 def detect_nvidia_gpus() -> list[GPUInfo]:
-    """Detect available NVIDIA GPUs via nvidia-smi."""
+    """Detect available NVIDIA GPUs via ONNX Runtime CUDA EP (falling back to nvidia-smi)."""
+    if not is_cuda_available():
+        return []
+
     gpu_list: list[GPUInfo] = []
+
+    # 1. Native ONNX Runtime EP discovery
+    if hasattr(onnxruntime, "get_ep_devices"):
+        try:
+            for d in onnxruntime.get_ep_devices():
+                if getattr(d, "ep_name", "") == "CUDAExecutionProvider":
+                    dev = getattr(d, "device", None)
+                    meta = getattr(dev, "metadata", {}) if dev is not None else {}
+                    raw_name = meta.get("Description") or "NVIDIA GPU"
+                    name = raw_name if raw_name.startswith("[CUDA]") else f"[CUDA] {raw_name}"
+                    try:
+                        adapter_idx = int(meta.get("DxgiAdapterNumber", len(gpu_list)))
+                    except Exception:
+                        adapter_idx = len(gpu_list)
+                    vram = _parse_vram_string(meta.get("DxgiVideoMemory"))
+                    gpu_list.append(
+                        GPUInfo(
+                            name=name,
+                            device_id=str(adapter_idx),
+                            adapter_ram=vram,
+                            device_id_int=adapter_idx,
+                        )
+                    )
+            if gpu_list:
+                gpu_list.sort(key=lambda g: g.device_id_int)
+                return gpu_list
+        except Exception as e:
+            logger.debug("Native CUDA EP device detection failed: %s", e)
+
+    # 2. Fallback via nvidia-smi
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"],
