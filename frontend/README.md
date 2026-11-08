@@ -44,7 +44,12 @@ local storage. It is separate for each browser or webview and origin; if storage
 is unavailable or invalid, sections start closed.
 
 While native audio is stopped, the upload dialog accepts an RVC `.pth` or `.onnx`
-model and an optional `.index` file. Files are uploaded in 4 MiB chunks using unique
+model and an optional `.index` file. It also accepts a ZIP selected by file picker
+or drag and drop. ZIP contents are inspected in the browser; if several models are
+present the user selects one, and an optional index can be selected separately.
+Password-protected archives are not supported. The selected files are decompressed
+in browser memory before upload, so large archives require sufficient memory.
+Files are uploaded in 4 MiB chunks using unique
 temporary names and registered in an automatically selected empty slot. The
 backend converts `.pth` to ONNX during import. The list is refreshed after success.
 Import may take time; other settings and audio start are disabled while it runs.
@@ -52,6 +57,8 @@ If the registration response is lost, reload and inspect the list before retryin
 An interrupted upload can leave temporary files because the existing API has no
 cleanup operation. Browser tests mock uploads; the user confirmed an upload to the
 real backend, but did not specify the model format or whether an index was included.
+The user confirmed importing a model from a ZIP and using it for voice conversion;
+the ZIP's model format and index presence were not specified.
 
 Run commands from the repository root:
 

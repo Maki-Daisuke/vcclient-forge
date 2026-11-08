@@ -145,7 +145,9 @@ Client audio, sample-rate edits, and preferred-device selection remain unconnect
 Model upload uses the existing chunk uploader and slot import APIs for `.pth` and
 `.onnx` files with an optional index. Native audio must be stopped; import is
 serialized with UI settings and audio start. The user confirmed a real model upload;
-the tested model format and index presence were not specified.
+the tested model format and index presence were not specified. ZIP selection and
+drag and drop extract chosen files in the browser; the user confirmed a ZIP import
+and subsequent voice conversion.
 Browser-only noise preferences remain visible and disabled under Client Mode Only
 within Noise Suppression.
 Save errors appear in a persistent bottom-right notification with retry and discard actions;

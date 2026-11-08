@@ -128,7 +128,9 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
   optional index to a vacant slot through existing APIs while audio is stopped.
   Browser tests mock the APIs. The user confirmed a real model upload; the tested
-  model format and index presence were not specified.
+  model format and index presence were not specified. ZIP drag and drop extracts
+  files in the browser and is covered by mocked tests. The user confirmed a ZIP
+  import and subsequent voice conversion.
 
 - **Server recording**: The Svelte UI can start and stop recording using existing
   APIs and download the output WAV. Recording can be armed before starting audio;
