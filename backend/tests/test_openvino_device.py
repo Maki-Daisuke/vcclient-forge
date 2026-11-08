@@ -14,7 +14,6 @@ from vcclient.voice_changer.voice_change_manager.device_manager import (
     create_inference_session,
     find_openvino_ep_device,
     get_onnx_execution_provider,
-    is_openvino_available,
 )
 from vcclient.voice_changer.voice_change_manager.device_manager import device_manager as dm_module
 from vcclient.voice_changer.voice_change_manager.inferencer.onnx_patch import (
@@ -106,7 +105,6 @@ def test_patch_rmvpe_model_for_openvino_supplies_min_bound():
 def test_device_manager_openvino_provider_configuration(monkeypatch: pytest.MonkeyPatch):
     # 1. When OpenVINO is available
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: True)
-    assert is_openvino_available() is True
     providers, provider_options = get_onnx_execution_provider(OPENVINO_GPU_DEVICE_ID)
 
     assert "OpenVINOExecutionProvider" in providers
