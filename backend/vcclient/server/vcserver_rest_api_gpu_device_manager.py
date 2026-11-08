@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
-from vcclient.voice_changer.gpu_device_manager import (
+from vcclient.voice_changer.voice_change_manager.device_manager import (
     get_cuda_info,
     get_gpu_info,
     is_cuda_available,

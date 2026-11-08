@@ -34,9 +34,9 @@ from vcclient.server.vcserver_rest_api_task_manager import RestAPITaskManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
-from vcclient.voice_changer.gpu_device_manager import reload_gpu_devices
 from vcclient.voice_changer.module_manager import reload_modules
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient.voice_changer.voice_change_manager.device_manager import reload_gpu_devices
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir, ModuleDir
 
