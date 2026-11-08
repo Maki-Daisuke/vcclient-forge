@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.coreml import setup_coreml_runtime
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.cuda import setup_cuda_runtime
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.directml import setup_directml_runtime
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.openvino import setup_openvino_runtime
+from .providers.coreml import setup_coreml_runtime
+from .providers.cuda import setup_cuda_runtime
+from .providers.directml import setup_directml_runtime
+from .providers.openvino import setup_openvino_runtime
 
 _initialized = False
 

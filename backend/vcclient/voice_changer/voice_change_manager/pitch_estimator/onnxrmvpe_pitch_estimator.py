@@ -2,11 +2,11 @@ from pathlib import Path
 
 import numpy as np
 
+from vcclient.device import create_inference_session, get_onnx_execution_provider
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
-from ..device_manager import create_inference_session, get_onnx_execution_provider
 from .pitch_estimator import PitchEstimator
 
 

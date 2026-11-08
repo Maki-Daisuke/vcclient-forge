@@ -1,8 +1,8 @@
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.directml import (
+from vcclient.device.providers.directml import (
     _filter_directml_devices,
     resolve_directml_provider,
 )
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.util import parse_vram_string
+from vcclient.device.providers.util import parse_vram_string
 
 
 def test_parse_vram_string():

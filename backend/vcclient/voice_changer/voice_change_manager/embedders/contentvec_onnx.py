@@ -4,10 +4,10 @@ from typing import Any
 import numpy as np
 import onnxruntime
 
+from vcclient.device import create_inference_session, get_onnx_execution_provider
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import EmbedderInfo
-from ..device_manager import create_inference_session, get_onnx_execution_provider
 from .embedder import Embedder
 
 

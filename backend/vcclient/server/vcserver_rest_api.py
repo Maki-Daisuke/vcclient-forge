@@ -18,6 +18,7 @@ from vcclient.const import (
     SERVER_IO_RECORDING_FILE_MONITOR,
     SERVER_IO_RECORDING_FILE_OUT,
 )
+from vcclient.device import reload_gpu_devices
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
 from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR, get_frontend_path
@@ -36,7 +37,6 @@ from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.module_manager import reload_modules
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
-from vcclient.voice_changer.voice_change_manager.device_manager import reload_gpu_devices
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir, ModuleDir
 

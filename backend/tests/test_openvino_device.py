@@ -8,14 +8,14 @@ import onnxruntime as ort
 import pytest
 from onnx import TensorProto, helper
 
-from vcclient.voice_changer.voice_change_manager.device_manager import (
+from vcclient.device import (
     configure_session_options,
     create_inference_session,
     find_openvino_ep_device,
     get_onnx_execution_provider,
     reload_gpu_devices,
 )
-from vcclient.voice_changer.voice_change_manager.device_manager import device_manager as dm_module
+from vcclient.device import device_manager as dm_module
 from vcclient.voice_changer.voice_change_manager.inferencer.onnx_patch import (
     patch_rmvpe_model_for_openvino,
     patch_rvc_model_for_openvino,

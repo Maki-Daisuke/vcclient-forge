@@ -46,7 +46,7 @@ Restored the background thread for `VCClientCUI`, reinstated `local_voice_change
 Selecting "CPU" in the GPU dropdown caused the model update to fail, resetting `current_slot_index` to `-1` and causing all central UI controls in the web frontend to vanish.
 
 ### Root Cause
-In the reconstructed `device_manager.py`, Decompyle++ corrupted the ONNX execution provider fallback. The maintained implementation is now in [`device_manager.py`](../backend/vcclient/voice_changer/voice_change_manager/device_manager/device_manager.py):
+In the reconstructed `device_manager.py`, Decompyle++ corrupted the ONNX execution provider fallback. The maintained implementation is now in [`device_manager.py`](../backend/vcclient/device/device_manager.py):
 
 ```python
 # Corrupted decompiled code:

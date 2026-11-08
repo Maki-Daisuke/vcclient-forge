@@ -1,9 +1,9 @@
 import numpy as np
 
+from vcclient.device import create_inference_session, get_onnx_execution_provider
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
-from ..device_manager import create_inference_session, get_onnx_execution_provider
 from .rvc_inferencer import RVCInferencer
 
 

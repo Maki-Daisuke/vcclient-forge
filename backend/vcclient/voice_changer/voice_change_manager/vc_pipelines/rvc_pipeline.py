@@ -8,11 +8,11 @@ import onnxruntime
 from onnx import TensorProto
 from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_tensor_value_info
 
-from vcclient.logger import logger
-from vcclient.voice_changer.voice_change_manager.device_manager import (
+from vcclient.device import (
     create_inference_session,
     get_onnx_execution_provider,
 )
+from vcclient.logger import logger
 
 from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember

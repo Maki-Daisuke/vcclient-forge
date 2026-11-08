@@ -4,7 +4,7 @@ from pathlib import Path
 import onnxruntime as ort
 import pytest
 
-from vcclient.voice_changer.voice_change_manager.device_manager import get_onnx_execution_provider
+from vcclient.device import get_onnx_execution_provider
 from vcclient.voice_changer.voice_changer_const import CoreMLCacheDir, SettingsDir
 
 

@@ -1,8 +1,8 @@
 import onnxruntime as ort
 import pytest
 
-from vcclient.voice_changer.voice_change_manager.device_manager.providers import cuda as cuda_module
-from vcclient.voice_changer.voice_change_manager.device_manager.providers.cuda import (
+from vcclient.device.providers import cuda as cuda_module
+from vcclient.device.providers.cuda import (
     detect_nvidia_gpus,
     is_cuda_available,
     resolve_cuda_provider,

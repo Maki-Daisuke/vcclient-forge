@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from . import providers
 from .device_manager import (
     configure_session_options,
     create_inference_session,
@@ -8,8 +11,10 @@ from .device_manager import (
     get_onnx_execution_provider,
     is_cuda_available,
     is_openvino_available,
+    reload,
     reload_gpu_devices,
 )
+from .runtime_env import setup_runtime_env
 
 __all__ = [
     "configure_session_options",
@@ -21,5 +26,8 @@ __all__ = [
     "get_onnx_execution_provider",
     "is_cuda_available",
     "is_openvino_available",
+    "providers",
+    "reload",
     "reload_gpu_devices",
+    "setup_runtime_env",
 ]
