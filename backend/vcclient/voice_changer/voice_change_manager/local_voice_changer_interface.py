@@ -8,7 +8,6 @@ import sounddevice as sd
 
 from vcclient.app_status import is_app_stopping, wait_for_stop
 from vcclient.logger import logger
-from vcclient.server.event_emitter import emit_event
 
 from ...exception import (
     ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED,
@@ -21,13 +20,14 @@ from ..audio_device_manager import (
     get_default_sample_rate,
 )
 from ..configuration_manager.configuration_manager import ConfigurationManager
+from ..event_emitter import EventEmitter
 from .voice_changer import VoiceChanger
 
 local_voice_changer_callback_chunk_sec = 0.01
 local_voice_changer_loop_interval_sec = 0.2
 
 
-class LocalVoiceChangerInterface:
+class LocalVoiceChangerInterface(EventEmitter):
     _instance: LocalVoiceChangerInterface | None = None
     stop_flag: bool
     local_voice_changer_enabled: bool
@@ -53,6 +53,7 @@ class LocalVoiceChangerInterface:
         return cls._instance
 
     def __init__(self) -> None:
+        super().__init__()
         self.stop_flag = True
         self.local_voice_changer_enabled = False
         self.dummy_input_queue: Queue[np.ndarray] = Queue()
@@ -137,7 +138,7 @@ class LocalVoiceChangerInterface:
             "inputRms": float(self.input_volume),
             "outputRms": float(self.output_volume),
         }
-        emit_event("data", ["realtime_output_status", json.dumps(realtime_output_status_data)])
+        self.emit("data", ["realtime_output_status", json.dumps(realtime_output_status_data)])
 
         self.input_volume_calculation_buffer = []
         self.output_volume_calculation_buffer = []
@@ -334,7 +335,7 @@ class LocalVoiceChangerInterface:
                 self.input_volume_calculation_buffer.append(indata)
             converted, converted_for_monitor, performance_data = self.vc.convert_chunk_bulk(indata)
             if performance_data is not None:
-                emit_event("perf", performance_data.model_dump_json())
+                self.emit("perf", performance_data.model_dump_json())
 
             if converted is not None:
                 if self.waveform_rest_output.dtype != converted.dtype:

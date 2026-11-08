@@ -29,7 +29,6 @@ except ImportError:
 
 
 from vcclient.logger import logger
-from vcclient.server.event_emitter import emit_event
 
 from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_MONITOR, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
@@ -42,6 +41,7 @@ from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..data_types.data_types import PerformanceData
 from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
+from ..event_emitter import EventEmitter
 from ..slot_manager.slot_manager import SlotManager
 from ..voice_changer_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE, PitchEstimatorType
 from .crossfade_processor import CrossfadeProcessor
@@ -51,7 +51,7 @@ from .vc_pipelines.vc_pipeline import VCPipeline
 PerformanceListener = Callable[[PerformanceData], None]
 
 
-class VoiceChanger:
+class VoiceChanger(EventEmitter):
     _instance: VoiceChanger | None = None
 
     vc_info: VoiceChangerInformation
@@ -93,6 +93,7 @@ class VoiceChanger:
         self._check_and_update_filter()
 
     def __init__(self) -> None:
+        super().__init__()
         self.initialize()
         self.performance_listener = None
         self.currentCrossFadeOffsetRate = 0
@@ -530,7 +531,7 @@ class VoiceChanger:
                 if self.performance_listener is not None:
                     self.performance_listener(performance_data)
 
-                emit_event("data", ["realtime_process_status", performance_data.model_dump_json()])
+                self.emit("data", ["realtime_process_status", performance_data.model_dump_json()])
 
                 return (output, monitor, performance_data)
 

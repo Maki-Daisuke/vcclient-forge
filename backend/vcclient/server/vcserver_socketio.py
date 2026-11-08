@@ -18,6 +18,7 @@ from vcclient.logger import logger
 from vcclient.server.event_emitter import set_event_emitter
 from vcclient.server.server_const import get_frontend_path
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
 __all__ = [
@@ -40,6 +41,15 @@ class SocketIONamespace(socketio.AsyncNamespace):
         self.namespace = namespace
         self.list_all_sids = list_all_sids
         set_event_emitter(self)
+        self._subscribe_core_events()
+
+    def _subscribe_core_events(self) -> None:
+        vc = VoiceChanger.get_instance()
+        vc.on("data", lambda data: self.emit_coroutine("data", data))
+
+        lvci = LocalVoiceChangerInterface.get_instance()
+        lvci.on("data", lambda data: self.emit_coroutine("data", data))
+        lvci.on("perf", lambda data: self.emit_coroutine("perf", data))
 
     async def emit_to(self, event: str, data: Any, to: str | None) -> None:
         await self.emit(event, data, to=to)
