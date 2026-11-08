@@ -170,7 +170,7 @@ def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
     device_ids = [info.device_id_int for info in info_list]
     assert OPENVINO_GPU_DEVICE_ID in device_ids
     openvino_info = next(info for info in info_list if info.device_id_int == OPENVINO_GPU_DEVICE_ID)
-    assert openvino_info.name == "OpenVINO (GPU)"
+    assert openvino_info.name.startswith("[OpenVINO]")
     assert openvino_info.device_id == "openvino_gpu"
 
     # When OpenVINO is unavailable

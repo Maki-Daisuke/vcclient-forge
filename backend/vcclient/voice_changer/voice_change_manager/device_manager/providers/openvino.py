@@ -135,9 +135,20 @@ def detect_openvino_gpus() -> list[GPUInfo]:
     gpu_list: list[GPUInfo] = []
     try:
         if is_openvino_available():
+            dev_name = "GPU"
+            target_dev = find_openvino_ep_device(preferred_type="GPU")
+            if target_dev is not None:
+                dev = getattr(target_dev, "device", None)
+                meta = getattr(dev, "metadata", {}) if dev is not None else {}
+                desc = meta.get("Description")
+                if not desc and hasattr(target_dev, "ep_metadata") and isinstance(target_dev.ep_metadata, dict):
+                    desc = target_dev.ep_metadata.get("FULL_DEVICE_NAME")
+                if desc:
+                    dev_name = desc
+
             gpu_list.append(
                 GPUInfo(
-                    name="OpenVINO (GPU)",
+                    name=f"[OpenVINO] {dev_name}",
                     device_id="openvino_gpu",
                     adapter_ram=0,
                     device_id_int=OPENVINO_GPU_DEVICE_ID,

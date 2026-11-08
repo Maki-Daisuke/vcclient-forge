@@ -4,13 +4,72 @@ import json
 import subprocess
 from typing import Any
 
+import onnxruntime
+
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 
+def _parse_vram_string(val: str | None) -> int:
+    """Parse human-readable VRAM string like '128 MB' or '8 GB' into bytes."""
+    if not val:
+        return 0
+    parts = val.strip().split()
+    if not parts:
+        return 0
+    try:
+        num = float(parts[0])
+        unit = parts[1].upper() if len(parts) > 1 else "B"
+        multipliers = {
+            "B": 1,
+            "KB": 1024,
+            "MB": 1024 * 1024,
+            "GB": 1024 * 1024 * 1024,
+            "TB": 1024 * 1024 * 1024 * 1024,
+        }
+        return int(num * multipliers.get(unit, 1))
+    except Exception:
+        return 0
+
+
 def detect_windows_gpus() -> list[GPUInfo]:
-    """Detect available GPUs on Windows via PowerShell CIM."""
+    """Detect available GPUs on Windows.
+
+    Prioritizes pure-ONNX native device enumeration via ort.get_ep_devices()
+    (matching DXGI adapter indexes directly), falling back to PowerShell CIM
+    if native EP inspection is unavailable.
+    """
     gpu_list: list[GPUInfo] = []
+
+    # 1. Native ONNX Runtime EP device discovery (fast, accurate DXGI adapter index)
+    if hasattr(onnxruntime, "get_ep_devices"):
+        try:
+            for d in onnxruntime.get_ep_devices():
+                if getattr(d, "ep_name", "") == "DmlExecutionProvider":
+                    dev = getattr(d, "device", None)
+                    meta = getattr(dev, "metadata", {}) if dev is not None else {}
+                    raw_name = meta.get("Description") or "DirectML GPU"
+                    name = raw_name if raw_name.startswith("[DirectML]") else f"[DirectML] {raw_name}"
+                    try:
+                        adapter_idx = int(meta.get("DxgiAdapterNumber", len(gpu_list)))
+                    except Exception:
+                        adapter_idx = len(gpu_list)
+                    vram = _parse_vram_string(meta.get("DxgiVideoMemory"))
+                    gpu_list.append(
+                        GPUInfo(
+                            name=name,
+                            device_id=str(adapter_idx),
+                            adapter_ram=vram,
+                            device_id_int=adapter_idx,
+                        )
+                    )
+            if gpu_list:
+                gpu_list.sort(key=lambda g: g.device_id_int)
+                return gpu_list
+        except Exception as e:
+            logger.debug("Native DirectML EP device detection failed: %s", e)
+
+    # 2. Fallback via PowerShell CIM
     try:
         cmd = [
             "powershell",
@@ -30,7 +89,8 @@ def detect_windows_gpus() -> list[GPUInfo]:
             if isinstance(data, dict):
                 data = [data]
             for idx, item in enumerate(data):
-                name = item.get("Name", "")
+                raw_name = item.get("Name", "")
+                name = raw_name if raw_name.startswith("[DirectML]") else f"[DirectML] {raw_name}"
                 dev_id = item.get("DeviceID", str(idx))
                 vram = int(item.get("AdapterRAM") or 0)
                 gpu_list.append(

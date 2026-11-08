@@ -72,7 +72,7 @@ def reload_gpu_devices() -> list[GPUInfo]:
     else:
         sys_gpus = []
 
-    cpu_entry = GPUInfo(name="cpu", device_id="-1", adapter_ram=0, device_id_int=-1)
+    cpu_entry = GPUInfo(name="CPU", device_id="-1", adapter_ram=0, device_id_int=-1)
 
     # システムGPUリスト (CPU + 検出されたGPU)
     all_sys = [cpu_entry]

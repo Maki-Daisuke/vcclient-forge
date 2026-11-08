@@ -41,7 +41,7 @@ def detect_macos_gpus() -> list[GPUInfo]:
                         pass
                 gpu_list.append(
                     GPUInfo(
-                        name=f"{name} (ALL / ANE Preferred)",
+                        name=f"[CoreML] {name} (ALL / ANE Preferred)",
                         device_id=str(idx * 2),
                         adapter_ram=vram,
                         device_id_int=idx * 2,
@@ -49,7 +49,7 @@ def detect_macos_gpus() -> list[GPUInfo]:
                 )
                 gpu_list.append(
                     GPUInfo(
-                        name=f"{name} (CPU + GPU / GPU Preferred)",
+                        name=f"[CoreML] {name} (CPU + GPU / GPU Preferred)",
                         device_id=str(idx * 2 + 1),
                         adapter_ram=vram,
                         device_id_int=idx * 2 + 1,
