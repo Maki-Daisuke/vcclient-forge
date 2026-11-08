@@ -9,27 +9,7 @@ import onnxruntime
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
-
-def _parse_vram_string(val: str | None) -> int:
-    """Parse human-readable VRAM string like '128 MB' or '8 GB' into bytes."""
-    if not val:
-        return 0
-    parts = val.strip().split()
-    if not parts:
-        return 0
-    try:
-        num = float(parts[0])
-        unit = parts[1].upper() if len(parts) > 1 else "B"
-        multipliers = {
-            "B": 1,
-            "KB": 1024,
-            "MB": 1024 * 1024,
-            "GB": 1024 * 1024 * 1024,
-            "TB": 1024 * 1024 * 1024 * 1024,
-        }
-        return int(num * multipliers.get(unit, 1))
-    except Exception:
-        return 0
+from .util import parse_vram_string
 
 
 def _filter_directml_devices(
@@ -103,7 +83,7 @@ def detect_windows_gpus() -> list[GPUInfo]:
                         adapter_idx = int(meta.get("DxgiAdapterNumber", len(gpu_list)))
                     except Exception:
                         adapter_idx = len(gpu_list)
-                    vram = _parse_vram_string(meta.get("DxgiVideoMemory"))
+                    vram = parse_vram_string(meta.get("DxgiVideoMemory"))
                     gpu_list.append(
                         GPUInfo(
                             name=name,

@@ -1,8 +1,8 @@
 from vcclient.voice_changer.voice_change_manager.device_manager.providers.directml import (
     _filter_directml_devices,
-    _parse_vram_string,
     resolve_directml_provider,
 )
+from vcclient.voice_changer.voice_change_manager.device_manager.providers.util import parse_vram_string
 
 
 def test_parse_vram_string():
@@ -15,7 +15,7 @@ def test_parse_vram_string():
         (None, 0),
     ]
     for raw, expected in test_cases:
-        assert _parse_vram_string(raw) == expected
+        assert parse_vram_string(raw) == expected
 
 
 def test_filter_directml_devices_deduplication():

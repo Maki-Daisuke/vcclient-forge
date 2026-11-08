@@ -10,7 +10,7 @@ from vcclient.logger import logger
 from vcclient.utils.runtime_env import setup_runtime_env
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
-from .directml import _parse_vram_string
+from .util import parse_vram_string
 
 
 def is_cuda_available() -> bool:
@@ -49,7 +49,7 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
                         adapter_idx = int(meta.get("DxgiAdapterNumber", len(gpu_list)))
                     except Exception:
                         adapter_idx = len(gpu_list)
-                    vram = _parse_vram_string(meta.get("DxgiVideoMemory"))
+                    vram = parse_vram_string(meta.get("DxgiVideoMemory"))
                     gpu_list.append(
                         GPUInfo(
                             name=name,

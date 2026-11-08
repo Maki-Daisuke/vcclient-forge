@@ -16,6 +16,7 @@ def test_is_cuda_available(monkeypatch: pytest.MonkeyPatch):
 
     # When CUDAExecutionProvider is not present (standard edition)
     monkeypatch.setattr(ort, "get_available_providers", lambda: ["DmlExecutionProvider", "CPUExecutionProvider"])
+    monkeypatch.setattr(ort, "get_ep_devices", lambda: [])
     assert is_cuda_available() is False
 
 
