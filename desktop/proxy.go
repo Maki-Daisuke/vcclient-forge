@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -22,16 +23,43 @@ func parseRemoteAddr(args []string) string {
 	return normalizeRemoteAddr(remote)
 }
 
-// normalizeRemoteAddr ensures the address contains a port (defaults to :18888).
+// normalizeRemoteAddr normalizes a remote address or URL into a host:port TCP address (defaults to port :18888).
+// Handles:
+// - "192.168.1.100" -> "192.168.1.100:18888"
+// - "192.168.1.100:8080" -> "192.168.1.100:8080"
+// - "http://grandcypher.tail5532f5.ts.net:18888/" -> "grandcypher.tail5532f5.ts.net:18888"
+// - "http://grandcypher.tail5532f5.ts.net/" -> "grandcypher.tail5532f5.ts.net:18888"
+// - "https://remote.example.com" -> "remote.example.com:18888"
+// - "remote.example.com:18888/foo/bar" -> "remote.example.com:18888"
 func normalizeRemoteAddr(addr string) string {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
 		return ""
 	}
-	if !strings.Contains(addr, ":") {
-		return addr + ":18888"
+
+	// 1. If URL scheme is present, parse via net/url
+	if strings.Contains(addr, "://") {
+		if u, err := url.Parse(addr); err == nil && u.Host != "" {
+			addr = u.Host
+		}
 	}
-	return addr
+
+	// 2. Strip any trailing path or slash if present (e.g. "myhost:18888/path")
+	if idx := strings.Index(addr, "/"); idx != -1 {
+		addr = addr[:idx]
+	}
+	addr = strings.TrimRight(addr, "/")
+
+	// 3. Ensure host:port format
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		// Missing port or raw IP/hostname
+		return net.JoinHostPort(strings.Trim(addr, "[]"), "18888")
+	}
+	if port == "" {
+		port = "18888"
+	}
+	return net.JoinHostPort(strings.Trim(host, "[]"), port)
 }
 
 // startRemoteProxy listens on localhost:18888 and forwards all traffic to remoteAddr.
@@ -79,6 +107,7 @@ func startRemoteProxy(
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
+	var lastLoggedErr string
 	for {
 		conn, err := net.DialTimeout("tcp", remoteAddr, 1*time.Second)
 		if err == nil {
@@ -88,6 +117,13 @@ func startRemoteProxy(
 			window.SetURL(BACKEND_URL)
 			return
 		}
+
+		errMsg := err.Error()
+		if errMsg != lastLoggedErr {
+			app.Event.Emit("backend-log", fmt.Sprintf("Connecting to %s failed: %v (retrying...)\r\n", remoteAddr, err))
+			lastLoggedErr = errMsg
+		}
+
 		select {
 		case <-stopCh:
 			return

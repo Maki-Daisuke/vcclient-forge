@@ -52,6 +52,36 @@ func TestParseRemoteAddr(t *testing.T) {
 			args: []string{"--devtools", "-r", "10.0.0.1", "--some-other-arg=123"},
 			want: "10.0.0.1:18888",
 		},
+		{
+			name: "full url with http, port, and trailing slash",
+			args: []string{"--remote=http://grandcypher.tail5532f5.ts.net:18888/"},
+			want: "grandcypher.tail5532f5.ts.net:18888",
+		},
+		{
+			name: "full url with http and trailing slash without port",
+			args: []string{"--remote=http://grandcypher.tail5532f5.ts.net/"},
+			want: "grandcypher.tail5532f5.ts.net:18888",
+		},
+		{
+			name: "https url without port",
+			args: []string{"--remote=https://remote.example.com"},
+			want: "remote.example.com:18888",
+		},
+		{
+			name: "host with trailing path",
+			args: []string{"--remote", "remote.example.com:8080/foo/bar"},
+			want: "remote.example.com:8080",
+		},
+		{
+			name: "ipv6 address with port",
+			args: []string{"--remote=[::1]:18888"},
+			want: "[::1]:18888",
+		},
+		{
+			name: "ipv6 address without port",
+			args: []string{"--remote=[::1]"},
+			want: "[::1]:18888",
+		},
 	}
 
 	for _, tt := range tests {
