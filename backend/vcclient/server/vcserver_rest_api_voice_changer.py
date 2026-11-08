@@ -10,7 +10,6 @@ from vcclient.voice_changer.configuration_manager.configuration_manager import C
 from vcclient.voice_changer.data_types.voice_changer_data_types import VoiceChangerManagerInfo
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-from vcclient.voice_changer.voice_change_manager.voice_changer_manager import VoiceChangerManager
 
 
 class ConvertFileParam(BaseModel):
@@ -129,7 +128,11 @@ class RestAPIVoiceChanger:
         return Response(status_code=200)
 
     def get_voice_changer_information(self) -> VoiceChangerManagerInfo:
-        voice_changer_manager = VoiceChangerManager.get_instance()
-        info = voice_changer_manager.get_info()
+        local_vc = LocalVoiceChangerInterface.get_instance()
+        vc_info = VoiceChanger.get_instance().get_voice_changer_information()
+        info = VoiceChangerManagerInfo(
+            local_voice_changer_interface_active=local_vc.local_voice_changer_enabled is True,
+            voice_changer_information=vc_info,
+        )
         logger.info("get_voice_changer_information %s", info)
         return info
