@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import time
 from queue import Empty, Queue
 from typing import Any
 
 import numpy as np
 import sounddevice as sd
 
-from vcclient.app_status import AppStatus
+from vcclient.app_status import is_app_stopping, wait_for_stop
 from vcclient.logger import logger
 from vcclient.server.event_emitter import emit_event
 
@@ -276,8 +275,8 @@ class LocalVoiceChangerInterface:
                             output_stream.dtype,
                             monitor_stream.dtype,
                         )
-                        while not AppStatus.get_instance().end_flag:
-                            time.sleep(local_voice_changer_loop_interval_sec)
+                        while not is_app_stopping():
+                            wait_for_stop(local_voice_changer_loop_interval_sec)
                             stop_check_counter += 1
                             if self.local_voice_changer_enabled is False:
                                 break
@@ -305,8 +304,8 @@ class LocalVoiceChangerInterface:
                         input_stream.dtype,
                         output_stream.dtype,
                     )
-                    while not AppStatus.get_instance().end_flag:
-                        time.sleep(local_voice_changer_loop_interval_sec)
+                    while not is_app_stopping():
+                        wait_for_stop(local_voice_changer_loop_interval_sec)
                         stop_check_counter += 1
                         if self.local_voice_changer_enabled is False:
                             break

@@ -31,7 +31,7 @@ if str(_here) not in sys.path:
 
 import sounddevice as sd
 
-from vcclient.app_status import AppStatus
+from vcclient.app_status import is_app_stopping, stop_app, wait_for_stop
 from vcclient.const import VERSION
 from vcclient.initializer import (
     _check_and_convert_legacy_pth_models,
@@ -51,14 +51,12 @@ def start_server(
     host: str = "0.0.0.0",
     port: int = 18888,
 ):
-    app_status = AppStatus.get_instance()
-
     def handle_shutdown_signal(signum, frame):
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
         if hasattr(signal, "SIGBREAK"):
             signal.signal(signal.SIGBREAK, signal.SIG_DFL)
-        app_status.stop_app()
+        stop_app()
 
     signal.signal(signal.SIGINT, handle_shutdown_signal)
     signal.signal(signal.SIGTERM, handle_shutdown_signal)
@@ -71,7 +69,7 @@ def start_server(
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
     _check_and_download_initial_samples()
-    if app_status.end_flag:
+    if is_app_stopping():
         return
 
     reload_gpu_devices()
@@ -85,7 +83,7 @@ def start_server(
 
     deadline = time.monotonic() + 30
     while not vcserver.server.started:
-        if app_status.end_flag:
+        if is_app_stopping():
             return
         if vcserver.server_thread is not None and not vcserver.server_thread.is_alive():
             raise RuntimeError("Backend failed to listen; check whether the port is already in use")
@@ -101,16 +99,16 @@ def start_server(
     print("Please press Ctrl+C once to exit vcclient.", flush=True)
 
     err_msg = ""
-    while not app_status.end_flag:
+    while not is_app_stopping():
         try:
             conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
             local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
             if conf.voice_changer_input_mode == "server":
                 if local_voice_changer_interface.local_voice_changer_enabled is True:
                     local_voice_changer_interface.run()
-            if app_status.end_flag is True:
+            if is_app_stopping():
                 break
-            time.sleep(0.3)
+            wait_for_stop(0.3)
         except KeyboardInterrupt:
             err_msg = "KeyboardInterrupt"
             break
@@ -136,7 +134,7 @@ def start_server(
     print("terminate vcclient... (press Ctrl+C again to force exit)", flush=True)
 
     try:
-        app_status.stop_app()
+        stop_app()
         vcserver.stop()
         VoiceChanger.get_instance().stop_convert_chunk_bulk()
     except KeyboardInterrupt:
