@@ -1,124 +1,11 @@
-import json
+from __future__ import annotations
+
 import platform
-import re
 import subprocess
 
 from vcclient.logger import logger
-
-from ..data_types.data_types import GPUInfo
-from ..voice_changer_const import OPENVINO_GPU_DEVICE_ID
-
-
-def _detect_nvidia_gpus() -> list[GPUInfo]:
-    gpu_list: list[GPUInfo] = []
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True,
-            timeout=5,
-        )
-        for line in result.stdout.strip().splitlines():
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) >= 3:
-                idx = int(parts[0])
-                name = parts[1]
-                vram_mb = int(parts[2])
-                vram_bytes = vram_mb * 1024 * 1024
-                gpu_list.append(
-                    GPUInfo(
-                        name=name,
-                        device_id=str(idx),
-                        adapter_ram=vram_bytes,
-                        device_id_int=idx,
-                    )
-                )
-    except Exception as e:
-        logger.debug("NVIDIA GPU detection skipped: %s", e)
-    return gpu_list
-
-
-def _detect_windows_gpus() -> list[GPUInfo]:
-    gpu_list: list[GPUInfo] = []
-    try:
-        cmd = [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance Win32_VideoController | Select-Object -Property Name, DeviceID, AdapterRAM | ConvertTo-Json",
-        ]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            data = json.loads(result.stdout.strip())
-            if isinstance(data, dict):
-                data = [data]
-            for idx, item in enumerate(data):
-                name = item.get("Name", "")
-                dev_id = item.get("DeviceID", str(idx))
-                vram = int(item.get("AdapterRAM") or 0)
-                gpu_list.append(
-                    GPUInfo(
-                        name=name,
-                        device_id=dev_id,
-                        adapter_ram=vram,
-                        device_id_int=idx,
-                    )
-                )
-    except Exception as e:
-        logger.debug("Windows GPU detection skipped: %s", e)
-    return gpu_list
-
-
-def _detect_macos_gpus() -> list[GPUInfo]:
-    gpu_list: list[GPUInfo] = []
-    try:
-        cmd = ["system_profiler", "SPDisplaysDataType", "-json"]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            data = json.loads(result.stdout.strip())
-            displays = data.get("SPDisplaysDataType", [])
-            for idx, item in enumerate(displays):
-                name = item.get("sppci_model") or item.get("_name", "Apple GPU")
-                vram_str = item.get("spdisplays_vram", "")
-                vram = 0
-                if "GB" in vram_str:
-                    try:
-                        vram = int(vram_str.replace("GB", "").strip()) * 1024 * 1024 * 1024
-                    except Exception:
-                        pass
-                gpu_list.append(
-                    GPUInfo(
-                        name=f"{name} (ALL / ANE Preferred)",
-                        device_id=str(idx * 2),
-                        adapter_ram=vram,
-                        device_id_int=idx * 2,
-                    )
-                )
-                gpu_list.append(
-                    GPUInfo(
-                        name=f"{name} (CPU + GPU / GPU Preferred)",
-                        device_id=str(idx * 2 + 1),
-                        adapter_ram=vram,
-                        device_id_int=idx * 2 + 1,
-                    )
-                )
-    except Exception as e:
-        logger.debug("macOS GPU detection skipped: %s", e)
-    return gpu_list
+from vcclient.voice_changer.data_types.data_types import GPUInfo
+from vcclient.voice_changer.voice_change_manager.device_manager import providers
 
 
 def _detect_linux_gpus() -> list[GPUInfo]:
@@ -153,26 +40,7 @@ def _detect_linux_gpus() -> list[GPUInfo]:
 
 
 def get_driver_and_cuda_version() -> tuple[str | None, str | None]:
-    driver_version = None
-    cuda_version = None
-    try:
-        result = subprocess.run(
-            ["nvidia-smi"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=5,
-        )
-        for line in result.stdout.splitlines():
-            m_cuda = re.search(r"CUDA.*?Version:\s*([0-9.]+)", line)
-            if m_cuda and cuda_version is None:
-                cuda_version = m_cuda.group(1)
-            m_driver = re.search(r"(?:Driver Version:|NVIDIA-SMI)\s*([0-9.]+)", line)
-            if m_driver and driver_version is None:
-                driver_version = m_driver.group(1)
-    except Exception:
-        pass
-    return driver_version, cuda_version
+    return providers.cuda.get_driver_and_cuda_version()
 
 
 _gpu_info: list[GPUInfo] = []
@@ -185,14 +53,14 @@ def reload_gpu_devices() -> list[GPUInfo]:
     logger.info("Reloading GPU info")
 
     # 1. NVIDIA GPU の検出 (Windows / Linux 共通)
-    nvidia_gpus = _detect_nvidia_gpus()
+    nvidia_gpus = providers.cuda.detect_nvidia_gpus()
 
     # 2. プラットフォームごとのシステムGPU検出
     system = platform.system()
     if system == "Windows":
-        sys_gpus = _detect_windows_gpus()
+        sys_gpus = providers.directml.detect_windows_gpus()
     elif system == "Darwin":
-        sys_gpus = _detect_macos_gpus()
+        sys_gpus = providers.coreml.detect_macos_gpus()
     elif system == "Linux":
         sys_gpus = _detect_linux_gpus()
     else:
@@ -212,14 +80,7 @@ def reload_gpu_devices() -> list[GPUInfo]:
         from vcclient.voice_changer.voice_change_manager.device_manager import is_openvino_available
 
         if is_openvino_available():
-            all_sys.append(
-                GPUInfo(
-                    name="OpenVINO (GPU)",
-                    device_id="openvino_gpu",
-                    adapter_ram=0,
-                    device_id_int=OPENVINO_GPU_DEVICE_ID,
-                )
-            )
+            all_sys.extend(providers.openvino.detect_openvino_gpus())
     except Exception as e:
         logger.debug("OpenVINO detection skipped: %s", e)
 
