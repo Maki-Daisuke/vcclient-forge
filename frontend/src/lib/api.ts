@@ -188,6 +188,8 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
   monitorDeviceRate: 'audio_monitor_device_sample_rate',
   wasapiExclusive: 'wasapi_exclude_emabled',
+  extraSeconds: 'extra_frame_sec',
+  crossfadeSeconds: 'crossfade_sec',
   inputGain: 'audio_input_device_gain', outputGain: 'audio_output_device_gain',
   noiseGate: 'noise_gate',
   highPassEnabled: 'enable_high_pass_filter', lowPassEnabled: 'enable_low_pass_filter',
@@ -257,7 +259,7 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
 
 export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal): Promise<ModelSummary> {
   if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
-  if (edits.pitchEstimator !== undefined && await readNativeActive(signal)) throw new ApiError('active');
+  if ((edits.pitchEstimator !== undefined || edits.chunkSeconds !== undefined) && await readNativeActive(signal)) throw new ApiError('active');
   const url = `/api/slot-manager/slots/${id}`;
   const slot = object(await getJson(url, signal));
   const model = parseModel(slot);
@@ -274,6 +276,10 @@ export async function updateModelSettings(id: number, edits: ModelEdits, signal:
   if (edits.pitchEstimator !== undefined) {
     if (!model.settings.supportsPitch || !model.settings.pitchEstimator || !['rmvpe', 'fcpe'].includes(edits.pitchEstimator)) invalidResponse();
     changes.pitch_estimator = edits.pitchEstimator;
+  }
+  if (edits.chunkSeconds !== undefined) {
+    if (model.settings.chunkSeconds === null || !Number.isFinite(edits.chunkSeconds) || edits.chunkSeconds < 0.05 || edits.chunkSeconds > 5) invalidResponse();
+    changes.chunk_sec = edits.chunkSeconds;
   }
   // The endpoint consumes a complete RVCSlotInfo and uses its slot_index for persistence.
   await responseJson(await fetch(url, {

@@ -18,7 +18,7 @@ for (const { value, fraction } of [
     await page.goto('/');
     await openControlSections(page);
     const slider = page.getByRole('slider', { name: 'チャンクフレーム（秒）', exact: true });
-    await expect(slider).toBeDisabled();
+    await expect(slider).toBeEnabled();
     await expect(slider).toHaveAttribute('aria-valuetext', `${value} s`);
     const field = page.locator('.log-slider').filter({ has: slider });
     const track = await field.locator('.slider-track').boundingBox();
@@ -32,7 +32,7 @@ for (const { value, fraction } of [
 }
 
 for (const testCase of [
-  { label: 'Extraフレーム（秒）', key: 'extra_frame_sec', value: Math.sqrt(0.08 * 10), fraction: 0.5 },
+  { label: 'Extraフレーム（秒）', key: 'extra_frame_sec', value: Math.sqrt(0.01 * 10), fraction: 0.5 },
   { label: 'クロスフェード（秒）', key: 'crossfade_sec', value: Math.sqrt(0.01 * 0.15), fraction: 0.5 },
   { label: 'クロスフェード（秒）', key: 'crossfade_sec', value: 0, fraction: 0 },
 ]) {
@@ -43,7 +43,7 @@ for (const testCase of [
     await openControlSections(page);
     const slider = page.getByRole('slider', { name: testCase.label, exact: true });
     const field = page.locator('.log-slider').filter({ has: slider });
-    await expect(slider).toBeDisabled();
+    await expect(slider).toBeEnabled();
     await expect(slider).toHaveAttribute('aria-valuetext', `${testCase.value} s`);
     const track = await field.locator('.slider-track').boundingBox();
     const thumb = await slider.boundingBox();
@@ -51,7 +51,7 @@ for (const testCase of [
     expect(thumb).not.toBeNull();
     const position = (thumb!.x + thumb!.width / 2 - track!.x) / track!.width;
     expect(Math.abs(position - testCase.fraction)).toBeLessThan(0.04);
-    if (testCase.value === 0) await expect(field).toContainText('表示範囲外');
+    if (testCase.value === 0) await expect(field).not.toContainText('表示範囲外');
   });
 }
 
@@ -73,11 +73,11 @@ test('existing configuration and selected model values populate controls without
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();
   await expect(page.getByRole('combobox', { name: '埋め込み器', exact: true })).toHaveCount(0);
   await expect(page.getByRole('slider', { name: 'チャンクフレーム（秒）', exact: true })).toHaveAttribute('aria-valuetext', '0.3 s');
-  await expect(page.getByRole('slider', { name: 'チャンクフレーム（秒）', exact: true })).toBeDisabled();
+  await expect(page.getByRole('slider', { name: 'チャンクフレーム（秒）', exact: true })).toBeEnabled();
   await expect(page.getByRole('slider', { name: 'Extraフレーム（秒）', exact: true })).toHaveAttribute('aria-valuetext', '0.68 s');
-  await expect(page.getByRole('slider', { name: 'Extraフレーム（秒）', exact: true })).toBeDisabled();
+  await expect(page.getByRole('slider', { name: 'Extraフレーム（秒）', exact: true })).toBeEnabled();
   await expect(page.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toHaveAttribute('aria-valuetext', '0.1 s');
-  await expect(page.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toBeDisabled();
+  await expect(page.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toBeEnabled();
   const dialog = await openSettings(page);
   await expect(dialog.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
   await expect(dialog.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toContainText('USB microphone (Windows WASAPI)');

@@ -40,6 +40,7 @@ export interface ModelEdits {
   pitch?: number;
   indexRatio?: number;
   pitchEstimator?: 'rmvpe' | 'fcpe';
+  chunkSeconds?: number;
 }
 
 // Only these fields can be changed by the native-audio UI.
@@ -55,6 +56,8 @@ export interface ConfigurationEdits {
   outputDeviceRate?: number;
   monitorDeviceRate?: number;
   wasapiExclusive?: boolean;
+  extraSeconds?: number;
+  crossfadeSeconds?: number;
   inputGain?: number;
   outputGain?: number;
   noiseGate?: number;

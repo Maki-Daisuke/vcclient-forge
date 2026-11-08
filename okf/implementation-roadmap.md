@@ -121,6 +121,10 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **WASAPI exclusive mode**: The Svelte UI can change the existing setting while
   native audio is stopped. Real-device verification remains pending.
 
+- **Inference timing controls**: The Svelte UI can adjust chunk, Extra frame, and
+  crossfade with logarithmic sliders while audio is stopped. Chunk is model-specific;
+  the other settings are shared. Real audio validation remains pending.
+
 - **Server recording**: The Svelte UI can start and stop recording using existing
   APIs and download the output WAV. Recording can be armed before starting audio;
   stopping audio saves a take and returns to the armed state. Recording uses fixed

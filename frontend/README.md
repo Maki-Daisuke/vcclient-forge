@@ -27,12 +27,17 @@ Audio runs on the backend's native devices; the browser does not capture audio.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
 independent expandable sections. Server Mode can be selected from Client Mode;
-switching back to Client Mode is not connected yet. Sample rates, preferred device,
-and crossfade duration remain read-only.
-Chunk, extra frame, and crossfade durations use read-only logarithmic sliders with
-display ranges of 0.05–5, 0.08–10, and 0.01–0.15 seconds respectively. Values
+switching back to Client Mode is not connected yet. Sample rates and preferred device
+remain read-only.
+Chunk, extra frame, and crossfade durations use logarithmic sliders with
+display ranges of 0.05–5, 0.01–10, and 0.01–0.15 seconds respectively; crossfade
+also allows zero. Values
 outside these display ranges remain visible and are indicated separately; these
 ranges do not enforce backend limits.
+All three can be adjusted while server audio is stopped. The client shows a preview
+while dragging and saves on release; chunk belongs to the selected model, while
+extra frame and crossfade are configuration settings. The backend limits the
+effective crossfade to the chunk duration. Real-device audio validation is pending.
 Each filter's cutoff slider is available only when that filter is enabled.
 Sections start closed, and their open/closed state is stored in the browser's
 local storage. It is separate for each browser or webview and origin; if storage

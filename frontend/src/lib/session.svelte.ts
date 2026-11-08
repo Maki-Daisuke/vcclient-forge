@@ -187,6 +187,28 @@ export class NativeSession {
     this.edit({ wasapiExclusive: value }, true);
   }
 
+  setExtraSeconds(value: number) {
+    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.extraSeconds == null
+      || !Number.isFinite(value) || value < 0.01 || value > 10 || value === this.settings.extraSeconds) return;
+    this.edit({ extraSeconds: value }, true);
+  }
+
+  setCrossfadeSeconds(value: number) {
+    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.crossfadeSeconds == null
+      || !Number.isFinite(value) || (value !== 0 && (value < 0.01 || value > 0.15)) || value === this.settings.crossfadeSeconds) return;
+    this.edit({ crossfadeSeconds: value }, true);
+  }
+
+  setChunkSeconds(value: number) {
+    const model = this.currentModel;
+    if (!this.canConfigure || this.settings?.inputMode !== 'server' || model?.status !== 'ready'
+      || model.settings?.chunkSeconds == null || !Number.isFinite(value) || value < 0.05 || value > 5
+      || value === model.settings.chunkSeconds) return;
+    this.modelDraft = { id: model.id, edits: { chunkSeconds: value } };
+    this.saved = false;
+    this.schedule(true);
+  }
+
   private edit(edits: ConfigurationEdits, immediate = false) {
     this.draft = { ...this.draft, ...edits };
     this.saved = false;

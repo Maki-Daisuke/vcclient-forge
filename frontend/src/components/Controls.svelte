@@ -119,9 +119,12 @@
       <div class="control-group-body">
         <SelectField label={ui.t('forge.preferred_device')} value={settings?.gpuDevice === null || settings?.gpuDevice === undefined ? '—' : settings.gpuDevice < 0 ? 'CPU' : ui.t('forge.gpu_id', { id: settings.gpuDevice })} />
         <div class="field-grid">
-          <LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5} />
-          <LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.08} max={10} />
-          <LogSlider label={ui.t('forge.crossfade')} value={settings?.crossfadeSeconds ?? null} min={0.01} max={0.15} />
+          <LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
+            disabled={!session.canConfigure || settings?.inputMode !== 'server' || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} />
+          <LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
+            disabled={!session.canConfigure || settings?.inputMode !== 'server'} oncommit={value => session.setExtraSeconds(value)} />
+          <LogSlider label={ui.t('forge.crossfade')} value={settings?.crossfadeSeconds ?? null} min={0.01} max={0.15} allowZero
+            disabled={!session.canConfigure || settings?.inputMode !== 'server'} oncommit={value => session.setCrossfadeSeconds(value)} />
         </div>
       </div>
     </details>

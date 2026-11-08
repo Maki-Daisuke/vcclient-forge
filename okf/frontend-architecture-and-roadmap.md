@@ -132,6 +132,9 @@ The Passthrough button writes the existing configuration and confirms the result
 it can be toggled during server audio. Live audio verification remains pending.
 WASAPI exclusive mode can be changed while native audio is stopped; real-device
 verification remains pending.
+The chunk, Extra frame, and crossfade logarithmic sliders save on release while
+server audio is stopped. Chunk belongs to the selected model; the others are
+configuration settings. Real-device audio validation remains pending.
 Server recording uses the existing configuration API and starts an output WAV
 download after a successful stop. Recording can be armed before audio starts, and
 stopping audio saves the take and returns to the armed state. Passthrough is blocked
