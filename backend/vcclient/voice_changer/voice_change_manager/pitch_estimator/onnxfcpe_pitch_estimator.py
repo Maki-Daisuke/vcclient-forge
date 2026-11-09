@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import numpy as np
 
-from vcclient.device import create_pipeline_session
+from vcclient.device import DeviceConfig, create_pipeline_session, get_device
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
@@ -16,9 +18,18 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
     using ONNX Runtime and NumPy.
     """
 
-    def __init__(self, pitch_estimator_type: PitchEstimatorType, file: Path, device_id: int):
+    def __init__(
+        self,
+        pitch_estimator_type: PitchEstimatorType,
+        file: Path,
+        device: DeviceConfig | int | None = None,
+        *,
+        device_id: DeviceConfig | int | None = None,
+    ):
         super().__init__()
-        self.device_id = device_id
+        target = device if device is not None else (device_id if device_id is not None else 0)
+        self.device = get_device(target) if isinstance(target, int) else target
+        self.device_id = self.device.id
         self.file = file
         self.pitch_estimator_type = pitch_estimator_type
 
@@ -28,7 +39,7 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
 
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
-            create_pipeline_session(self.file, self.device_id)
+            create_pipeline_session(self.file, self.device)
         )
 
     def estimate(

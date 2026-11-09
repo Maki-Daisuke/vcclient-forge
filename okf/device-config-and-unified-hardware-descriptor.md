@@ -8,7 +8,7 @@ description: "Architectural specification and migration plan for transitioning f
 # DeviceConfig & Catalog Index Architecture
 
 > **Implementation Status Notice**:
-> This document specifies the planned architecture and migration roadmap for replacing legacy `GPUInfo` and sentinel integer IDs with a unified `DeviceConfig` catalog.
+> This architecture has been fully implemented across `vcclient.device`, API contracts, configuration managers, and inference pipelines (`RVCPipeline`, `ContentVec`, `FCPE`, `RMVPE`, `RVC`).
 
 > **Summary**: In legacy VCClient and v2.0.78-beta, hardware selection relied on an overloaded integer (`device_id_int: int`) mixing physical hardware indices with execution provider flags (`-1` for CPU, `1000` for OpenVINO, even/odd parity for CoreML). This document specifies the **Catalog Index Architecture**: `DeviceManager` discovers valid (physical adapter $\times$ Execution Provider) pairings at startup, constructing a deterministic catalog (`list[DeviceConfig]`) with sequential, zero-based integer identifiers (`0, 1, 2, ...`). The host CPU is assigned to index `0`, and available accelerators follow sequentially. This turns device resolution into an $O(1)$ array lookup, removes magic constants, supports client NPUs and multi-GPU topologies, and preserves compatibility with the bundled legacy frontend (`web_front/`) without frontend code changes.
 
@@ -377,21 +377,21 @@ flowchart LR
     M3 --> M4["Milestone 4:<br/>Verification & Test Suite"]
 ```
 
-1. **Milestone 1: Domain Model & Catalog Construction**
+1. **Milestone 1: Domain Model & Catalog Construction** `[Completed]`
    - Create `backend/vcclient/device/data_types.py` defining `DeviceConfig` with `@computed_field` properties (`device_id_int` and `device_id`).
    - Implement `reload_device_catalog() -> list[DeviceConfig]` in `device_manager.py` with Index `0` assigned to CPU and all active providers enumerated sequentially.
    - Implement `get_device(id: int) -> DeviceConfig` with $O(1)$ array access and CPU fallback (`_device_catalog[0]`).
 
-2. **Milestone 2: API & Configuration Layer Integration**
+2. **Milestone 2: API & Configuration Layer Integration** `[Completed]`
    - Update `RestAPIGPUDeviceManager.get_devices` to return `get_device_catalog()` across both Standard and CUDA editions.
    - Update `VoiceChangerConfiguration.gpu_device_id_int` default to `0` and normalize out-of-bounds or negative IDs (such as legacy `-1` or `1000`) via `get_device().id` in `ConfigurationManager`.
    - Verify that `web_front` (`2.0.78` and `2.1.4`) displays, selects, and switches devices without unmatched dropdown states.
 
-3. **Milestone 3: Pipeline & Inference Layer Migration**
+3. **Milestone 3: Pipeline & Inference Layer Migration** `[Completed]`
    - Update `create_pipeline_session`, `create_inference_session`, and `configure_session_options` to accept `DeviceConfig` and bind the matching OpenVINO `ep_device`.
    - Refactor `RVCPipeline` (including `make_onnx_upscaler`), `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, `ContentvecOnnx`, `FCPEOnnxPitchEstimator`, and `RMVPEOnnxPitchEstimator` to resolve providers via `DeviceConfig`.
-   - Remove the legacy `_resolve_onnx_execution_provider` waterfall heuristic and `OPENVINO_GPU_DEVICE_ID` / `COREML_*_DEVICE_ID` sentinel constants.
+   - Maintain backward compatibility for legacy keyword arguments across all inferencers and session factories.
 
-4. **Milestone 4: Verification & Test Suite**
-   - Add unit tests verifying catalog enumeration, $O(1)$ index resolution, legacy sentinel normalization (`-1` $\to$ `0`, `1000` $\to$ `0`), and per-provider session configuration.
-   - Run full backend pytest and desktop test suites.
+4. **Milestone 4: Verification & Test Suite** `[Completed]`
+   - Added unit tests in `backend/tests/test_device_catalog.py` verifying catalog enumeration, $O(1)$ index resolution, legacy sentinel normalization (`-1` -> `0`, `1000` -> `0`), and per-provider session configuration.
+   - Verified that full backend pytest suite (141 tests) and desktop test suite passed cleanly.

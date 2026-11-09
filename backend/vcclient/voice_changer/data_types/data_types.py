@@ -117,7 +117,7 @@ class VoiceChangerConfiguration(BaseModel):
     extra_frame_sec: float = ExtraSec[0]
     crossfade_sec: float = 0.05
     sola_search_frame_sec: float = 0.012
-    gpu_device_id_int: int = -1
+    gpu_device_id_int: int = 0
     input_sample_rate: int = 48000
     output_sample_rate: int = 48000
     monitor_sample_rate: int = 48000

@@ -45,3 +45,26 @@ def test_reload_resets_transient_states_even_if_present_in_legacy_file(tmp_path,
     cm = ConfigurationManager()
     assert cm.voice_changer_configuration.pass_through is False
     assert cm.voice_changer_configuration.recording_started is False
+
+
+def test_gpu_device_id_normalization(tmp_path, monkeypatch):
+    test_conf_path = tmp_path / "vc_conf.json"
+    monkeypatch.setattr(
+        "vcclient.voice_changer.configuration_manager.configuration_manager.ConfigFile",
+        str(test_conf_path),
+    )
+
+    # Legacy config with gpu_device_id_int = -1
+    legacy_conf = VoiceChangerConfiguration().model_dump()
+    legacy_conf["gpu_device_id_int"] = -1
+    test_conf_path.write_text(json.dumps(legacy_conf), encoding="utf-8")
+
+    cm = ConfigurationManager()
+    # -1 should normalize to index 0 (CPU)
+    assert cm.voice_changer_configuration.gpu_device_id_int == 0
+
+    # Set configuration with out-of-bounds id
+    new_conf = VoiceChangerConfiguration()
+    new_conf.gpu_device_id_int = 9999
+    cm.set_voice_changer_configuration(new_conf)
+    assert cm.voice_changer_configuration.gpu_device_id_int == 0

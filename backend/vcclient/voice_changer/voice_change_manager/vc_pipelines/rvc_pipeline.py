@@ -9,8 +9,9 @@ from onnx import TensorProto
 from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_tensor_value_info
 
 from vcclient.device import (
-    create_inference_session,
-    get_onnx_execution_provider,
+    DeviceConfig,
+    create_pipeline_session,
+    get_device,
 )
 from vcclient.logger import logger
 
@@ -31,6 +32,7 @@ class RVCPipeline(VCPipeline):
     rvc: RVCInferencer
     slot_index: int
     gpu_device_id: int
+    device: DeviceConfig
     pitch_estimator_type: PitchEstimatorType
     index_data: tuple[faiss.Index, np.ndarray] | None
     pitchf_buffer: np.ndarray | None
@@ -43,7 +45,9 @@ class RVCPipeline(VCPipeline):
         self._slot_info = slot_info
         self.slot_index = slot_info.slot_index
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        self.gpu_device_id = conf.gpu_device_id_int
+        target_device = get_device(conf.gpu_device_id_int)
+        self.device = target_device
+        self.gpu_device_id = target_device.id
         self.pitch_estimator_type = slot_info.pitch_estimator
         logger.info(
             "construct new pipelinepitch: slot_index:%s, gpu_device_id:%s pitch_estimator: %s",
@@ -51,10 +55,8 @@ class RVCPipeline(VCPipeline):
             self.gpu_device_id,
             self.pitch_estimator_type,
         )
-        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(
-            slot_info.pitch_estimator, conf.gpu_device_id_int
-        )
-        self.embedder = EmbedderManager.get_embedder(slot_info.embedder, conf.gpu_device_id_int)
+        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(slot_info.pitch_estimator, self.device)
+        self.embedder = EmbedderManager.get_embedder(slot_info.embedder, self.device)
         if slot_info.model_file is None:
             raise ValueError(f"RVC slot {slot_info.slot_index} has no model file configured.")
         self.rvc = cast(
@@ -62,7 +64,7 @@ class RVCPipeline(VCPipeline):
             InferencerManager.get_inferencer(
                 slot_info.inferencer_type,
                 ModelDir / str(slot_info.slot_index) / slot_info.model_file,
-                conf.gpu_device_id_int,
+                self.device,
                 inferencer_type_version=cast(RVCInferencerOnnxVersion, slot_info.version),
             ),
         )
@@ -74,7 +76,7 @@ class RVCPipeline(VCPipeline):
             embedder_dim_size = 256
         else:
             embedder_dim_size = 768
-        self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, conf.gpu_device_id_int)
+        self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, self.device)
         self.audio_buffer = np.zeros([16384], dtype=float)
         self.pitchf_buffer = np.zeros([1, 1], dtype=np.float64)
         if slot_info.embedder == "hubert_base_l12" or slot_info.embedder == "hubert_base_japanese_l12":
@@ -104,7 +106,7 @@ class RVCPipeline(VCPipeline):
         return index, big_npy
 
     def make_onnx_upscaler(
-        self, dim_size: int, gpu_device_id_int: int, ir_version: int = 9
+        self, dim_size: int, device: DeviceConfig | int, ir_version: int = 9
     ) -> onnxruntime.InferenceSession:
         try:
             input = make_tensor_value_info("in", TensorProto.FLOAT, [1, dim_size, None])
@@ -113,8 +115,8 @@ class RVCPipeline(VCPipeline):
             resize_node = make_node("Resize", inputs=["in", "", "scales"], outputs=["out"], mode="nearest", axes=[2])
             graph = make_graph([resize_node], "upscaler", [input, scales], [output])
             onnx_model = make_model(graph, ir_version=ir_version, opset_imports=[make_opsetid("", 20)])
-            onnx_providers, onnx_provider_options = get_onnx_execution_provider(gpu_device_id_int)
-            return create_inference_session(onnx_model.SerializeToString(), onnx_providers, onnx_provider_options)
+            session, _, _ = create_pipeline_session(onnx_model.SerializeToString(), device=device)
+            return session
         except Exception as e:
             logger.error("make_onnx_upscaler failed. %s", e)
             print("make_onnx_upscaler failed.", e)
@@ -146,7 +148,8 @@ class RVCPipeline(VCPipeline):
 
     def set_pitch_estimator_type(self, pitch_estimator_type: PitchEstimatorType) -> None:
         logger.info("pitch estimator is changed: %s -> %s", self.pitch_estimator_type, pitch_estimator_type)
-        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
+        target = self.device if hasattr(self, "device") else self.gpu_device_id
+        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, target)
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type

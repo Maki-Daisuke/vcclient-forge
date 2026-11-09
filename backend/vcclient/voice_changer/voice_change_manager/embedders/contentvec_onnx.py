@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnxruntime
 
-from vcclient.device import create_pipeline_session
+from vcclient.device import DeviceConfig, create_pipeline_session, get_device
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import EmbedderInfo
@@ -13,29 +15,33 @@ from .embedder import Embedder
 
 class ContentvecOnnx(Embedder):
     model_file: Path
-    deviceId: int = -1
+    deviceId: int = 0
     layer: int = 12
     useFinalProj: bool = True
     candidate_onnx_providers: list[str] = []
     candidate_onnx_provider_options: Any = None
     onnx_session: onnxruntime.InferenceSession
     isHalf: bool | None = None
+    device: DeviceConfig | None = None
 
     def load_model(
         self,
         model_file: Path,
-        device_id: int = -1,
+        device: DeviceConfig | int = 0,
         layer: int = 12,
         use_final_proj: bool = True,
+        *,
+        device_id: DeviceConfig | int | None = None,
     ) -> Embedder:
-
+        target = device if device_id is None else device_id
+        self.device = get_device(target) if isinstance(target, int) else target
         self.model_file = model_file
-        self.deviceId = device_id
+        self.deviceId = self.device.id
         self.layer = layer
         self.useFinalProj = use_final_proj
 
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
-            create_pipeline_session(model_file, self.deviceId)
+            create_pipeline_session(model_file, self.device)
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 
+from ...device import get_device
 from ...exception import (
     ERROR_CODE_LOCAL_INPUT_DEVICE_CANNOT_BE_NONE,
     ERROR_CODE_LOCAL_INPUT_DEVICE_SAMPLE_RATE_CHECK_FAILED,
@@ -36,6 +37,9 @@ class ConfigurationManager:
         if os.path.exists(ConfigFile):
             with open(ConfigFile, "r", encoding="utf-8") as f:
                 self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(f.read())
+            self.voice_changer_configuration.gpu_device_id_int = get_device(
+                self.voice_changer_configuration.gpu_device_id_int
+            ).id
             self.voice_changer_configuration.recording_started = False
             self.voice_changer_configuration.pass_through = False
             return None
@@ -47,6 +51,7 @@ class ConfigurationManager:
         return self.voice_changer_configuration
 
     def set_voice_changer_configuration(self, conf: VoiceChangerConfiguration) -> None:
+        conf.gpu_device_id_int = get_device(conf.gpu_device_id_int).id
         from ..voice_change_manager.local_voice_changer_interface import (
             LocalVoiceChangerInterface,
             local_voice_changer_loop_interval_sec,

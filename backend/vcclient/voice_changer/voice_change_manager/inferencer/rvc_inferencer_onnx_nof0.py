@@ -1,17 +1,28 @@
+from __future__ import annotations
+
 import numpy as np
 
-from vcclient.device import create_pipeline_session
+from vcclient.device import DeviceConfig, create_pipeline_session, get_device
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
 from .rvc_inferencer import RVCInferencer
 
 
 class RVCInferencerOnnxNoF0(RVCInferencer):
-    def load_model(self, file=None, device_id=None, inferencer_type_version=None):
+    def load_model(
+        self,
+        file=None,
+        device: DeviceConfig | int | None = None,
+        inferencer_type_version=None,
+        *,
+        device_id: DeviceConfig | int | None = None,
+    ):
+        target = device if device is not None else (device_id if device_id is not None else 0)
+        self.device = get_device(target) if isinstance(target, int) else target
         self.file = file
-        self.device_id = device_id
+        self.device_id = self.device.id
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
-            create_pipeline_session(self.file, self.device_id, patch_type="rvc")
+            create_pipeline_session(self.file, self.device, patch_type="rvc")
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
