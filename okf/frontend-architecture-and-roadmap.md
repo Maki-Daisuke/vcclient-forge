@@ -1,23 +1,30 @@
 ---
 type: architecture
-title: "Next-Gen Frontend Architecture: Svelte 5 Rebirth, Pure WebSocket, and Native Desktop Packaging"
-description: "Server-Mode-first Svelte 5 UI replacement, notification migration and Socket.IO removal, followed by incremental WebSocket Client Mode support."
+title: "Next-Gen Frontend Architecture: Svelte 5, Socket.IO, and Native Desktop Packaging"
+description: "Server-Mode-first Svelte 5 UI replacement, Socket.IO notifications and incremental Client Mode support."
 tags:
-  [frontend, svelte, websocket, wails, i18n, performance, architecture, desktop]
+  [frontend, svelte, socketio, wails, i18n, performance, architecture, desktop]
 timestamp: 2026-10-18T06:30:00Z
 ---
 
-# Next-Gen Frontend Architecture: Svelte 5 Rebirth, Pure WebSocket, and Native Desktop Packaging
+# Next-Gen Frontend Architecture: Svelte 5, Socket.IO, and Native Desktop Packaging
+
+**Transport decision (2026-11-09):** Retain Socket.IO as the API for notifications
+and browser audio; cancel the planned migration to raw WebSocket and removal of
+Socket.IO. The echo measurements below show a small difference in the tested
+environments, which does not justify a compatibility break. They do not establish
+actual browser audio latency or inference-load behavior. Retaining the existing
+API does not rule out compatible implementation improvements.
 
 ## Deployment Assumptions
 
 ### Appearance Preview Baseline (2026-11-06)
 
-`frontend/` now contains a standalone Svelte 5 + TypeScript + Vite appearance
+The initial `frontend/` scaffold was a standalone Svelte 5 + TypeScript + Vite appearance
 preview inspired by the tracked v2.1.4 layout. Exact pixel matching is not a
 goal; maintainable components take priority. Bits UI provides sliders and
 accessible, nested dialogs; simple controls use standard HTML. Model/audio
-controls and settings fields are disabled, while dialog navigation, collapsible
+controls and settings fields were disabled, while dialog navigation, collapsible
 sections, language selection, and light/dark themes work locally.
 
 The initial scaffold used immutable sample data; current settings now come from
@@ -26,8 +33,9 @@ context owns language/theme state and an i18next instance; all 13 original
 community dictionaries are imported from their tracked upstream location with
 English fallback and Arabic RTL. Added preview messages are translated into
 Japanese and English. The initial scaffold used sample model data; the read-only
-model integration below replaces it. Audio and device controls remain disabled;
-Socket.IO, microphone access, and settings writes are not implemented.
+model integration below replaced it. Later milestones connected Server Mode
+controls and settings writes. The new UI's Socket.IO notifications and browser
+microphone access remain unimplemented.
 
 ### Read-Only Model Integration (2026-11-06)
 
@@ -218,11 +226,11 @@ Inspection of the current `web_front/index.js` bundle confirmed the following pr
 
 Backend/API changes alone do not deliver usable features: users need a UI that can operate them. The minified legacy frontend (`web_front/index.js`) is coupled to existing endpoints and slot-array conventions, and the original `web_front` source for v2.0.78-beta was not released. Keeping it as the only UI would leave new backend capabilities inaccessible or require preserving its legacy contract.
 
-The solution is a clean-slate Svelte 5 UI, starting with Server Mode over REST. It does not implement the legacy Socket.IO Client Mode. Once native audio controls and notifications work, retire the old UI/protocol and extend the new UI incrementally. Use the previous release for rollback rather than maintaining a parallel legacy adapter in the new architecture.
+The solution is a clean-slate Svelte 5 UI, starting with Server Mode over REST. The new UI does not yet implement Client Mode or Socket.IO notifications. Connect it to the existing Socket.IO API incrementally; the API and legacy UI remain compatible while the UI migration proceeds.
 
 ---
 
-## 3. Protocol Modernization: Ditching Socket.IO for Pure WebSocket
+## 3. Audio Transport and Protocol Evaluation
 
 ### 3.1 Why Keep "Client Mode" Web Audio Ingestion?
 
@@ -233,31 +241,96 @@ While Forge prioritizes **Server Mode** (native OS audio devices) for low latenc
 
 Client Mode is a later feature of the new UI, not a prerequisite for replacing the old UI. A temporary development interval with only Server Mode is explicitly accepted.
 
-### 3.2 The Penalties of Legacy Socket.IO
+### 3.2 Existing Audio Transport
 
-Upstream's audio transport relies on `python-socketio` and `python-engineio`. Inspection of [`vcserver_socketio_namespace.py`](../backend/vcclient/server/vcserver_socketio_namespace.py) identifies avoidable conversion and protocol work:
+The current audio transport relies on `python-socketio` and `python-engineio`. Inspection of [`vcserver_socketio.py`](../backend/vcclient/server/vcserver_socketio.py) shows the following implementation details:
 
 - Incoming binary samples pass through `struct.unpack` into Python values and are copied into NumPy; output uses `struct.pack` with expanded sample arguments.
 - Socket.IO/Engine.IO add event metadata, framing, and dependencies beyond the PCM payload. Binary payloads are already supported; the issue is not that every sample is JSON-encoded.
 - Benchmark sample conversion and transport overhead separately before attributing a particular latency improvement to replacing the protocol.
 
-### 3.3 The Pure WebSocket Pivot (`/ws/audio`)
+### Local Binary Echo Experiment (2026-11-09)
 
-Forge replaces Socket.IO with **Pure WebSocket** endpoints powered by FastAPI/Starlette and the ASGI server's WebSocket support, without adding a separate Socket.IO/Engine.IO protocol layer:
+The isolated benchmark in [`misc/benchmark_audio_echo.py`](../misc/benchmark_audio_echo.py)
+compares a raw WebSocket binary echo with a Socket.IO binary-event echo. Both
+use the same loopback FastAPI/uvicorn server process and Python aiohttp client
+foundation; Socket.IO additionally uses python-socketio. No inference, audio
+device, browser, resampling, or legacy `request_message` handler is involved.
+Only one request is outstanding, every echoed payload is checked byte-for-byte,
+and connection setup is excluded. Runs alternate protocol order after warmup.
 
-```text
-[Wails / Optional Browser Web Audio]                   [FastAPI Backend]
-   |                                                      |
-   |---- /ws/audio: binary Float32 PCM ------------------->|--> bounded input buffer
-   |<--- /ws/audio: converted Float32 PCM -----------------|<-- inference worker
-   |<--- /ws/events: performance and state notifications --|
+On Windows 11 (build 26300), AMD Ryzen 9 7950X, Python 3.14.8, aiohttp 3.14.5,
+python-socketio 5.17.0, python-engineio 4.14.0, uvicorn 0.54.0 and FastAPI
+0.143.0, with 48 kHz mono float32 payloads, four rounds and 1,000 measurements
+per case per round without pacing produced these pooled RTTs in milliseconds:
+
+| Audio per message | Protocol | p50 | p95 | p99 | max |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 50 ms | WebSocket | 0.102 | 0.153 | 0.224 | 0.326 |
+| 50 ms | Socket.IO | 0.310 | 0.394 | 0.489 | 0.883 |
+| 100 ms | WebSocket | 0.108 | 0.150 | 0.195 | 0.452 |
+| 100 ms | Socket.IO | 0.318 | 0.397 | 0.502 | 0.737 |
+| 200 ms | WebSocket | 0.118 | 0.172 | 0.232 | 0.400 |
+| 200 ms | Socket.IO | 0.332 | 0.443 | 0.574 | 1.413 |
+
+With a target interval of 100 ms, 100 ms payloads, two rounds and 50 measured
+echoes per round, WebSocket p50/p95/p99/max were 0.389/0.499/0.584/0.732 ms;
+Socket.IO values were 0.759/1.037/1.177/1.219 ms. This short paced run does not
+characterize rare stalls. All measured replies in both runs matched the sent
+bytes; the benchmark aborts on timeout or mismatch.
+
+Reproduce from the repository root (the aiohttp overlay is temporary):
+
+```sh
+uv run --project backend --with aiohttp python misc/benchmark_audio_echo.py --count 1000 --warmup 100 --rounds 4
+uv run --project backend --with aiohttp python misc/benchmark_audio_echo.py --count 50 --warmup 5 --rounds 2 --sizes 4800 --pace-ms 100
 ```
 
-- **Binary PCM**: Specify little-endian Float32 PCM, channel count, and sample rates. Use binary buffers and NumPy buffer views to avoid per-sample Python unpacking; data copies may still occur across browser, ASGI, and GPU boundaries.
-- **Audio Scheduling**: An async transport loop feeds a bounded buffer; a dedicated worker performs inference. WebSocket message boundaries do not define inference chunk sizes. Both native and Web Audio inputs use the [fixed-chunk pipeline](./server-first-architecture-and-static-pipeline-roadmap.md).
-- **Bounded Latency**: Define frame/sample identification, send and playback buffer limits, `bufferedAmount` monitoring, and overload/disconnect recovery. Reset stream history when continuity is lost rather than playing an ever-growing backlog.
-- **Separate Notifications**: `/ws/events` is introduced first for Server Mode and later reused by Client Mode alongside `/ws/audio`. It replaces `perf` and `command` notifications, scheduled outside audio callbacks on the server event loop.
-- **Dependency Elimination**: Retire legacy Client Mode and remove Socket.IO/Engine.IO after Server Mode notifications and startup/shutdown have migrated, **before** adding `/ws/audio`. Do not maintain Socket.IO audio and WebSocket audio in parallel.
+These results include each client library's scheduling and encoding, not just
+protocol framing. They do not measure a browser/Wails client, real audio or
+the current Socket.IO conversion handler, and do not establish end-to-end audio
+latency or behavior under inference load. WebSocket was faster in these tests;
+the project has decided to retain Socket.IO rather than introduce an API compatibility break.
+
+### Tailscale Binary Echo Experiment (2026-11-09)
+
+Using the same client and benchmark procedure, a user-provided benchmark server
+was measured over Tailscale; `tailscale ping` reported a direct path via a LAN
+address. The server's hardware, runtime versions, and load were not measured.
+Four rounds of 1,000 echoes per case produced these pooled RTTs in milliseconds:
+
+| Audio per message | Protocol | p50 | p95 | p99 | max |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 50 ms | WebSocket | 0.968 | 1.628 | 2.059 | 20.378 |
+| 50 ms | Socket.IO | 1.118 | 1.692 | 2.078 | 2.674 |
+| 100 ms | WebSocket | 1.189 | 1.731 | 2.049 | 2.500 |
+| 100 ms | Socket.IO | 1.273 | 1.955 | 2.275 | 3.299 |
+| 200 ms | WebSocket | 1.593 | 1.971 | 2.206 | 2.834 |
+| 200 ms | Socket.IO | 1.785 | 2.324 | 2.559 | 11.841 |
+
+In a separate run using 100 ms payloads and a target interval of 100 ms,
+100 echoes per protocol produced p50/p95/p99/max of 2.596/3.017/3.210/3.419 ms
+for WebSocket and 2.816/3.322/3.447/3.551 ms for Socket.IO. These small samples
+do not characterize rare stalls. The paced values were higher than the
+continuous-run values; this measurement did not identify the reason. All echoes
+in the reported runs matched their payloads; timeouts and mismatches abort a run.
+
+The script accepts `--url http://HOST:PORT` to use an existing benchmark server
+instead of starting a local one. Results include the network and both machines'
+processing; they are not measurements of actual browser audio or inference.
+
+### 3.3 Retain the Socket.IO API
+
+The raw WebSocket replacement proposal and removal of Socket.IO are canceled.
+Existing REST and Socket.IO APIs, including event names and payload contracts,
+remain the integration baseline. Socket.IO may itself use WebSocket as its
+underlying transport; that does not make its application protocol raw WebSocket.
+
+The new UI can consume existing `data`, `perf`, and `command` notifications.
+Client Mode remains future work for the new UI and should use the existing
+Socket.IO audio API. Review callback scheduling, sample conversion, bounded
+buffering, and reconnect behavior independently, without assuming a protocol
+change is necessary or silently breaking existing clients.
 
 ---
 
@@ -329,7 +402,9 @@ Inspection of `web_front/assets/i18n/*/translation.json` demonstrated that:
 
 ## 6. The UI Rebirth & Migration Roadmap
 
-Forge replaces the UI incrementally, accepting a temporary Client Mode gap rather than requiring feature parity or dual audio protocols. Server Mode remains the working reference throughout the three steps. This is a planned compatibility break during development; users needing the old Client Mode can stay on the previous release.
+Forge replaces the UI incrementally. Server Mode remains the working reference;
+the new UI's Client Mode is not yet implemented, while the existing Socket.IO
+API and legacy UI remain available during the transition.
 
 ```mermaid
 flowchart TD
@@ -338,15 +413,13 @@ flowchart TD
       FE -->|"REST controls"| B1["FastAPI + Native Audio"]
     end
 
-   subgraph S2["Step 2: Notifications and Legacy Removal"]
-      EVT["/ws/events: Performance and State"]
-      CLEAN["Remove old UI and Socket.IO; Server Mode only"]
-      EVT --> CLEAN
+   subgraph S2["Step 2: Socket.IO Notifications"]
+      EVT["Existing Socket.IO: Performance and State"]
     end
 
-   subgraph S3["Step 3: Add WebSocket Client Mode"]
-      PWS["/ws/audio + AudioWorklet"]
-      PWS --> MODES["Server Mode or WebSocket Client Mode"]
+   subgraph S3["Step 3: Add Client Mode"]
+      SIO["Socket.IO audio + AudioWorklet"]
+      SIO --> MODES["Server Mode or Client Mode"]
     end
 
    S1 --> S2 --> S3
@@ -357,27 +430,25 @@ flowchart TD
 ### Step 1: Minimal Svelte 5 UI for Server Mode
 
 - Scaffold `frontend/src` with Svelte 5 + Vite. Implement native input/output device selection, model selection, conversion start/stop, and core settings through REST.
-- Do not implement Socket.IO Client Mode or add `/ws/audio` in this step. Native Windows audio (and the corresponding supported OS audio APIs) provides the working conversion path.
+- Client Mode and live Socket.IO notifications are subsequent steps. Native audio provides the working conversion path for this step.
 - Use optimistic local settings with serialized/coalesced writes, generation-aware acknowledgements, and failure recovery from the start.
 - Move community translations and required image/license assets into the new source tree using `i18next`; validate language coverage and RTL behavior before removing the old assets.
 - Point root build scripts (`npm run build:frontend`) to `vite build` outputting to `frontend/dist`.
-- **Acceptance**: The new UI controls Server Mode end to end without any Socket.IO client dependency. Performance push notifications are completed in Step 2; legacy Client Mode parity is not an acceptance requirement.
+- **Acceptance**: The new UI controls Server Mode end to end. Performance notifications are connected in Step 2; new-UI Client Mode parity is not an acceptance requirement for this step.
 
-### Step 2: WebSocket Notifications & Socket.IO Removal
+### Step 2: Socket.IO Notifications
 
-- Add `/ws/events` and connect the new UI's performance meters and state handling. Replace existing `perf` and `command` emitters without introducing audio streaming.
-- Verify native conversion, notification delivery, settings/model/device changes, and server startup/shutdown with the new UI.
-- Remove legacy Client Mode, Socket.IO/Engine.IO dependencies, their ASGI startup/shutdown wiring, and obsolete emitter implementations/tests. Preserve coverage of native audio and replacement notifications.
-- Delete `web_front` only after required assets have moved. Remove remaining legacy API assumptions; no new compatibility adapter is required for the old UI.
-- **Acceptance**: Server Mode and notifications work with Socket.IO absent. Client Mode is temporarily unavailable, and `/ws/audio` has not yet been introduced. Rollback uses the previous release, not a second live protocol path.
+- Connect the new UI's meters and state handling to existing Socket.IO notifications, beginning with input/output levels.
+- Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately without changing the existing API contract.
+- Keep the existing Socket.IO API and legacy UI available. Any eventual UI removal is a separate migration decision after required assets and functionality are addressed.
+- **Acceptance**: The new UI displays native-audio notifications correctly using Socket.IO; existing clients and API behavior remain compatible.
 
-### Step 3: Incremental WebSocket Client Mode
+### Step 3: Incremental Socket.IO Client Mode
 
-- Add `/ws/audio` for binary Float32 PCM, using the common bounded-buffer/inference-worker path rather than creating another inference engine.
-- Add Web Audio capture/playback through `AudioWorklet` to the new UI. Reuse `/ws/events` for performance and state notifications in both modes.
-- Validate sample-rate/channel handling, buffering, overload/disconnect recovery, and exclusive selection between native Server Mode and WebSocket Client Mode.
+- Add Web Audio capture/playback to the new UI using the existing Socket.IO audio API and a common inference path.
+- Validate sample-rate/channel handling, buffering, overload/disconnect recovery, and exclusive selection between native Server Mode and Client Mode while preserving the API contract.
 - Verify Wails WebView2 audio permissions and optional browser access through Tailscale Serve. Desktop packaging is already established with Wails v3.
-- **Acceptance**: Client Mode is restored using WebSocket only; no Socket.IO dependencies or legacy UI return. Continue adding remaining UI features incrementally.
+- **Acceptance**: The new UI supports Client Mode through Socket.IO with validated buffering and recovery; the existing API remains compatible.
 
 ### Desktop Packaging: Transitioning from Tauri v2 to Wails v3 [Completed]
 

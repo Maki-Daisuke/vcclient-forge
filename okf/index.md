@@ -45,7 +45,7 @@ For recommended implementation order, dependencies, and conditional experiments,
    How Forge makes development and distribution reproducible with pinned Python environments, `uv` dependency locking, and unified npm tasks. Covers the ONNX Runtime hardware backends, automatic CUDA library discovery, and automated standalone packaging.
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
-   Why the legacy UI needs a redesign to make settings responsive and new backend features usable, and why Forge selects Svelte 5 + Vite and Wails v3. Plans a Server Mode-first replacement, WebSocket notifications and Socket.IO removal, then WebSocket Client Mode, while preserving community translations.
+   Why the legacy UI needs a redesign and why Forge selects Svelte 5 + Vite and Wails v3. Plans a Server Mode-first replacement using the existing Socket.IO API for notifications and later Client Mode, while preserving community translations.
 
 6. **[Pitch Estimation: RMVPE Default and FCPE Alternative](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
    Why Forge chooses the RVC ecosystem's widely used RMVPE as its default and retains FCPE as an alternative. Consolidating pitch estimation reduces maintenance and user decision friction, with both estimators running through ONNX Runtime and NumPy.

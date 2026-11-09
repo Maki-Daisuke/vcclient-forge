@@ -170,17 +170,16 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.
 - **Depends on**: Usable native conversion and a defined settings contract. UI scaffolding and asset migration can proceed alongside items 2-3; advanced inference optimization is not a dependency.
-- **Exit**: End-to-end native conversion through the new UI without a Socket.IO client; rapid edits, slow/failed responses, and keyboard completion behave correctly.
+- **Exit**: End-to-end native conversion through the new UI; rapid edits, slow/failed responses, and keyboard completion behave correctly. Socket.IO notifications are addressed in item 5.
 - **Sources**: [UI Step 1](./frontend-architecture-and-roadmap.md#step-1-minimal-svelte-5-ui-for-server-mode), [Settings redesign](./frontend-architecture-and-roadmap.md#settings-redesign-decouple-interaction-from-rest-synchronization), [Translation preservation](./frontend-architecture-and-roadmap.md#5-preserving-100-of-community-i18n-translation-assets).
 
-### 5. Migrate Notifications, Then Retire the Legacy UI and Socket.IO
+### 5. Connect Socket.IO Notifications
 
-- Add `/ws/events` for performance/state notifications, scheduled outside callbacks on the server event loop. Verify settings/model/device changes and startup/shutdown with the new UI.
-- Remove legacy Client Mode, Socket.IO/Engine.IO dependencies and ASGI wiring, obsolete emitters, and replaced tests only after native controls and replacement notifications work.
-- Remove `web_front` after asset migration, and retire legacy API assumptions as part of the explicit migration. Do not build a second compatibility protocol for the old UI; rollback uses the previous release.
-- **Depends on**: Item 4 and verified native lifecycle behavior. `/ws/audio` must not be required for this cutover.
-- **Exit**: Native conversion, monitor output, notifications, and shutdown work without Socket.IO. A temporary browser-audio gap is accepted.
-- **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-websocket-notifications--socketio-removal).
+- Connect the Svelte UI to existing Socket.IO notifications, starting with input/output meters. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
+- Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API and legacy UI available during the transition.
+- **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.
+- **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI while existing API clients remain compatible.
+- **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-socketio-notifications).
 
 ### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2) [Completed]
 
@@ -191,18 +190,18 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Exit**: A usable packaged native desktop workflow with clean process lifecycle, fast Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
 - **Sources**: [Desktop Transition](./frontend-architecture-and-roadmap.md#desktop-packaging-transitioning-from-tauri-to-wails), [Wails ADR](./migrating-desktop-host-from-tauri-to-wails.md), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 
-### 7. Restore Browser Audio as WebSocket Adapters
+### 7. Restore Browser Audio through Socket.IO
 
-- Add `/ws/audio` with a specified little-endian Float32 PCM format and frame/continuity metadata; use the common preparation/inference path. Add AudioWorklet capture/playback and reuse `/ws/events`.
-- First restore browser-input/browser-output operation alongside the native pair, without Socket.IO. Keep main/monitor routing contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
+- Connect browser capture and playback through AudioWorklet and the existing Socket.IO audio API; use the common preparation/inference path.
+- First restore browser-input/browser-output operation alongside the native pair. Keep main/monitor routing and existing API contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
 - Validate browser secure-context/microphone requirements and Wails WebView2 permissions where applicable. Optional Tailscale Serve remains user-managed, not a bundled tunnel dependency.
 - **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
-- **Exit**: Browser audio works through WebSocket only, with one selected input and bounded latency/recovery behavior.
-- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-websocket-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- **Exit**: Browser audio works through Socket.IO, with one selected input and validated buffering and recovery; existing API compatibility is maintained.
+- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
 ### 8. Evaluate Mixed Native/Browser Routing
 
-- Independently select native or WebSocket input and main/monitor destinations. Evaluate native input to browser output and browser input to native output; mode names may survive as presets rather than internal coupling.
+- Independently select native or Socket.IO-backed browser input and main/monitor destinations. Evaluate native input to browser output and browser input to native output; mode names may survive as presets rather than internal coupling.
 - Define and test independent clock drift, network jitter, conversion, output isolation, and failure/reconnect policies before supporting each combination. Do not infer compatibility from modular interfaces alone.
 - **Depends on**: Proven native and browser adapter paths from items 3 and 7.
 - **Exit**: Explicitly supported combinations pass routing, rate, main/monitor isolation, and discontinuity tests. This is an extension, not a gate for the native release.
