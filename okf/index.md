@@ -20,6 +20,7 @@ entries:
   - migrating-desktop-host-from-tauri-to-wails.md
   - remote-backend-tcp-proxy-architecture.md
   - npu-cpu-hardware-acceleration-and-universal-distribution.md
+  - device-config-and-unified-hardware-descriptor.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -74,3 +75,6 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 15. **[Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md)**
     Re-evaluates the assumption that real-time voice conversion strictly requires discrete GPUs. Features empirical telemetry from Zen 4 (RMVPE 7.35 ms), Intel Lunar Lake (RMVPE 5.09 ms on NPU, FCPE 1.19 ms on Arc GPU), and Apple Silicon M2 (CoreML NeuralNetwork on ANE/GPU). Details NPU static shape resolution (`reshape_input`), in-memory 4D graph surgery enabling OpenVINO GPU RVC synthesis, and the implemented two-tier distribution strategy (Standard vs. CUDA) governed by Python wheel coexistence boundaries.
+
+16. **[DeviceConfig & Catalog Index Architecture](./device-config-and-unified-hardware-descriptor.md)**
+    Specifies the transition from overloaded integer sentinels (`-1`, `0`, `1000`, even/odd parity) to a sequential hardware catalog index (`list[DeviceConfig]`). With host CPU assigned to index `0` and accelerators numbered sequentially (`1..N`), device resolution operates as an $O(1)$ array lookup. Preserves compatibility with the bundled legacy frontend (`web_front/`) without frontend modifications while supporting two-stage concurrent hybrid pipelining (NPU/CPU front-end + GPU back-end).
