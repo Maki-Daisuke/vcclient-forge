@@ -78,15 +78,57 @@ class RVCPipeline(VCPipeline):
         else:
             embedder_dim_size = 768
         self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, self.device)
+        self._reset_buffers()
+        self._warmup()
+
+    def _reset_buffers(self) -> None:
         self.audio_buffer = np.zeros([16384], dtype=float)
         self.pitchf_buffer = np.zeros([1, 1], dtype=np.float64)
-        if slot_info.embedder == "hubert_base_l12" or slot_info.embedder == "hubert_base_japanese_l12":
+        embedder_type = getattr(self.slot_info, "embedder", "hubert_base_l12")
+        if embedder_type in ("hubert_base_l12", "hubert_base_japanese_l12"):
             self.feature_buffer = np.zeros((1, 1, 768), dtype=np.float64)
         else:
             self.feature_buffer = np.zeros((1, 1, 256), dtype=np.float64)
         self.prev_vol = 0
-        self.is_gate_open: bool = True
+        self.is_gate_open = True
         self.noise_gate_below_threshold_samples = 0
+
+    def _warmup(self) -> None:
+        """Warm up ONNX sessions with a realistic audio chunk to trigger AOT/JIT compilation."""
+        if not (
+            hasattr(self, "embedder")
+            and hasattr(self, "rvc")
+            and hasattr(self, "onnx_upscaler")
+            and hasattr(self, "pitch_estimator")
+        ):
+            return
+
+        try:
+            chunk_sec = self.get_chunk_sec()
+            input_sample_rate = self.get_input_sample_rate()
+            sample_count = int(round(chunk_sec * input_sample_rate))
+            if sample_count <= 0:
+                sample_count = 8000
+
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            real_crossfade_sec = min(chunk_sec, conf.crossfade_sec)
+
+            # Generate synthetic audio (440Hz sine wave) with sufficient amplitude to open noise gate
+            t = np.arange(sample_count, dtype=np.float32) / input_sample_rate
+            dummy_audio = (0.1 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+
+            logger.info(
+                "Warming up RVCPipeline ONNX sessions (slot=%s, chunk_sec=%.2f, samples=%d)...",
+                self.slot_index,
+                chunk_sec,
+                sample_count,
+            )
+            self.run(dummy_audio, real_crossfade_sec=real_crossfade_sec)
+            logger.info("RVCPipeline warmup complete.")
+        except Exception as e:
+            logger.warning("Pipeline warmup encountered an error (continuing anyway): %s", e)
+        finally:
+            self._reset_buffers()
 
     @property
     def slot_info(self) -> RVCSlotInfo:
@@ -156,6 +198,7 @@ class RVCPipeline(VCPipeline):
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type
+        self._warmup()
         logger.info("pitch estimator is changed: done")
 
     def _generate_inputs(
