@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import platform
-import subprocess
 from typing import Any
 
 from vcclient.logger import logger
@@ -16,37 +15,6 @@ _gpu_info: list[GPUInfo] = []
 _cuda_info: list[GPUInfo] = []
 _cuda_available: bool = False
 _device_catalog: list[DeviceConfig] = []
-
-
-def _detect_linux_gpus() -> list[GPUInfo]:
-    gpu_list: list[GPUInfo] = []
-    try:
-        cmd = ["lspci"]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            idx = 0
-            for line in result.stdout.splitlines():
-                if "VGA compatible controller" in line or "3D controller" in line:
-                    parts = line.split(":", 2)
-                    name = parts[-1].strip() if len(parts) >= 3 else line
-                    gpu_list.append(
-                        GPUInfo(
-                            name=name,
-                            device_id=str(idx),
-                            adapter_ram=0,
-                            device_id_int=idx,
-                        )
-                    )
-                    idx += 1
-    except Exception as e:
-        logger.debug("Linux GPU detection skipped: %s", e)
-    return gpu_list
 
 
 def get_driver_and_cuda_version() -> tuple[str | None, str | None]:
@@ -87,7 +55,7 @@ def reload_device_catalog() -> list[DeviceConfig]:
                 )
             )
 
-    # 3. DirectML (Windows) / CoreML (macOS) / Linux GPUs
+    # 3. DirectML (Windows) / CoreML (macOS)
     system = platform.system()
     if system == "Windows":
         sys_gpus = providers.directml.detect_windows_gpus()
@@ -120,20 +88,6 @@ def reload_device_catalog() -> list[DeviceConfig]:
                     name=g.name,
                     adapter_ram=g.adapter_ram,
                     metadata={"compute_units": compute_units},
-                )
-            )
-    elif system == "Linux" and not is_cuda_available():
-        sys_gpus = _detect_linux_gpus()
-        for g in sys_gpus:
-            catalog.append(
-                DeviceConfig(
-                    id=len(catalog),
-                    canonical_id=f"gpu:{g.device_id_int}",
-                    provider="cpu",
-                    device_index=g.device_id_int,
-                    device_type="GPU",
-                    name=g.name,
-                    adapter_ram=g.adapter_ram,
                 )
             )
 
