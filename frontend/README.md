@@ -27,11 +27,18 @@ Audio runs on the backend's native devices; the browser does not capture audio.
 While Server Mode audio is active and backend input/output analysis is enabled,
 the UI subscribes to the existing Socket.IO `/test` namespace and displays the
 input/output RMS levels. The subscription closes on stop and clears stale or
-disconnected values. This does not change the backend's audio callback or its
-notification settings. Buffer and processing displays are not connected yet.
+disconnected values. The buffer graph and labels consume the existing output and
+process status events independently, convert sample counts to seconds using
+current backend sample rates, and retain at most 100 points per stream. The
+graph clears on stop, disconnect, stale data, or the Clear button. Input buffer
+requires backend process analysis and performance monitoring to be enabled;
+output buffer requires input/output analysis. No backend notification settings
+or audio callbacks are changed. Other processing metrics remain unconnected.
 The UI was also checked against a running backend during audio conversion; the
 displayed values and bars updated, and the user confirmed the meters displayed.
-Callback overhead has not been measured.
+Callback overhead has not been measured. Buffer display is covered by mocked
+browser events; both values and graph lines were also observed in the UI against
+a live backend during conversion.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
 independent expandable sections. Server Mode can be selected from Client Mode;

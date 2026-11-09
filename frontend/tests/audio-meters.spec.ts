@@ -18,6 +18,10 @@ function sendLevels(socket: WebSocketRoute, input: unknown, output: unknown) {
   socket.send(`42/test,${JSON.stringify(['data', ['realtime_output_status', JSON.stringify({ inputRms: input, outputRms: output, realtimeOutputStatusSendIntervalSec: 0.2 })]])}`);
 }
 
+function sendEvent(socket: WebSocketRoute, type: string, data: object) {
+  socket.send(`42/test,${JSON.stringify(['data', [type, JSON.stringify(data)]])}`);
+}
+
 test('displays valid Socket.IO levels, clears stale data, and resumes', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;
@@ -70,4 +74,50 @@ test('clears levels on disconnect and resumes after reconnecting', async ({ page
   await expect.poll(() => socket() !== firstSocket, { timeout: 10000 }).toBe(true);
   sendLevels(socket()!, 0.6, 0.7);
   await expect(page.locator('.performance .meter-label').first()).toContainText('0.600');
+});
+
+test('uses fresh device rates for independent input and output buffer histories', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  state.config.realtime_process_status_send_interval_sec = 0.1;
+  state.config.output_sample_rate = 48000;
+  const socket = await mockSocket(page);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  // The actual device rates can differ from the values loaded before audio starts.
+  state.config.input_sample_rate = 44100;
+  state.config.output_sample_rate = 32000;
+  sendEvent(socket()!, 'realtime_output_status', { inputRms: 0.1, outputRms: 0.2, outputBufferSize: 3200, realtimeOutputStatusSendIntervalSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 8820 });
+  const metrics = page.locator('.performance dl > div');
+  await expect(metrics.nth(0)).toContainText('0.200 s');
+  await expect(metrics.nth(1)).toContainText('0.100 s');
+  await expect(page.locator('.buffer-chart .buffer-input')).toHaveCount(1);
+  await expect(page.locator('.buffer-chart .buffer-output')).toHaveCount(1);
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: -1 });
+  await expect(metrics.nth(0)).toContainText('0.200 s');
+  const clear = page.locator('.performance').getByRole('button', { name: 'クリア', exact: true });
+  await expect(clear).toBeEnabled();
+  await clear.click();
+  await expect(page.locator('.buffer-chart polyline')).toHaveCount(0);
+  await expect(metrics.nth(0)).toContainText('0.200 s');
+  sendEvent(socket()!, 'realtime_output_status', { inputRms: 0.1, outputRms: 0.2, outputBufferSize: 6400, realtimeOutputStatusSendIntervalSec: 1 });
+  await expect(metrics.nth(1)).toContainText('0.200 s');
+  await expect(metrics.nth(0)).toContainText('—', { timeout: 4000 });
+  await expect(metrics.nth(1)).toContainText('0.200 s');
+});
+
+test('receives input buffer independently when output analysis is disabled', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_output_status_enabled = false;
+  state.config.realtime_process_status_enabled = true;
+  state.config.output_sample_rate = 48000;
+  const socket = await mockSocket(page);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 2400 });
+  await expect(page.locator('.performance dl > div').first()).toContainText('0.050 s');
+  await expect(page.locator('.performance .meter-label').first()).toContainText('—');
 });

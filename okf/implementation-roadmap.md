@@ -181,7 +181,12 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   and reconnects after disconnects. Browser tests simulate Socket.IO messages;
   values and bars were also verified in the UI against a live backend during
   audio conversion, and the user confirmed the meters displayed. Callback
-  overhead has not been measured. Buffer and process metrics are not connected.
+  overhead has not been measured.
+- **Buffer meters implemented**: The UI converts existing output and process
+  status sample counts to seconds using current backend sample rates, with
+  independent stale handling and bounded histories. Browser tests simulate the
+  notifications; both values and graph lines were also observed in the UI against
+  a live backend during conversion.
 - Connect remaining performance and state notifications. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
 - Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API and legacy UI available during the transition.
 - **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.

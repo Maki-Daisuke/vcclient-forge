@@ -24,6 +24,7 @@ export interface ConfigurationSnapshot {
   ioAnalysisInterval: number | null;
   processAnalysisEnabled: boolean | null;
   processAnalysisInterval: number | null;
+  performanceMonitorEnabled: boolean | null;
 }
 
 export interface ModelSettingsSnapshot {

@@ -443,8 +443,11 @@ flowchart TD
   is enabled. Disconnection and stale data clear the display; browser tests
   simulate the transport. Values and bars were also checked in the UI against
   a live backend during conversion, and the user confirmed the meters displayed.
-  Callback overhead has not been measured, and buffer/process telemetry is not
-  connected yet.
+  Callback overhead has not been measured. Input and output buffer values and
+  history use the existing process and output notifications independently, with
+  current backend sample rates. Both values and graph lines were also observed
+  in the UI against a live backend during conversion. Other processing metrics
+  remain unconnected.
 - Connect the new UI's remaining performance metrics and state handling to existing Socket.IO notifications.
 - Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately without changing the existing API contract.
 - Keep the existing Socket.IO API and legacy UI available. Any eventual UI removal is a separate migration decision after required assets and functionality are addressed.

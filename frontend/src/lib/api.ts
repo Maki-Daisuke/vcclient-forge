@@ -62,6 +62,7 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
     ioAnalysisInterval: numeric(config.realtime_output_status_send_interval_sec),
     processAnalysisEnabled: boolean(config.realtime_process_status_enabled),
     processAnalysisInterval: numeric(config.realtime_process_status_send_interval_sec),
+    performanceMonitorEnabled: boolean(config.enable_performance_monitor),
   };
 }
 
@@ -203,6 +204,13 @@ export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
   const info = object(await getJson(`${nativeUrl}/information`, signal));
   if (typeof info.local_voice_changer_interface_active !== 'boolean') invalidResponse();
   return info.local_voice_changer_interface_active;
+}
+
+export async function readAudioSampleRates(signal: AbortSignal): Promise<{ input: number | null; output: number | null }> {
+  const config = object(await getJson(configurationUrl, signal));
+  const input = numeric(config.input_sample_rate);
+  const output = numeric(config.output_sample_rate);
+  return { input: input !== null && input > 0 ? input : null, output: output !== null && output > 0 ? output : null };
 }
 
 export async function updateConfiguration(edits: ConfigurationEdits, signal: AbortSignal): Promise<ConfirmedConfiguration> {
