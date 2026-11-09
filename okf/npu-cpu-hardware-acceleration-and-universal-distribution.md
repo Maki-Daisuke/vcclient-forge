@@ -103,13 +103,13 @@ _(Note on Latency Budget vs. Analysis Window: The 256 ms audio window, or 4096 s
 
 #### Forge Architectural Assessment
 
-| Pipeline Stage | Primary Recommended Target | NPU Feasibility & Strategic Role |
-| :--- | :--- | :--- |
-| **Pitch Estimation: FCPE (`fcpe.onnx`)** | **Intel GPU (1.19 ms) / NPU (4.07 ms)** | **Verified (High)**: 4.07 ms on Lunar Lake NPU 4000, 1.19 ms on Arc 140V GPU with ultra-low jitter (±0.12 ms) (Section 2.3). |
-| **Pitch Estimation: RMVPE (`rmvpe.onnx`)** | **NPU (5.09 ms) / GPU (4.09 ms)** | **Verified (High)**: Compiles cleanly with static shapes, running 2.2× faster than CPU (5.09 ms vs 11.04 ms) (Section 2.3). |
-| **Feature Extraction (ContentVec)** | **GPU (3.15 ms) / NPU (5.52 ms)** | **Verified (High)**: Runs 3.0× faster on NPU (5.52 ms) and 4.4× faster on Arc GPU (3.15 ms) than CPU (Section 2.3). |
-| **FAISS Vector Search** | **CPU (Host RAM)** | **Not Applicable**: Vector index search remains CPU-native. |
-| **HiFi-GAN Vocoder (Synthesis)** | **DirectML (47.77 ms) / OpenVINO GPU (62.41 ms)** | **NPU Infeasible, GPU High**: Full FP32 vocoder exceeds NPU SRAM limits. Unlocked on OpenVINO GPU via in-memory 4D graph surgery (62.41 ms) alongside DirectML (47.77 ms) (Section 2.3). |
+| Pipeline Stage                             | Primary Recommended Target                        | NPU Feasibility & Strategic Role                                                                                                                                                              |
+| :----------------------------------------- | :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pitch Estimation: FCPE (`fcpe.onnx`)**   | **Intel GPU (1.19 ms) / NPU (4.07 ms)**           | **Verified (High)**: 4.07 ms on Lunar Lake NPU 4000, 1.19 ms on Arc 140V GPU with ultra-low jitter (±0.12 ms) (Section 2.3).                                                                  |
+| **Pitch Estimation: RMVPE (`rmvpe.onnx`)** | **NPU (5.09 ms) / GPU (4.09 ms)**                 | **Verified (High)**: Compiles cleanly with static shapes, running 2.2× faster than CPU (5.09 ms vs 11.04 ms) (Section 2.3).                                                                   |
+| **Feature Extraction (ContentVec)**        | **GPU (3.15 ms) / NPU (5.52 ms)**                 | **Verified (High)**: Runs 3.0× faster on NPU (5.52 ms) and 4.4× faster on Arc GPU (3.15 ms) than CPU (Section 2.3).                                                                           |
+| **FAISS Vector Search**                    | **CPU (Host RAM)**                                | **Not Applicable**: Vector index search remains CPU-native.                                                                                                                                   |
+| **HiFi-GAN Vocoder (Synthesis)**           | **OpenVINO GPU (36.45 ms) / DirectML (47.77 ms)** | **NPU Infeasible, GPU High**: Full FP32 vocoder exceeds NPU SRAM limits. Unlocked on OpenVINO GPU via in-memory 4D graph surgery (36.45 ms), outperforming DirectML (47.77 ms) (Section 2.3). |
 
 ### 2.1.1 Structural Pitch Estimator Comparison: RMVPE vs. FCPE on NPUs
 
@@ -186,14 +186,14 @@ In October 2026, the empirical micro-benchmarking suite (`misc/benchmark.py`) wa
 
 > **Parameters**: 256.0 ms window (4096 samples @ 16 kHz), 5 warmup, 10 benchmark runs. Latencies in ms (`mean [min, std]`).
 
-| Model | CPU EP (8 thr) | OpenVINO CPU | OpenVINO NPU (AI Boost) | OpenVINO GPU (Arc 140V) | DirectML EP (Arc 140V) |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **FCPE** (`fcpe.onnx`) | 4.07 ms [3.08, 1.28] | 8.12 ms [2.64, 5.31] | **4.07 ms** [3.97, 0.12] | **1.19 ms** [0.79, 0.45] | 4.82 ms [3.88, 0.54] |
-| **RMVPE** (`rmvpe.onnx`) | 11.04 ms [10.36, 0.58] | 8.55 ms [8.04, 0.45] | **5.09 ms** [4.73, 0.22] | **4.09 ms** [3.40, 0.58] | 42.84 ms [41.73, 1.15] |
-| **ContentVec** (`contentvec-f.onnx`) | 24.41 ms [15.69, 11.16] | 13.96 ms [12.89, 1.28] | **5.52 ms** [5.01, 0.35] | **3.15 ms** [2.97, 0.13] | 10.37 ms [9.80, 0.45] |
-| **RVC** (`kikoto_kurage_v2_40k`) | 87.91 ms [84.71, 3.10] | 87.20 ms [81.97, 3.76] | _[Skipped: SRAM capacity]_ | **62.41 ms** [60.13, 1.62] <sup>\*1</sup> | **47.77 ms** [45.64, 1.45] |
+| Model                                | CPU EP (8 thr)          | OpenVINO CPU           | OpenVINO NPU (AI Boost)    | OpenVINO GPU (Arc 140V)                   | DirectML EP (Arc 140V)     |
+| :----------------------------------- | :---------------------- | :--------------------- | :------------------------- | :---------------------------------------- | :------------------------- |
+| **FCPE** (`fcpe.onnx`)               | 4.07 ms [3.08, 1.28]    | 8.12 ms [2.64, 5.31]   | **4.07 ms** [3.97, 0.12]   | **1.19 ms** [0.79, 0.45]                  | 4.82 ms [3.88, 0.54]       |
+| **RMVPE** (`rmvpe.onnx`)             | 11.04 ms [10.36, 0.58]  | 8.55 ms [8.04, 0.45]   | **5.09 ms** [4.73, 0.22]   | **4.09 ms** [3.40, 0.58]                  | 42.84 ms [41.73, 1.15]     |
+| **ContentVec** (`contentvec-f.onnx`) | 24.41 ms [15.69, 11.16] | 13.96 ms [12.89, 1.28] | **5.52 ms** [5.01, 0.35]   | **3.15 ms** [2.97, 0.13]                  | 10.37 ms [9.80, 0.45]      |
+| **RVC** (`kikoto_kurage_v2_40k`)     | 87.91 ms [84.71, 3.10]  | 87.20 ms [81.97, 3.76] | _[Skipped: SRAM capacity]_ | **36.45 ms** [34.90, 1.60] <sup>\*1</sup> | **47.77 ms** [45.64, 1.45] |
 
-<sup>*1</sup> *Requires in-memory 4D SineGen graph surgery (see Section 2.3.4).*
+<sup>*1</sup> _Requires in-memory 4D SineGen graph surgery (see Section 2.3.4)._
 
 #### 2.3.2 NPU Dynamic Shape Resolution & Runtime Dimension Derivation (`reshape_input`)
 
@@ -213,22 +213,22 @@ In `rvc_pipeline.py` and `onnxrmvpe_pitch_estimator.py`, past context is sliced 
 
 $$S_{\text{RMVPE}} = (\text{chunk\_sec} \times 16000) + 1120 \text{ samples}$$
 
-| `chunk_sec` Setting | Sample Count ($S_{\text{chunk}}$) | RMVPE Waveform ($S_{\text{RMVPE}}$) | ContentVec Audio ($S_{\text{CV}}$) |
-| :--- | :--- | :--- | :--- |
-| **0.05 s (50 ms)** | 800 samples | 1,920 samples | ~3,200 samples |
-| **0.10 s (100 ms)** | 1,600 samples | 2,720 samples | ~4,000 samples |
-| **0.256 s (256 ms)** | 4,096 samples | 5,216 samples | ~6,496 samples |
-| **0.50 s (500 ms)** | 8,000 samples | 9,120 samples | ~10,400 samples |
+| `chunk_sec` Setting  | Sample Count ($S_{\text{chunk}}$) | RMVPE Waveform ($S_{\text{RMVPE}}$) | ContentVec Audio ($S_{\text{CV}}$) |
+| :------------------- | :-------------------------------- | :---------------------------------- | :--------------------------------- |
+| **0.05 s (50 ms)**   | 800 samples                       | 1,920 samples                       | ~3,200 samples                     |
+| **0.10 s (100 ms)**  | 1,600 samples                     | 2,720 samples                       | ~4,000 samples                     |
+| **0.256 s (256 ms)** | 4,096 samples                     | 5,216 samples                       | ~6,496 samples                     |
+| **0.50 s (500 ms)**  | 8,000 samples                     | 9,120 samples                       | ~10,400 samples                    |
 
 ##### 2. Architectural Trade-offs: Static Shapes vs. Dynamic Bounds vs. Padding
 
 1. **Static Shape Binding (`waveform[1, 4096]`)**:
-   - *Advantage*: Enables compiler AOT memory layout optimization without runtime dynamic dimension handling.
-   - *Limitation*: Inflexible. If a user modifies `chunk_sec`, `crossfade_sec`, or `extra_frame_sec` in the UI, or if the Web client transmits a larger buffer, the dimension mismatch raises an immediate runtime exception.
+   - _Advantage_: Enables compiler AOT memory layout optimization without runtime dynamic dimension handling.
+   - _Limitation_: Inflexible. If a user modifies `chunk_sec`, `crossfade_sec`, or `extra_frame_sec` in the UI, or if the Web client transmits a larger buffer, the dimension mismatch raises an immediate runtime exception.
 2. **Arbitrarily Large Upper Bounds (`waveform[1, 160..160000]`)**:
-   - *Limitation*: Client NPUs have limited on-chip SRAM (typically 2–8 MB). Setting an excessive upper bound (e.g., 10 seconds) forces intermediate activation tensors to spill into system DRAM (LPDDR5X), inducing bus contention and degrading execution latency, or causes compilation failure due to scheduler memory limits.
+   - _Limitation_: Client NPUs have limited on-chip SRAM (typically 2–8 MB). Setting an excessive upper bound (e.g., 10 seconds) forces intermediate activation tensors to spill into system DRAM (LPDDR5X), inducing bus contention and degrading execution latency, or causes compilation failure due to scheduler memory limits.
 3. **Fixed Oversized Zero-Padding**:
-   - *Limitation*: Compiling for a fixed 10-second static shape and zero-padding a 100 ms speech frame wastes compute and power evaluating unvoiced padding.
+   - _Limitation_: Compiling for a fixed 10-second static shape and zero-padding a 100 ms speech frame wastes compute and power evaluating unvoiced padding.
 
 ##### 3. Planned Strategy: Runtime Dimension Derivation with Model Caching
 
@@ -247,16 +247,18 @@ Executing RVC on OpenVINO GPU uncovered two compiler barriers:
 
 1. **Auto-FP16 Type Mismatch**: Default auto-FP16 conversion caused element type mismatch between FP32 `ScatterNDUpdate` and FP16 `Gather`. Resolved by configuring `load_config` strictly as a device-keyed dictionary (`{"GPU": {"EXECUTION_MODE_HINT": "ACCURACY"}}`).
 2. **3D Interpolate Barrier (`linear_onnx`)**: Intel GPU's `interpolate.cpp` strictly rejects 3D tensors for linear interpolation (`Check 'inputRank == 2 || inputRank == 4 || inputRank == 5' failed`). RVC's SineGen expands pitch along a 3D tensor `[batch, channel, time]`.
-   - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, yields bit-exact numerical parity (diff `< 2.4e-7`), and unblocks OpenVINO GPU synthesis (**62.41 ms**).
+   - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, yields bit-exact numerical parity (diff `< 2.4e-7`), and unblocks OpenVINO GPU synthesis (**36.45 ms**).
 
 #### 2.3.5 Dynamic Plugin Session Factory Contract (`create_inference_session`)
 
 When using standalone dynamically registered execution provider plugins (`onnxruntime-ep-openvino`), ONNX Runtime exhibits a subtle initialization constraint:
+
 - Calling `so.add_provider_for_devices([ep_device], opts)` binds the target hardware device into `SessionOptions`.
 - However, if the caller subsequently instantiates `ort.InferenceSession(model, sess_options=so, providers=providers, provider_options=provider_options)`, ONNX Runtime detects the collision, logs a `UserWarning`, and discards the `SessionOptions` provider binding.
 - Because dynamically registered plugins are not enumerated in static `ort.get_available_providers()`, `InferenceSession` evaluates the explicit provider name as unavailable, causing a **silent fallback to `CPUExecutionProvider`**.
 
 Forge resolves this across all pipeline components (`ContentVecOnnx`, `RMVPEOnnxPitchEstimator`, `FCPEOnnxPitchEstimator`, `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, and `RVCPipeline`) via a centralized factory method on `DeviceManager`:
+
 ```python
 def create_inference_session(
     self,
@@ -267,6 +269,7 @@ def create_inference_session(
 ) -> onnxruntime.InferenceSession:
     ...
 ```
+
 If `so.has_providers()` evaluates to `True`, the `providers` and `provider_options` arguments are strictly omitted from `InferenceSession(...)`, ensuring hardware acceleration remains active on the bound OpenVINO GPU or NPU device.
 
 #### 2.3.6 OpenVINO GPU Operator Quirks & Workarounds (RMVPE Clip Mask Bug)
@@ -284,26 +287,26 @@ During end-to-end audio validation with actual voice samples (`web_front/ui/2.1.
 
 #### 2.3.7 Optimal Real-Time Deployment Matrices
 
-With in-memory 4D graph surgery, OpenVINO GPU provides a high-performance cross-platform acceleration path on Linux where DirectML is unavailable:
+With in-memory 4D graph surgery, OpenVINO GPU delivers lower latency than DirectML on Intel Arc graphics across both Windows and Linux, while DirectML provides a cross-vendor DirectX 12 fallback on Windows:
 
-| Target Deployment | Front-End (Pitch + Features) | Back-End (Vocoder Synthesis) | Total Latency | Key Benefit |
-| :--- | :--- | :--- | :--- | :--- |
-| **Windows (DirectML)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | DirectML EP (47.8 ms) | **~52–57 ms** | Peak performance on Arc GPU |
-| **Linux (Pure OpenVINO)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | OpenVINO GPU (62.4 ms <sup>\*1</sup>) | **~67–72 ms** | Zero proprietary driver dependencies |
-| **Low-Power / Headless** | OpenVINO NPU (9.6–10.6 ms) | CPU EP (87.2 ms) | **~97–98 ms** | Zero GPU heat or acoustic fan noise |
+| Target Deployment               | Front-End (Pitch + Features)          | Back-End (Vocoder Synthesis)          | Total Latency | Key Benefit                      |
+| :------------------------------ | :------------------------------------ | :------------------------------------ | :------------ | :------------------------------- |
+| **Windows / Linux (OpenVINO)**  | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | OpenVINO GPU (36.5 ms <sup>\*1</sup>) | **~41–46 ms** | Lowest latency on Intel Arc GPU  |
+| **Windows (DirectML Fallback)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | DirectML EP (47.8 ms)                 | **~52–57 ms** | Cross-vendor DirectX 12 GPU path |
+| **Low-Power / Headless**        | OpenVINO NPU (9.6–10.6 ms)            | CPU EP (87.2 ms)                      | **~97–98 ms** | No GPU load                      |
 
 #### 2.3.8 Working Design Hypothesis: Minimal Two-Stage Dispatch Heuristic
 
 Building upon the empirical telemetry, Forge formulates a streamlined, two-stage hardware dispatch hypothesis for future pipeline routing (Roadmap Item 9 / Hybrid Phase 5):
 
 1. **Back-End (Vocoder Synthesis / RVC)**:
-   - **Rule**: If a GPU is present, allocate to **GPU** (`CUDA` > `DirectML` / `OpenVINO GPU` with 4D patch); otherwise, fall back to **CPU**.
-   - **Rationale**: Neural vocoding involves high-bandwidth transposed convolutions and dilation sweeps where GPUs deliver ~45–62 ms latency. Client NPUs fail under current SRAM constraints, leaving modern SIMD CPU as the single robust fallback (~87 ms).
+   - **Rule**: If a GPU is present, allocate to **GPU** (CUDA > OpenVINO GPU with 4D patch > DirectML); otherwise, fall back to **CPU**.
+   - **Rationale**: Neural vocoding involves high-bandwidth transposed convolutions and dilation sweeps where GPUs deliver ~36–48 ms latency. Client NPUs fail under current SRAM constraints, leaving modern SIMD CPU as the single robust fallback (~87 ms).
 2. **Front-End (Acoustic Analysis / FCPE + ContentVec)**:
    - **Rule**: If a client NPU is present, allocate to **NPU** (`OpenVINO NPU`); otherwise, fall back to **CPU** (or dedicated GPU if unconstrained).
    - **Rationale**: Acoustic front-end tasks require ~9.5 ms on NPU within a ~2–5 W silicon envelope. Offloading front-end processing to NPU completely decouples audio intonation tracking from 3D gaming/OBS GPU queues and avoids CPU thermal throttling.
 
-*(Status: Working architectural design hypothesis to be validated during the backend pipeline decoupling milestone in Roadmap Item 9).*
+_(Status: Working architectural design hypothesis to be validated during the backend pipeline decoupling milestone in Roadmap Item 9)._
 
 #### 2.3.9 Profiling Telemetry: DirectML Micro-Operator Overhead vs. OpenVINO Fused Subgraph
 
