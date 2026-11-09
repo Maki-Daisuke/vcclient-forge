@@ -175,11 +175,17 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
         for line in result.stdout.strip().splitlines():
             parts = [p.strip() for p in line.split(",")]
             if len(parts) >= 3:
-                idx = int(parts[0])
+                try:
+                    idx = int(parts[0])
+                except ValueError, TypeError:
+                    continue
                 raw_name = parts[1]
                 name = raw_name if raw_name.startswith("[CUDA]") else f"[CUDA] {raw_name}"
-                vram_mb = int(parts[2])
-                vram_bytes = vram_mb * 1024 * 1024
+                try:
+                    vram_mb = int(parts[2])
+                    vram_bytes = vram_mb * 1024 * 1024
+                except ValueError, TypeError:
+                    vram_bytes = 0
                 gpu_list.append(
                     GPUInfo(
                         name=name,

@@ -198,9 +198,10 @@ def test_device_config_resolve_provider() -> None:
         name="Intel AI Boost",
         metadata={"ov_device": "NPU"},
     )
-    providers, opts = ov_npu_dev._resolve_provider()
-    assert providers == ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
-    assert opts[0]["device_type"] == "NPU"
+    with patch("vcclient.device.providers.openvino.is_openvino_available", return_value=True):
+        providers, opts = ov_npu_dev._resolve_provider()
+        assert providers == ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
+        assert opts[0]["device_type"] == "NPU"
 
 
 def test_device_config_create_session_npu_rvc_fallback() -> None:
@@ -217,6 +218,7 @@ def test_device_config_create_session_npu_rvc_fallback() -> None:
     with (
         patch("onnxruntime.InferenceSession") as mock_session_cls,
         patch("vcclient.device.device_manager.get_device_catalog") as mock_catalog,
+        patch("vcclient.device.providers.openvino.is_openvino_available", return_value=True),
     ):
         mock_cpu = DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")
         mock_catalog.return_value = [mock_cpu, npu_dev]

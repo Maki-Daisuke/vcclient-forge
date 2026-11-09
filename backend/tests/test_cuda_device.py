@@ -43,3 +43,26 @@ def test_resolve_cuda_provider():
     # CUDA unavailable
     res_none = resolve_cuda_provider(0, gpu_num=1, available_providers=["CPUExecutionProvider"])
     assert res_none is None
+
+
+def test_detect_nvidia_gpus_handles_na_vram(monkeypatch: pytest.MonkeyPatch):
+    """Ensure GPUs reporting [N/A] memory (e.g. Unified Memory GB10) don't crash nvidia-smi parsing."""
+    import subprocess
+    from unittest.mock import MagicMock
+
+    monkeypatch.setattr(cuda_module, "is_cuda_available", lambda: True)
+    # Force native detection to fail so it falls back to nvidia-smi
+    monkeypatch.setattr(ort, "get_ep_devices", lambda: (_ for _ in ()).throw(RuntimeError("fail")))
+
+    fake_stdout = "0, NVIDIA GB10, [N/A]\n1, NVIDIA RTX 4090, 24576\n"
+    mock_run = MagicMock(return_value=subprocess.CompletedProcess(args=[], returncode=0, stdout=fake_stdout, stderr=""))
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    gpus = detect_nvidia_gpus()
+    assert len(gpus) == 2
+    assert gpus[0].name == "[CUDA] NVIDIA GB10"
+    assert gpus[0].adapter_ram == 0
+    assert gpus[0].device_id_int == 0
+    assert gpus[1].name == "[CUDA] NVIDIA RTX 4090"
+    assert gpus[1].adapter_ram == 24576 * 1024 * 1024
+    assert gpus[1].device_id_int == 1

@@ -94002,7 +94002,7 @@ class VoiceChangerClient {
   startOutputRecording = () => this.vcInNode.startOutputRecording();
   stopOutputRecording = () => this.vcInNode.stopOutputRecording();
   getOutputBufferSize = async () => await this.vcInNode.getOutputBufferSize();
-  abortAllRequests = () => this.vcInNode.abortAllRequests();
+  abortAllRequests = () => this.vcInNode?.abortAllRequests();
   isRequestPending = () => this.vcInNode.isRequestPending();
   getPendingRequestCount = () => this.vcInNode.getPendingRequestCount();
 }
