@@ -257,6 +257,14 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
   return active;
 }
 
+export async function organizeModels(order: number[], deleteSelected: boolean, signal: AbortSignal): Promise<void> {
+  const response = await fetch('/api/slot-manager/operation/organize', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order, delete_selected: deleteSelected }),
+  });
+  await responseJson(response, signal);
+}
+
 export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal): Promise<ModelSummary> {
   if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
   if ((edits.pitchEstimator !== undefined || edits.chunkSeconds !== undefined) && await readNativeActive(signal)) throw new ApiError('active');

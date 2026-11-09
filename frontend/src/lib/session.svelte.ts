@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { operateNative, readNativeActive, updateConfiguration, updateModelSettings } from './api';
+import { operateNative, organizeModels, readNativeActive, updateConfiguration, updateModelSettings } from './api';
 import { ApiError } from './api-error';
 import { importModel } from './model-upload';
 import type { ModelCatalogState } from './catalog.svelte';
@@ -26,6 +26,8 @@ export class NativeSession {
   uploadBytes = $state(0);
   uploadTotal = $state(0);
   operation = $state<'start' | 'stop' | null>(null);
+  organizing = $state(false);
+  modelOperationError = $state<ApiError | null>(null);
   operationError = $state<ApiError | null>(null);
   private timer: ReturnType<typeof setTimeout> | undefined;
   private poll: ReturnType<typeof setTimeout> | undefined;
@@ -49,12 +51,12 @@ export class NativeSession {
   }
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
-  get canReload() { return !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
+  get canReload() { return !this.organizing && !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
   get canConfigure() {
-    return this.catalog.state.status === 'ready' && this.active === false && !this.importing && !this.operation && !this.isSaving && !this.dirty;
+    return this.catalog.state.status === 'ready' && this.active === false && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
   get canAdjustGain() {
-    return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.importing && !this.operation;
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.organizing && !this.importing && !this.operation;
   }
   get canAdjustModel() {
     return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
@@ -64,7 +66,7 @@ export class NativeSession {
     return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
   }
   get startBlockReason() {
-    if (this.importing) return 'saving';
+    if (this.importing || this.organizing) return 'saving';
     if (this.operation) return 'operation';
     if (this.catalog.state.status === 'loading') return 'loading';
     if (this.catalog.state.status === 'error') return 'load_error';
@@ -89,6 +91,23 @@ export class NativeSession {
   async mount() {
     await this.reload();
     this.schedulePoll();
+  }
+
+  async organizeModels(order: number[], deleteSelected = false): Promise<boolean> {
+    if (!this.canConfigure) return false;
+    this.organizing = true;
+    this.modelOperationError = null;
+    try {
+      await this.request(signal => organizeModels(order, deleteSelected, signal), 120_000);
+      await this.catalog.reload();
+      if (this.catalog.state.status !== 'ready') throw new ApiError('invalid_response');
+      return true;
+    } catch (error) {
+      this.modelOperationError = this.apiError(error);
+      return false;
+    } finally {
+      this.organizing = false;
+    }
   }
 
   async uploadModel(model: File, index: File | null) {
@@ -144,7 +163,7 @@ export class NativeSession {
   get canToggleRecording() {
     const settings = this.settings;
     return this.catalog.state.status === 'ready' && settings?.inputMode === 'server' && settings.recording !== null
-      && !this.importing && !this.operation && !this.isSaving && !this.dirty
+      && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty
       && this.active !== null && (settings.recording === true || settings.passThrough === false);
   }
 

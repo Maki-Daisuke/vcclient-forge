@@ -4,4 +4,4 @@
   let failedSrc = $state<string | null>(null);
 </script>
 
-<img src={src && src !== failedSrc ? src : placeholderUrl} {alt} onerror={() => failedSrc = src} />
+<img src={src && src !== failedSrc ? src : placeholderUrl} {alt} draggable="false" onerror={() => failedSrc = src} />

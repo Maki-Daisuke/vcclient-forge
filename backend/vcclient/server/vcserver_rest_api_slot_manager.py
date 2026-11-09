@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from vcclient.logger import logger
 from vcclient.server.server_const import UPLOAD_DIR
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
+from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.data_types.slot_manager_data_types import (
     ModelImportParam,
     ModelImportParamMember,
@@ -13,9 +15,17 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import (
     SlotInfo,
     SlotInfoMember,
 )
+from vcclient.voice_changer.slot_manager.reorder_transaction import ModelTransaction, ModelTransactionError
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
+from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-from vcclient.voice_changer.voice_changer_const import MAX_SLOT_INDEX
+from vcclient.voice_changer.voice_changer_const import MAX_SLOT_INDEX, ConfigFile, ModelDir
+
+
+class OrganizeModelsParam(BaseModel):
+    order: list[int]
+    delete_selected: bool = False
 
 
 async def detect_model(request: Request) -> ModelImportParamMember:
@@ -51,6 +61,7 @@ class RestAPISlotManager:
     def __init__(self):
         self.router = APIRouter()
         self.router.route_class = ValidationErrorLoggingRoute
+        self.router.add_api_route("/api/slot-manager/operation/organize", self.organize_models, methods=["POST"])
         self.router.add_api_route("/api/slot-manager/slots", self.get_slots, methods=["GET"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.get_slot, methods=["GET"])
         self.router.add_api_route("/api/slot-manager/slots", self.post_slot, methods=["POST"])
@@ -69,6 +80,47 @@ class RestAPISlotManager:
             slot_manager.reload()
         slots = slot_manager.get_slot_infos()
         return slots
+
+    def organize_models(self, param: OrganizeModelsParam):
+        local = LocalVoiceChangerInterface.get_instance()
+        with local.lifecycle_lock:
+            if local.local_voice_changer_enabled or local.stream_running:
+                raise HTTPException(status_code=409, detail="Audio must be stopped before organizing models")
+            manager = SlotManager.get_instance()
+            configuration = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            voice = VoiceChanger.get_instance()
+            if voice.is_convert_chunk_bulk_started():
+                raise HTTPException(status_code=409, detail="Audio conversion is still running")
+            if voice.vc_pipeline is not None and not isinstance(voice.vc_pipeline, RVCPipeline):
+                raise HTTPException(status_code=409, detail="Unsupported active model pipeline")
+            slots = [slot for slot in manager.get_slot_infos() if slot.voice_changer_type is not None]
+            if any(slot.voice_changer_type == "RESERVED_FOR_SAMPLE" for slot in slots):
+                raise HTTPException(status_code=409, detail="A model import is in progress")
+            originals = [slot.slot_index for slot in slots]
+            selected = configuration.current_slot_index
+            expected = set(originals)
+            if param.delete_selected:
+                if selected not in expected:
+                    raise HTTPException(status_code=409, detail="No selected model to delete")
+                expected.remove(selected)
+            if len(param.order) != len(expected) or set(param.order) != expected:
+                raise HTTPException(status_code=409, detail="Model list changed; reload before trying again")
+            try:
+                new_selected = ModelTransaction(ModelDir, ConfigFile).apply(originals, param.order, selected)
+            except (ModelTransactionError, OSError, ValueError) as error:
+                logger.error("Could not organize models: %s", error, exc_info=True)
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            manager.reload()
+            configuration.current_slot_index = new_selected
+            if new_selected == -1:
+                voice.vc_pipeline = None
+                voice.vc_info.voice_changer_type = None
+                voice.vc_info.pitch_estimator_type = None
+                voice.vc_info.pipeline_info = None
+            elif isinstance(voice.vc_pipeline, RVCPipeline):
+                voice.vc_pipeline.slot_index = new_selected
+            voice.vc_info.slot_index = new_selected
+            return {"current_slot_index": new_selected}
 
     def get_slot(self, index: int, reload: bool = False):
         validate_slot_index(index)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from queue import Empty, Queue
+from threading import RLock
 from typing import Any
 
 import numpy as np
@@ -56,6 +57,8 @@ class LocalVoiceChangerInterface(EventEmitter):
         super().__init__()
         self.stop_flag = True
         self.local_voice_changer_enabled = False
+        self.lifecycle_lock = RLock()
+        self.stream_running = False
         self.dummy_input_queue: Queue[np.ndarray] = Queue()
         self.out_queue = Queue()
         self.monitor_queue = Queue()
@@ -144,21 +147,35 @@ class LocalVoiceChangerInterface(EventEmitter):
         self.output_volume_calculation_buffer = []
 
     def start(self) -> None:
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        if conf.audio_input_device_index == -1:
-            raise VCClientError(ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED)
-        if conf.audio_output_device_index == -1:
-            raise VCClientError(ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED)
-        self.local_voice_changer_enabled = True
+        with self.lifecycle_lock:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            if conf.audio_input_device_index == -1:
+                raise VCClientError(ERROR_CODE_AUDIO_INPUT_DEVICE_NOT_SELECTED)
+            if conf.audio_output_device_index == -1:
+                raise VCClientError(ERROR_CODE_AUDIO_OUTPUT_DEVICE_NOT_SELECTED)
+            self.local_voice_changer_enabled = True
 
     def stop(self) -> None:
-        self.local_voice_changer_enabled = False
-        self.vc = VoiceChanger.get_instance()
-        self.vc.stop_convert_chunk_bulk()
+        with self.lifecycle_lock:
+            self.local_voice_changer_enabled = False
+            self.vc = VoiceChanger.get_instance()
+            self.vc.stop_convert_chunk_bulk()
 
     def run(self) -> None:
-        self.setup()
-        self.launch_converter()
+        with self.lifecycle_lock:
+            if not self.local_voice_changer_enabled:
+                return
+            self.stream_running = True
+            try:
+                self.setup()
+            except BaseException:
+                self.stream_running = False
+                raise
+        try:
+            self.launch_converter()
+        finally:
+            with self.lifecycle_lock:
+                self.stream_running = False
 
     def setup(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()

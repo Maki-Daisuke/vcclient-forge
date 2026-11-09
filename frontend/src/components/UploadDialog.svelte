@@ -58,7 +58,7 @@
   }
 </script>
 
-<PreviewDialog title={ui.t('common.model_upload.title')} disabled={!session.canConfigure && !session.importing}>
+<PreviewDialog title={ui.t('common.model_upload.title')} disabled={!session.canConfigure && !session.importing} showCloseButton={false}>
   {#snippet trigger()}<Upload size={16} />{ui.t('common.model.upload.button')}{/snippet}
   {#if session.uploadStatus === 'success'}
     <p role="status">{ui.t('forge.upload_success')}</p>

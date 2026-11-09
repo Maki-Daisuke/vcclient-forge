@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 test('renders models, metadata, and the selected portrait using sparse slot IDs', async ({ page }) => {
   await mockCatalog(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'モデル選択 保存済み 2 枠' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'モデル選択', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
   await expect(page.locator('.model-card')).toHaveCount(2);
   await expect(page.locator('.model-name')).toHaveText(['Test model A', 'Test model B']);
@@ -17,7 +17,7 @@ test('renders models, metadata, and the selected portrait using sparse slot IDs'
   await expect(page.locator('.tags')).toContainText('pth v1');
   await expect(page.locator('.tags')).toContainText('non-f0');
   await expect(page.locator('.portrait img')).toHaveAttribute('src', '/model_dir/7/portrait%20%231.png');
-  await expect(page.locator('.models-panel .count')).toHaveText('保存済み 2 枠');
+  await expect(page.locator('.models-panel .count')).toHaveCount(0);
   await page.getByRole('button', { name: '編集', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('textbox', { name: '名前', exact: true })).toHaveValue('Test model B');
   await expect(page.getByRole('dialog').getByRole('textbox', { name: '説明', exact: true })).toHaveCount(0);

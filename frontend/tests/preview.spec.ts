@@ -119,7 +119,7 @@ test('controls remain usable when storage access throws', async ({ page }) => {
 test('dialogs open, trap focus, close with Escape, and restore focus', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
-  for (const name of ['モデル管理', 'アップロード', '編集', '詳細設定', 'キー設定', 'ログ', 'このアプリについて']) {
+  for (const name of ['アップロード', '編集', '詳細設定', 'キー設定', 'ログ', 'このアプリについて']) {
     const trigger = page.getByRole('button', { name, exact: true });
     await trigger.click();
     const dialog = page.getByRole('dialog');
@@ -139,11 +139,12 @@ test('dialogs open, trap focus, close with Escape, and restore focus', async ({ 
 
 test('nested model dialogs restore their parent', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'モデル管理', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'サンプルモデル', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'サンプルモデル一覧' })).toBeVisible();
+  await page.getByRole('button', { name: '編集', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'モデルを削除', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'このモデルを削除しますか？' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'モデル管理' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'このモデルを削除しますか？' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'モデルを削除', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });

@@ -60,6 +60,14 @@ real backend, but did not specify the model format or whether an index was inclu
 The user confirmed importing a model from a ZIP and using it for voice conversion;
 the ZIP's model format and index presence were not specified.
 
+While native audio is stopped, the selected model can be deleted from its edit
+dialog after confirmation. Deletion clears the selection and compacts the
+remaining model directories. The model selection screen can reorder cards by
+dragging; Apply writes the new order. Reload and upload are hidden while
+reordering, which is currently restricted to stopped audio. A backend journal recovers interrupted
+directory moves on the next startup. Browser tests use a mocked backend.
+Do not use multiple tabs to operate the application at the same time.
+
 Run commands from the repository root:
 
 ```sh

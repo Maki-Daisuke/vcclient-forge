@@ -66,6 +66,15 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 4. Deliver the Minimal Svelte 5 Native-Audio UI
 
+- **Model deletion and reordering**: The Svelte UI can delete the selected model
+  after confirmation or reorder models using drag-and-drop.
+  Both operations currently require stopped audio. The backend compacts model
+  directories, updates the selected slot and pipeline reference, and uses a
+  journal to recover interrupted moves during startup. Operation assumes a
+  single interactive client; concurrent multi-tab use is not supported.
+  Automated coverage uses temporary files and mocked browser APIs. The user has
+  confirmed reordering and model deletion against the running backend.
+
 - **Appearance scaffold implemented (2026-11-06)**: `frontend/` has a standalone
   Svelte 5/Vite preview of the v2.1.4 layout using Bits UI, sample data, disabled
   backend controls, navigable dialogs, themes, and the 13 community translation
