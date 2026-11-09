@@ -49,6 +49,7 @@ from .vc_pipelines.pipeline_manager import PipelineManager
 from .vc_pipelines.vc_pipeline import VCPipeline
 
 PerformanceListener = Callable[[PerformanceData], None]
+SILENCE_SKIP_DELAY_SEC = 0.2
 
 
 class VoiceChanger(EventEmitter):
@@ -367,7 +368,7 @@ class VoiceChanger(EventEmitter):
 
     waveform_rest: np.ndarray = np.array([])
     convert_chunk_bulk_queue_in: Queue[np.ndarray] = Queue()
-    convert_chunk_bulk_queue_out: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
+    convert_chunk_bulk_queue_out: Queue[tuple[np.ndarray | None, PerformanceData | None]] = Queue()
     convert_chunk_bulk_queue_monitor: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
 
     def is_convert_chunk_bulk_started(self) -> bool:
@@ -423,13 +424,14 @@ class VoiceChanger(EventEmitter):
                 accumulated_performance_data_num = 0
                 for _i in range(out_ready_size):
                     converted_waveform, performance_data = self.convert_chunk_bulk_queue_out.get()
-                    converted_waveforms.append(converted_waveform)
+                    if converted_waveform is not None:
+                        converted_waveforms.append(converted_waveform)
                     if performance_data is not None:
                         performance_dict = performance_data.model_dump()
                         for k, v in performance_dict.items():
                             setattr(accumulated_performance_data, k, getattr(accumulated_performance_data, k) + v)
                         accumulated_performance_data_num += 1
-                output = np.concatenate(converted_waveforms)
+                output = np.concatenate(converted_waveforms) if converted_waveforms else None
                 if accumulated_performance_data_num > 0:
                     for k, v in accumulated_performance_data.model_dump().items():
                         setattr(accumulated_performance_data, k, v / accumulated_performance_data_num)
@@ -458,6 +460,8 @@ class VoiceChanger(EventEmitter):
             raise e
 
     def convert_chunk_bulk_internal(self) -> None:
+        silent_input_samples = 0
+        monitor_silent_input_samples = 0
         while True:
             try:
                 if self.vc_info.bulk_process_start_flag is False:
@@ -468,9 +472,27 @@ class VoiceChanger(EventEmitter):
                     return None
                 w = self.convert_chunk_bulk_queue_in.get(timeout=0.5)
                 converted, converted_for_monitor, performance_data = self.convert_chunk(w)
-                self.convert_chunk_bulk_queue_out.put((converted, performance_data))
-                if converted_for_monitor is not None:
+                silence_delay_samples = round(self.input_sample_rate * SILENCE_SKIP_DELAY_SEC)
+                if np.any(converted):
+                    silent_input_samples = 0
+                    self.convert_chunk_bulk_queue_out.put((converted, performance_data))
+                else:
+                    if silent_input_samples < silence_delay_samples:
+                        self.convert_chunk_bulk_queue_out.put((converted, performance_data))
+                    elif performance_data is not None:
+                        # Keep performance notifications without queueing silent audio.
+                        self.convert_chunk_bulk_queue_out.put((None, performance_data))
+                    silent_input_samples += len(w)
+
+                if converted_for_monitor is None:
+                    monitor_silent_input_samples = 0
+                elif np.any(converted_for_monitor):
+                    monitor_silent_input_samples = 0
                     self.convert_chunk_bulk_queue_monitor.put((converted_for_monitor, performance_data))
+                else:
+                    if monitor_silent_input_samples < silence_delay_samples:
+                        self.convert_chunk_bulk_queue_monitor.put((converted_for_monitor, performance_data))
+                    monitor_silent_input_samples += len(w)
             except Empty:
                 pass
             except Exception as e:

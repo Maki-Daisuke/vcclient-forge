@@ -29,6 +29,7 @@ def _create_mock_pipeline() -> RVCPipeline:
     pipeline.index_data = None
     pipeline.prev_vol = 0
     pipeline.is_gate_open = True
+    pipeline.noise_gate_below_threshold_samples = 0
 
     pipeline.pitch_estimator = MagicMock()
     pipeline.pitch_estimator.estimate.return_value = (None, None)
@@ -107,9 +108,12 @@ def test_noise_gate_hysteresis_open_and_close_behavior():
         assert pipeline.is_gate_open is True
         assert pipeline.rvc.infer.called
 
-        # 5. Input at -48 dB (< -45 dB Close Threshold): Should CLOSE
+        # 5. Input below the close threshold is held open for at least 200 ms.
         pipeline.rvc.infer.reset_mock()
         audio_minus_48db = np.ones(4000, dtype=np.float32) * (10 ** (-48.0 / 20.0))
+        pipeline.run(audio_minus_48db, real_crossfade_sec=0.0)
+        assert pipeline.is_gate_open is True
+        pipeline.rvc.infer.reset_mock()
         out = pipeline.run(audio_minus_48db, real_crossfade_sec=0.0)
         assert pipeline.is_gate_open is False
         assert np.all(out == 0.0)
@@ -119,7 +123,7 @@ def test_noise_gate_hysteresis_open_and_close_behavior():
 
 
 def test_noise_gate_zero_volume_closes_gate():
-    """Verify that pure zero input (-inf dB) properly closes an active gate."""
+    """Verify that pure zero input closes the gate after the hold."""
     conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
     original_gate = conf.noise_gate
     conf.noise_gate = -40.0
@@ -129,9 +133,38 @@ def test_noise_gate_zero_volume_closes_gate():
         pipeline.is_gate_open = True  # Initially open
 
         zero_audio = np.zeros(4000, dtype=np.float32)
+        pipeline.run(zero_audio, real_crossfade_sec=0.0)
+        assert pipeline.is_gate_open is True
         out = pipeline.run(zero_audio, real_crossfade_sec=0.0)
 
         assert pipeline.is_gate_open is False
         assert np.all(out == 0.0)
     finally:
         conf.noise_gate = original_gate
+
+
+def test_noise_gate_hold_resets_when_level_recovers():
+    pipeline = _create_mock_pipeline()
+    threshold = -40.0
+    # 100 ms below the close threshold, then recovery in the hysteresis band.
+    pipeline._update_noise_gate(-50.0, threshold, 1600)
+    pipeline._update_noise_gate(-42.0, threshold, 1600)
+    assert pipeline.noise_gate_below_threshold_samples == 0
+    for _ in range(2):
+        pipeline._update_noise_gate(-50.0, threshold, 1600)
+        assert pipeline.is_gate_open
+    pipeline._update_noise_gate(-50.0, threshold, 1600)
+    assert not pipeline.is_gate_open
+    # Opening still uses the original open threshold.
+    pipeline._update_noise_gate(-42.0, threshold, 1600)
+    assert not pipeline.is_gate_open
+    pipeline._update_noise_gate(-40.0, threshold, 1600)
+    assert pipeline.is_gate_open
+
+
+def test_disabling_noise_gate_resets_hold():
+    pipeline = _create_mock_pipeline()
+    pipeline._update_noise_gate(-50.0, -40.0, 1600)
+    pipeline._update_noise_gate(-100.0, -100.0, 1600)
+    assert pipeline.is_gate_open
+    assert pipeline.noise_gate_below_threshold_samples == 0

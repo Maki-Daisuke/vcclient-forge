@@ -25,6 +25,8 @@ from ..inferencer.rvc_inferencer import RVCInferencer
 from ..pitch_estimator.pitch_estimator_manager import PitchEstimatorManager
 from .vc_pipeline import VCPipeline
 
+NOISE_GATE_HOLD_SEC = 0.2
+
 
 class RVCPipeline(VCPipeline):
     processing_window: int = 160
@@ -84,6 +86,7 @@ class RVCPipeline(VCPipeline):
             self.feature_buffer = np.zeros((1, 1, 256), dtype=np.float64)
         self.prev_vol = 0
         self.is_gate_open: bool = True
+        self.noise_gate_below_threshold_samples = 0
 
     @property
     def slot_info(self) -> RVCSlotInfo:
@@ -193,6 +196,24 @@ class RVCPipeline(VCPipeline):
             real_convert_size,
         )
 
+    def _update_noise_gate(self, vol_db: float, threshold_db: float, sample_count: int) -> None:
+        if threshold_db <= -100.0:
+            self.is_gate_open = True
+            self.noise_gate_below_threshold_samples = 0
+        elif not self.is_gate_open:
+            if vol_db >= threshold_db:
+                self.is_gate_open = True
+                self.noise_gate_below_threshold_samples = 0
+        elif vol_db < threshold_db - 5.0:
+            hold_samples = round(NOISE_GATE_HOLD_SEC * self.get_input_sample_rate())
+            if self.noise_gate_below_threshold_samples >= hold_samples:
+                self.is_gate_open = False
+                self.noise_gate_below_threshold_samples = 0
+            else:
+                self.noise_gate_below_threshold_samples += sample_count
+        else:
+            self.noise_gate_below_threshold_samples = 0
+
     def run(self, audio: np.ndarray, real_crossfade_sec: float) -> np.ndarray:
         if not isinstance(audio, np.ndarray):
             raise TypeError(f"audio must be a numpy array, got {type(audio).__name__}")
@@ -217,18 +238,7 @@ class RVCPipeline(VCPipeline):
         else:
             vol_db = 20 * np.log10(vol / reference_volume)
 
-        # Noise gate with hysteresis (Open / Close threshold)
-        if conf.noise_gate <= -100.0:
-            self.is_gate_open = True
-        else:
-            open_threshold = conf.noise_gate
-            close_threshold = conf.noise_gate - 5.0
-            if not self.is_gate_open:
-                if vol_db >= open_threshold:
-                    self.is_gate_open = True
-            else:
-                if vol_db < close_threshold:
-                    self.is_gate_open = False
+        self._update_noise_gate(vol_db, conf.noise_gate, input_sample_num)
 
         if not self.is_gate_open:
             logger.debug(

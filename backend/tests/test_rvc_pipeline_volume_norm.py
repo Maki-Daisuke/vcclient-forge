@@ -29,6 +29,7 @@ def _create_mock_pipeline() -> RVCPipeline:
     pipeline.feature_buffer = None
     pipeline.index_data = None
     pipeline.is_gate_open = True
+    pipeline.noise_gate_below_threshold_samples = 0
 
     pipeline.pitch_estimator = MagicMock()
     pipeline.pitch_estimator.estimate.return_value = (None, None)
