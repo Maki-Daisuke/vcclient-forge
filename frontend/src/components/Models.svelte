@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Trash2, Pencil, RefreshCw } from '@lucide/svelte';
   import { Dialog } from 'bits-ui';
+  import { untrack } from 'svelte';
   import PreviewDialog from './PreviewDialog.svelte';
   import UploadDialog from './UploadDialog.svelte';
   import CatalogStatus from './CatalogStatus.svelte';
@@ -15,6 +16,10 @@
   const session = useSession();
   const currentModel = $derived(session.currentModel);
   let editOpen = $state(false);
+  let editModelId = $state<number | null>(null);
+  let editName = $state('');
+  let editIcon = $state<File | null>(null);
+  let iconPreviewUrl = $state<string | null>(null);
   let confirmOpen = $state(false);
   let reordering = $state(false);
   let order = $state<number[]>([]);
@@ -23,6 +28,31 @@
     ? order.map(id => catalog.models.find(model => model.id === id)).filter((model): model is ModelSummary => model !== undefined)
     : catalog.models);
   const deleteReason = $derived(session.active === true ? ui.t('forge.delete_stop_first') : ui.t('forge.model_operation_wait'));
+  const validIcon = $derived(!editIcon || (editIcon.size > 0 && /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(editIcon.name)
+    && (!editIcon.type || editIcon.type.startsWith('image/'))));
+  const editChanged = $derived(editName !== (currentModel?.name ?? '') || editIcon !== null);
+
+  $effect(() => {
+    if (editOpen) {
+      const model = untrack(() => session.currentModel);
+      editModelId = model?.id ?? null;
+      editName = model?.name ?? '';
+      editIcon = null;
+      session.modelInfoError = null;
+    }
+  });
+
+  $effect(() => {
+    const file = editOpen && validIcon ? editIcon : null;
+    const url = file ? URL.createObjectURL(file) : null;
+    iconPreviewUrl = url;
+    return () => { if (url) URL.revokeObjectURL(url); };
+  });
+
+  async function saveModelInfo() {
+    if (editModelId === null || !validIcon || !editChanged || !editName.trim()) return;
+    if (await session.saveModelInfo(editModelId, editName, editIcon)) editOpen = false;
+  }
 
   function beginReorder() {
     if (!session.canConfigure) return;
@@ -114,10 +144,15 @@
       {#if currentModel.status !== 'ready'}<span class="tag">{ui.t(`forge.model_status_${currentModel.status}`)}</span>{/if}
     </div>
   {/if}
-  <PreviewDialog title={ui.t('forge.edit_model_info')} disabled={!currentModel} showCloseButton={false} bind:open={editOpen}>
+  <PreviewDialog title={ui.t('forge.edit_model_info')} disabled={!currentModel} showCloseButton={false} preventClose={session.modelInfoSaving} bind:open={editOpen}>
     {#snippet trigger()}<Pencil size={15} />{ui.t('common.model.edit.button')}{/snippet}
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input disabled value={currentModel?.name ?? ''} /></label>
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept="image/*" disabled /></label>
+    <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input bind:value={editName} disabled={!session.canConfigure || currentModel?.status !== 'ready'} /></label>
+    <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.bmp" disabled={!session.canConfigure || currentModel?.status !== 'ready'} onchange={event => { editIcon = event.currentTarget.files?.[0] ?? null; }} /></label>
+    {#if iconPreviewUrl}<img class="model-icon-preview" src={iconPreviewUrl} alt={ui.t('common.voice_character_edit_dialog.new_icon')} />{/if}
+    {#if !validIcon}<p role="alert">{ui.t('forge.model_icon_invalid')}</p>{/if}
+    {#if !session.modelInfoSaving && session.active === true}<p class="muted">{ui.t('forge.model_edit_stop_first')}</p>{/if}
+    {#if session.modelInfoError}<p role="alert">{ui.t('forge.model_info_save_failed')}</p>{/if}
+    {#if session.modelInfoSaving}<p role="status">{ui.t('forge.model_info_saving')}</p>{/if}
     {#snippet footer()}
     <Dialog.Root bind:open={confirmOpen}>
       <span class="start-button-wrapper delete-button-wrapper">
@@ -142,8 +177,8 @@
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <button class="button primary" disabled>{ui.t('common.voice_character_editor.save')}</button>
-    <Dialog.Close class="button">{ui.t('forge.cancel')}</Dialog.Close>
+    <button class="button primary model-save" disabled={!session.canConfigure || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
+    <Dialog.Close class="button" disabled={session.modelInfoSaving}>{ui.t('forge.cancel')}</Dialog.Close>
     {/snippet}
   </PreviewDialog>
 </div>

@@ -11,7 +11,7 @@ async function checkedJson(response: Response): Promise<unknown> {
   try { return await response.json(); } catch { throw new ApiError('invalid_response'); }
 }
 
-async function uploadFile(file: File, extension: string, signal: AbortSignal, progress: (bytes: number) => void): Promise<string> {
+export async function uploadFile(file: File, extension: string, signal: AbortSignal, progress: (bytes: number) => void): Promise<string> {
   // A unique, short name prevents collisions and satisfies the importer's filename limit.
   const filename = `${crypto.randomUUID()}${extension}`;
   const count = Math.ceil(file.size / chunkSize);

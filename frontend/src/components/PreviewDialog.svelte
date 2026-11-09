@@ -4,8 +4,8 @@
   import type { Snippet } from 'svelte';
   import { useUi } from '../lib/ui.svelte';
 
-  let { title, trigger, children, footer, wide = false, disabled = false, showCloseButton = true, description, open = $bindable(false) }: {
-    title: string; trigger: Snippet; children: Snippet; footer?: Snippet; wide?: boolean; disabled?: boolean; showCloseButton?: boolean; description?: string; open?: boolean;
+  let { title, trigger, children, footer, wide = false, disabled = false, showCloseButton = true, preventClose = false, description, open = $bindable(false) }: {
+    title: string; trigger: Snippet; children: Snippet; footer?: Snippet; wide?: boolean; disabled?: boolean; showCloseButton?: boolean; preventClose?: boolean; description?: string; open?: boolean;
   } = $props();
   const ui = useUi();
 </script>
@@ -14,7 +14,9 @@
   <Dialog.Trigger class="button" {disabled}>{@render trigger()}</Dialog.Trigger>
   <Dialog.Portal>
     <Dialog.Overlay class="dialog-overlay" />
-    <Dialog.Content class={`dialog-content ${wide ? 'dialog-wide' : ''}`}>
+    <Dialog.Content class={`dialog-content ${wide ? 'dialog-wide' : ''}`}
+      onEscapeKeydown={(event) => { if (preventClose) event.preventDefault(); }}
+      onInteractOutside={(event) => { if (preventClose) event.preventDefault(); }}>
       <header class="dialog-header">
         <Dialog.Title class="dialog-title">{title}</Dialog.Title>
         {#if showCloseButton}<Dialog.Close class="icon-button" aria-label={ui.t('forge.close')}><X size={20} /></Dialog.Close>{/if}

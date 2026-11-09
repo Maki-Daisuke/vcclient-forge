@@ -265,6 +265,37 @@ export async function organizeModels(order: number[], deleteSelected: boolean, s
   await responseJson(response, signal);
 }
 
+export async function readModel(id: number, signal: AbortSignal): Promise<ModelSummary> {
+  if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
+  const model = parseModel(object(await getJson(`/api/slot-manager/slots/${id}`, signal)));
+  if (model.id !== id || model.status !== 'ready') invalidResponse();
+  return model;
+}
+
+export async function setModelIcon(id: number, filename: string, signal: AbortSignal): Promise<ModelSummary> {
+  await responseJson(await fetch('/api/slot-manager/slots/operation/set_icon_file', {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slot_index: id, icon_file: filename }),
+  }), signal);
+  const model = await readModel(id, signal);
+  if (model.imageUrl !== modelImage(id, filename)) throw new ApiError('not_applied');
+  return model;
+}
+
+export async function setModelName(id: number, name: string, signal: AbortSignal): Promise<ModelSummary> {
+  const url = `/api/slot-manager/slots/${id}`;
+  const slot = object(await getJson(url, signal));
+  const before = parseModel(slot);
+  if (before.id !== id || before.status !== 'ready') invalidResponse();
+  await responseJson(await fetch(url, {
+    method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...slot, name }),
+  }), signal);
+  const result = await readModel(id, signal);
+  if (result.name !== name) throw new ApiError('not_applied');
+  return result;
+}
+
 export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal): Promise<ModelSummary> {
   if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
   if ((edits.pitchEstimator !== undefined || edits.chunkSeconds !== undefined) && await readNativeActive(signal)) throw new ApiError('active');

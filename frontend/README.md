@@ -22,7 +22,7 @@ The UI prevents enabling passthrough during recording because the existing backe
 does not collect input audio in that mode. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
 retry is not guaranteed to recover audio. Real recording has not been verified.
-Model metadata editing, Client Mode audio, and other unconnected settings controls remain disabled.
+Client Mode audio and other unconnected settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
@@ -67,6 +67,15 @@ dragging; Apply writes the new order. Reload and upload are hidden while
 reordering, which is currently restricted to stopped audio. A backend journal recovers interrupted
 directory moves on the next startup. Browser tests use a mocked backend.
 Do not use multiple tabs to operate the application at the same time.
+
+While audio is stopped, the edit dialog can save the selected model's name and
+icon using the existing slot and uploader APIs. Supported icons are PNG, JPEG,
+WebP, GIF, AVIF, and BMP. Name and icon updates are separate operations: a
+failure can leave one change applied, so the UI retains the draft and refreshes
+the model when possible. Existing uploader APIs can leave temporary files after
+interrupted uploads, and replacing an icon does not remove the previous file.
+Browser tests mock the APIs. The user confirmed that the display changed after
+editing; the specific fields and persistence after restart were not specified.
 
 Run commands from the repository root:
 

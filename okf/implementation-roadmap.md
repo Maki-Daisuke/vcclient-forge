@@ -66,6 +66,12 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 4. Deliver the Minimal Svelte 5 Native-Audio UI
 
+- **Model information editing**: The selected model's name and icon can be saved
+  through existing uploader and slot APIs while audio is stopped. The UI keeps
+  drafts on failure and refreshes the model when possible because icon and name
+  are saved separately. Browser tests mock the APIs. The user confirmed that
+  the display changed after editing; fields and persistence were not specified.
+
 - **Model deletion and reordering**: The Svelte UI can delete the selected model
   after confirmation or reorder models using drag-and-drop.
   Both operations currently require stopped audio. The backend compacts model
