@@ -70,7 +70,8 @@ test('initialization only reads backend data and keeps browser audio and device 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect([...new Set(backendRequests.map(url => new URL(url).pathname))].sort()).toEqual([
     '/api/audio-device-manager/input_devices', '/api/audio-device-manager/output_devices',
-    '/api/configuration-manager/configuration', '/api/local-voice-changer-interface/information', '/api/slot-manager/slots',
+    '/api/configuration-manager/configuration', '/api/gpu-device-manager/devices',
+    '/api/local-voice-changer-interface/information', '/api/slot-manager/slots',
   ]);
   expect(errors).toEqual([]);
 });

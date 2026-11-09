@@ -42,8 +42,14 @@ a live backend during conversion.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
 independent expandable sections. Server Mode can be selected from Client Mode;
-switching back to Client Mode is not connected yet. Sample rates and preferred device
-remain read-only.
+switching back to Client Mode is not connected yet. Sample rates remain read-only.
+The preferred inference device uses the backend compute-device list and can be changed
+while Server Mode audio is stopped. The full configuration is read and preserved when
+saving. The UI reads the configuration back and, when a model is selected, checks
+the reported pipeline device ID. This does not verify the actual execution providers. Device
+list failures do not prevent other controls from loading; Reload retries the list.
+The user confirmed device switching with the live backend; conversion after switching
+has not yet been confirmed.
 Chunk, extra frame, and crossfade durations use logarithmic sliders with
 display ranges of 0.05–5, 0.01–10, and 0.01–0.15 seconds respectively; crossfade
 also allows zero. Values

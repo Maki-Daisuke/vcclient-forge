@@ -85,7 +85,8 @@ test('existing configuration and selected model values populate controls without
   await expect(dialog.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true })).toContainText('未選択');
   await expect(dialog.getByRole('combobox', { name: '入力デバイスのサンプルレート', exact: true })).toContainText('44100 Hz');
   await expect(dialog.getByRole('combobox', { name: 'モニターデバイスのサンプルレート', exact: true })).toContainText('自動');
-  await expect(dialog.getByRole('combobox', { name: '優先デバイス', exact: true })).toContainText('GPU #2');
+  await expect(dialog.getByRole('combobox', { name: '優先デバイス', exact: true })).toHaveValue('2');
+  await expect(dialog.getByRole('combobox', { name: '優先デバイス', exact: true }).locator('option:checked')).toHaveText('[DirectML] Test GPU');
   await expect(dialog.getByRole('checkbox', { name: 'WASAPI排他モードを有効にする' })).toBeChecked();
   await expect(dialog.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeChecked();
   await expect(dialog.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' })).not.toBeChecked();

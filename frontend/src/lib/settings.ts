@@ -56,6 +56,7 @@ export interface ConfigurationEdits {
   inputDeviceRate?: number;
   outputDeviceRate?: number;
   monitorDeviceRate?: number;
+  gpuDevice?: number;
   wasapiExclusive?: boolean;
   extraSeconds?: number;
   crossfadeSeconds?: number;

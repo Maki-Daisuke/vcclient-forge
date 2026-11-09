@@ -4,7 +4,7 @@
   import NoiseSettings from './NoiseSettings.svelte';
   import RangeField from './RangeField.svelte';
   import LogSlider from './LogSlider.svelte';
-  import SelectField from './SelectField.svelte';
+  import ComputeDeviceField from './ComputeDeviceField.svelte';
   import SettingsStatus from './SettingsStatus.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
@@ -128,7 +128,7 @@
     <details class="control-group" use:initializeSection={'inference'} ontoggle={event => saveSection('inference', event)}>
       <summary><Cpu size={17} />{ui.t('forge.inference_settings')}</summary>
       <div class="control-group-body">
-        <SelectField label={ui.t('forge.preferred_device')} value={settings?.gpuDevice === null || settings?.gpuDevice === undefined ? '—' : settings.gpuDevice < 0 ? 'CPU' : ui.t('forge.gpu_id', { id: settings.gpuDevice })} />
+        <ComputeDeviceField />
         <div class="field-grid">
           <LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
             disabled={!session.canConfigure || settings?.inputMode !== 'server' || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} />

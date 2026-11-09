@@ -182,12 +182,28 @@ export async function loadAudioDevices(signal: AbortSignal): Promise<AudioDevice
   return { input: parseDevices(input), output: parseDevices(output) };
 }
 
+export interface ComputeDevice { id: number; name: string }
+
+export async function loadComputeDevices(signal: AbortSignal): Promise<ComputeDevice[]> {
+  const value = await getJson('/api/gpu-device-manager/devices', signal);
+  if (!Array.isArray(value)) invalidResponse();
+  const ids = new Set<number>();
+  return value.map(item => {
+    const device = object(item);
+    if (!Number.isSafeInteger(device.id) || (device.id as number) < 0 || ids.has(device.id as number)) invalidResponse();
+    if (typeof device.name !== 'string' || !device.name.trim()) invalidResponse();
+    const id = device.id as number;
+    ids.add(id);
+    return { id, name: device.name };
+  });
+}
+
 const editFields: Record<keyof ConfigurationEdits, string> = {
   currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode', passThrough: 'pass_through', recording: 'recording_started',
   inputDevice: 'audio_input_device_index', outputDevice: 'audio_output_device_index',
   monitorDevice: 'audio_monitor_device_index',
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
-  monitorDeviceRate: 'audio_monitor_device_sample_rate',
+  monitorDeviceRate: 'audio_monitor_device_sample_rate', gpuDevice: 'gpu_device_id_int',
   wasapiExclusive: 'wasapi_exclude_emabled',
   extraSeconds: 'extra_frame_sec',
   crossfadeSeconds: 'crossfade_sec',
@@ -254,6 +270,11 @@ export async function updateConfiguration(edits: ConfigurationEdits, signal: Abo
   if (edits.recording !== undefined) {
     const info = object(await getJson('/api/voice-changer-manager/information', signal));
     if (object(info.voice_changer_information).recording_start_flag !== edits.recording) throw new ApiError('not_applied');
+  }
+  if (edits.gpuDevice !== undefined && snapshot.currentModelId !== null) {
+    const info = object(await getJson('/api/voice-changer-manager/information', signal));
+    const voice = object(info.voice_changer_information);
+    if (voice.slot_index !== snapshot.currentModelId || voice.gpu_device_index !== edits.gpuDevice) throw new ApiError('not_applied');
   }
   return snapshot;
 }

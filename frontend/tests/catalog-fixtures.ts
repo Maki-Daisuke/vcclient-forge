@@ -45,6 +45,12 @@ export const configuration = {
   realtime_process_status_send_interval_sec: 2.2,
 };
 
+export const computeDevices = [
+  { id: 0, name: 'CPU' },
+  { id: 1, name: '[CUDA] NVIDIA Test GPU' },
+  { id: 2, name: '[DirectML] Test GPU' },
+];
+
 export const inputDevices = [
   { index: 11, name: 'Other microphone', host_api: 'MME' },
   { index: 8, name: 'USB microphone', host_api: 'Windows WASAPI' },
@@ -62,6 +68,8 @@ export async function fulfillCatalog(route: Route, data: unknown = slots, curren
     await route.fulfill({ json: data });
   } else if (path === '/api/configuration-manager/configuration') {
     await route.fulfill({ json: { ...configuration, current_slot_index: currentId } });
+  } else if (path === '/api/gpu-device-manager/devices') {
+    await route.fulfill({ json: computeDevices });
   } else if (path === '/api/audio-device-manager/input_devices') {
     await route.fulfill({ json: inputDevices });
   } else if (path === '/api/audio-device-manager/output_devices') {

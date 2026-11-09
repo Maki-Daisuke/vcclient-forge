@@ -149,7 +149,12 @@ stopping audio saves the take and returns to the armed state. Passthrough is blo
 while recording is armed or active. Backend
 recordings use fixed paths and may overwrite earlier recordings; real audio testing
 remains pending.
-Client audio, sample-rate edits, and preferred-device selection remain unconnected.
+Preferred inference-device selection reads the existing compute-device catalog and saves
+the selected ID through the existing configuration API while Server Mode audio is stopped.
+The UI checks the saved configuration and the reported pipeline device ID when a model is selected.
+This does not verify the actual execution providers. The user confirmed switching
+with the live backend; conversion after switching has not yet been confirmed.
+Client audio and sample-rate edits remain unconnected.
 Model upload uses the existing chunk uploader and slot import APIs for `.pth` and
 `.onnx` files with an optional index. Native audio must be stopped; import is
 serialized with UI settings and audio start. The user confirmed a real model upload;

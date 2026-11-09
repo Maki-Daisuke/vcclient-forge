@@ -244,6 +244,14 @@ export class NativeSession {
     if (id !== this.currentModelId) this.edit({ currentModelId: id }, true);
   }
 
+  selectComputeDevice(id: number) {
+    const devices = this.catalog.computeDeviceState;
+    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.gpuDevice === null
+      || devices.status !== 'ready' || !Number.isSafeInteger(id) || !devices.devices.some(device => device.id === id)
+      || id === this.settings.gpuDevice) return;
+    this.edit({ gpuDevice: id }, true);
+  }
+
   selectDevice(key: 'inputDevice' | 'outputDevice' | 'monitorDevice', id: number) {
     if (!this.canConfigure || this.settings?.inputMode !== 'server') return;
     const state = this.catalog.deviceState;
@@ -337,7 +345,7 @@ export class NativeSession {
   private async persist(sent: PendingWrite) {
     try {
       if (sent.kind === 'configuration') {
-        const confirmed = await this.request(signal => updateConfiguration(sent.edits, signal));
+        const confirmed = await this.request(signal => updateConfiguration(sent.edits, signal), sent.edits.gpuDevice !== undefined ? 120_000 : 30_000);
         if (this.disposed) return;
         this.catalog.applyConfiguration(confirmed);
         if (sent.edits.recording === false) this.recordingCompleted = true;
