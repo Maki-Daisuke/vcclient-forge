@@ -102,7 +102,7 @@
     {:else if session.uploadError}
       <p role="alert">{ui.t('forge.upload_failed')} {ui.t(`forge.write_error_${session.uploadError.code}`, { status: session.uploadError.status })} {session.uploadError.detail ?? ''}</p>
     {/if}
-    <button class="button primary" disabled={!valid || !session.canConfigure || inspecting || extracting} onclick={submit}>{ui.t('common.model_upload.upload_button')}</button>
+    <button class="button primary action-primary" disabled={!valid || !session.canConfigure || inspecting || extracting} onclick={submit}>{ui.t('common.model_upload.upload_button')}</button>
   {/if}
 </PreviewDialog>
 <style>

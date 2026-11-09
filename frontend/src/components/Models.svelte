@@ -93,7 +93,7 @@
     <div class="button-row">
       {#if reordering}
         <span class="reorder-hint">{ui.t('forge.reorder_hint')}</span>
-        <button class="button primary" disabled={!session.canConfigure} onclick={applyOrder}>{ui.t('forge.reorder_confirm')}</button>
+        <button class="button primary action-primary" disabled={!session.canConfigure} onclick={applyOrder}>{ui.t('forge.reorder_confirm')}</button>
         <button class="button" disabled={session.organizing} onclick={() => { reordering = false; session.modelOperationError = null; }}>{ui.t('forge.cancel')}</button>
       {:else}
         <button class="button" disabled={!session.canReload} onclick={() => session.reload()}>
@@ -177,7 +177,7 @@
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <button class="button primary model-save" disabled={!session.canConfigure || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
+    <button class="button primary action-primary" disabled={!session.canConfigure || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
     <Dialog.Close class="button" disabled={session.modelInfoSaving}>{ui.t('forge.cancel')}</Dialog.Close>
     {/snippet}
   </PreviewDialog>
