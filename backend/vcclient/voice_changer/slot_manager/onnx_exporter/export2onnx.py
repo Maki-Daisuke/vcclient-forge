@@ -132,7 +132,7 @@ def export_pth_to_onnx(
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     with warnings.catch_warnings():
-        # PyTorch JIT Tracer / weight_norm deprecation / Constant folding などの既知の警告を抑止
+        # PyTorch JIT Tracer / Constant folding などの既知の警告を抑止
         warnings.simplefilter("ignore")
 
         cpt = torch.load(pth_file, map_location="cpu", weights_only=False)

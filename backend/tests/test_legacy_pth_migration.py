@@ -36,32 +36,28 @@ def dummy_rvc_pth(tmp_path: Path) -> Path:
         40000,  # sr
     ]
 
-    import warnings
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        model = SynthesizerTrnF0(
-            spec_channels=config[0],
-            segment_size=config[1],
-            inter_channels=config[2],
-            hidden_channels=config[3],
-            filter_channels=config[4],
-            n_heads=config[5],
-            n_layers=config[6],
-            kernel_size=config[7],
-            p_dropout=config[8],
-            resblock=config[9],
-            resblock_kernel_sizes=config[10],
-            resblock_dilation_sizes=config[11],
-            upsample_rates=config[12],
-            upsample_initial_channel=config[13],
-            upsample_kernel_sizes=config[14],
-            spk_embed_dim=config[15],
-            gin_channels=config[16],
-            sr=config[17],
-            emb_channels=768,
-            is_half=False,
-        )
+    model = SynthesizerTrnF0(
+        spec_channels=config[0],
+        segment_size=config[1],
+        inter_channels=config[2],
+        hidden_channels=config[3],
+        filter_channels=config[4],
+        n_heads=config[5],
+        n_layers=config[6],
+        kernel_size=config[7],
+        p_dropout=config[8],
+        resblock=config[9],
+        resblock_kernel_sizes=config[10],
+        resblock_dilation_sizes=config[11],
+        upsample_rates=config[12],
+        upsample_initial_channel=config[13],
+        upsample_kernel_sizes=config[14],
+        spk_embed_dim=config[15],
+        gin_channels=config[16],
+        sr=config[17],
+        emb_channels=768,
+        is_half=False,
+    )
 
     cpt = {
         "config": config,
