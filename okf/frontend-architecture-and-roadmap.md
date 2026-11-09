@@ -438,7 +438,14 @@ flowchart TD
 
 ### Step 2: Socket.IO Notifications
 
-- Connect the new UI's meters and state handling to existing Socket.IO notifications, beginning with input/output levels.
+- Input/output RMS meters are connected in the Svelte preview using the existing
+  `/test` Socket.IO `data` event while Server Mode audio is active and analysis
+  is enabled. Disconnection and stale data clear the display; browser tests
+  simulate the transport. Values and bars were also checked in the UI against
+  a live backend during conversion, and the user confirmed the meters displayed.
+  Callback overhead has not been measured, and buffer/process telemetry is not
+  connected yet.
+- Connect the new UI's remaining performance metrics and state handling to existing Socket.IO notifications.
 - Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately without changing the existing API contract.
 - Keep the existing Socket.IO API and legacy UI available. Any eventual UI removal is a separate migration decision after required assets and functionality are addressed.
 - **Acceptance**: The new UI displays native-audio notifications correctly using Socket.IO; existing clients and API behavior remain compatible.

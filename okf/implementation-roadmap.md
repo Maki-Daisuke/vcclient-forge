@@ -175,7 +175,14 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 5. Connect Socket.IO Notifications
 
-- Connect the Svelte UI to existing Socket.IO notifications, starting with input/output meters. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
+- **Input/output meters implemented**: The Svelte UI subscribes to the existing
+  Socket.IO `realtime_output_status` event while Server Mode audio is active and
+  input/output analysis is enabled. It displays RMS values, clears stale data,
+  and reconnects after disconnects. Browser tests simulate Socket.IO messages;
+  values and bars were also verified in the UI against a live backend during
+  audio conversion, and the user confirmed the meters displayed. Callback
+  overhead has not been measured. Buffer and process metrics are not connected.
+- Connect remaining performance and state notifications. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
 - Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API and legacy UI available during the transition.
 - **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.
 - **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI while existing API clients remain compatible.

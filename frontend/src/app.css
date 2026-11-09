@@ -112,6 +112,7 @@ svg { flex-shrink: 0; }
 .performance { font-size: .72rem; color: var(--muted); }
 .meter-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
 .meter { height: 14px; border: 1px solid var(--border); border-radius: 2px; background: var(--surface-soft); margin-bottom: 16px; }
+.meter > span { display: block; width: 100%; height: 100%; transform-origin: left; background: linear-gradient(to right, #4caf50, #ffc107 70%, #f44336); }
 .buffer-chart { position: relative; height: 85px; border: 1px solid var(--border); border-radius: 3px; margin: 20px 0 12px; background: repeating-linear-gradient(to bottom, transparent 0 20px, var(--border) 20px 21px); }
 .buffer-chart span { position: absolute; bottom: 3px; inset-inline-end: 5px; font-size: .65rem; }
 dl { margin: 0 0 12px; }

@@ -24,6 +24,14 @@ the backend's recording state can become inconsistent after a save error, so a
 retry is not guaranteed to recover audio. Real recording has not been verified.
 Client Mode audio and other unconnected settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
+While Server Mode audio is active and backend input/output analysis is enabled,
+the UI subscribes to the existing Socket.IO `/test` namespace and displays the
+input/output RMS levels. The subscription closes on stop and clears stale or
+disconnected values. This does not change the backend's audio callback or its
+notification settings. Buffer and processing displays are not connected yet.
+The UI was also checked against a running backend during audio conversion; the
+displayed values and bars updated, and the user confirmed the meters displayed.
+Callback overhead has not been measured.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
 independent expandable sections. Server Mode can be selected from Client Mode;

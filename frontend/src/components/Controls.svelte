@@ -9,6 +9,8 @@
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
   import { displayNumber } from '../lib/settings';
+  import { onDestroy } from 'svelte';
+  import { AudioMeters } from '../lib/audio-meters.svelte';
   const sectionNames = ['input', 'noise', 'volume', 'inference'] as const;
   type SectionName = typeof sectionNames[number];
   const storageKey = 'vcclient-forge.control-sections.v1';
@@ -39,11 +41,16 @@
   }
   const ui = useUi();
   const session = useSession();
+  const meters = new AudioMeters();
   const settings = $derived(session.settings);
   const modelSettings = $derived(session.modelSettings);
   const showStop = $derived(session.active === true || (session.active === null && session.statusError));
   const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
   const showStartMessage = $derived(!showStop && !session.canStart && !!startMessage);
+  $effect(() => {
+    meters.setEnabled(session.active === true && settings?.inputMode === 'server' && settings.ioAnalysisEnabled === true, settings?.ioAnalysisInterval ?? null);
+  });
+  onDestroy(() => meters.dispose());
   $effect(() => {
     if (session.recordingCompleted) {
       const link = document.createElement('a');
@@ -82,17 +89,19 @@
       {#if session.statusError}<p class="catalog-message" role="status">{ui.t('forge.audio_status_error')}</p>{/if}
     </div>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>
-      {#each ['input_volume', 'output_volume'] as key}
-        <div class="meter-label"><span>{ui.t(`common.controls.${key}`)}</span><span>—</span></div>
-        <div class="meter" aria-hidden="true"><span></span></div>
+      {#each [{ key: 'input_volume', value: meters.levels?.input }, { key: 'output_volume', value: meters.levels?.output }] as meter}
+        <div class="meter-label"><span>{ui.t(`common.controls.${meter.key}`)}</span><span>{meter.value === undefined ? '—' : meter.value.toFixed(3)}</span></div>
+        <div class="meter" aria-hidden="true"><span style:transform={`scaleX(${Math.min(1, meter.value ?? 0)})`}></span></div>
       {/each}
+      {#if session.active && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
+      {:else if session.active && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
       <div class="buffer-chart" aria-hidden="true"><span>—</span></div>
       <dl>
         <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>—</dd></div>
         <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>—</dd></div>
       </dl>
       <button class="button small" disabled>{ui.t('common.performance.clear')}</button>
-      <p class="muted">{ui.t('forge.telemetry_unavailable')}</p>
+      <p class="muted">{ui.t('forge.buffer_telemetry_unavailable')}</p>
     </section>
   </aside>
   <section class="controls-column" aria-label={ui.t('common.controls.title')}>

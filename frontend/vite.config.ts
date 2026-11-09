@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
     '/api': { target, changeOrigin: true },
     '/model_dir': { target, changeOrigin: true },
     '/output.wav': { target, changeOrigin: true },
+    '/socket.io': { target, changeOrigin: true, ws: true },
   };
   return {
     plugins: [svelte()],
