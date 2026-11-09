@@ -249,7 +249,7 @@ Executing RVC on OpenVINO GPU uncovered two compiler barriers:
 2. **3D Interpolate Barrier (`linear_onnx`)**: Intel GPU's `interpolate.cpp` strictly rejects 3D tensors for linear interpolation (`Check 'inputRank == 2 || inputRank == 4 || inputRank == 5' failed`). RVC's SineGen expands pitch along a 3D tensor `[batch, channel, time]`.
    - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, yields bit-exact numerical parity (diff `< 2.4e-7`), and unblocks OpenVINO GPU synthesis (**36.45 ms**).
 
-#### 2.3.5 Dynamic Plugin Session Factory Contract (`create_inference_session`)
+#### 2.3.5 Dynamic Plugin Session Factory Contract (`DeviceConfig.create_session`)
 
 When using standalone dynamically registered execution provider plugins (`onnxruntime-ep-openvino`), ONNX Runtime exhibits a subtle initialization constraint:
 
@@ -257,16 +257,15 @@ When using standalone dynamically registered execution provider plugins (`onnxru
 - However, if the caller subsequently instantiates `ort.InferenceSession(model, sess_options=so, providers=providers, provider_options=provider_options)`, ONNX Runtime detects the collision, logs a `UserWarning`, and discards the `SessionOptions` provider binding.
 - Because dynamically registered plugins are not enumerated in static `ort.get_available_providers()`, `InferenceSession` evaluates the explicit provider name as unavailable, causing a **silent fallback to `CPUExecutionProvider`**.
 
-Forge resolves this across all pipeline components (`ContentVecOnnx`, `RMVPEOnnxPitchEstimator`, `FCPEOnnxPitchEstimator`, `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, and `RVCPipeline`) via a centralized factory method on `DeviceManager`:
+Forge resolves this across all pipeline components (`ContentVecOnnx`, `RMVPEOnnxPitchEstimator`, `FCPEOnnxPitchEstimator`, `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, and `RVCPipeline`) via a centralized method on `DeviceConfig`:
 
 ```python
-def create_inference_session(
+def create_session(
     self,
     model_payload: str | bytes | Path,
-    providers: list[str],
-    provider_options: list[dict] | None = None,
+    patch_type: str | None = None,
     so: onnxruntime.SessionOptions | None = None,
-) -> onnxruntime.InferenceSession:
+) -> tuple[onnxruntime.InferenceSession, list[str], list[dict[str, Any]]]:
     ...
 ```
 

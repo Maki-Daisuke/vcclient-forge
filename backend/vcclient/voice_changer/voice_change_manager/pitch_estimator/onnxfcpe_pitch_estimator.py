@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vcclient.device import DeviceConfig, create_pipeline_session, get_device
+from vcclient.device import DeviceConfig, get_device
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
@@ -39,7 +39,7 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
 
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
-            create_pipeline_session(self.file, self.device)
+            self.device.create_session(self.file)
         )
 
     def estimate(

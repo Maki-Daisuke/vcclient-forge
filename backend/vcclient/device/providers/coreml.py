@@ -9,8 +9,8 @@ from typing import Any
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
-COREML_ANE_DEVICE_ID = 0
-COREML_GPU_DEVICE_ID = 1
+from ..data_types import DeviceConfig
+
 CoreMLCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "coreml_cache"
 CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
 
@@ -75,22 +75,37 @@ def detect_macos_gpus() -> list[GPUInfo]:
     return gpu_list
 
 
+def resolve_coreml_device_provider(
+    device: DeviceConfig | None = None,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Resolve CoreMLExecutionProvider options for a typed DeviceConfig."""
+    compute_units = device.metadata.get("compute_units", "ALL") if device and device.metadata else "ALL"
+    coreml_options: dict[str, Any] = {
+        "ModelFormat": "NeuralNetwork",
+        "MLComputeUnits": compute_units,
+        "RequireStaticInputShapes": "0",
+        "EnableOnSubgraphs": "0",
+    }
+    try:
+        CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
+        coreml_options["ModelCacheDirectory"] = str(CoreMLCacheDir.resolve())
+    except Exception as e:
+        logger.debug("Failed to set CoreML cache dir: %s", e)
+    return (["CoreMLExecutionProvider", "CPUExecutionProvider"], [coreml_options, {}])
+
+
 def resolve_coreml_provider(
     device_id: int, available_providers: list[str]
 ) -> tuple[list[str], list[dict[str, Any]]] | None:
     """Resolve CoreMLExecutionProvider if applicable, or None if not supported."""
     if device_id >= 0 and "CoreMLExecutionProvider" in available_providers:
-        compute_units = "CPUAndGPU" if device_id % 2 == 1 or device_id == COREML_GPU_DEVICE_ID else "ALL"
-        coreml_options: dict[str, Any] = {
-            "ModelFormat": "NeuralNetwork",
-            "MLComputeUnits": compute_units,
-            "RequireStaticInputShapes": "0",
-            "EnableOnSubgraphs": "0",
-        }
-        try:
-            CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
-            coreml_options["ModelCacheDirectory"] = str(CoreMLCacheDir.resolve())
-        except Exception as e:
-            logger.debug("Failed to set CoreML cache dir: %s", e)
-        return (["CoreMLExecutionProvider", "CPUExecutionProvider"], [coreml_options, {}])
+        compute_units = "CPUAndGPU" if device_id % 2 == 1 else "ALL"
+        fake_dev = DeviceConfig(
+            id=device_id,
+            canonical_id=f"coreml:{device_id}",
+            provider="coreml",
+            device_index=device_id,
+            metadata={"compute_units": compute_units},
+        )
+        return resolve_coreml_device_provider(fake_dev)
     return None

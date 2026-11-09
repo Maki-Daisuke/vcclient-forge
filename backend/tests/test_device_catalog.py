@@ -3,16 +3,12 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import onnxruntime
-
 from vcclient.device.data_types import DeviceConfig
 from vcclient.device.device_manager import (
-    create_pipeline_session,
     get_device,
     get_device_catalog,
     reload_device_catalog,
     resolve_legacy_device_id,
-    resolve_provider_for_device,
 )
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
@@ -160,10 +156,10 @@ def test_catalog_enumeration_with_mock_hardware() -> None:
         assert catalog[3].canonical_id == "openvino:npu:0"
 
 
-def test_resolve_provider_for_device() -> None:
-    """Verify execution provider options for each DeviceConfig."""
+def test_device_config_resolve_provider() -> None:
+    """Verify execution provider options resolved by DeviceConfig._resolve_provider()."""
     cpu_dev = DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")
-    providers, opts = resolve_provider_for_device(cpu_dev)
+    providers, opts = cpu_dev._resolve_provider()
     assert providers == ["CPUExecutionProvider"]
     assert "intra_op_num_threads" in opts[0]
 
@@ -176,7 +172,7 @@ def test_resolve_provider_for_device() -> None:
         name="NVIDIA GPU",
     )
     with patch("onnxruntime.get_available_providers", return_value=["CUDAExecutionProvider", "CPUExecutionProvider"]):
-        providers, opts = resolve_provider_for_device(cuda_dev)
+        providers, opts = cuda_dev._resolve_provider()
         assert providers == ["CUDAExecutionProvider"]
         assert opts == [{"device_id": 0}]
 
@@ -189,7 +185,7 @@ def test_resolve_provider_for_device() -> None:
         name="DirectML GPU",
     )
     with patch("onnxruntime.get_available_providers", return_value=["DmlExecutionProvider", "CPUExecutionProvider"]):
-        providers, opts = resolve_provider_for_device(dml_dev)
+        providers, opts = dml_dev._resolve_provider()
         assert providers == ["DmlExecutionProvider", "CPUExecutionProvider"]
         assert opts[0] == {"device_id": 1}
 
@@ -202,12 +198,12 @@ def test_resolve_provider_for_device() -> None:
         name="Intel AI Boost",
         metadata={"ov_device": "NPU"},
     )
-    providers, opts = resolve_provider_for_device(ov_npu_dev)
+    providers, opts = ov_npu_dev._resolve_provider()
     assert providers == ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
     assert opts[0]["device_type"] == "NPU"
 
 
-def test_create_pipeline_session_npu_rvc_fallback() -> None:
+def test_device_config_create_session_npu_rvc_fallback() -> None:
     """Verify that NPU target deterministically falls back to CPU for RVC vocoder sessions."""
     npu_dev = DeviceConfig(
         id=3,
@@ -219,35 +215,29 @@ def test_create_pipeline_session_npu_rvc_fallback() -> None:
     )
 
     with (
-        patch("vcclient.device.device_manager.create_inference_session") as mock_create,
+        patch("onnxruntime.InferenceSession") as mock_session_cls,
         patch("vcclient.device.device_manager.get_device_catalog") as mock_catalog,
     ):
         mock_cpu = DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")
         mock_catalog.return_value = [mock_cpu, npu_dev]
-        mock_session = MagicMock(spec=onnxruntime.InferenceSession)
-        mock_create.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get_providers.return_value = ["CPUExecutionProvider"]
+        mock_session_cls.return_value = mock_session
 
-        # 1. RVC Vocoder on NPU -> CPU fallback
-        sess, providers, opts = create_pipeline_session(
+        # 1. RVC Vocoder on NPU -> CPU fallback via create_session
+        sess, providers, opts = npu_dev.create_session(
             model_payload="dummy.onnx",
-            device=npu_dev,
             patch_type="rvc",
         )
         assert providers == ["CPUExecutionProvider"]
-        mock_create.assert_called_once()
-        call_kwargs = mock_create.call_args[1]
-        assert call_kwargs["device"].is_cpu()
 
-        # 2. RMVPE Pitch Estimator on NPU -> Allowed on NPU
-        mock_create.reset_mock()
-        sess_rmvpe, providers_rmvpe, opts_rmvpe = create_pipeline_session(
+        # 2. RMVPE Pitch Estimator on NPU -> Allowed on NPU via create_session
+        mock_session.get_providers.return_value = ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
+        sess_rmvpe, providers_rmvpe, opts_rmvpe = npu_dev.create_session(
             model_payload="dummy_rmvpe.onnx",
-            device=npu_dev,
             patch_type="rmvpe",
         )
         assert providers_rmvpe == ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
-        call_kwargs_rmvpe = mock_create.call_args[1]
-        assert call_kwargs_rmvpe["device"].device_type == "NPU"
 
 
 def test_rest_api_gpu_device_manager_returns_catalog() -> None:

@@ -14,8 +14,6 @@ from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 from ..data_types import DeviceConfig
 
-OPENVINO_GPU_DEVICE_ID = 1000
-OPENVINO_AUTO_DEVICE_ID = OPENVINO_GPU_DEVICE_ID
 OpenVinoCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "openvino_cache"
 OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
 
@@ -156,17 +154,15 @@ def resolve_openvino_device_provider(
 
 
 def resolve_openvino_provider(
-    device_id: int, available: bool | None = None
+    device_or_id: DeviceConfig | int | None = None, available: bool | None = None
 ) -> tuple[list[str], list[dict[str, Any]]] | None:
-    """Resolve OpenVINOExecutionProvider if applicable, or None if not supported."""
-    if device_id not in (OPENVINO_GPU_DEVICE_ID, OPENVINO_AUTO_DEVICE_ID):
-        return None
-
+    """Resolve OpenVINOExecutionProvider if applicable, or fallback to CPU."""
     if available is None:
         available = is_openvino_available()
 
     if available:
-        return resolve_openvino_device_provider()
+        dev = device_or_id if isinstance(device_or_id, DeviceConfig) else None
+        return resolve_openvino_device_provider(dev)
 
     logger.info("OpenVINO requested but unavailable, fallback to cpu.")
     from .cpu import resolve_cpu_provider
@@ -252,28 +248,14 @@ def detect_openvino_devices() -> list[DeviceConfig]:
 
 
 def detect_openvino_gpus() -> list[GPUInfo]:
-    """Detect OpenVINO (GPU) capability and return an entry if available."""
-    gpu_list: list[GPUInfo] = []
-    try:
-        dev_name = "GPU"
-        target_dev = find_openvino_ep_device(preferred_type="GPU")
-        if target_dev is not None:
-            dev = getattr(target_dev, "device", None)
-            meta = getattr(dev, "metadata", {}) if dev is not None else {}
-            desc = meta.get("Description")
-            if not desc and hasattr(target_dev, "ep_metadata") and isinstance(target_dev.ep_metadata, dict):
-                desc = target_dev.ep_metadata.get("FULL_DEVICE_NAME")
-            if desc:
-                dev_name = desc
-
-        gpu_list.append(
-            GPUInfo(
-                name=f"[OpenVINO] {dev_name}",
-                device_id="openvino_gpu",
-                adapter_ram=0,
-                device_id_int=OPENVINO_GPU_DEVICE_ID,
-            )
+    """Legacy compatibility helper to detect OpenVINO GPUs."""
+    devices = detect_openvino_devices()
+    return [
+        GPUInfo(
+            name=d.name,
+            device_id=d.canonical_id,
+            adapter_ram=d.adapter_ram,
+            device_id_int=d.id,
         )
-    except Exception as e:
-        logger.debug("OpenVINO detection skipped: %s", e)
-    return gpu_list
+        for d in devices
+    ]

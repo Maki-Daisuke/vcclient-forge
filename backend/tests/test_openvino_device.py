@@ -10,11 +10,8 @@ import pytest
 from onnx import TensorProto, helper, numpy_helper
 
 from vcclient.device import (
-    configure_session_options,
-    create_inference_session,
-    create_pipeline_session,
+    DeviceConfig,
     find_openvino_ep_device,
-    get_onnx_execution_provider,
     reload_gpu_devices,
 )
 from vcclient.device import device_manager as dm_module
@@ -22,17 +19,11 @@ from vcclient.device.openvino_patch import (
     patch_rmvpe_model_for_openvino,
     patch_rvc_model_for_openvino,
 )
-from vcclient.voice_changer.voice_changer_const import (
-    OPENVINO_AUTO_DEVICE_ID,
-    OPENVINO_GPU_DEVICE_ID,
-    OpenVinoCacheDir,
-    SettingsDir,
-)
+from vcclient.device.providers.openvino import OpenVinoCacheDir
+from vcclient.voice_changer.voice_changer_const import SettingsDir
 
 
 def test_openvino_device_constants():
-    assert OPENVINO_GPU_DEVICE_ID == 1000
-    assert OPENVINO_AUTO_DEVICE_ID == OPENVINO_GPU_DEVICE_ID
     assert OpenVinoCacheDir.name == "openvino_cache"
     assert OpenVinoCacheDir.exists()
     assert OpenVinoCacheDir != SettingsDir / "openvino_cache"
@@ -161,9 +152,19 @@ def test_patch_rmvpe_model_for_openvino_supplies_min_bound():
 
 
 def test_device_manager_openvino_provider_configuration(monkeypatch: pytest.MonkeyPatch):
+    dev_ov = DeviceConfig(
+        id=1,
+        canonical_id="openvino:gpu:0",
+        provider="openvino",
+        device_index=0,
+        device_type="GPU",
+        name="[OpenVINO] Intel Arc",
+        metadata={"ov_device": "GPU.0"},
+    )
+
     # 1. When OpenVINO is available
-    monkeypatch.setattr(dm_module, "is_openvino_available", lambda: True)
-    providers, provider_options = get_onnx_execution_provider(OPENVINO_GPU_DEVICE_ID)
+    monkeypatch.setattr("vcclient.device.providers.openvino.is_openvino_available", lambda: True)
+    providers, provider_options = dev_ov._resolve_provider()
 
     assert "OpenVINOExecutionProvider" in providers
     assert "CPUExecutionProvider" in providers
@@ -173,9 +174,9 @@ def test_device_manager_openvino_provider_configuration(monkeypatch: pytest.Monk
     assert provider_options[0]["cache_dir"] == str(OpenVinoCacheDir.resolve())
 
     # 2. When OpenVINO is unavailable, fallback safely to CPU (even if DirectML is present)
-    monkeypatch.setattr(dm_module, "is_openvino_available", lambda: False)
+    monkeypatch.setattr("vcclient.device.providers.openvino.is_openvino_available", lambda: False)
     monkeypatch.setattr(ort, "get_available_providers", lambda: ["DmlExecutionProvider", "CPUExecutionProvider"])
-    providers_fallback, _ = get_onnx_execution_provider(OPENVINO_GPU_DEVICE_ID)
+    providers_fallback, _ = dev_ov._resolve_provider()
     assert "OpenVINOExecutionProvider" not in providers_fallback
     assert "DmlExecutionProvider" not in providers_fallback
     assert "CPUExecutionProvider" in providers_fallback
@@ -208,39 +209,54 @@ def test_device_manager_find_openvino_ep_device_prioritizes_gpu(monkeypatch: pyt
     assert selected is gpu_dev
 
 
-def test_device_manager_configure_session_options():
-    so = ort.SessionOptions()
-
-    # OpenVINO EP should disable graph optimization
-    configure_session_options(so, ["OpenVINOExecutionProvider", "CPUExecutionProvider"])
+def test_device_config_configure_session_options():
+    dev_ov = DeviceConfig(
+        id=1,
+        canonical_id="openvino:gpu:0",
+        provider="openvino",
+        device_index=0,
+        device_type="GPU",
+        name="[OpenVINO] Intel Arc",
+    )
+    so = dev_ov._configure_session_options()
     assert so.graph_optimization_level == ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 
     # CPU or CUDA EP should not force ORT_DISABLE_ALL
-    so2 = ort.SessionOptions()
-    configure_session_options(so2, ["CPUExecutionProvider"])
+    dev_cpu = DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")
+    so2 = dev_cpu._configure_session_options()
     assert so2.graph_optimization_level != ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 
 
 def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
     # When OpenVINO is available
+    mock_ov = [
+        DeviceConfig(
+            id=1,
+            canonical_id="openvino:gpu:0",
+            provider="openvino",
+            device_index=0,
+            device_type="GPU",
+            name="[OpenVINO] Intel Arc",
+        )
+    ]
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: True)
     monkeypatch.setattr(dm_module.providers.openvino, "is_openvino_available", lambda: True)
+    monkeypatch.setattr(dm_module.providers.openvino, "detect_openvino_devices", lambda: mock_ov)
     info_list = reload_gpu_devices()
-    device_ids = [info.device_id_int for info in info_list]
-    assert OPENVINO_GPU_DEVICE_ID in device_ids
-    openvino_info = next(info for info in info_list if info.device_id_int == OPENVINO_GPU_DEVICE_ID)
+    canonical_ids = [info.device_id for info in info_list]
+    assert "openvino:gpu:0" in canonical_ids
+    openvino_info = next(info for info in info_list if info.device_id == "openvino:gpu:0")
     assert openvino_info.name.startswith("[OpenVINO]")
-    assert openvino_info.device_id == "openvino_gpu"
 
     # When OpenVINO is unavailable
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: False)
     monkeypatch.setattr(dm_module.providers.openvino, "is_openvino_available", lambda: False)
     info_list_no_ov = reload_gpu_devices()
-    device_ids_no_ov = [info.device_id_int for info in info_list_no_ov]
-    assert OPENVINO_GPU_DEVICE_ID not in device_ids_no_ov
+    canonical_ids_no_ov = [info.device_id for info in info_list_no_ov]
+    assert "openvino:gpu:0" not in canonical_ids_no_ov
 
 
-def test_device_manager_create_inference_session_avoids_provider_argument_collision(monkeypatch: pytest.MonkeyPatch):
+def test_device_config_create_session_avoids_provider_argument_collision(monkeypatch: pytest.MonkeyPatch):
     # Minimal dummy ONNX model bytes
     x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 2])
     y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])
@@ -249,11 +265,10 @@ def test_device_manager_create_inference_session_avoids_provider_argument_collis
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9)
     model_bytes = model.SerializeToString()
 
-    # Create session directly via module function
-    sess = create_inference_session(
-        model_bytes,
-        providers=["CPUExecutionProvider"],
-    )
+    dev_cpu = DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")
+
+    # Create session directly via DeviceConfig.create_session
+    sess, providers, _ = dev_cpu.create_session(model_bytes)
     assert sess is not None
     assert "CPUExecutionProvider" in sess.get_providers()
 
@@ -269,13 +284,19 @@ def test_device_manager_create_inference_session_avoids_provider_argument_collis
 
     monkeypatch.setattr(ort, "InferenceSession", DummySession)
 
+    dev_ov = DeviceConfig(
+        id=1,
+        canonical_id="openvino:gpu:0",
+        provider="openvino",
+        device_index=0,
+        device_type="GPU",
+        name="[OpenVINO] Intel Arc",
+    )
+    monkeypatch.setattr("vcclient.device.providers.openvino.is_openvino_available", lambda: True)
+
     # 1. When so has providers (mocking add_provider_for_devices having run)
     monkeypatch.setattr(ort.SessionOptions, "has_providers", lambda self: True)
-    session = create_inference_session(
-        model_bytes,
-        providers=["OpenVINOExecutionProvider", "CPUExecutionProvider"],
-        provider_options=[{}, {}],
-    )
+    session, _, _ = dev_ov.create_session(model_bytes)
     assert isinstance(session, DummySession)
     assert "providers" not in captured_kwargs["kwargs"]
     assert "provider_options" not in captured_kwargs["kwargs"]
@@ -283,18 +304,13 @@ def test_device_manager_create_inference_session_avoids_provider_argument_collis
 
     # 2. When so does NOT have providers (standard CPU/CUDA EP path)
     monkeypatch.setattr(ort.SessionOptions, "has_providers", lambda self: False)
-    session2 = create_inference_session(
-        model_bytes,
-        providers=["CPUExecutionProvider"],
-        provider_options=[{}],
-    )
+    session2, _, _ = dev_cpu.create_session(model_bytes)
     assert isinstance(session2, DummySession)
     assert captured_kwargs["kwargs"]["providers"] == ["CPUExecutionProvider"]
-    assert captured_kwargs["kwargs"]["provider_options"] == [{}]
     assert "sess_options" in captured_kwargs["kwargs"]
 
 
-def test_create_pipeline_session_cpu_and_openvino_patching(monkeypatch):
+def test_device_config_create_session_cpu_and_openvino_patching(monkeypatch):
     # Minimal ONNX model with a 3D linear Resize (simulating SineGen)
     x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 1, 10])
     scales = helper.make_tensor("scales", TensorProto.FLOAT, [3], [1.0, 1.0, 2.0])
@@ -311,7 +327,8 @@ def test_create_pipeline_session_cpu_and_openvino_patching(monkeypatch):
     model_bytes = model.SerializeToString()
 
     # 1. CPU execution: patch_type="rvc" does NOT patch if OpenVINO is not in providers
-    session, providers, provider_opts = create_pipeline_session(model_bytes, device_id=-1, patch_type="rvc")
+    dev_cpu = DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")
+    session, providers, provider_opts = dev_cpu.create_session(model_bytes, patch_type="rvc")
     assert "CPUExecutionProvider" in session.get_providers()
     assert providers == ["CPUExecutionProvider"]
 
@@ -322,18 +339,22 @@ def test_create_pipeline_session_cpu_and_openvino_patching(monkeypatch):
         def get_providers(self):
             return ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
 
-    def mock_create_inference_session(model_payload, providers, provider_options=None, so=None):
-        received_payload.append(model_payload if isinstance(model_payload, bytes) else str(model_payload).encode())
+    def mock_inference_session(payload, **kwargs):
+        received_payload.append(payload if isinstance(payload, bytes) else str(payload).encode())
         return DummySession()
 
-    monkeypatch.setattr(dm_module, "create_inference_session", mock_create_inference_session)
-    monkeypatch.setattr(
-        dm_module,
-        "get_onnx_execution_provider",
-        lambda dev_id: (["OpenVINOExecutionProvider", "CPUExecutionProvider"], [{}, {}]),
+    monkeypatch.setattr(ort, "InferenceSession", mock_inference_session)
+    monkeypatch.setattr("vcclient.device.providers.openvino.is_openvino_available", lambda: True)
+    dev_ov = DeviceConfig(
+        id=1,
+        canonical_id="openvino:gpu:0",
+        provider="openvino",
+        device_index=0,
+        device_type="GPU",
+        name="[OpenVINO] Intel Arc",
     )
 
-    session_ov, ov_providers, _ = create_pipeline_session(model_bytes, device_id=1000, patch_type="rvc")
+    session_ov, ov_providers, _ = dev_ov.create_session(model_bytes, patch_type="rvc")
     assert isinstance(session_ov, DummySession)
     assert ov_providers[0] == "OpenVINOExecutionProvider"
     assert len(received_payload) == 1

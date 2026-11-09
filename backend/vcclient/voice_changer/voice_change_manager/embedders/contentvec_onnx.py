@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import onnxruntime
 
-from vcclient.device import DeviceConfig, create_pipeline_session, get_device
+from vcclient.device import DeviceConfig, get_device
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import EmbedderInfo
@@ -41,7 +41,7 @@ class ContentvecOnnx(Embedder):
         self.useFinalProj = use_final_proj
 
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
-            create_pipeline_session(model_file, self.device)
+            self.device.create_session(model_file)
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type

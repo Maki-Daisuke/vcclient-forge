@@ -10,7 +10,6 @@ from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_te
 
 from vcclient.device import (
     DeviceConfig,
-    create_pipeline_session,
     get_device,
 )
 from vcclient.logger import logger
@@ -115,7 +114,8 @@ class RVCPipeline(VCPipeline):
             resize_node = make_node("Resize", inputs=["in", "", "scales"], outputs=["out"], mode="nearest", axes=[2])
             graph = make_graph([resize_node], "upscaler", [input, scales], [output])
             onnx_model = make_model(graph, ir_version=ir_version, opset_imports=[make_opsetid("", 20)])
-            session, _, _ = create_pipeline_session(onnx_model.SerializeToString(), device=device)
+            target_device = get_device(device) if isinstance(device, int) else device
+            session, _, _ = target_device.create_session(onnx_model.SerializeToString())
             return session
         except Exception as e:
             logger.error("make_onnx_upscaler failed. %s", e)

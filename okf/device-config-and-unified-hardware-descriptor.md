@@ -282,51 +282,32 @@ To ensure `web_front`'s `<select value={gpu_device_id_int}>` and status chip mat
 
 Inside the inference engine, model components and session factories accept `DeviceConfig` (or resolve an integer catalog ID via `get_device()`):
 
-### 5.1 Refactored `create_pipeline_session` and `SessionOptions` Binding
+### 5.1 Object-Oriented Session Creation via `DeviceConfig.create_session()`
 
-As documented in [Dynamic Plugin Session Factory Contract](./npu-cpu-hardware-acceleration-and-universal-distribution.md#235-dynamic-plugin-session-factory-contract-create_inference_session), dynamically registered plugins such as `onnxruntime-ep-openvino` bind target hardware via `so.add_provider_for_devices([ep_device], opts)`. Therefore, `configure_session_options` must receive the target `DeviceConfig` so it binds the specific OpenVINO device (`GPU` vs `NPU`) rather than hardcoding `"GPU"`:
+Hardware execution is natively encapsulated in `DeviceConfig`. Rather than routing through procedural waterfall functions, components directly invoke `self.device.create_session(model_file, patch_type=...)`, while provider resolution (`_resolve_provider`) and session options configuration (`_configure_session_options`) are kept as private internal helpers:
 
 ```python
-def create_pipeline_session(
-    model_payload: str | bytes | Path,
-    device: DeviceConfig | int,
-    patch_type: str | None = None,
-    so: onnxruntime.SessionOptions | None = None,
-) -> tuple[onnxruntime.InferenceSession, list[str], list[dict[str, Any]]]:
-    """Create an ONNX InferenceSession for pipeline components, resolving EPs and hardware patches."""
-    resolved_device = get_device(device) if isinstance(device, int) else device
+class DeviceConfig(BaseModel):
+    ...
+    def _resolve_provider(self) -> tuple[list[str], list[dict[str, Any]]]:
+        """Resolve ONNX Runtime execution provider and options for this device descriptor."""
+        ...
 
-    # RVC HiFi-GAN vocoder exceeds client NPU SRAM capacity; fall back to CPU if NPU is selected pipeline-wide
-    if resolved_device.provider == "openvino" and resolved_device.device_type == "NPU" and patch_type == "rvc":
-        logger.warning("RVC vocoder is not supported on NPU; falling back to CPU for synthesis session.")
-        resolved_device = get_device(0)
+    def _configure_session_options(
+        self,
+        so: onnxruntime.SessionOptions | None = None,
+    ) -> onnxruntime.SessionOptions:
+        """Configure SessionOptions with hardware/EP-specific performance and stability flags."""
+        ...
 
-    providers, provider_options = resolve_provider_for_device(resolved_device)
-
-    if resolved_device.provider == "openvino":
-        if patch_type == "rvc":
-            try:
-                from .openvino_patch import patch_rvc_model_for_openvino
-
-                model_payload = patch_rvc_model_for_openvino(model_payload)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", model_payload, e)
-        elif patch_type == "rmvpe":
-            try:
-                from .openvino_patch import patch_rmvpe_model_for_openvino
-
-                model_payload = patch_rmvpe_model_for_openvino(model_payload)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO patch to RMVPE model %s: %s", model_payload, e)
-
-    session = create_inference_session(
-        model_payload,
-        providers,
-        provider_options,
-        so=so,
-        device=resolved_device,
-    )
-    return session, providers, provider_options
+    def create_session(
+        self,
+        model_payload: str | bytes | Path,
+        patch_type: str | None = None,
+        so: onnxruntime.SessionOptions | None = None,
+    ) -> tuple[onnxruntime.InferenceSession, list[str], list[dict[str, Any]]]:
+        """Create an ONNX InferenceSession optimized for this compute device descriptor."""
+        ...
 ```
 
 ### 5.2 Provider Dispatch Isolation
@@ -388,9 +369,9 @@ flowchart LR
    - Verify that `web_front` (`2.0.78` and `2.1.4`) displays, selects, and switches devices without unmatched dropdown states.
 
 3. **Milestone 3: Pipeline & Inference Layer Migration** `[Completed]`
-   - Update `create_pipeline_session`, `create_inference_session`, and `configure_session_options` to accept `DeviceConfig` and bind the matching OpenVINO `ep_device`.
-   - Refactor `RVCPipeline` (including `make_onnx_upscaler`), `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, `ContentvecOnnx`, `FCPEOnnxPitchEstimator`, and `RMVPEOnnxPitchEstimator` to resolve providers via `DeviceConfig`.
-   - Maintain backward compatibility for legacy keyword arguments across all inferencers and session factories.
+   - Encapsulate execution session creation into `DeviceConfig.create_session()` with private internal helpers `_resolve_provider()`, `_configure_session_options()`, and `_fallback_to_cpu()`.
+   - Refactor `RVCPipeline` (including `make_onnx_upscaler`), `RVCInferencerOnnxF0`, `RVCInferencerOnnxNoF0`, `ContentvecOnnx`, `FCPEOnnxPitchEstimator`, and `RMVPEOnnxPitchEstimator` to directly create sessions via `self.device.create_session()`.
+   - Retire procedural session factory functions (`create_pipeline_session`, `create_inference_session`, `configure_session_options`, `get_onnx_execution_provider`, `resolve_provider_for_device`).
 
 4. **Milestone 4: Verification & Test Suite** `[Completed]`
    - Added unit tests in `backend/tests/test_device_catalog.py` verifying catalog enumeration, $O(1)$ index resolution, legacy sentinel normalization (`-1` -> `0`, `1000` -> `0`), and per-provider session configuration.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from vcclient.device import DeviceConfig, create_pipeline_session, get_device
+from vcclient.device import DeviceConfig, get_device
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
@@ -23,7 +23,7 @@ class RVCInferencerOnnxF0(RVCInferencer):
         self.file = file
         self.device_id = self.device.id
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
-            create_pipeline_session(self.file, self.device, patch_type="rvc")
+            self.device.create_session(self.file, patch_type="rvc")
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type

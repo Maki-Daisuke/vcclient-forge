@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import platform
 import subprocess
-from pathlib import Path
 from typing import Any
-
-import onnxruntime
 
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
@@ -204,46 +201,26 @@ def reload_gpu_devices() -> list[GPUInfo]:
     global _gpu_info, _cuda_info, _cuda_available
     logger.info("Reloading GPU info")
 
-    # Reload unified DeviceConfig catalog
-    reload_device_catalog()
-
-    # 1. NVIDIA GPU の検出 (Windows / Linux 共通)
-    nvidia_gpus = providers.cuda.detect_nvidia_gpus()
-
-    # 2. プラットフォームごとのシステムGPU検出
-    system = platform.system()
-    if system == "Windows":
-        sys_gpus = providers.directml.detect_windows_gpus()
-    elif system == "Darwin":
-        sys_gpus = providers.coreml.detect_macos_gpus()
-    elif system == "Linux":
-        sys_gpus = _detect_linux_gpus()
-    else:
-        sys_gpus = []
-
-    cpu_entry = GPUInfo(name="CPU", device_id="-1", adapter_ram=0, device_id_int=-1)
-
-    # システムGPUリスト (CPU + 検出されたGPU)
-    all_sys = [cpu_entry]
-    detected = nvidia_gpus if nvidia_gpus else sys_gpus
-    for g in detected:
-        if g.name.lower() != "cpu":
-            all_sys.append(g)
-
-    # 3. OpenVINO Execution Provider (GPU)
-    try:
-        if is_openvino_available():
-            all_sys.extend(providers.openvino.detect_openvino_gpus())
-    except Exception as e:
-        logger.debug("OpenVINO detection skipped: %s", e)
-
-    _gpu_info = all_sys
-
-    # CUDA/アクセラレータGPUリスト
-    all_cuda = [cpu_entry]
-    for g in nvidia_gpus:
-        all_cuda.append(g)
-    _cuda_info = all_cuda
+    catalog = reload_device_catalog()
+    _gpu_info = [
+        GPUInfo(
+            name=d.name,
+            device_id=d.canonical_id,
+            adapter_ram=d.adapter_ram,
+            device_id_int=d.id,
+        )
+        for d in catalog
+    ]
+    _cuda_info = [
+        GPUInfo(
+            name=d.name,
+            device_id=d.canonical_id,
+            adapter_ram=d.adapter_ram,
+            device_id_int=d.id,
+        )
+        for d in catalog
+        if d.is_cpu() or d.provider == "cuda"
+    ]
 
     _cuda_available = is_cuda_available()
     cuda_driver_version, _ = get_driver_and_cuda_version()
@@ -252,7 +229,7 @@ def reload_gpu_devices() -> list[GPUInfo]:
     logger.info(
         "GPU[cuda]: available:%s, num:%s, driver_version:%s",
         _cuda_available,
-        len(nvidia_gpus),
+        len(_cuda_info) - 1,
         cuda_driver_version,
     )
     logger.info("GPU[cuda_info]: %s", _cuda_info)
@@ -291,218 +268,3 @@ def is_openvino_available() -> bool:
 def find_openvino_ep_device(preferred_type: str = "GPU") -> Any | None:
     """Find the most suitable OpenVINO EP device from ort.get_ep_devices()."""
     return providers.openvino.find_openvino_ep_device(preferred_type)
-
-
-def configure_session_options(
-    so: onnxruntime.SessionOptions,
-    ep_providers_or_device: list[str] | DeviceConfig | None = None,
-) -> onnxruntime.SessionOptions:
-    """Configure SessionOptions with hardware/EP-specific performance and stability flags."""
-    if isinstance(ep_providers_or_device, DeviceConfig):
-        if ep_providers_or_device.provider == "openvino":
-            providers.openvino.configure_openvino_session_options(so, device=ep_providers_or_device)
-    elif isinstance(ep_providers_or_device, list):
-        if any("openvino" in p.lower() for p in ep_providers_or_device):
-            providers.openvino.configure_openvino_session_options(so)
-    return so
-
-
-def create_inference_session(
-    model_payload: str | bytes | Path,
-    providers: list[str],
-    provider_options: list[dict] | None = None,
-    so: onnxruntime.SessionOptions | None = None,
-    device: DeviceConfig | None = None,
-) -> onnxruntime.InferenceSession:
-    if so is None:
-        so = onnxruntime.SessionOptions()
-        so.log_severity_level = 3
-    configure_session_options(so, device if device is not None else providers)
-
-    path_or_bytes = str(model_payload) if isinstance(model_payload, Path) else model_payload
-
-    # When SessionOptions has already been configured with providers (e.g. via add_provider_for_devices),
-    # passing providers or provider_options to InferenceSession causes ONNX Runtime to override
-    # and discard the SessionOptions configuration, leading to silent CPU fallback for dynamic plugins like OpenVINO.
-    if hasattr(so, "has_providers") and so.has_providers():
-        session = onnxruntime.InferenceSession(path_or_bytes, sess_options=so)
-    else:
-        session = onnxruntime.InferenceSession(
-            path_or_bytes,
-            sess_options=so,
-            providers=providers,
-            provider_options=provider_options,
-        )
-
-    name = (
-        model_payload.name
-        if isinstance(model_payload, Path)
-        else (model_payload if isinstance(model_payload, str) else "<bytes>")
-    )
-    logger.info("ONNX session initialized for %s with active providers: %s", name, session.get_providers())
-    return session
-
-
-def resolve_provider_for_device(
-    device: DeviceConfig,
-) -> tuple[list[str], list[dict[str, Any]]]:
-    """Resolve ONNX Runtime execution provider and options for a typed DeviceConfig."""
-    if device.is_cpu():
-        return providers.cpu.resolve_cpu_provider()
-
-    if device.provider == "cuda":
-        available = onnxruntime.get_available_providers()
-        if "CUDAExecutionProvider" in available:
-            return (["CUDAExecutionProvider"], [{"device_id": device.device_index}])
-        logger.warning(
-            "CUDA requested for %s but CUDAExecutionProvider not available, falling back to CPU",
-            device.canonical_id,
-        )
-        return providers.cpu.resolve_cpu_provider()
-
-    if device.provider == "directml":
-        available = onnxruntime.get_available_providers()
-        if "DmlExecutionProvider" in available:
-            return (["DmlExecutionProvider", "CPUExecutionProvider"], [{"device_id": device.device_index}, {}])
-        logger.warning(
-            "DirectML requested for %s but DmlExecutionProvider not available, falling back to CPU",
-            device.canonical_id,
-        )
-        return providers.cpu.resolve_cpu_provider()
-
-    if device.provider == "openvino":
-        return providers.openvino.resolve_openvino_device_provider(device)
-
-    if device.provider == "coreml":
-        available = onnxruntime.get_available_providers()
-        if "CoreMLExecutionProvider" in available:
-            compute_units = device.metadata.get("compute_units", "ALL")
-            coreml_options: dict[str, Any] = {
-                "ModelFormat": "NeuralNetwork",
-                "MLComputeUnits": compute_units,
-                "RequireStaticInputShapes": "0",
-                "EnableOnSubgraphs": "0",
-            }
-            try:
-                providers.coreml.CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
-                coreml_options["ModelCacheDirectory"] = str(providers.coreml.CoreMLCacheDir.resolve())
-            except Exception:
-                pass
-            return (["CoreMLExecutionProvider", "CPUExecutionProvider"], [coreml_options, {}])
-        logger.warning(
-            "CoreML requested for %s but CoreMLExecutionProvider not available, falling back to CPU",
-            device.canonical_id,
-        )
-        return providers.cpu.resolve_cpu_provider()
-
-    return providers.cpu.resolve_cpu_provider()
-
-
-def _resolve_onnx_execution_provider(device_id: int) -> tuple[list[str], list[dict[str, Any]]]:
-    available_providers = onnxruntime.get_available_providers()
-    logger.info("available_providers: %s", available_providers)
-
-    # 1. OpenVINO Execution Provider
-    ov_res = providers.openvino.resolve_openvino_provider(device_id, available=is_openvino_available())
-    if ov_res is not None:
-        return ov_res
-
-    # 2. CUDA Execution Provider
-    cuda_info = get_cuda_info()
-    gpu_info = get_gpu_info()
-    cuda_len = len(cuda_info)
-    gpu_len = len(gpu_info) - 1
-    gpu_num = max(cuda_len, gpu_len)
-    logger.info("gpu_num: %s, cuda_len: %s, gpu_len: %s", gpu_num, cuda_len, gpu_len)
-
-    cuda_res = providers.cuda.resolve_cuda_provider(device_id, gpu_num, available_providers)
-    if cuda_res is not None:
-        return cuda_res
-
-    # 3. DirectML Execution Provider
-    dml_res = providers.directml.resolve_directml_provider(device_id, available_providers)
-    if dml_res is not None:
-        return dml_res
-
-    # 4. CoreML Execution Provider
-    coreml_res = providers.coreml.resolve_coreml_provider(device_id, available_providers)
-    if coreml_res is not None:
-        return coreml_res
-
-    # 5. Default CPU Execution Provider
-    return providers.cpu.resolve_cpu_provider()
-
-
-def get_onnx_execution_provider(device_id: int) -> tuple[list[str], list[dict[str, Any]]]:
-    res = _resolve_onnx_execution_provider(device_id)
-    logger.info("get_onnx_execution_provider: %s", res)
-    return res
-
-
-def create_pipeline_session(
-    model_payload: str | bytes | Path,
-    device: DeviceConfig | int | None = None,
-    patch_type: str | None = None,
-    so: onnxruntime.SessionOptions | None = None,
-    *,
-    device_id: DeviceConfig | int | None = None,
-) -> tuple[onnxruntime.InferenceSession, list[str], list[dict[str, Any]]]:
-    """Create an ONNX InferenceSession for pipeline components, resolving EPs and hardware patches.
-
-    Args:
-        model_payload: Model file path or in-memory bytes.
-        device: Target DeviceConfig or catalog integer ID (0 for CPU, >= 1 for accelerators, or legacy sentinel).
-        patch_type: Optional hardware patch mode ("rvc" for SineGen 3D->4D, "rmvpe" for Clip min bound).
-        so: Optional custom SessionOptions.
-        device_id: Backward-compatible keyword alias for device.
-
-    Returns:
-        tuple of (session, candidate_providers, candidate_provider_options).
-    """
-    target = device if device is not None else (device_id if device_id is not None else 0)
-
-    if isinstance(target, DeviceConfig):
-        resolved_device = target
-        if resolved_device.provider == "openvino" and resolved_device.device_type == "NPU" and patch_type == "rvc":
-            logger.warning("RVC vocoder is not supported on NPU; falling back to CPU for synthesis session.")
-            resolved_device = get_device(0)
-        providers_list, provider_options = resolve_provider_for_device(resolved_device)
-    else:
-        providers_list, provider_options = get_onnx_execution_provider(target)
-        resolved_device = resolve_legacy_device_id(target)
-
-    if any("openvino" in p.lower() for p in providers_list):
-        if patch_type == "rvc":
-            try:
-                from .openvino_patch import patch_rvc_model_for_openvino
-
-                model_payload = patch_rvc_model_for_openvino(model_payload)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", model_payload, e)
-        elif patch_type == "rmvpe":
-            try:
-                from .openvino_patch import patch_rmvpe_model_for_openvino
-
-                model_payload = patch_rmvpe_model_for_openvino(model_payload)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO patch to RMVPE model %s: %s", model_payload, e)
-
-    try:
-        session = create_inference_session(
-            model_payload,
-            providers_list,
-            provider_options,
-            so=so,
-            device=resolved_device,
-        )
-    except TypeError as e:
-        if "device" in str(e):
-            session = create_inference_session(
-                model_payload,
-                providers_list,
-                provider_options,
-                so=so,
-            )
-        else:
-            raise
-    return session, providers_list, provider_options

@@ -12,8 +12,7 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_BACKEND_DIR))
 
 from vcclient.device import (
-    create_inference_session,
-    get_onnx_execution_provider,
+    get_device,
     setup_runtime_env,
 )
 
@@ -163,9 +162,9 @@ def main():
 
     # 3. 4D Patched model on OpenVINO GPU
     print("\n[3] Running 4D Patched Model on OpenVINO GPU...")
-    providers, provider_options = get_onnx_execution_provider(1000)
+    dev_ov = get_device(1000)
     try:
-        s_ov_gpu = create_inference_session(patched_bytes, providers, provider_options)
+        s_ov_gpu, _, _ = dev_ov.create_session(patched_bytes)
         print(f"  -> Active providers: {s_ov_gpu.get_providers()}")
         out_ov_gpu = s_ov_gpu.run(["audio"], feed_base)[0].squeeze()
         results["ov_gpu"] = out_ov_gpu
