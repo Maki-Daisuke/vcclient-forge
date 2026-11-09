@@ -147,7 +147,29 @@ test('shows only the most recent 20 seconds on a shared time axis', async ({ pag
   await page.clock.setFixedTime(start + 21_000);
   sendEvent(socket()!, 'realtime_output_status', { outputBufferSize: 4800 });
   await expect(page.locator('.buffer-chart .buffer-input')).toHaveCount(0);
-  await expect(page.locator('.buffer-chart > span')).toHaveText('0.110 s');
+  await expect(page.locator('.buffer-chart > span')).toHaveText('0.330 s');
   const points = await page.locator('.buffer-output').getAttribute('points');
   expect(points?.trim().split(/\s+/)).toHaveLength(2);
+});
+
+
+test('shows the selected model chunk duration on the buffer scale', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  const socket = await mockSocket(page);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  const line = page.locator('.buffer-chart .buffer-chunk');
+  await expect(line).toHaveCount(1);
+  await expect(page.locator('.buffer-legend .chunk-label')).toContainText('0.300 s');
+  await expect(page.locator('.buffer-chart > span')).toHaveText('0.330 s');
+  const initialY = Number(await line.getAttribute('y1'));
+  expect(initialY).toBeCloseTo(80 - (0.3 / 0.33) * 80);
+
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 48000 });
+  await expect(page.locator('.buffer-chart > span')).toHaveText('1.100 s');
+  const scaledY = Number(await line.getAttribute('y1'));
+  expect(scaledY).toBeCloseTo(80 - (0.3 / 1.1) * 80);
+  expect(Number(await line.getAttribute('y2'))).toBeCloseTo(scaledY);
 });

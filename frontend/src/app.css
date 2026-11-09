@@ -116,15 +116,19 @@ svg { flex-shrink: 0; }
 .buffer-chart { position: relative; height: 85px; border: 1px solid var(--border); border-radius: 3px; margin: 20px 0 12px; background: repeating-linear-gradient(to bottom, transparent 0 20px, var(--border) 20px 21px); }
 .buffer-chart svg { width: 100%; height: 100%; }
 .buffer-chart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.buffer-chart .buffer-chunk { stroke: #a56b00; stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .buffer-chart .buffer-input { stroke: #ee6a66; }
 .buffer-chart .buffer-output { stroke: #2196f3; }
 .buffer-chart .buffer-input-point { fill: #ee6a66; }
 .buffer-chart .buffer-output-point { fill: #2196f3; }
-.buffer-legend { display: flex; gap: 12px; margin-bottom: 10px; font-size: .72rem; }
+.buffer-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; font-size: .72rem; }
 .buffer-legend .input-label { color: #c84440; }
 .buffer-legend .output-label { color: #1870b7; }
+.buffer-legend .chunk-label { color: #8c5a00; }
 :root[data-theme='dark'] .buffer-legend .input-label { color: #ffaaa3; }
 :root[data-theme='dark'] .buffer-legend .output-label { color: #8fb9f0; }
+:root[data-theme='dark'] .buffer-legend .chunk-label { color: #e5b85c; }
+:root[data-theme='dark'] .buffer-chart .buffer-chunk { stroke: #e5b85c; }
 .buffer-chart span { position: absolute; bottom: 3px; inset-inline-end: 5px; font-size: .65rem; }
 dl { margin: 0 0 12px; }
 dl > div { display: flex; justify-content: space-between; margin-bottom: 7px; gap: 10px; }

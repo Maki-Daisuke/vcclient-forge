@@ -97,7 +97,7 @@
       {/each}
       {#if session.active && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
       {:else if session.active && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
-      <BufferChart input={meters.inputHistory} output={meters.outputHistory} />
+      <BufferChart input={meters.inputHistory} output={meters.outputHistory} chunkSeconds={modelSettings?.chunkSeconds ?? null} />
       <dl>
         <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>{meters.inputBuffer === null ? '—' : `${meters.inputBuffer.toFixed(3)} s`}</dd></div>
         <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>{meters.outputBuffer === null ? '—' : `${meters.outputBuffer.toFixed(3)} s`}</dd></div>
