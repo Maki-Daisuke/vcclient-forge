@@ -1,19 +1,17 @@
 <script lang="ts">
-  import type { BufferPoint } from '../lib/audio-meters.svelte';
+  import { bufferHistoryDurationMs, type BufferPoint } from '../lib/audio-meters.svelte';
   import { useUi } from '../lib/ui.svelte';
 
   let { input, output }: { input: BufferPoint[]; output: BufferPoint[] } = $props();
   const ui = useUi();
   const points = $derived([...input, ...output]);
-  const first = $derived(points.length ? Math.min(...points.map(point => point.time)) : 0);
   const last = $derived(points.length ? Math.max(...points.map(point => point.time)) : 0);
   const maximum = $derived(Math.max(0.05, ...points.map(point => point.seconds)) * 1.1);
   function coordinates(history: BufferPoint[]) {
-    const duration = Math.max(last - first, 1);
-    return history.map(point => `${((point.time - first) / duration) * 300},${80 - (point.seconds / maximum) * 80}`).join(' ');
+    return history.map(point => `${(1 - (last - point.time) / bufferHistoryDurationMs) * 300},${80 - (point.seconds / maximum) * 80}`).join(' ');
   }
   function position(point: BufferPoint) {
-    return { x: ((point.time - first) / Math.max(last - first, 1)) * 300, y: 80 - (point.seconds / maximum) * 80 };
+    return { x: (1 - (last - point.time) / bufferHistoryDurationMs) * 300, y: 80 - (point.seconds / maximum) * 80 };
   }
 </script>
 

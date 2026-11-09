@@ -121,3 +121,33 @@ test('receives input buffer independently when output analysis is disabled', asy
   await expect(page.locator('.performance dl > div').first()).toContainText('0.050 s');
   await expect(page.locator('.performance .meter-label').first()).toContainText('—');
 });
+
+
+test('shows only the most recent 20 seconds on a shared time axis', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  state.config.input_sample_rate = 48000;
+  state.config.output_sample_rate = 48000;
+  const socket = await mockSocket(page);
+  const start = Date.now();
+  await page.clock.setFixedTime(start);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 48000 });
+  sendEvent(socket()!, 'realtime_output_status', { outputBufferSize: 4800 });
+  await expect(page.locator('.buffer-chart .buffer-input')).toHaveCount(1);
+  await expect(page.locator('.buffer-chart .buffer-output')).toHaveCount(1);
+
+  await page.clock.setFixedTime(start + 10_000);
+  sendEvent(socket()!, 'realtime_output_status', { outputBufferSize: 4800 });
+  await expect(page.locator('.buffer-input-point')).toHaveAttribute('cx', '150');
+  await expect(page.locator('.buffer-output-point')).toHaveAttribute('cx', '300');
+
+  await page.clock.setFixedTime(start + 21_000);
+  sendEvent(socket()!, 'realtime_output_status', { outputBufferSize: 4800 });
+  await expect(page.locator('.buffer-chart .buffer-input')).toHaveCount(0);
+  await expect(page.locator('.buffer-chart > span')).toHaveText('0.110 s');
+  const points = await page.locator('.buffer-output').getAttribute('points');
+  expect(points?.trim().split(/\s+/)).toHaveLength(2);
+});

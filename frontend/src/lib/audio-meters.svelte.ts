@@ -5,7 +5,12 @@ type Levels = { input: number; output: number };
 export type BufferPoint = { time: number; seconds: number };
 type SampleRates = { input: number | null; output: number | null };
 type PendingSample = { samples: number; time: number };
+export const bufferHistoryDurationMs = 20_000;
 const maxHistory = 100;
+
+function recentHistory(history: BufferPoint[], now: number): BufferPoint[] {
+  return history.filter(point => point.time >= now - bufferHistoryDurationMs).slice(-maxHistory);
+}
 
 function validNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -106,7 +111,9 @@ export class AudioMeters {
     if (!this.pendingInput || !this.rates.input) return;
     const point = { time: this.pendingInput.time, seconds: this.pendingInput.samples / this.rates.input };
     this.inputBuffer = point.seconds;
-    this.inputHistory = [...this.inputHistory, point].slice(-maxHistory);
+    const now = Date.now();
+    this.inputHistory = recentHistory([...this.inputHistory, point], now);
+    this.outputHistory = recentHistory(this.outputHistory, now);
     this.pendingInput = null;
   }
 
@@ -114,7 +121,9 @@ export class AudioMeters {
     if (!this.pendingOutput || !this.rates.output) return;
     const point = { time: this.pendingOutput.time, seconds: this.pendingOutput.samples / this.rates.output };
     this.outputBuffer = point.seconds;
-    this.outputHistory = [...this.outputHistory, point].slice(-maxHistory);
+    const now = Date.now();
+    this.inputHistory = recentHistory(this.inputHistory, now);
+    this.outputHistory = recentHistory([...this.outputHistory, point], now);
     this.pendingOutput = null;
   }
 
