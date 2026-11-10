@@ -44,6 +44,7 @@ export class NativeSession {
   private requests = new Set<AbortController>();
   private lastStarted = -Infinity;
   private nextWrite: PendingWrite['kind'] = 'configuration';
+  private lastEnabledNoiseGate = -60;
   private urgent = false;
   private statusVersion = 0;
   private disposed = false;
@@ -67,13 +68,16 @@ export class NativeSession {
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
+  get canAdjustNoiseGate() {
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+  }
   get canAdjustModel() {
     return this.catalog.state.status === 'ready' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation
       && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
       && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
   get canAdjustFilter() {
-    return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
+    return this.canAdjustNoiseGate && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
   }
   get startBlockReason() {
     if (this.importing || this.organizing || this.modelInfoSaving || this.deviceRescanning) return 'saving';
@@ -190,8 +194,17 @@ export class NativeSession {
   }
 
   setNoiseGate(value: number) {
-    if (!this.canAdjustGain || this.settings?.noiseGate == null || !Number.isInteger(value) || value < -120 || value > 0) return;
+    if (!this.canAdjustNoiseGate || this.settings?.noiseGate == null || !Number.isInteger(value) || value < -100 || value > 0) return;
+    if (value > -100) this.lastEnabledNoiseGate = value;
+    else if (this.settings.noiseGate > -100) this.lastEnabledNoiseGate = this.settings.noiseGate;
     if (this.settings.noiseGate !== value) this.edit({ noiseGate: value });
+  }
+
+  setNoiseGateEnabled(enabled: boolean) {
+    const current = this.settings?.noiseGate;
+    if (!this.canAdjustNoiseGate || current == null || enabled === (current > -100)) return;
+    if (!enabled && current > -100) this.lastEnabledNoiseGate = current;
+    this.edit({ noiseGate: enabled ? this.lastEnabledNoiseGate : -100 }, true);
   }
 
   get canTogglePassThrough() {

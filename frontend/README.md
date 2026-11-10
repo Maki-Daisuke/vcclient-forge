@@ -260,16 +260,23 @@ reselecting the model or restarting the backend may be needed.
 The stopped-state check is not atomic with changes from other clients. Browser tests
 use mocked APIs; real-backend switching and audible behavior have not been verified.
 
-The noise-gate slider in Noise Suppression uses the v2.1.4 range of −120 to 0 dB in 1 dB
-steps. The native pipeline disables the gate at −100 dB or below. It uses the same
+The noise-gate slider in Noise Suppression ranges from −100 to 0 dB in 1 dB steps.
+The enable checkbox disables the gate by setting −100 dB; re-enabling restores the
+last enabled value in this page, or −60 dB if none is available. Existing settings
+below −100 dB appear disabled at −100 dB without being rewritten on load. The native
+pipeline disables the gate at −100 dB or below. It uses the same
 configuration write queue as gain, including throttling and retry/discard. The
 displayed value has been checked against the real backend via GET. Configuration
 writes have been covered by mocked browser requests; real-backend PUT and audible
-noise-gate behavior have not yet been verified.
-Browser-side echo cancellation and noise-suppression options are grouped under
-Client Mode Only and remain disabled; capture currently disables both options.
+noise-gate behavior have not yet been verified. The noise gate can be adjusted in
+both Server and Client Mode, including while conversion is running.
+Client Mode Only includes browser echo cancellation, noise suppression, and automatic
+gain control. They are selected while audio is stopped and saved in browser local
+storage; browser processing support varies by device. Requested browser processing
+must be supported or starting audio fails. The user confirmed echo cancellation,
+noise suppression, and automatic gain control with a real microphone.
 
-High/low-pass switches and cutoffs are editable in Server Mode when a usable model
+High/low-pass switches and cutoffs are editable in Server and Client Mode when a usable model
 is selected. Before a filter
 update, the client reads the current full configuration and voice-changer
 information, then checks that rates are available and both cutoffs are positive
@@ -280,7 +287,8 @@ Valid edits use the same
 serialized full-configuration PUT and readback as the other controls. This is a
 client-side check, not an atomic guarantee against changes by another client.
 Real-backend GET display has been checked; real PUT and audible filter changes
-remain to be tested. Backend APIs are unchanged.
+remain to be tested. Passthrough bypasses both filters and the noise gate. Backend
+APIs are unchanged.
 
 To try native audio, start the backend, select a model card, open Audio Devices, switch
 to Server Mode if necessary, and choose input/output devices (monitor is optional).

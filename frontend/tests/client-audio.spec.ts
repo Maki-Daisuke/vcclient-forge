@@ -56,19 +56,47 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
     const destination = audio.createMediaStreamDestination();
     oscillator.connect(destination);
     oscillator.start();
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => destination.stream });
+    Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }) });
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async (constraints: MediaStreamConstraints) => {
+      (window as unknown as { capturedConstraints: MediaStreamConstraints }).capturedConstraints = constraints;
+      return destination.stream;
+    } });
     (window as unknown as { testStream: MediaStream }).testStream = destination.stream;
   });
   await page.goto('/');
+  await openControlSections(page);
+  const echo = page.getByRole('checkbox', { name: 'エコーキャンセル' });
+  const noise = page.getByRole('checkbox', { name: 'ノイズサプレッション', exact: true });
+  const autoGain = page.getByRole('checkbox', { name: '自動音量調整' });
+  await expect(autoGain).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'ノイズサプレッション2を有効にする' })).toHaveCount(0);
+  await echo.check();
+  await noise.check();
+  await autoGain.check();
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('vcclient-forge.browser-audio.v1')) ?? '{}'))
+    .toEqual({ echoCancellation: true, noiseSuppression: true, autoGainControl: true });
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeEnabled();
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  await expect(echo).toBeDisabled();
+  await expect(noise).toBeDisabled();
+  await expect(autoGain).toBeDisabled();
+  expect(await page.evaluate(() => (window as unknown as { capturedConstraints: MediaStreamConstraints }).capturedConstraints.audio))
+    .toMatchObject({ echoCancellation: { exact: true }, noiseSuppression: { exact: true }, autoGainControl: { exact: true } });
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();
   await expect.poll(() => packets).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => (window as unknown as { played: number }).played ?? 0), { timeout: 10000 }).toBeGreaterThan(0);
   const bars = page.locator('.meter > span');
   await expect.poll(async () => Number.parseFloat(await bars.nth(0).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
   await expect.poll(async () => Number.parseFloat(await bars.nth(1).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
+  await page.getByRole('slider', { name: 'ノイズゲートのしきい値' }).press('ArrowRight');
+  await expect.poll(() => state.config.noise_gate).toBe(-54);
+  await page.getByRole('slider', { name: 'ハイパスのカットオフ' }).press('ArrowRight');
+  await expect.poll(() => state.config.high_pass_filter_cutoff).toBe(141);
+  await page.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
+  await expect.poll(() => state.config.enable_low_pass_filter).toBe(true);
+  await page.getByRole('slider', { name: 'ローパスのカットオフ' }).press('ArrowLeft');
+  await expect.poll(() => state.config.low_pass_filter_cutoff).toBe(9499);
   const passthrough = page.getByRole('button', { name: 'パススルー' });
   await passthrough.click();
   await expect.poll(() => state.config.pass_through).toBe(true);
@@ -84,10 +112,67 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeEnabled();
+  await expect(echo).toBeEnabled();
+  await expect(noise).toBeEnabled();
+  await expect(autoGain).toBeEnabled();
   await expect(metrics.nth(0)).toContainText('—');
   await expect(metrics.nth(1)).toContainText('—');
   await expect(metrics.nth(2)).toContainText('—');
   await expect(bars.nth(0)).toHaveAttribute('style', /--empty:\s*100%/);
   await expect(bars.nth(1)).toHaveAttribute('style', /--empty:\s*100%/);
   expect(await page.evaluate(() => (window as unknown as { testStream: MediaStream }).testStream.getTracks()[0].readyState)).toBe('ended');
+  await page.reload();
+  await openControlSections(page);
+  await expect(echo).toBeChecked();
+  await expect(noise).toBeChecked();
+  await expect(autoGain).toBeChecked();
+});
+
+test('disables processing options that the browser does not support', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({}) });
+  });
+  await page.goto('/');
+  await openControlSections(page);
+  await expect(page.getByRole('checkbox', { name: 'エコーキャンセル' })).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: 'ノイズサプレッション', exact: true })).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: '自動音量調整' })).toBeDisabled();
+});
+
+test('reports failure and releases the microphone if automatic gain control is not applied', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  state.config.output_sample_rate = 48000;
+  await page.addInitScript(() => {
+    const audio = new AudioContext();
+    const destination = audio.createMediaStreamDestination();
+    Object.defineProperty(destination.stream.getAudioTracks()[0], 'getSettings', { value: () => ({ autoGainControl: false }) });
+    Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({ autoGainControl: true }) });
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => destination.stream });
+    (window as unknown as { testStream: MediaStream }).testStream = destination.stream;
+  });
+  await page.goto('/');
+  await openControlSections(page);
+  await page.getByRole('checkbox', { name: '自動音量調整' }).check();
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('The microphone could not enable the requested audio processing.');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { testStream: MediaStream }).testStream.getTracks()[0].readyState)).toBe('ended');
+});
+
+test('allows disabling a saved processing option if browser support is lost', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  await page.addInitScript(() => {
+    localStorage.setItem('vcclient-forge.browser-audio.v1', JSON.stringify({ autoGainControl: true }));
+    Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({}) });
+  });
+  await page.goto('/');
+  await openControlSections(page);
+  const autoGain = page.getByRole('checkbox', { name: '自動音量調整' });
+  await expect(autoGain).toBeChecked();
+  await autoGain.uncheck();
+  await expect(autoGain).toBeDisabled();
 });

@@ -2,12 +2,26 @@ import { io, type Socket } from 'socket.io-client';
 import captureUrl from './audio-capture.worklet.js?url';
 
 type SinkAudioContext = AudioContext & { setSinkId?: (id: string) => Promise<void> };
+type BrowserAudioOption = 'echoCancellation' | 'noiseSuppression' | 'autoGainControl';
+const browserAudioStorageKey = 'vcclient-forge.browser-audio.v1';
+
+function loadBrowserAudioOptions(): Record<BrowserAudioOption, boolean> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(browserAudioStorageKey) ?? 'null');
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const stored = value as Record<string, unknown>;
+      return { echoCancellation: stored.echoCancellation === true, noiseSuppression: stored.noiseSuppression === true, autoGainControl: stored.autoGainControl === true };
+    }
+  } catch { /* Storage may be unavailable or contain invalid data. */ }
+  return { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+}
 
 export class ClientAudio {
   inputs = $state<MediaDeviceInfo[]>([]);
   outputs = $state<MediaDeviceInfo[]>([]);
   inputId = $state('');
   outputId = $state('');
+  private options = $state(loadBrowserAudioOptions());
   private context: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private socket: Socket | null = null;
@@ -21,6 +35,19 @@ export class ClientAudio {
   private generation = 0;
 
   get canSelectOutput() { return typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype; }
+
+  get echoCancellation() { return this.options.echoCancellation; }
+  get noiseSuppression() { return this.options.noiseSuppression; }
+  get autoGainControl() { return this.options.autoGainControl; }
+  supportsOption(option: BrowserAudioOption) {
+    return navigator.mediaDevices?.getSupportedConstraints?.()[option] === true;
+  }
+  setOption(option: BrowserAudioOption, value: boolean) {
+    if (value && !this.supportsOption(option)) return;
+    this.options = { ...this.options, [option]: value };
+    try { localStorage.setItem(browserAudioStorageKey, JSON.stringify(this.options)); }
+    catch { /* Keep the current page usable if browser storage is unavailable. */ }
+  }
 
   async refreshDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -54,6 +81,11 @@ export class ClientAudio {
 
   async start(inputRate: number, outputRate: number, onFailure: (error: Error) => void) {
     if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') throw new Error('Audio capture is unavailable in this browser.');
+    if ((this.options.echoCancellation && !this.supportsOption('echoCancellation'))
+      || (this.options.noiseSuppression && !this.supportsOption('noiseSuppression'))
+      || (this.options.autoGainControl && !this.supportsOption('autoGainControl'))) {
+      throw new Error('The browser does not support the selected audio processing.');
+    }
     const generation = ++this.generation;
     const context = new AudioContext({ sampleRate: inputRate, latencyHint: 'interactive' });
     this.context = context;
@@ -66,10 +98,18 @@ export class ClientAudio {
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: {
         ...(this.inputId ? { deviceId: { exact: this.inputId } } : {}), channelCount: 1,
-        echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+        echoCancellation: this.options.echoCancellation ? { exact: true } : false,
+        noiseSuppression: this.options.noiseSuppression ? { exact: true } : false,
+        autoGainControl: this.options.autoGainControl ? { exact: true } : false,
       } });
       if (generation !== this.generation) { stream.getTracks().forEach(track => track.stop()); return; }
       this.stream = stream;
+      const trackSettings = stream.getAudioTracks()[0]?.getSettings();
+      if ((this.options.echoCancellation && trackSettings?.echoCancellation === false)
+        || (this.options.noiseSuppression && trackSettings?.noiseSuppression === false)
+        || (this.options.autoGainControl && trackSettings?.autoGainControl === false)) {
+        throw new Error('The microphone could not enable the requested audio processing.');
+      }
       await this.refreshDevices();
       await context.audioWorklet.addModule(captureUrl);
       await context.resume();

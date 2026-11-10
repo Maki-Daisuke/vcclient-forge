@@ -16,9 +16,10 @@ test('updates the noise gate during native audio while retaining the complete co
   const gate = await openNoiseGate(page);
   await expect(gate).toBeEnabled();
   await expect(gate).toHaveAttribute('aria-valuetext', '-55 dB');
-  await expect(gate).toHaveAttribute('aria-valuemin', '-120');
+  await expect(gate).toHaveAttribute('aria-valuemin', '-100');
   await expect(gate).toHaveAttribute('aria-valuemax', '0');
-  await expect(page.locator('.noise-section')).toContainText('−100 dB 以下ではノイズゲートが無効');
+  await expect(page.locator('.noise-section')).not.toContainText('−100 dB 以下ではノイズゲートが無効');
+  await expect(page.getByRole('checkbox', { name: 'ノイズゲートを有効にする' })).toBeChecked();
   state.config.high_pass_filter_cutoff = 188;
   await gate.press('ArrowRight');
   await saved(page);
@@ -91,13 +92,13 @@ test('keeps failed edits for explicit retry and merges fresh settings', async ({
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(812);
   await gate.press('Home');
-  await expect(gate).toHaveAttribute('aria-valuenow', '-120');
+  await expect(gate).toHaveAttribute('aria-valuenow', '-100');
   expect(state.writes).toHaveLength(1);
   state.config.high_pass_filter_cutoff = 222;
   state.putStatus = 200;
   await status.getByRole('button', { name: '保存を再試行' }).click();
   await expect(status).toHaveAttribute('data-state', 'saved');
-  expect(state.config.noise_gate).toBe(-120);
+  expect(state.config.noise_gate).toBe(-100);
   expect(state.config.high_pass_filter_cutoff).toBe(222);
 });
 
@@ -109,16 +110,52 @@ test('missing noise-gate configuration remains unknown and disabled', async ({ p
   const gate = await openNoiseGate(page);
   await expect(gate).toBeDisabled();
   await expect(gate).toHaveAttribute('aria-valuetext', '—');
+  await expect(page.getByRole('checkbox', { name: 'ノイズゲートを有効にする' })).toBeDisabled();
   expect(state.writes).toHaveLength(0);
 });
 
-test('noise-gate editing stays disabled in Client Mode', async ({ page }) => {
+test('updates the noise gate in Client Mode', async ({ page }) => {
   const state = await mockSession(page);
   state.config.voice_changer_input_mode = 'client';
   await page.goto('/');
   await openControlSections(page);
   const gate = await openNoiseGate(page);
-  await expect(gate).toBeDisabled();
+  await expect(gate).toBeEnabled();
   await expect(gate).toHaveAttribute('aria-valuetext', '-55 dB');
+  await gate.press('ArrowRight');
+  await expect.poll(() => state.config.noise_gate).toBe(-54);
+});
+
+test('disables the gate at -100 dB and restores the previous threshold when enabled', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  await page.goto('/');
+  await openControlSections(page);
+  const toggle = page.getByRole('checkbox', { name: 'ノイズゲートを有効にする' });
+  const gate = await openNoiseGate(page);
+  await toggle.uncheck();
+  await saved(page);
+  expect(state.config.noise_gate).toBe(-100);
+  await expect(gate).toBeDisabled();
+  await expect(gate).toHaveAttribute('aria-valuetext', '-100 dB');
+  await toggle.check();
+  await saved(page);
+  expect(state.config.noise_gate).toBe(-55);
+  await expect(gate).toBeEnabled();
+});
+
+test('treats legacy values below -100 dB as disabled without changing them on load', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.noise_gate = -120;
+  await page.goto('/');
+  await openControlSections(page);
+  const toggle = page.getByRole('checkbox', { name: 'ノイズゲートを有効にする' });
+  const gate = await openNoiseGate(page);
+  await expect(toggle).not.toBeChecked();
+  await expect(gate).toBeDisabled();
+  await expect(gate).toHaveAttribute('aria-valuetext', '-100 dB');
   expect(state.writes).toHaveLength(0);
+  await toggle.check();
+  await saved(page);
+  expect(state.config.noise_gate).toBe(-60);
 });

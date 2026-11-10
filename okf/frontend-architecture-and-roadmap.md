@@ -163,8 +163,9 @@ serialized with UI settings and audio start. The user confirmed a real model upl
 the tested model format and index presence were not specified. ZIP selection and
 drag and drop extract chosen files in the browser; the user confirmed a ZIP import
 and subsequent voice conversion.
-Browser-only noise preferences remain visible and disabled under Client Mode Only
-within Noise Suppression.
+Client Mode Only exposes browser echo cancellation, noise suppression and automatic
+gain control; selections are stored locally and applied on audio start. The user
+confirmed all three with a real microphone.
 Save errors appear in a persistent bottom-right notification with retry and discard actions;
 successful saves do not show notifications. Backend APIs and supported operations
 are unchanged; the legacy production frontend is still separate.
