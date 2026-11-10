@@ -173,8 +173,14 @@ function parseDevices(value: unknown): AudioDevice[] {
   });
 }
 
-export async function loadAudioDevices(signal: AbortSignal): Promise<AudioDevices> {
-  // Read the backend's cached lists; reload=true would reinitialize PortAudio.
+export async function loadAudioDevices(signal: AbortSignal, rescan = false): Promise<AudioDevices> {
+  // The rescan resets PortAudio and both backend lists, so request it only once.
+  if (rescan) {
+    const input = await getJson('/api/audio-device-manager/input_devices?reload=true', signal);
+    const output = await getJson('/api/audio-device-manager/output_devices', signal);
+    return { input: parseDevices(input), output: parseDevices(output) };
+  }
+  // Ordinary loads only read the backend's cached lists.
   const [input, output] = await Promise.all([
     getJson('/api/audio-device-manager/input_devices', signal),
     getJson('/api/audio-device-manager/output_devices', signal),

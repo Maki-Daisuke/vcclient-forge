@@ -14,7 +14,8 @@ test('switches to client mode and reports a denied microphone without starting a
   await openControlSections(page);
   await page.getByText('クライアントモード', { exact: true }).click();
   await expect.poll(() => state.config.voice_changer_input_mode).toBe('client');
-  await expect(page.getByRole('button', { name: 'マイクを許可してデバイスを取得' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'デバイス再検出' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'デバイス再検出' }).locator('..')).toHaveCSS('justify-content', 'flex-end');
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('マイクの許可');
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();

@@ -151,6 +151,7 @@ summary::-webkit-details-marker { display: none; }
 summary::after { content: '+'; margin-inline-start: auto; color: var(--muted); }
 details[open] > summary::after { content: '−'; }
 .control-group-body { padding: 5px 20px 16px; }
+.input-section .control-group-body { padding-bottom: 20px; }
 .control-group-body p.muted { font-size: .82rem; line-height: 1.55; margin: 8px 0; }
 .range-field { padding: 7px 0; }
 .range-label { justify-content: space-between; font-size: .8rem; margin-bottom: 6px; }
@@ -225,6 +226,7 @@ select, input:not([type='checkbox']):not([type='radio']), textarea { border: 1px
   .selected-model-layout { grid-template-columns: 1fr; gap: 16px; }
   .portrait { max-width: 140px; }
   .control-group-body { padding: 5px 12px 14px; }
+  .input-section .control-group-body { padding-bottom: 12px; }
   .dialog-header, .dialog-body, .dialog-footer { padding-inline: 16px; }
   .preview-notice { margin-inline: 16px; }
 }

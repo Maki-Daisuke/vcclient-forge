@@ -66,7 +66,7 @@ and settings writes remain disabled.
 
 The existing catalog/configuration GET pair also supplies the configuration
 snapshot in `frontend/src/lib/settings.ts`. Input/output/monitor gains, mode,
-native device/GPU IDs, device sample rates, WASAPI exclusive mode, filters,
+native device/GPU IDs, filters,
 cutoffs, noise gate, extra context, and analysis switches/intervals now populate
 the controls. Selected-model pitch/index/estimator/embedder/chunk settings are
 mapped from the slot response. Missing fields remain null and display `—` or an
@@ -138,8 +138,10 @@ and Inference, each using native expandable details. Output/monitor volume uses 
 RMVPE/FCPE pitch estimator selection is available while server audio is stopped.
 The Passthrough button writes the existing configuration and confirms the result;
 it can be toggled during server audio. Live audio verification remains pending.
-WASAPI exclusive mode can be changed while native audio is stopped; real-device
-verification remains pending.
+WASAPI exclusive mode and device sample-rate controls are not displayed in the new UI.
+Before starting native audio, the UI disables the saved exclusive-mode setting using
+the existing API. Previously saved device sample rates remain in use until the device
+changes; changing it resets the rate to Auto.
 The chunk, Extra frame, and crossfade logarithmic sliders save on release while
 server audio is stopped. Chunk belongs to the selected model; the others are
 configuration settings. Real-device audio validation remains pending.
@@ -154,7 +156,7 @@ the selected ID through the existing configuration API while Server Mode audio i
 The UI checks the saved configuration and the reported pipeline device ID when a model is selected.
 This does not verify the actual execution providers. The user confirmed switching
 with the live backend; conversion after switching has not yet been confirmed.
-Client audio and sample-rate edits remain unconnected.
+Client audio uses Socket.IO; sample-rate edits remain unavailable.
 Model upload uses the existing chunk uploader and slot import APIs for `.pth` and
 `.onnx` files with an optional index. Native audio must be stopped; import is
 serialized with UI settings and audio start. The user confirmed a real model upload;

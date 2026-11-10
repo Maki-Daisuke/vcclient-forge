@@ -65,6 +65,14 @@ export class ModelCatalogState {
     }
   }
 
+  applyDevices(devices: AudioDevices) {
+    this.deviceState = { status: 'ready', devices };
+  }
+
+  invalidateDevices() {
+    this.deviceState = { status: 'error' };
+  }
+
   async reload() {
     this.request?.abort();
     const request = new AbortController();

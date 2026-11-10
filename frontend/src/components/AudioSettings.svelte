@@ -1,19 +1,19 @@
 <script lang="ts">
-  import SelectField from './SelectField.svelte';
   import DeviceField from './DeviceField.svelte';
   import CheckField from './CheckField.svelte';
+  import { useCatalog } from '../lib/catalog.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
-  import { displayNumber } from '../lib/settings';
   const ui = useUi();
   const session = useSession();
+  const catalog = useCatalog();
   const settings = $derived(session.settings);
   let deviceError = $state(false);
+  let showLegacy = $state(false);
+  const windowsDevices = $derived(catalog.deviceState.status === 'ready' &&
+    [...catalog.deviceState.devices.input, ...catalog.deviceState.devices.output]
+      .some(device => /^windows\b/i.test(device.host) || /^mme$/i.test(device.host) || /wasapi/i.test(device.host)));
 
-  function rateLabel(rate: number | null | undefined) {
-    return rate === null || rate === undefined ? '—' : rate < 0
-      ? ui.t('common.settings_dialog.auto') : displayNumber(rate, ' Hz');
-  }
 </script>
 
 <fieldset class="mode-field" aria-label={ui.t('forge.mode')} disabled={!session.canConfigure || !settings?.inputMode}>
@@ -25,7 +25,7 @@
   {#if !settings?.inputMode}<span class="muted">—</span>{/if}
 </fieldset>
 {#if settings?.inputMode === 'client'}
-<section class="settings-section">
+<section class="settings-section audio-device-section">
   <label class="select-field"><span>{ui.t('common.settings_dialog.input_device')}</span>
     <select bind:value={session.clientAudio.inputId} disabled={!session.canConfigure}>
       <option value="">{ui.t('forge.browser_default')}</option>
@@ -42,32 +42,31 @@
       {/each}
     </select>
   </label>
-  <button class="button small" disabled={!session.canConfigure} onclick={async () => {
-    deviceError = false;
-    try { await session.clientAudio.requestDevices(); } catch { deviceError = true; }
-  }}>{ui.t('forge.browser_devices')}</button>
+  <div class="device-actions">
+    <button class="button small" disabled={!session.canConfigure} onclick={async () => {
+      deviceError = false;
+      try { await session.clientAudio.requestDevices(); } catch { deviceError = true; }
+    }}>{ui.t('forge.devices_rescan')}</button>
+  </div>
   {#if deviceError}<p role="alert">{ui.t('forge.browser_devices_error')}</p>{/if}
   {#if !session.clientAudio.canSelectOutput}<p class="muted">{ui.t('forge.browser_output_default')}</p>{/if}
 </section>
 {:else}
-<section class="settings-section">
-  <div class="device-row">
-    <DeviceField label={ui.t('common.settings_dialog.input_device')} id={settings?.inputDevice} direction="input"
-      disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('inputDevice', id)} />
-    <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.input_device_rate')} value={rateLabel(settings?.inputDeviceRate)} />
+<section class="settings-section audio-device-section">
+  <DeviceField label={ui.t('common.settings_dialog.input_device')} id={settings?.inputDevice} direction="input"
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('inputDevice')} onchange={id => session.selectDevice('inputDevice', id)} />
+  <DeviceField label={ui.t('common.settings_dialog.output_device')} id={settings?.outputDevice} direction="output"
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('outputDevice')} onchange={id => session.selectDevice('outputDevice', id)} />
+  <DeviceField label={ui.t('common.settings_dialog.monitor_device')} id={settings?.monitorDevice} direction="output"
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('monitorDevice')} onchange={id => session.selectDevice('monitorDevice', id)} />
+  <div class="device-actions">
+    {#if windowsDevices}<CheckField label={ui.t('forge.show_legacy_devices')} checked={showLegacy} disabled={false} onchange={value => showLegacy = value} />{/if}
+    <button class="button small" disabled={!session.canConfigure} onclick={() => session.rescanAudioDevices()}>{ui.t(session.deviceRescanning ? 'forge.devices_rescanning' : 'forge.devices_rescan')}</button>
   </div>
-  <div class="device-row">
-    <DeviceField label={ui.t('common.settings_dialog.output_device')} id={settings?.outputDevice} direction="output"
-      disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('outputDevice', id)} />
-    <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.output_device_rate')} value={rateLabel(settings?.outputDeviceRate)} />
-  </div>
-  <div class="device-row">
-    <DeviceField label={ui.t('common.settings_dialog.monitor_device')} id={settings?.monitorDevice} direction="output"
-      disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={id => session.selectDevice('monitorDevice', id)} />
-    <SelectField label={ui.t('forge.sample_rate')} ariaLabel={ui.t('forge.monitor_device_rate')} value={rateLabel(settings?.monitorDeviceRate)} />
-  </div>
-  <CheckField label={ui.t('common.settings_dialog.wasapi_exclusive_mode')} checked={settings?.wasapiExclusive ?? null}
-    disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={value => session.setWasapiExclusive(value)} />
+  {#if session.deviceRescanError}<p class="muted" role="alert">{ui.t('forge.devices_rescan_error')}</p>{/if}
+  {#if settings?.wasapiExclusive === true}
+    <p class="muted" role="status">{ui.t(session.active ? 'forge.wasapi_saved_running' : 'forge.wasapi_saved_stopped')}</p>
+  {/if}
 </section>
 {/if}
 <style>
@@ -80,6 +79,7 @@
   .segmented-control input:disabled + span { color: var(--disabled); cursor: not-allowed; }
   .segmented-control input:checked:disabled + span { background: var(--segment-selected); color: var(--segment-selected-text); }
   .segmented-control input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
-  .device-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; align-items: end; gap: 12px; }
-  @media (max-width: 400px) { .device-row { grid-template-columns: 1fr; gap: 0; } }
+  .device-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; }
+  .device-actions :global(.check-field) { margin-block: 0; }
+  .audio-device-section { padding-bottom: 0; margin-bottom: 0; }
 </style>

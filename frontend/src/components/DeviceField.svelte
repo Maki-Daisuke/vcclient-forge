@@ -1,16 +1,19 @@
 <script lang="ts">
   import { useCatalog } from '../lib/catalog.svelte';
   import { useUi } from '../lib/ui.svelte';
-  let { label, id, direction, disabled = true, onchange }: {
+  let { label, id, direction, disabled = true, wasapiOnly = false, needsSelection = false, onchange }: {
     label: string;
     id: number | null | undefined;
     direction: 'input' | 'output';
     disabled?: boolean;
+    wasapiOnly?: boolean;
+    needsSelection?: boolean;
     onchange?: (id: number) => void;
   } = $props();
   const catalog = useCatalog();
   const ui = useUi();
   const devices = $derived(catalog.deviceState.status === 'ready' ? catalog.deviceState.devices[direction] : []);
+  const visibleDevices = $derived(wasapiOnly ? devices.filter(device => /wasapi/i.test(device.host)) : devices);
   const value = $derived.by(() => {
     if (id === null || id === undefined) return '—';
     if (id < 0) return ui.t('common.settings_dialog.unselected');
@@ -26,15 +29,15 @@
 
 <label class="select-field">
   <span>{label}</span>
-  <select value={id == null ? '' : String(id)} title={value}
+  <select value={id == null || needsSelection ? '' : String(id)} title={needsSelection ? ui.t('forge.device_reselect') : value}
     disabled={disabled || catalog.deviceState.status !== 'ready'}
     onchange={event => onchange?.(Number(event.currentTarget.value))}>
-    {#if id == null}<option value="" disabled>—</option>{/if}
+    {#if id == null || needsSelection}<option value="" disabled hidden>{needsSelection ? ui.t('common.settings_dialog.unselected') : '—'}</option>{/if}
     <option value="-1">{ui.t('common.settings_dialog.unselected')}</option>
-    {#if id != null && id !== -1 && !devices.some(device => device.id === id)}
+    {#if id != null && id !== -1 && !visibleDevices.some(device => device.id === id)}
       <option value={String(id)} disabled>{value}</option>
     {/if}
-    {#each devices as device (device.id)}
+    {#each visibleDevices as device (device.id)}
       <option value={String(device.id)}>{device.name}{device.host ? ` (${device.host})` : ''}</option>
     {/each}
   </select>

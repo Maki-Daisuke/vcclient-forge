@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
+import { loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
 import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
 import { importModel, uploadFile } from './model-upload';
@@ -11,6 +11,7 @@ const updateIntervalMs = 100;
 type PendingWrite =
   | { kind: 'configuration'; edits: ConfigurationEdits }
   | { kind: 'model'; id: number; edits: ModelEdits };
+type DeviceKey = 'inputDevice' | 'outputDevice' | 'monitorDevice';
 
 export class NativeSession {
   readonly clientAudio = new ClientAudio();
@@ -34,6 +35,9 @@ export class NativeSession {
   modelInfoError = $state<ApiError | null>(null);
   modelOperationError = $state<ApiError | null>(null);
   operationError = $state<ApiError | null>(null);
+  deviceRescanning = $state(false);
+  deviceRescanError = $state(false);
+  devicesNeedingSelection = $state<DeviceKey[]>([]);
   private timer: ReturnType<typeof setTimeout> | undefined;
   private poll: ReturnType<typeof setTimeout> | undefined;
   private flight: Promise<void> | null = null;
@@ -56,9 +60,9 @@ export class NativeSession {
   }
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
-  get canReload() { return !this.modelInfoSaving && !this.organizing && !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
+  get canReload() { return !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
   get canConfigure() {
-    return this.catalog.state.status === 'ready' && this.active === false && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
+    return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
@@ -72,7 +76,7 @@ export class NativeSession {
     return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
   }
   get startBlockReason() {
-    if (this.importing || this.organizing || this.modelInfoSaving) return 'saving';
+    if (this.importing || this.organizing || this.modelInfoSaving || this.deviceRescanning) return 'saving';
     if (this.operation) return 'operation';
     if (this.catalog.state.status === 'loading') return 'loading';
     if (this.catalog.state.status === 'error') return 'load_error';
@@ -86,6 +90,7 @@ export class NativeSession {
     const devices = this.catalog.deviceState;
     if (devices.status === 'loading') return 'devices_loading';
     if (devices.status === 'error') return 'devices_error';
+    if (this.devicesNeedingSelection.length) return 'devices_changed';
     if (!devices.devices.input.some(device => device.id === settings.inputDevice)) return 'input';
     if (!devices.devices.output.some(device => device.id === settings.outputDevice)) return 'output';
     if (settings.monitorDevice !== -1 && !devices.devices.output.some(device => device.id === settings.monitorDevice)) return 'monitor';
@@ -170,7 +175,7 @@ export class NativeSession {
   }
 
   async reload() {
-    if (this.disposed || this.isSaving || this.operation || this.dirty) return;
+    if (this.disposed || this.deviceRescanning || this.isSaving || this.operation || this.dirty) return;
     this.saved = false;
     this.error = null;
     this.operationError = null;
@@ -264,13 +269,55 @@ export class NativeSession {
     this.edit({ gpuDevice: id }, true);
   }
 
-  selectDevice(key: 'inputDevice' | 'outputDevice' | 'monitorDevice', id: number) {
+  async rescanAudioDevices() {
+    if (!this.canConfigure || this.settings?.inputMode !== 'server') return;
+    this.deviceRescanning = true;
+    this.deviceRescanError = false;
+    const previous = this.catalog.deviceState.status === 'ready' ? this.catalog.deviceState.devices : null;
+    const selections = this.settings;
+    let rescanStarted = false;
+    try {
+      const devices = await this.request(async signal => {
+        if (await readNativeActive(signal)) {
+          this.active = true;
+          throw new ApiError('active');
+        }
+        rescanStarted = true;
+        return loadAudioDevices(signal, true);
+      });
+      if (this.disposed) return;
+      for (const key of ['inputDevice', 'outputDevice', 'monitorDevice'] as const) {
+        const id = selections[key];
+        if (id == null || id < 0) continue;
+        const direction = key === 'inputDevice' ? 'input' : 'output';
+        const before = previous?.[direction].find(device => device.id === id);
+        const after = devices[direction].find(device => device.id === id);
+        if (!before || !after || before.name !== after.name || before.host !== after.host) {
+          if (!this.devicesNeedingSelection.includes(key)) this.devicesNeedingSelection = [...this.devicesNeedingSelection, key];
+        }
+      }
+      this.catalog.applyDevices(devices);
+    } catch {
+      if (!this.disposed) {
+        this.deviceRescanError = true;
+        if (rescanStarted) {
+          this.catalog.invalidateDevices();
+          this.devicesNeedingSelection = (['inputDevice', 'outputDevice', 'monitorDevice'] as const)
+            .filter(key => selections[key] != null && selections[key]! >= 0);
+        }
+      }
+    } finally {
+      this.deviceRescanning = false;
+    }
+  }
+
+  selectDevice(key: DeviceKey, id: number) {
     if (!this.canConfigure || this.settings?.inputMode !== 'server') return;
     const state = this.catalog.deviceState;
     if (state.status !== 'ready' || !Number.isSafeInteger(id)) return;
     const devices = key === 'inputDevice' ? state.devices.input : state.devices.output;
     if (id !== -1 && !devices.some(device => device.id === id)) return;
-    if (id === this.settings[key]) return;
+    if (id === this.settings[key] && !this.devicesNeedingSelection.includes(key)) return;
     // A different device may not support the previous device's fixed sample rate.
     const rateKey = `${key}Rate` as 'inputDeviceRate' | 'outputDeviceRate' | 'monitorDeviceRate';
     this.edit({ [key]: id, [rateKey]: -1 }, true);
@@ -286,12 +333,6 @@ export class NativeSession {
       this.edit({ inputMode: 'client' }, true);
       void this.clientAudio.refreshDevices().catch(() => {});
     }
-  }
-
-  setWasapiExclusive(value: boolean) {
-    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.wasapiExclusive == null
-      || this.settings.wasapiExclusive === value) return;
-    this.edit({ wasapiExclusive: value }, true);
   }
 
   setExtraSeconds(value: number) {
@@ -368,6 +409,8 @@ export class NativeSession {
         const confirmed = await this.request(signal => updateConfiguration(sent.edits, signal), sent.edits.gpuDevice !== undefined ? 120_000 : 30_000);
         if (this.disposed) return;
         this.catalog.applyConfiguration(confirmed);
+        this.devicesNeedingSelection = this.devicesNeedingSelection.filter(key =>
+          sent.edits[key] === undefined || sent.edits[key] !== this.draft[key] || confirmed.settings[key] !== sent.edits[key]);
         if (sent.edits.recording === false) this.recordingCompleted = true;
         // A response acknowledges only the values it sent, never newer interactions.
         this.draft = Object.fromEntries(Object.entries(this.draft).filter(
@@ -437,7 +480,7 @@ export class NativeSession {
         if (operation === 'start') {
           // Reapply/confirm the selected model through the existing PUT before starting.
           // This also initializes a pipeline when a previous startup load failed.
-          const confirmed = await updateConfiguration({ currentModelId: this.currentModelId! }, signal);
+          const confirmed = await updateConfiguration({ currentModelId: this.currentModelId!, wasapiExclusive: false }, signal);
           if (!this.disposed) this.catalog.applyConfiguration(confirmed);
           if (confirmed.settings.inputMode !== 'server') throw new ApiError('not_applied');
           const active = await operateNative('start', signal);

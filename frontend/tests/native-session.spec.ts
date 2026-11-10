@@ -107,6 +107,7 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   await dialog.getByText('サーバーモード', { exact: true }).click();
   await expect(dialog.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
   await saved(page);
+  await dialog.getByRole('checkbox', { name: 'レガシーデバイスを表示' }).check();
   for (const [label, id, key] of [
     ['入力デバイス（マイク）', '11', 'audio_input_device_index'],
     ['出力デバイス（スピーカー）', '25', 'audio_output_device_index'],

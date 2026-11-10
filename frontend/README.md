@@ -6,7 +6,8 @@ buttons, selects, and checkboxes. The model list, configured selection, metadata
 portraits, and current settings are read from the existing backend GET APIs.
 Server Mode now supports model/device selection while stopped, start/stop, and
 live passthrough, input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
-WASAPI exclusive mode can be changed while native audio is stopped.
+WASAPI exclusive mode is unavailable in the new UI. Before starting Server Mode,
+the UI disables the saved exclusive-mode setting using the existing configuration API.
 The audio button switches between Start and Stop based on the confirmed backend state.
 If the audio state cannot be read, Stop remains available.
 The Start/Stop, Passthrough, and Record buttons appear above the audio meters.
@@ -62,7 +63,18 @@ a live backend during conversion.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
 independent expandable sections. Server Mode and Client Mode can be selected while
-audio is stopped. Sample rates remain read-only.
+audio is stopped. Device sample-rate controls are not displayed; existing saved
+rates are retained until a different device is selected, which resets that rate to Auto.
+When the backend reports a Windows audio host (such as WASAPI, MME, or Windows
+DirectSound), device selectors initially show WASAPI devices. “Show legacy devices”
+reveals all hosts. A selected hidden device remains visible as a disabled option
+until the filter is cleared, without changing the saved selection. The existing API
+does not report the backend OS; when its audio hosts do not identify Windows, all
+devices are displayed.
+The device reload button rescans the backend while audio is stopped. If a selected
+device's index no longer has the same name and host after the rescan, the UI asks
+for a new selection before starting; names and host APIs cannot distinguish devices
+with identical metadata. A failed rescan likewise requires selection confirmation.
 The preferred inference device uses the backend compute-device list and can be changed
 while Server Mode audio is stopped. The full configuration is read and preserved when
 saving. The UI reads the configuration back and, when a model is selected, checks
@@ -180,8 +192,7 @@ clear the previous data so it is not mistaken for current information.
 
 Configuration and model settings are published together using the existing
 catalog load, with no extra API calls. The UI displays input/output/monitor
-gains, input mode, configured audio devices/GPU IDs and device sample rates, WASAPI
-exclusive mode, filters and cutoffs, noise gate threshold, extra context, and
+gains, input mode, configured audio devices/GPU IDs, filters and cutoffs, noise gate threshold, extra context, and
 analysis switches/intervals. The current model supplies pitch, index ratio,
 pitch estimator, embedder, and chunk length. Native device lists are loaded
 alongside the catalog, with independent loading/error state. Configured IDs are
@@ -222,10 +233,11 @@ file. Changes by other clients are visible after reload or a subsequent confirme
 configuration write. Reading this field from the real backend was verified; browser
 write tests mock the API, and audible passthrough has not been verified.
 
-WASAPI exclusive mode uses the existing configuration write queue and checks that
-native audio is stopped before writing. It applies to devices using WASAPI on the
-next audio start. Browser tests mock the API; actual exclusive-mode audio has not
-been verified. The stopped-state check is not atomic with other clients.
+WASAPI exclusive mode is not shown as a setting. If a saved configuration has
+exclusive mode enabled, the UI reports this and disables it before starting native
+audio. Audio already running is not stopped or reconfigured. The existing API and
+other clients may still enable exclusive mode. The stopped-state check is not atomic
+with other clients.
 
 Pitch and index ratio use GET/PUT/GET on `/api/slot-manager/slots/{id}`, preserving
 the complete latest slot payload and validating that the response ID matches the
