@@ -110,9 +110,19 @@ svg { flex-shrink: 0; }
 .model-icon-preview { width: 100px; height: 100px; object-fit: contain; border-radius: 5px; border: 1px solid var(--border); }
 .operation-status { color: var(--muted); font-size: .82rem; margin-top: 8px; }
 .performance { font-size: .72rem; color: var(--muted); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .meter-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
-.meter { height: 14px; border: 1px solid var(--border); border-radius: 2px; background: var(--surface-soft); margin-bottom: 16px; }
-.meter > span { display: block; width: 100%; height: 100%; transform-origin: left; background: linear-gradient(to right, #4caf50, #ffc107 70%, #f44336); }
+.meter { height: 14px; border: 1px solid var(--border); border-radius: 2px; background: var(--surface-soft); }
+.meter > span { display: block; width: 100%; height: 100%; clip-path: inset(0 var(--empty) 0 0); background: linear-gradient(to right, #4caf50 0%, #4caf50 33.333%, #ffc107 66.667%, #f44336 83.333%, #f44336 100%); }
+.meter-scale { position: relative; direction: ltr; height: 12px; margin: 4px 0 12px; font-size: .65rem; line-height: 1; }
+.meter-scale span { position: absolute; transform: translateX(-50%); }
+.meter-scale span::before { content: ''; position: absolute; top: -4px; left: 50%; width: 1px; height: 3px; background: var(--muted); }
+.meter-scale span:first-child { left: 0; transform: none; }
+.meter-scale span:first-child::before { left: 0; }
+.meter-scale span:nth-child(2) { left: 33.333%; }
+.meter-scale span:nth-child(3) { left: 66.667%; }
+.meter-scale span:last-child { right: 0; transform: none; }
+.meter-scale span:last-child::before { left: 100%; }
 .buffer-chart { position: relative; height: 85px; border: 1px solid var(--border); border-radius: 3px; margin: 20px 0 12px; background: repeating-linear-gradient(to bottom, transparent 0 20px, var(--border) 20px 21px); }
 .buffer-chart svg { width: 100%; height: 100%; }
 .buffer-chart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
@@ -203,7 +213,6 @@ select, input:not([type='checkbox']):not([type='radio']), textarea { border: 1px
   .transport-block { order: 0; }
   .performance { order: 2; }
   .performance .buffer-chart, .performance .buffer-legend { display: none; }
-  .meter { margin-bottom: 8px; }
   .model-heading { gap: 9px; }
   .model-heading h2 { width: 100%; }
   .model-heading > .button { margin-inline-start: 0; }

@@ -26,7 +26,8 @@ Client Mode audio and other unconnected settings controls remain disabled.
 Audio runs on the backend's native devices; the browser does not capture audio.
 While Server Mode audio is active and backend input/output analysis is enabled,
 the UI subscribes to the existing Socket.IO `/test` namespace and displays the
-input/output RMS levels. The subscription closes on stop and clears stale or
+input/output RMS levels. The meter bars use a logarithmic -60 to 0 dBFS scale;
+fixed dBFS ticks indicate the scale. The subscription closes on stop and clears stale or
 disconnected values. The buffer graph and labels consume the existing output and
 process status events independently, convert sample counts to seconds using
 current backend sample rates, and retain at most 100 points per stream. The

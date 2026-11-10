@@ -28,22 +28,19 @@ test('displays valid Socket.IO levels, clears stale data, and resumes', async ({
   const socket = await mockSocket(page);
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
-  const labels = page.locator('.performance .meter-label');
-  await expect(labels.nth(0)).toContainText('—');
+  const bar = page.locator('.meter > span');
+  await expect(bar.nth(0)).toHaveAttribute('style', /--empty:\s*100%/);
   sendLevels(socket()!, 0.25, 1.4);
-  await expect(labels.nth(0)).toContainText('0.250');
-  await expect(labels.nth(1)).toContainText('1.400');
-  await expect(page.locator('.meter > span').nth(0)).toHaveAttribute('style', /scaleX\(0\.25\)/);
-  await expect(page.locator('.meter > span').nth(1)).toHaveAttribute('style', /scaleX\(1\)/);
+  await expect.poll(async () => 1 - parseFloat(await page.locator('.meter > span').nth(0).evaluate(element => element.style.getPropertyValue('--empty'))) / 100).toBeCloseTo((20 * Math.log10(0.25) + 60) / 60);
+  await expect(page.locator('.meter > span').nth(1)).toHaveAttribute('style', /--empty:\s*0%/);
   sendLevels(socket()!, -1, 0.5);
-  await expect(labels.nth(0)).toContainText('0.250');
-  await expect(labels.nth(0)).toContainText('—', { timeout: 4000 });
+  await expect(bar.nth(0)).toHaveAttribute('style', /--empty:\s*100%/, { timeout: 4000 });
   await expect(page.getByText('入出力メーターの情報を取得できません。')).toBeVisible();
   sendLevels(socket()!, 0, 0.5);
-  await expect(labels.nth(0)).toContainText('0.000');
-  await expect(labels.nth(1)).toContainText('0.500');
+  await expect(bar.nth(0)).toHaveAttribute('style', /--empty:\s*100%/);
+  await expect.poll(async () => 1 - parseFloat(await bar.nth(1).evaluate(element => element.style.getPropertyValue('--empty'))) / 100).toBeCloseTo((20 * Math.log10(0.5) + 60) / 60);
   await page.getByRole('button', { name: '停止', exact: true }).click();
-  await expect(labels.nth(0)).toContainText('—');
+  await expect(bar.nth(1)).toHaveAttribute('style', /--empty:\s*100%/);
 });
 
 test('does not connect while stopped or when output analysis is disabled', async ({ page }) => {
@@ -66,14 +63,14 @@ test('clears levels on disconnect and resumes after reconnecting', async ({ page
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
   sendLevels(socket()!, 0.3, 0.4);
-  await expect(page.locator('.performance .meter-label').first()).toContainText('0.300');
+  await expect.poll(async () => 1 - parseFloat(await page.locator('.meter > span').first().evaluate(element => element.style.getPropertyValue('--empty'))) / 100).toBeCloseTo((20 * Math.log10(0.3) + 60) / 60);
   const firstSocket = socket()!;
   await firstSocket.close();
-  await expect(page.locator('.performance .meter-label').first()).toContainText('—');
+  await expect(page.locator('.meter > span').first()).toHaveAttribute('style', /--empty:\s*100%/);
   await expect(page.getByText('入出力メーターの情報を取得できません。')).toBeVisible();
   await expect.poll(() => socket() !== firstSocket, { timeout: 10000 }).toBe(true);
   sendLevels(socket()!, 0.6, 0.7);
-  await expect(page.locator('.performance .meter-label').first()).toContainText('0.600');
+  await expect.poll(async () => 1 - parseFloat(await page.locator('.meter > span').first().evaluate(element => element.style.getPropertyValue('--empty'))) / 100).toBeCloseTo((20 * Math.log10(0.6) + 60) / 60);
 });
 
 test('uses fresh device rates for independent input and output buffer histories', async ({ page }) => {
@@ -119,7 +116,7 @@ test('receives input buffer independently when output analysis is disabled', asy
   await expect.poll(() => Boolean(socket())).toBe(true);
   sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 2400 });
   await expect(page.locator('.performance dl > div').first()).toContainText('0.050 s');
-  await expect(page.locator('.performance .meter-label').first()).toContainText('—');
+  await expect(page.locator('.meter > span').first()).toHaveAttribute('style', /--empty:\s*100%/);
 });
 
 
@@ -250,4 +247,28 @@ test('keeps conversion time between measurements when the chunk is longer than t
   await expect(value).toHaveText('1.000 s');
   await page.clock.fastForward(10_000);
   await expect(value).toHaveText('—');
+});
+
+
+test('shows quieter RMS levels on a logarithmic meter with fixed dBFS ticks', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  const socket = await mockSocket(page);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  const bar = page.locator('.meter > span');
+  const scale = page.locator('.meter-scale');
+  await expect(scale).toHaveCount(2);
+  await expect(scale.first().locator('span')).toHaveText(['−60', '−40', '−20', '0 dBFS']);
+  const gradient = await bar.first().evaluate(element => getComputedStyle(element).backgroundImage);
+  expect(gradient).toContain('rgb(76, 175, 80) 33.333%');
+  expect(gradient).toContain('rgb(255, 193, 7) 66.667%');
+  expect(gradient).toContain('rgb(244, 67, 54) 83.333%');
+  sendLevels(socket()!, 0.1, 0.01);
+  await expect.poll(async () => 1 - parseFloat(await bar.nth(0).evaluate(element => element.style.getPropertyValue('--empty'))) / 100).toBeCloseTo(2 / 3);
+  await expect.poll(async () => 1 - parseFloat(await bar.nth(1).evaluate(element => element.style.getPropertyValue('--empty'))) / 100).toBeCloseTo(1 / 3);
+  sendLevels(socket()!, 0, 1);
+  await expect(bar.nth(0)).toHaveAttribute('style', /--empty:\s*100%/);
+  await expect(bar.nth(1)).toHaveAttribute('style', /--empty:\s*0%/);
+  expect(await bar.first().evaluate(element => getComputedStyle(element).backgroundImage)).toBe(gradient);
 });

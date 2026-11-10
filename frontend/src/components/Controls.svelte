@@ -10,8 +10,13 @@
   import { useSession } from '../lib/session.svelte';
   import { displayNumber } from '../lib/settings';
   import { onDestroy } from 'svelte';
-  import { AudioMeters } from '../lib/audio-meters.svelte';
+  import { AudioMeters, levelMeterFraction } from '../lib/audio-meters.svelte';
   import BufferChart from './BufferChart.svelte';
+  function accessibleLevel(value: number | undefined): string {
+    if (value === undefined) return '—';
+    if (value === 0) return '−∞ dBFS';
+    return `${(20 * Math.log10(value)).toFixed(1)} dBFS`;
+  }
   const sectionNames = ['input', 'noise', 'volume', 'inference'] as const;
   type SectionName = typeof sectionNames[number];
   const storageKey = 'vcclient-forge.control-sections.v1';
@@ -93,8 +98,9 @@
     </div>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>
       {#each [{ key: 'input_volume', value: meters.levels?.input }, { key: 'output_volume', value: meters.levels?.output }] as meter}
-        <div class="meter-label"><span>{ui.t(`common.controls.${meter.key}`)}</span><span>{meter.value === undefined ? '—' : meter.value.toFixed(3)}</span></div>
-        <div class="meter" aria-hidden="true"><span style:transform={`scaleX(${Math.min(1, meter.value ?? 0)})`}></span></div>
+        <div class="meter-label">{ui.t(`common.controls.${meter.key}`)}<span class="visually-hidden">{accessibleLevel(meter.value)}</span></div>
+        <div class="meter" aria-hidden="true"><span style:--empty={`${(1 - levelMeterFraction(meter.value ?? 0)) * 100}%`}></span></div>
+        <div class="meter-scale" aria-hidden="true"><span>−60</span><span>−40</span><span>−20</span><span>0 dBFS</span></div>
       {/each}
       {#if session.active && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
       {:else if session.active && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}

@@ -12,6 +12,11 @@ function recentHistory(history: BufferPoint[], now: number): BufferPoint[] {
   return history.filter(point => point.time >= now - bufferHistoryDurationMs).slice(-maxHistory);
 }
 
+export function levelMeterFraction(level: number): number {
+  if (!Number.isFinite(level) || level <= 0) return 0;
+  return Math.max(0, Math.min(1, (20 * Math.log10(level) + 60) / 60));
+}
+
 function validNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
