@@ -6,7 +6,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import onnxruntime
 
@@ -14,6 +14,9 @@ from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 from .util import parse_vram_string
+
+if TYPE_CHECKING:
+    from ..data_types import DeviceConfig
 
 _cuda_runtime_initialized = False
 
@@ -239,3 +242,14 @@ def resolve_cuda_provider(
     from .cpu import resolve_cpu_provider
 
     return resolve_cpu_provider()
+
+
+def resolve_cuda_device_provider(
+    device: DeviceConfig,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Resolve CUDAExecutionProvider options for a typed DeviceConfig."""
+    import onnxruntime as ort
+
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        return (["CUDAExecutionProvider"], [{"device_id": device.device_index}])
+    return device._fallback_to_cpu("CUDAExecutionProvider")

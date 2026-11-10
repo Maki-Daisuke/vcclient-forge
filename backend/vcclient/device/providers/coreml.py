@@ -4,12 +4,13 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
-from ..data_types import DeviceConfig
+if TYPE_CHECKING:
+    from ..data_types import DeviceConfig
 
 CoreMLCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "coreml_cache"
 CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
@@ -110,6 +111,8 @@ def resolve_coreml_provider(
 ) -> tuple[list[str], list[dict[str, Any]]] | None:
     """Resolve CoreMLExecutionProvider if applicable, or None if not supported."""
     if device_id >= 0 and "CoreMLExecutionProvider" in available_providers:
+        from ..data_types import DeviceConfig
+
         compute_units = "CPUAndGPU" if device_id % 2 == 1 else "ALL"
         fake_dev = DeviceConfig(
             id=device_id,
@@ -125,3 +128,46 @@ def resolve_coreml_provider(
             target_frames=target_frames,
         )
     return None
+
+
+def prepare_coreml_model(
+    device: DeviceConfig,
+    model_payload: str | bytes | Path,
+    patch_type: str | None = None,
+    *,
+    target_frames: int | None = None,
+    upsample_rate: int = 400,
+) -> tuple[str | bytes | Path, dict[str, Any]]:
+    """Apply CoreML static shape optimizations and determine MLProgram/NeuralNetwork format."""
+    model_format = "NeuralNetwork"
+    require_static_shapes = False
+
+    if patch_type == "rvc" and target_frames is not None:
+        from ..coreml_patch import COREML_CONV_MEMORY_LIMIT, patch_rvc_model_for_coreml
+
+        output_samples = target_frames * upsample_rate
+        if output_samples <= COREML_CONV_MEMORY_LIMIT:
+            logger.info(
+                "Applying CoreML MLProgram static shape patch (target_frames=%d, output_samples=%d <= %d)",
+                target_frames,
+                output_samples,
+                COREML_CONV_MEMORY_LIMIT,
+            )
+            try:
+                model_payload = patch_rvc_model_for_coreml(model_payload, target_frames)
+                model_format = "MLProgram"
+                require_static_shapes = True
+            except Exception as e:
+                logger.warning("Failed to apply CoreML static shape patch: %s; falling back to NeuralNetwork", e)
+        else:
+            logger.info(
+                "RVC output length (%d samples) exceeds CoreML limit (%d); using dynamic NeuralNetwork fallback",
+                output_samples,
+                COREML_CONV_MEMORY_LIMIT,
+            )
+
+    return model_payload, {
+        "model_format": model_format,
+        "require_static_shapes": require_static_shapes,
+        "target_frames": target_frames if require_static_shapes else None,
+    }

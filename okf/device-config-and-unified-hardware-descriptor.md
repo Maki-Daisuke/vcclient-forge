@@ -310,14 +310,14 @@ class DeviceConfig(BaseModel):
         ...
 ```
 
-### 5.2 Provider Dispatch Isolation
+### 5.2 Provider Dispatch Isolation & Delegation
 
-Each provider module configures session options based on `DeviceConfig` properties without magic-number branches:
+Each provider module configures session options, resolves execution provider descriptors, and applies hardware-specific graph patches via delegation hooks without polluting `DeviceConfig`:
 
-- `cuda.py`: Reads `device.device_index` directly for `{"device_id": device.device_index}`.
-- `directml.py`: Assigns `device.device_index` to DXGI adapter routing `{"device_id": device.device_index}`.
-- `openvino.py`: Matches `device.device_type` and `device.metadata.get("ov_device")` against `ort.get_ep_devices()` in `configure_openvino_session_options(so, device)`, without checking `1000`. When `device.device_type == "NPU"` is used for front-end models (`RMVPE`, `FCPE`, `ContentVec`), static input shape constraints (`reshape_input`) are applied as specified in [NPU Dynamic Shape Resolution](./npu-cpu-hardware-acceleration-and-universal-distribution.md#232-npu-dynamic-shape-resolution--runtime-dimension-derivation-reshape_input).
-- `coreml.py`: Reads `device.metadata.get("compute_units", "ALL")` instead of encoding `ALL` vs `CPUAndGPU` in even/odd `device_id` parity.
+- `cuda.py`: Exports `resolve_cuda_device_provider(device)` reading `device.device_index` for `{"device_id": device.device_index}`.
+- `directml.py`: Exports `resolve_dml_device_provider(device)` assigning `device.device_index` to DXGI adapter routing `{"device_id": device.device_index}`.
+- `openvino.py`: Exports `prepare_openvino_model(device, payload, patch_type)` to handle NPU-to-CPU vocoder safety fallbacks and OpenVINO 4D SineGen / RMVPE graph patches, alongside `configure_openvino_session_options(so, device)`.
+- `coreml.py`: Exports `prepare_coreml_model(device, payload, patch_type, ...)` to evaluate two-tier static shape limits (`COREML_CONV_MEMORY_LIMIT`) and `resolve_coreml_device_provider(device, ...)`.
 - `cpu.py`: Invoked when `device.is_cpu()` is `True`.
 
 In `RVCPipeline` (`rvc_pipeline.py`), `make_onnx_upscaler` and the component managers (`EmbedderManager`, `PitchEstimatorManager`, `InferencerManager`) also resolve providers through `DeviceConfig`, while `EmbedderInfo`, `PitchEstimatorInfo`, and `RVCInferencerInfo` record `device.id` in their `device_id: int` telemetry fields.

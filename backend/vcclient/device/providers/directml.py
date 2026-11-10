@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import onnxruntime
 
@@ -10,6 +10,9 @@ from vcclient.logger import logger
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 from .util import parse_vram_string
+
+if TYPE_CHECKING:
+    from ..data_types import DeviceConfig
 
 _directml_runtime_initialized = False
 
@@ -152,3 +155,14 @@ def resolve_directml_provider(
     if device_id >= 0 and "DmlExecutionProvider" in available_providers:
         return (["DmlExecutionProvider"], [{"device_id": device_id}])
     return None
+
+
+def resolve_dml_device_provider(
+    device: DeviceConfig,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Resolve DmlExecutionProvider options for a typed DeviceConfig."""
+    import onnxruntime as ort
+
+    if "DmlExecutionProvider" in ort.get_available_providers():
+        return (["DmlExecutionProvider", "CPUExecutionProvider"], [{"device_id": device.device_index}, {}])
+    return device._fallback_to_cpu("DmlExecutionProvider")

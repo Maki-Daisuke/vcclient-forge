@@ -259,3 +259,37 @@ def detect_openvino_gpus() -> list[GPUInfo]:
         )
         for d in devices
     ]
+
+
+def prepare_openvino_model(
+    device: DeviceConfig,
+    model_payload: str | bytes | Path,
+    patch_type: str | None = None,
+) -> tuple[DeviceConfig, str | bytes | Path]:
+    """Inspect device limitations and apply OpenVINO-specific graph patches."""
+    target_device = device
+
+    # RVC HiFi-GAN vocoder exceeds client NPU SRAM capacity; fall back to CPU if NPU is selected pipeline-wide
+    if target_device.device_type == "NPU" and patch_type == "rvc":
+        logger.warning("RVC vocoder is not supported on NPU; falling back to CPU for synthesis session.")
+        from ..device_manager import get_device
+
+        target_device = get_device(0)
+        return target_device, model_payload
+
+    if patch_type == "rvc":
+        try:
+            from ..openvino_patch import patch_rvc_model_for_openvino
+
+            model_payload = patch_rvc_model_for_openvino(model_payload)
+        except Exception as e:
+            logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", model_payload, e)
+    elif patch_type == "rmvpe":
+        try:
+            from ..openvino_patch import patch_rmvpe_model_for_openvino
+
+            model_payload = patch_rmvpe_model_for_openvino(model_payload)
+        except Exception as e:
+            logger.warning("Failed to apply OpenVINO patch to RMVPE model %s: %s", model_payload, e)
+
+    return target_device, model_payload
