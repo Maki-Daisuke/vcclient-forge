@@ -3,6 +3,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+if [ "$(uname -s)" = "Darwin" ]; then
+    xattr -rd com.apple.quarantine "$SCRIPT_DIR" >/dev/null 2>&1 || true
+fi
+
 echo "Starting VCClient Forge..."
 
 URL="http://127.0.0.1:18888/"

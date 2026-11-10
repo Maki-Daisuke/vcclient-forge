@@ -295,6 +295,8 @@ def build_package(
         "README.md",
         "LICENSE",
     ]
+    if (PROJECT_ROOT / "MacStart.command").is_file():
+        copy_targets.append("MacStart.command")
 
     for item in copy_targets:
         src = PROJECT_ROOT / item
