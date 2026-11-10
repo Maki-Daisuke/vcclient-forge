@@ -10,7 +10,7 @@
   import { useSession } from '../lib/session.svelte';
   import { displayNumber } from '../lib/settings';
   import { onDestroy } from 'svelte';
-  import { AudioMeters, levelMeterFraction } from '../lib/audio-meters.svelte';
+  import { AudioMeters, bufferHistoryDurationMs, levelMeterFraction, type BufferPoint } from '../lib/audio-meters.svelte';
   import BufferChart from './BufferChart.svelte';
   function accessibleLevel(value: number | undefined): string {
     if (value === undefined) return '—';
@@ -48,7 +48,11 @@
   const ui = useUi();
   const session = useSession();
   const meters = new AudioMeters();
+  let clientLevels = $state<{ input: number; output: number } | null>(null);
+  let clientOutputBuffer = $state<number | null>(null);
+  let clientOutputHistory = $state<BufferPoint[]>([]);
   const settings = $derived(session.settings);
+  const outputBuffer = $derived(settings?.inputMode === 'client' ? clientOutputBuffer : meters.outputBuffer);
   const modelSettings = $derived(session.modelSettings);
   const showStop = $derived(session.active === true || (session.active === null && session.statusError));
   const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
@@ -57,6 +61,30 @@
     meters.setEnabled(session.active === true, settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === true,
       settings?.processAnalysisEnabled === true && settings?.performanceMonitorEnabled === true, settings?.ioAnalysisInterval ?? null,
       settings?.processAnalysisInterval ?? null, modelSettings?.chunkSeconds ?? null);
+  });
+  $effect(() => {
+    if (session.active !== true || settings?.inputMode !== 'client') {
+      clientLevels = null;
+      clientOutputBuffer = null;
+      clientOutputHistory = [];
+      return;
+    }
+    const sample = () => {
+      const value = session.clientAudio.readMeters();
+      if (!value) {
+        clientLevels = null;
+        clientOutputBuffer = null;
+        clientOutputHistory = [];
+        return;
+      }
+      clientLevels = { input: value.input, output: value.output };
+      clientOutputBuffer = value.outputBuffer;
+      const now = Date.now();
+      clientOutputHistory = [...clientOutputHistory.filter(point => point.time >= now - bufferHistoryDurationMs),
+        { time: now, seconds: value.outputBuffer }].slice(-200);
+    };
+    const timer = setInterval(sample, 100);
+    return () => clearInterval(timer);
   });
   onDestroy(() => meters.dispose());
   $effect(() => {
@@ -97,20 +125,20 @@
       {#if session.statusError}<p class="catalog-message" role="status">{ui.t('forge.audio_status_error')}</p>{/if}
     </div>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>
-      {#each [{ key: 'input_volume', value: meters.levels?.input }, { key: 'output_volume', value: meters.levels?.output }] as meter}
+      {#each [{ key: 'input_volume', value: settings?.inputMode === 'client' ? clientLevels?.input : meters.levels?.input }, { key: 'output_volume', value: settings?.inputMode === 'client' ? clientLevels?.output : meters.levels?.output }] as meter}
         <div class="meter-label">{ui.t(`common.controls.${meter.key}`)}<span class="visually-hidden">{accessibleLevel(meter.value)}</span></div>
         <div class="meter" aria-hidden="true"><span style:--empty={`${(1 - levelMeterFraction(meter.value ?? 0)) * 100}%`}></span></div>
         <div class="meter-scale" aria-hidden="true"><span>−60</span><span>−40</span><span>−20</span><span>0 dBFS</span></div>
       {/each}
       {#if session.active && settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
       {:else if session.active && settings?.inputMode === 'server' && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
-      <BufferChart input={meters.inputHistory} output={meters.outputHistory} chunkSeconds={modelSettings?.chunkSeconds ?? null} />
+      <BufferChart input={meters.inputHistory} output={settings?.inputMode === 'client' ? clientOutputHistory : meters.outputHistory} chunkSeconds={modelSettings?.chunkSeconds ?? null} />
       <dl>
         <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>{meters.inputBuffer === null ? '—' : `${meters.inputBuffer.toFixed(3)} s`}</dd></div>
-        <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>{meters.outputBuffer === null ? '—' : `${meters.outputBuffer.toFixed(3)} s`}</dd></div>
+        <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>{outputBuffer === null ? '—' : `${outputBuffer.toFixed(3)} s`}</dd></div>
         <div><dt>{ui.t('forge.conversion_time')}</dt><dd>{meters.conversionTimeSeconds === null ? '—' : `${meters.conversionTimeSeconds.toFixed(3)} s`}</dd></div>
       </dl>
-      <button class="button small" disabled={!meters.inputHistory.length && !meters.outputHistory.length} onclick={() => meters.clearHistory()}>{ui.t('common.performance.clear')}</button>
+      <button class="button small" disabled={!meters.inputHistory.length && !meters.outputHistory.length && !clientOutputHistory.length} onclick={() => { meters.clearHistory(); clientOutputHistory = []; }}>{ui.t('common.performance.clear')}</button>
       {#if session.active && (settings?.processAnalysisEnabled === false || settings?.performanceMonitorEnabled === false)}<p class="muted">{ui.t('forge.input_buffer_disabled')}</p>{/if}
     </section>
   </aside>

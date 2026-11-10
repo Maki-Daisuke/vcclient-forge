@@ -12,6 +12,10 @@ export class ClientAudio {
   private stream: MediaStream | null = null;
   private socket: Socket | null = null;
   private capture: AudioWorkletNode | null = null;
+  private inputAnalyser: AnalyserNode | null = null;
+  private outputAnalyser: AnalyserNode | null = null;
+  private readonly inputSamples = new Float32Array(2048);
+  private readonly outputSamples = new Float32Array(2048);
   private sources = new Set<AudioBufferSourceNode>();
   private nextPlayback = 0;
   private generation = 0;
@@ -30,6 +34,22 @@ export class ClientAudio {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     try { await this.refreshDevices(); }
     finally { stream.getTracks().forEach(track => track.stop()); }
+  }
+
+  readMeters(): { input: number; output: number; outputBuffer: number } | null {
+    const context = this.context;
+    if (!context || context.state !== 'running' || !this.inputAnalyser || !this.outputAnalyser) return null;
+    const rms = (analyser: AnalyserNode, samples: Float32Array<ArrayBuffer>) => {
+      analyser.getFloatTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) sum += sample * sample;
+      return Math.sqrt(sum / samples.length);
+    };
+    return {
+      input: rms(this.inputAnalyser, this.inputSamples),
+      output: rms(this.outputAnalyser, this.outputSamples),
+      outputBuffer: Math.max(0, this.nextPlayback - context.currentTime),
+    };
   }
 
   async start(inputRate: number, outputRate: number, onFailure: (error: Error) => void) {
@@ -54,6 +74,13 @@ export class ClientAudio {
       await context.audioWorklet.addModule(captureUrl);
       await context.resume();
       if (generation !== this.generation) return;
+      const inputAnalyser = context.createAnalyser();
+      const outputAnalyser = context.createAnalyser();
+      inputAnalyser.fftSize = this.inputSamples.length;
+      outputAnalyser.fftSize = this.outputSamples.length;
+      this.inputAnalyser = inputAnalyser;
+      this.outputAnalyser = outputAnalyser;
+      outputAnalyser.connect(context.destination);
       const socket = io('/test', { transports: ['websocket'], reconnection: false, autoConnect: false });
       this.socket = socket;
       await new Promise<void>((resolve, reject) => {
@@ -79,7 +106,7 @@ export class ClientAudio {
         buffer.copyToChannel(samples, 0);
         const source = context.createBufferSource();
         source.buffer = buffer;
-        source.connect(context.destination);
+        source.connect(outputAnalyser);
         source.onended = () => this.sources.delete(source);
         this.sources.add(source);
         this.nextPlayback = Math.max(this.nextPlayback, context.currentTime);
@@ -93,7 +120,8 @@ export class ClientAudio {
           socket.emit('request_message', [Date.now(), true, event.data.buffer]);
         }
       };
-      context.createMediaStreamSource(stream).connect(capture);
+      context.createMediaStreamSource(stream).connect(inputAnalyser);
+      inputAnalyser.connect(capture);
       capture.connect(context.destination);
     } catch (error) {
       this.stop();
@@ -105,6 +133,10 @@ export class ClientAudio {
     ++this.generation;
     this.capture?.disconnect();
     this.capture = null;
+    this.inputAnalyser?.disconnect();
+    this.outputAnalyser?.disconnect();
+    this.inputAnalyser = null;
+    this.outputAnalyser = null;
     this.stream?.getTracks().forEach(track => track.stop());
     this.stream = null;
     this.socket?.disconnect();

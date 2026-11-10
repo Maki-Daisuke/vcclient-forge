@@ -38,7 +38,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
       if (message instanceof Buffer) {
         packets++;
         socket.send('451-/test,["response",0,{"_placeholder":true,"num":0},"{}"]');
-        socket.send(Buffer.from(new Float32Array(2048).buffer));
+        socket.send(Buffer.from(new Float32Array(2048).fill(0.25).buffer));
       }
     });
   });
@@ -49,6 +49,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
       return originalStart.apply(this, args);
     };
     const audio = new AudioContext();
+    document.addEventListener('click', () => { void audio.resume(); }, { once: true });
     const oscillator = audio.createOscillator();
     const destination = audio.createMediaStreamDestination();
     oscillator.connect(destination);
@@ -61,6 +62,9 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
   await expect.poll(() => packets).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => (window as unknown as { played: number }).played ?? 0), { timeout: 10000 }).toBeGreaterThan(0);
+  const bars = page.locator('.meter > span');
+  await expect.poll(async () => Number.parseFloat(await bars.nth(0).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
+  await expect.poll(async () => Number.parseFloat(await bars.nth(1).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
   const passthrough = page.getByRole('button', { name: 'パススルー' });
   await passthrough.click();
   await expect.poll(() => state.config.pass_through).toBe(true);
@@ -70,11 +74,15 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   for (const socket of sockets) socket.send(event);
   const metrics = page.locator('.performance dl > div');
   await expect(metrics.nth(0)).toContainText('0.100 s');
-  await expect(metrics.nth(1)).toContainText('—');
+  await expect(metrics.nth(1)).toContainText(/\d+\.\d{3} s/);
+  await expect(page.locator('.buffer-chart .buffer-output')).toHaveCount(1);
   await expect(metrics.nth(2)).toContainText('0.050 s');
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();
   await expect(metrics.nth(0)).toContainText('—');
+  await expect(metrics.nth(1)).toContainText('—');
   await expect(metrics.nth(2)).toContainText('—');
+  await expect(bars.nth(0)).toHaveAttribute('style', /--empty:\s*100%/);
+  await expect(bars.nth(1)).toHaveAttribute('style', /--empty:\s*100%/);
   expect(await page.evaluate(() => (window as unknown as { testStream: MediaStream }).testStream.getTracks()[0].readyState)).toBe('ended');
 });

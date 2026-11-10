@@ -35,6 +35,10 @@ stop the shared conversion worker. The backend retains a partial input chunk acr
 worker restarts, so a short fragment can persist across sessions. The user confirmed
 hearing converted audio in Client Mode; device combinations and recovery remain to
 be validated.
+In Client Mode, Web Audio analyser nodes measure input and output RMS locally.
+The output buffer graph shows scheduled audio remaining on the AudioContext timeline,
+not the buffers in the OS or audio device. The UI samples these values every 100 ms
+and clears them when client audio stops.
 While Server Mode audio is active and backend input/output analysis is enabled,
 the UI subscribes to the existing Socket.IO `/test` namespace and displays the
 input/output RMS levels. The meter bars use a logarithmic -60 to 0 dBFS scale;
