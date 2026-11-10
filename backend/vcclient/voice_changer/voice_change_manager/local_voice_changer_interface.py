@@ -115,7 +115,7 @@ class LocalVoiceChangerInterface(EventEmitter):
             return prev_vol
         sum_val = float(np.sum(data * data))
         rms = float(np.sqrt(sum_val / len(data)))
-        return max(rms, prev_vol * 0.95)
+        return max(rms, prev_vol * 0.5)
 
     def calculate_and_send_realtime_output_status(self) -> None:
         if len(self.input_volume_calculation_buffer) == 0 or len(self.output_volume_calculation_buffer) == 0:
