@@ -173,3 +173,81 @@ test('shows the selected model chunk duration on the buffer scale', async ({ pag
   expect(scaledY).toBeCloseTo(80 - (0.3 / 1.1) * 80);
   expect(Number(await line.getAttribute('y2'))).toBeCloseTo(scaledY);
 });
+
+
+test('displays the most recent valid conversion time independently of buffer data', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  state.config.realtime_process_status_send_interval_sec = 0.1;
+  const socket = await mockSocket(page);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
+  await expect(value).toHaveText('—');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
+  await expect(value).toHaveText('0.050 s');
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 0, elapsedTime: 0.3, outputSec: 0.2 });
+  await expect(value).toHaveText('0.300 s');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 1, outputSec: 0 });
+  await expect(value).toHaveText('1.000 s');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: -1, outputSec: 0.2 });
+  await expect(value).toHaveText('1.000 s');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0, outputSec: 0.2 });
+  await expect(value).toHaveText('0.000 s');
+  await page.getByRole('button', { name: '停止', exact: true }).click();
+  await expect(value).toHaveText('—');
+});
+
+test('clears stale conversion time even when input-buffer updates continue', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  state.config.realtime_process_status_send_interval_sec = 0.1;
+  const socket = await mockSocket(page);
+  await page.clock.install();
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
+  await expect(value).toHaveText('0.050 s');
+  await page.clock.fastForward(1_000);
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 4800 });
+  await expect(page.locator('.performance dl > div').first()).toContainText('0.100 s');
+  await page.clock.fastForward(1_100);
+  await expect(value).toHaveText('—');
+  await expect(page.locator('.performance dl > div').first()).toContainText('0.100 s');
+});
+
+test('does not display conversion time when performance monitoring is disabled', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  state.config.enable_performance_monitor = false;
+  const socket = await mockSocket(page);
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
+  await expect(value).toHaveText('—');
+});
+
+
+test('keeps conversion time between measurements when the chunk is longer than the reporting interval', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  state.config.realtime_process_status_enabled = true;
+  state.config.realtime_process_status_send_interval_sec = 0.1;
+  state.models.find(model => model.slot_index === 7)!.chunk_sec = 5;
+  const socket = await mockSocket(page);
+  await page.clock.install();
+  await page.goto('/');
+  await expect.poll(() => Boolean(socket())).toBe(true);
+  const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 1, outputSec: 5 });
+  await expect(value).toHaveText('1.000 s');
+  await page.clock.fastForward(5_100);
+  await expect(value).toHaveText('1.000 s');
+  await page.clock.fastForward(10_000);
+  await expect(value).toHaveText('—');
+});

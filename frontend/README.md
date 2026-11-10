@@ -32,8 +32,12 @@ process status events independently, convert sample counts to seconds using
 current backend sample rates, and retain at most 100 points per stream. The
 graph clears on stop, disconnect, stale data, or the Clear button. Input buffer
 requires backend process analysis and performance monitoring to be enabled;
-output buffer requires input/output analysis. No backend notification settings
-or audio callbacks are changed. Other processing metrics remain unconnected.
+output buffer requires input/output analysis. The UI displays the latest sampled chunk
+conversion time in seconds, independently of buffer data. It requires process
+analysis and performance monitoring and clears when stale or stopped. Gate-closed
+or passthrough chunks can produce low values. A live backend notification was
+observed in the UI.
+No backend notification settings or audio callbacks are changed.
 The UI was also checked against a running backend during audio conversion; the
 displayed values and bars updated, and the user confirmed the meters displayed.
 Callback overhead has not been measured. Buffer display is covered by mocked

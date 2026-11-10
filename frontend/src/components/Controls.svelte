@@ -50,7 +50,8 @@
   const showStartMessage = $derived(!showStop && !session.canStart && !!startMessage);
   $effect(() => {
     meters.setEnabled(session.active === true && settings?.inputMode === 'server', settings?.ioAnalysisEnabled === true,
-      settings?.processAnalysisEnabled === true, settings?.ioAnalysisInterval ?? null, settings?.processAnalysisInterval ?? null);
+      settings?.processAnalysisEnabled === true && settings?.performanceMonitorEnabled === true, settings?.ioAnalysisInterval ?? null,
+      settings?.processAnalysisInterval ?? null, modelSettings?.chunkSeconds ?? null);
   });
   onDestroy(() => meters.dispose());
   $effect(() => {
@@ -101,6 +102,7 @@
       <dl>
         <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>{meters.inputBuffer === null ? '—' : `${meters.inputBuffer.toFixed(3)} s`}</dd></div>
         <div><dt>{ui.t('common.performance.output_buffer')}</dt><dd>{meters.outputBuffer === null ? '—' : `${meters.outputBuffer.toFixed(3)} s`}</dd></div>
+        <div><dt>{ui.t('forge.conversion_time')}</dt><dd>{meters.conversionTimeSeconds === null ? '—' : `${meters.conversionTimeSeconds.toFixed(3)} s`}</dd></div>
       </dl>
       <button class="button small" disabled={!meters.inputHistory.length && !meters.outputHistory.length} onclick={() => meters.clearHistory()}>{ui.t('common.performance.clear')}</button>
       {#if session.active && (settings?.processAnalysisEnabled === false || settings?.performanceMonitorEnabled === false)}<p class="muted">{ui.t('forge.input_buffer_disabled')}</p>{/if}

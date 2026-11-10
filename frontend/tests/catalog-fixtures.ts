@@ -41,6 +41,7 @@ export const configuration = {
   crossfade_sec: 0.1,
   realtime_output_status_enabled: true,
   realtime_output_status_send_interval_sec: 0.4,
+  enable_performance_monitor: true,
   realtime_process_status_enabled: false,
   realtime_process_status_send_interval_sec: 2.2,
 };

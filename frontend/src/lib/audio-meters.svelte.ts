@@ -21,12 +21,14 @@ export class AudioMeters {
   status = $state<'idle' | 'connecting' | 'connected' | 'unavailable'>('idle');
   inputBuffer = $state<number | null>(null);
   outputBuffer = $state<number | null>(null);
+  conversionTimeSeconds = $state<number | null>(null);
   inputHistory = $state<BufferPoint[]>([]);
   outputHistory = $state<BufferPoint[]>([]);
   private socket: Socket | null = null;
   private levelTimer: ReturnType<typeof setTimeout> | undefined;
   private inputTimer: ReturnType<typeof setTimeout> | undefined;
   private outputTimer: ReturnType<typeof setTimeout> | undefined;
+  private conversionTimer: ReturnType<typeof setTimeout> | undefined;
   private rateController: AbortController | null = null;
   private rates: SampleRates = { input: null, output: null };
   private pendingInput: PendingSample | null = null;
@@ -37,14 +39,16 @@ export class AudioMeters {
   private outputInterval = 0.2;
   private processInterval = 1;
 
-  setEnabled(active: boolean, outputEnabled: boolean, processEnabled: boolean, outputInterval: number | null, processInterval: number | null) {
+  setEnabled(active: boolean, outputEnabled: boolean, processEnabled: boolean, outputInterval: number | null, processInterval: number | null, chunkSeconds: number | null) {
     this.outputEnabled = outputEnabled;
     this.processEnabled = processEnabled;
     this.outputInterval = outputInterval !== null && Number.isFinite(outputInterval) && outputInterval > 0 ? outputInterval : 0.2;
-    this.processInterval = processInterval !== null && Number.isFinite(processInterval) && processInterval > 0 ? processInterval : 1;
+    const requestedInterval = processInterval !== null && Number.isFinite(processInterval) && processInterval > 0 ? processInterval : 1;
+    this.processInterval = chunkSeconds !== null && Number.isFinite(chunkSeconds) && chunkSeconds > 0
+      ? Math.max(requestedInterval, chunkSeconds) : requestedInterval;
     if (!active || (!outputEnabled && !processEnabled)) { this.dispose(); return; }
     if (!outputEnabled) { this.clearLevels(); this.clearOutput(); }
-    if (!processEnabled) this.clearInput();
+    if (!processEnabled) { this.clearInput(); this.clearConversionTime(); }
     if (this.socket) return;
     this.status = 'connecting';
     const socket = io('/test', { transports: ['websocket'] });
@@ -77,12 +81,19 @@ export class AudioMeters {
           clearTimeout(this.outputTimer);
           this.outputTimer = setTimeout(() => this.clearOutput(), this.timeout(interval));
         }
-      } else if (message[0] === 'realtime_process_status' && this.processEnabled && validNumber(data.inputBufferSize)) {
-        this.pendingInput = { samples: data.inputBufferSize, time: Date.now() };
-        this.publishInput();
-        this.ensureRates(socket);
-        clearTimeout(this.inputTimer);
-        this.inputTimer = setTimeout(() => this.clearInput(), this.timeout(this.processInterval));
+      } else if (message[0] === 'realtime_process_status' && this.processEnabled) {
+        if (validNumber(data.inputBufferSize)) {
+          this.pendingInput = { samples: data.inputBufferSize, time: Date.now() };
+          this.publishInput();
+          this.ensureRates(socket);
+          clearTimeout(this.inputTimer);
+          this.inputTimer = setTimeout(() => this.clearInput(), this.timeout(this.processInterval));
+        }
+        if (validNumber(data.elapsedTime)) {
+          this.conversionTimeSeconds = data.elapsedTime;
+          clearTimeout(this.conversionTimer);
+          this.conversionTimer = setTimeout(() => this.clearConversionTime(), this.timeout(this.processInterval));
+        }
       }
     });
   }
@@ -135,11 +146,13 @@ export class AudioMeters {
   }
   private clearLevels() { clearTimeout(this.levelTimer); this.levels = null; }
   private clearInput() { clearTimeout(this.inputTimer); this.inputBuffer = null; this.pendingInput = null; this.inputHistory = []; }
+  private clearConversionTime() { clearTimeout(this.conversionTimer); this.conversionTimeSeconds = null; }
   private clearOutput() { clearTimeout(this.outputTimer); this.outputBuffer = null; this.pendingOutput = null; this.outputHistory = []; }
 
   private clear(status: 'idle' | 'unavailable') {
     this.clearLevels();
     this.clearInput();
+    this.clearConversionTime();
     this.clearOutput();
     this.rateController?.abort();
     this.rateController = null;
