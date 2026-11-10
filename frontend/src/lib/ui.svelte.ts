@@ -267,10 +267,26 @@ const previewMessages = {
 };
 
 const contextKey = Symbol('ui');
+export const uiPreferencesStorageKey = 'vcclient-forge.ui-preferences.v1';
+
+function loadUiPreferences(): { language: string; theme: 'light' | 'dark' } {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(uiPreferencesStorageKey) ?? 'null');
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      const value = stored as Record<string, unknown>;
+      return {
+        language: languages.some(([code]) => code === value.language) ? value.language as string : 'en',
+        theme: value.theme === 'dark' ? 'dark' : 'light',
+      };
+    }
+  } catch { /* Use defaults when storage is unavailable or invalid. */ }
+  return { language: 'en', theme: 'light' };
+}
 
 export class UiState {
-  language = $state('ja');
-  theme = $state<'light' | 'dark'>('light');
+  private initialPreferences = loadUiPreferences();
+  language = $state(this.initialPreferences.language);
+  theme = $state<'light' | 'dark'>(this.initialPreferences.theme);
   private i18n = createInstance();
 
   constructor() {
@@ -282,7 +298,12 @@ export class UiState {
       } }];
     }));
     // Bundled resources initialize synchronously, with no HTTP backend or detector.
-    void this.i18n.init({ resources, lng: 'ja', fallbackLng: 'en', interpolation: { escapeValue: false } });
+    void this.i18n.init({ resources, lng: this.language, fallbackLng: 'en', interpolation: { escapeValue: false } });
+  }
+
+  savePreferences() {
+    try { localStorage.setItem(uiPreferencesStorageKey, JSON.stringify({ language: this.language, theme: this.theme })); }
+    catch { /* Keep the UI usable if storage is unavailable. */ }
   }
 
   t(key: string, options: TOptions = {}): string {

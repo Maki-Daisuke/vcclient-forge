@@ -21,6 +21,7 @@
     document.documentElement.lang = ui.language;
     document.documentElement.dir = ui.language === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.dataset.theme = ui.theme;
+    ui.savePreferences();
   });
 </script>
 
