@@ -27,6 +27,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   state.config.output_sample_rate = 48000;
   state.config.voice_changer_input_mode = 'client';
   state.config.realtime_process_status_enabled = true;
+  state.models[0].is_f0 = true;
   let packets = 0;
   const sockets: WebSocketRoute[] = [];
   await page.routeWebSocket(/\/socket\.io\//, socket => {
@@ -59,8 +60,10 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
     (window as unknown as { testStream: MediaStream }).testStream = destination.stream;
   });
   await page.goto('/');
+  await expect(page.getByRole('radio', { name: 'FCPE' })).toBeEnabled();
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();
   await expect.poll(() => packets).toBeGreaterThan(0);
   await expect.poll(() => page.evaluate(() => (window as unknown as { played: number }).played ?? 0), { timeout: 10000 }).toBeGreaterThan(0);
   const bars = page.locator('.meter > span');
@@ -80,6 +83,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await expect(metrics.nth(2)).toContainText('0.050 s');
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'FCPE' })).toBeEnabled();
   await expect(metrics.nth(0)).toContainText('—');
   await expect(metrics.nth(1)).toContainText('—');
   await expect(metrics.nth(2)).toContainText('—');

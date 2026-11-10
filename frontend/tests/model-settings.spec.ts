@@ -20,6 +20,8 @@ test('switches the selected model pitch estimator while stopped and confirms the
   let release!: () => void;
   state.modelGate = new Promise(resolve => { release = resolve; });
   await page.goto('/');
+  await expect(page.locator('.voice-settings h3')).toHaveText(['ピッチ推定器', 'ピッチ調整', 'Index使用率']);
+  await expect(page.getByText('ピッチ推定器は音声の停止中に変更できます。')).toHaveCount(0);
   const rmvpe = page.getByRole('radio', { name: 'RMVPE' });
   const fcpe = page.getByRole('radio', { name: 'FCPE' });
   await expect(rmvpe).toBeChecked();
@@ -43,7 +45,40 @@ test('keeps pitch estimator disabled during audio conversion', async ({ page }) 
   state.active = true;
   await page.goto('/');
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();
+  const tooltip = page.getByRole('tooltip', { name: 'ピッチ推定器は音声の停止中に変更できます。' });
+  await expect(tooltip).toBeHidden();
+  const group = page.locator('.estimator-wrapper');
+  await group.hover();
+  await expect(tooltip).toBeVisible();
+  await page.mouse.move(0, 0);
+  await group.focus();
+  await expect(tooltip).toBeVisible();
   expect(state.modelWrites).toHaveLength(0);
+});
+
+test('switches the pitch estimator in client mode while stopped', async ({ page }) => {
+  const state = await mockEditableModel(page);
+  state.config.voice_changer_input_mode = 'client';
+  await page.goto('/');
+  const fcpe = page.getByRole('radio', { name: 'FCPE' });
+  await expect(fcpe).toBeEnabled();
+  await fcpe.check();
+  await saved(page);
+  await expect(fcpe).toBeChecked();
+  expect(state.modelWrites[0]).toMatchObject({ id: 7, data: { pitch_estimator: 'fcpe' } });
+});
+
+test('shows Index usage as a percentage while saving the backend ratio', async ({ page }) => {
+  const state = await mockEditableModel(page);
+  await page.goto('/');
+  const field = page.locator('.range-field').filter({ hasText: 'Index使用率' });
+  await expect(field.locator('output')).toHaveText('63%');
+  await expect(field.locator('.range-limits span')).toHaveText(['0', '100']);
+  await expect(index(page)).toHaveAttribute('aria-valuetext', '63%');
+  await index(page).press('ArrowRight');
+  await saved(page);
+  await expect(field.locator('output')).toHaveText('64%');
+  expect(state.models[0].index_ratio).toBe(0.64);
 });
 
 test('rechecks stopped audio before writing a pitch estimator', async ({ page }) => {
@@ -93,7 +128,7 @@ test('updates pitch and index while running, preserving fresh full slot data and
   expect(state.writes).toHaveLength(0);
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '-4');
-  await expect(index(page)).toHaveAttribute('aria-valuenow', '0.64');
+  await expect(index(page)).toHaveAttribute('aria-valuenow', '64');
 });
 
 test('coalesces model edits with volume writes in one queue without stale slider acknowledgements', async ({ page }) => {
@@ -124,7 +159,7 @@ test('coalesces model edits with volume writes in one queue without stale slider
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await saved(page);
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '3');
-  await expect(index(page)).toHaveAttribute('aria-valuenow', '0.25');
+  await expect(index(page)).toHaveAttribute('aria-valuenow', '25');
   expect(state.models[2].pitch_shift).toBe(3);
 });
 
@@ -153,7 +188,7 @@ test('throttles index dragging and flushes the final value on release', async ({
   await page.clock.runFor(1);
   await saved(page);
   expect(state.modelWrites).toHaveLength(3);
-  expect(state.models[0].index_ratio).toBe(Number(await index(page).getAttribute('aria-valuenow')));
+  expect(state.models[0].index_ratio).toBe(Number(await index(page).getAttribute('aria-valuenow')) / 100);
 });
 
 test('retains a failed model draft and retries the same slot against fresh data', async ({ page }) => {

@@ -252,7 +252,7 @@ validation for pitch/index adjustment is still pending. The real backend's slot
 GET and displayed values were checked using a browser-only simulated model selection;
 live model-setting PUTs and audible changes were not part of that check.
 
-For an f0 model, RMVPE/FCPE can be changed in Server Mode while audio is stopped.
+For an f0 model, RMVPE/FCPE can be changed in Server or Client Mode while audio is stopped.
 The client checks the stopped state before the slot update, then confirms both the
 saved slot and the active pipeline estimator. A failed update can still have saved
 the slot before pipeline initialization failed. Retrying may not repair that state;

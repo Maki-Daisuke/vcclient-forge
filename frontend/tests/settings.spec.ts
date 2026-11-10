@@ -67,7 +67,8 @@ test('existing configuration and selected model values populate controls without
   await expect(page.getByRole('slider', { name: '出力音量', exact: true })).toHaveAttribute('aria-valuenow', '0.65');
   await expect(page.getByRole('slider', { name: 'モニター音量', exact: true })).toHaveCount(0);
   await expect(page.getByRole('slider', { name: 'ピッチ調整', exact: true })).toHaveAttribute('aria-valuenow', '-5');
-  await expect(page.getByRole('slider', { name: 'Index使用率', exact: true })).toHaveAttribute('aria-valuenow', '0.63');
+  await expect(page.getByRole('slider', { name: 'Index使用率', exact: true })).toHaveAttribute('aria-valuenow', '63');
+  await expect(page.getByRole('slider', { name: 'Index使用率', exact: true })).toHaveAttribute('aria-valuetext', '63%');
   await expect(page.getByRole('slider', { name: 'フォルマント調整', exact: true })).toHaveCount(0);
   await expect(page.getByRole('radio', { name: 'RMVPE' })).toBeChecked();
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();

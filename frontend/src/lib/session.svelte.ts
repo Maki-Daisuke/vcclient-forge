@@ -249,7 +249,7 @@ export class NativeSession {
 
   setPitchEstimator(value: 'rmvpe' | 'fcpe') {
     const model = this.currentModel;
-    if (!this.canConfigure || this.settings?.inputMode !== 'server' || model?.status !== 'ready'
+    if (!this.canConfigure || !this.settings?.inputMode || model?.status !== 'ready'
       || !model.settings?.supportsPitch || !model.settings.pitchEstimator || model.settings.pitchEstimator === value) return;
     this.modelDraft = { id: model.id, edits: { pitchEstimator: value } };
     this.saved = false;
