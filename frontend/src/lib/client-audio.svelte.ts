@@ -4,6 +4,19 @@ import captureUrl from './audio-capture.worklet.js?url';
 type SinkAudioContext = AudioContext & { setSinkId?: (id: string) => Promise<void> };
 type BrowserAudioOption = 'echoCancellation' | 'noiseSuppression' | 'autoGainControl';
 const browserAudioStorageKey = 'vcclient-forge.browser-audio.v1';
+const clientGainStorageKey = 'vcclient-forge.client-gain.v1';
+
+function loadClientGains(): { inputGain: number; outputGain: number } {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(clientGainStorageKey) ?? 'null');
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const stored = value as Record<string, unknown>;
+      const gain = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 10 ? v : 1;
+      return { inputGain: gain(stored.inputGain), outputGain: gain(stored.outputGain) };
+    }
+  } catch { /* Use defaults if storage is unavailable or invalid. */ }
+  return { inputGain: 1, outputGain: 1 };
+}
 
 function loadBrowserAudioOptions(): Record<BrowserAudioOption, boolean> {
   try {
@@ -22,6 +35,9 @@ export class ClientAudio {
   inputId = $state('');
   outputId = $state('');
   private options = $state(loadBrowserAudioOptions());
+  private gains = $state(loadClientGains());
+  private inputGainNode: GainNode | null = null;
+  private outputGainNode: GainNode | null = null;
   private context: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private socket: Socket | null = null;
@@ -39,6 +55,16 @@ export class ClientAudio {
   get echoCancellation() { return this.options.echoCancellation; }
   get noiseSuppression() { return this.options.noiseSuppression; }
   get autoGainControl() { return this.options.autoGainControl; }
+  get inputGain() { return this.gains.inputGain; }
+  get outputGain() { return this.gains.outputGain; }
+  setGain(key: 'inputGain' | 'outputGain', value: number) {
+    if (!Number.isFinite(value) || value < 0 || value > 10 || (key === 'inputGain' && this.autoGainControl)) return;
+    this.gains = { ...this.gains, [key]: value };
+    const node = key === 'inputGain' ? this.inputGainNode : this.outputGainNode;
+    if (node) node.gain.value = value;
+    try { localStorage.setItem(clientGainStorageKey, JSON.stringify(this.gains)); }
+    catch { /* Keep the current page usable if browser storage is unavailable. */ }
+  }
   supportsOption(option: BrowserAudioOption) {
     return navigator.mediaDevices?.getSupportedConstraints?.()[option] === true;
   }
@@ -116,10 +142,17 @@ export class ClientAudio {
       if (generation !== this.generation) return;
       const inputAnalyser = context.createAnalyser();
       const outputAnalyser = context.createAnalyser();
+      const inputGainNode = context.createGain();
+      const outputGainNode = context.createGain();
+      inputGainNode.gain.value = this.autoGainControl ? 1 : this.inputGain;
+      outputGainNode.gain.value = this.outputGain;
+      this.inputGainNode = inputGainNode;
+      this.outputGainNode = outputGainNode;
       inputAnalyser.fftSize = this.inputSamples.length;
       outputAnalyser.fftSize = this.outputSamples.length;
       this.inputAnalyser = inputAnalyser;
       this.outputAnalyser = outputAnalyser;
+      outputGainNode.connect(outputAnalyser);
       outputAnalyser.connect(context.destination);
       const socket = io('/test', { transports: ['websocket'], reconnection: false, autoConnect: false });
       this.socket = socket;
@@ -146,7 +179,7 @@ export class ClientAudio {
         buffer.copyToChannel(samples, 0);
         const source = context.createBufferSource();
         source.buffer = buffer;
-        source.connect(outputAnalyser);
+        source.connect(outputGainNode);
         source.onended = () => this.sources.delete(source);
         this.sources.add(source);
         this.nextPlayback = Math.max(this.nextPlayback, context.currentTime);
@@ -160,7 +193,8 @@ export class ClientAudio {
           socket.emit('request_message', [Date.now(), true, event.data.buffer]);
         }
       };
-      context.createMediaStreamSource(stream).connect(inputAnalyser);
+      context.createMediaStreamSource(stream).connect(inputGainNode);
+      inputGainNode.connect(inputAnalyser);
       inputAnalyser.connect(capture);
       capture.connect(context.destination);
     } catch (error) {
@@ -173,6 +207,10 @@ export class ClientAudio {
     ++this.generation;
     this.capture?.disconnect();
     this.capture = null;
+    this.inputGainNode?.disconnect();
+    this.outputGainNode?.disconnect();
+    this.inputGainNode = null;
+    this.outputGainNode = null;
     this.inputAnalyser?.disconnect();
     this.outputAnalyser?.disconnect();
     this.inputAnalyser = null;

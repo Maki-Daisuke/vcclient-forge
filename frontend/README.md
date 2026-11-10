@@ -29,14 +29,17 @@ microphone permission on Start or when loading the device list; output selection
 requires browser support for AudioContext.setSinkId. The browser's audio context
 uses the backend input sample rate, and Web Audio resamples the returned output as
 needed. Client Mode supports passthrough through the existing configuration API;
-recording, gain and other unconnected Client Mode controls remain disabled. Client Mode
+recording and other unconnected Client Mode controls remain disabled. Client Mode
 also displays the backend input buffer and conversion time when process analysis and
 performance monitoring are enabled. Client Mode start/stop uses the existing native stop endpoint to
 stop the shared conversion worker. The backend retains a partial input chunk across
 worker restarts, so a short fragment can persist across sessions. The user confirmed
 hearing converted audio in Client Mode; device combinations and recovery remain to
 be validated.
-In Client Mode, Web Audio analyser nodes measure input and output RMS locally.
+Client Mode input and output gains are applied locally with Web Audio and saved in
+browser local storage separately from Server Mode gains. When browser automatic gain
+control is enabled, the manual input gain is disabled and bypassed. In Client Mode,
+Web Audio analyser nodes measure input and output RMS after the respective gains.
 The output buffer graph shows scheduled audio remaining on the AudioContext timeline,
 not the buffers in the OS or audio device. The UI samples these values every 100 ms
 and clears them when client audio stops.
@@ -270,7 +273,7 @@ displayed value has been checked against the real backend via GET. Configuration
 writes have been covered by mocked browser requests; real-backend PUT and audible
 noise-gate behavior have not yet been verified. The noise gate can be adjusted in
 both Server and Client Mode, including while conversion is running.
-Client Mode Only includes browser echo cancellation, noise suppression, and automatic
+Client Mode supports browser echo cancellation, noise suppression, and automatic
 gain control. They are selected while audio is stopped and saved in browser local
 storage; browser processing support varies by device. Requested browser processing
 must be supported or starting audio fails. The user confirmed echo cancellation,

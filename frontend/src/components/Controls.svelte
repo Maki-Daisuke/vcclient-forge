@@ -3,6 +3,7 @@
   import AudioSettings from './AudioSettings.svelte';
   import NoiseSettings from './NoiseSettings.svelte';
   import RangeField from './RangeField.svelte';
+  import CheckField from './CheckField.svelte';
   import LogSlider from './LogSlider.svelte';
   import ComputeDeviceField from './ComputeDeviceField.svelte';
   import SettingsStatus from './SettingsStatus.svelte';
@@ -151,9 +152,15 @@
     <details class="control-group" use:initializeSection={'volume'} ontoggle={event => saveSection('volume', event)}>
       <summary><Volume2 size={17} />{ui.t('common.controls.volume_control')}</summary>
       <div class="control-group-body">
-        <RangeField label={ui.t('common.controls.input_volume')} value={settings?.inputGain ?? null} step={0.01}
-          disabled={!session.canAdjustGain} onchange={value => session.setGain('inputGain', value)} oncommit={() => session.flush()} />
-        <RangeField label={ui.t('common.controls.output_volume')} value={settings?.outputGain ?? null} step={0.01}
+        {#if settings?.inputMode === 'client'}
+          <CheckField label={ui.t('forge.auto_gain_control')} checked={session.clientAudio.autoGainControl}
+            disabled={!session.canConfigure || (!session.clientAudio.supportsOption('autoGainControl') && !session.clientAudio.autoGainControl)}
+            tooltip={session.active === true ? ui.t('forge.client_processing_stopped') : undefined}
+            onchange={value => session.clientAudio.setOption('autoGainControl', value)} />
+        {/if}
+        <RangeField label={ui.t('common.controls.input_volume')} value={settings?.inputMode === 'client' ? session.clientAudio.inputGain : settings?.inputGain ?? null} step={0.01}
+          disabled={!session.canAdjustGain || (settings?.inputMode === 'client' && session.clientAudio.autoGainControl)} onchange={value => session.setGain('inputGain', value)} oncommit={() => session.flush()} />
+        <RangeField label={ui.t('common.controls.output_volume')} value={settings?.inputMode === 'client' ? session.clientAudio.outputGain : settings?.outputGain ?? null} step={0.01}
           disabled={!session.canAdjustGain} onchange={value => session.setGain('outputGain', value)} oncommit={() => session.flush()} />
       </div>
     </details>

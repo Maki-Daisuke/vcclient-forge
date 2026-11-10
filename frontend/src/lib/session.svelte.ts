@@ -66,7 +66,7 @@ export class NativeSession {
     return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
   get canAdjustGain() {
-    return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
   get canAdjustNoiseGate() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
@@ -188,7 +188,12 @@ export class NativeSession {
   }
 
   setGain(key: 'inputGain' | 'outputGain', value: number) {
-    if (!this.canAdjustGain || this.settings?.[key] == null || !Number.isFinite(value) || value < 0 || value > 10) return;
+    if (!this.canAdjustGain || !Number.isFinite(value) || value < 0 || value > 10) return;
+    if (this.settings?.inputMode === 'client') {
+      this.clientAudio.setGain(key, value);
+      return;
+    }
+    if (this.settings?.[key] == null) return;
     if (this.settings[key] === value) return;
     this.edit({ [key]: value });
   }

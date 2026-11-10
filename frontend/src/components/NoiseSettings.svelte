@@ -38,13 +38,12 @@
   <div class="client-noise-options">
     <CheckField label={ui.language === 'ja' ? ui.t('forge.echo_cancellation') : ui.t('common.settings_dialog.enable_echo_cancellation')} checked={session.clientAudio.echoCancellation}
       disabled={settings?.inputMode !== 'client' || !session.canConfigure || (!session.clientAudio.supportsOption('echoCancellation') && !session.clientAudio.echoCancellation)}
+      tooltip={settings?.inputMode === 'client' && session.active === true ? ui.t('forge.client_processing_stopped') : undefined}
       onchange={value => session.clientAudio.setOption('echoCancellation', value)} />
     <CheckField label={ui.language === 'ja' ? ui.t('forge.client_noise_suppression') : ui.t('common.settings_dialog.enable_noise_suppression')} checked={session.clientAudio.noiseSuppression}
       disabled={settings?.inputMode !== 'client' || !session.canConfigure || (!session.clientAudio.supportsOption('noiseSuppression') && !session.clientAudio.noiseSuppression)}
+      tooltip={settings?.inputMode === 'client' && session.active === true ? ui.t('forge.client_processing_stopped') : undefined}
       onchange={value => session.clientAudio.setOption('noiseSuppression', value)} />
-    <CheckField label={ui.t('forge.auto_gain_control')} checked={session.clientAudio.autoGainControl}
-      disabled={settings?.inputMode !== 'client' || !session.canConfigure || (!session.clientAudio.supportsOption('autoGainControl') && !session.clientAudio.autoGainControl)}
-      onchange={value => session.clientAudio.setOption('autoGainControl', value)} />
   </div>
 </section>
 <style>

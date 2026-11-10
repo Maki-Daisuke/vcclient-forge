@@ -111,7 +111,8 @@ test('reload reflects changed configuration and the newly selected model', async
     json: { ...configuration, current_slot_index: 2, voice_changer_input_mode: 'client', audio_input_device_gain: 4.2 },
   }));
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '4.2');
+  // Client Mode uses its own local gain instead of the backend's server-mode gain.
+  await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '1');
   await expect(page.getByRole('slider', { name: 'ピッチ調整', exact: true })).toHaveAttribute('aria-valuenow', '3');
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeChecked();
   await expect(page.getByRole('radio', { name: 'クライアントモード' })).toBeChecked();

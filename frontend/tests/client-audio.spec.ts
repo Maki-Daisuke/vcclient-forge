@@ -2,6 +2,35 @@ import { expect, test, type WebSocketRoute } from '@playwright/test';
 import { openControlSections } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 
+test('shows automatic gain in the volume section only in client mode', async ({ page }) => {
+  await mockSession(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({ autoGainControl: true }) });
+  });
+  await page.goto('/');
+  await openControlSections(page);
+  const autoGain = page.getByRole('checkbox', { name: '自動音量調整' });
+  await expect(autoGain).toHaveCount(0);
+  await page.getByText('クライアントモード', { exact: true }).click();
+  const volume = page.locator('details.control-group').filter({ has: page.locator('summary').getByText('音量コントロール') });
+  await expect(volume.getByRole('checkbox', { name: '自動音量調整' })).toBeVisible();
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toBeEnabled();
+  await volume.getByRole('slider', { name: '入力音量' }).press('ArrowRight');
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
+  await autoGain.check();
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toBeDisabled();
+  await autoGain.uncheck();
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toBeEnabled();
+  await page.getByText('サーバーモード', { exact: true }).click();
+  await expect(autoGain).toHaveCount(0);
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toBeEnabled();
+  await page.getByText('クライアントモード', { exact: true }).click();
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
+  await page.reload();
+  await openControlSections(page);
+  await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
+});
+
 test('switches to client mode and reports a denied microphone without starting audio', async ({ page }) => {
   const state = await mockSession(page);
   state.config.output_sample_rate = 48000;
@@ -20,6 +49,45 @@ test('switches to client mode and reports a denied microphone without starting a
   await expect(page.getByRole('alert')).toContainText('マイクの許可');
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();
   expect(state.operations).not.toContain('start');
+});
+
+test('applies client gains before capture and playback and updates them while running', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  state.config.output_sample_rate = 48000;
+  await page.routeWebSocket(/\/socket\.io\//, socket => {
+    socket.send('0{"sid":"test","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
+    socket.onMessage(message => {
+      if (typeof message === 'string' && message.startsWith('40/test,')) socket.send('40/test,{"sid":"test"}');
+    });
+  });
+  await page.addInitScript(() => {
+    const original = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () {
+      const node = original.call(this);
+      const state = window as unknown as { gainNodes: GainNode[] };
+      (state.gainNodes ??= []).push(node);
+      return node;
+    };
+    const audio = new AudioContext();
+    const destination = audio.createMediaStreamDestination();
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => destination.stream });
+  });
+  await page.goto('/');
+  await openControlSections(page);
+  const input = page.getByRole('slider', { name: '入力音量' });
+  const output = page.getByRole('slider', { name: '出力音量' });
+  await input.press('ArrowRight');
+  await output.press('ArrowLeft');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  const gains = () => page.evaluate(() => (window as unknown as { gainNodes: GainNode[] }).gainNodes.map(node => node.gain.value));
+  expect((await gains())[0]).toBeCloseTo(1.01);
+  expect((await gains())[1]).toBeCloseTo(0.99);
+  await input.press('ArrowRight');
+  await output.press('ArrowLeft');
+  await expect.poll(async () => (await gains())[0]).toBeCloseTo(1.02);
+  await expect.poll(async () => (await gains())[1]).toBeCloseTo(0.98);
 });
 
 test('streams microphone samples over Socket.IO and releases the microphone on stop', async ({ page }) => {
@@ -45,6 +113,13 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
     });
   });
   await page.addInitScript(() => {
+    const originalCreateGain = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function () {
+      const node = originalCreateGain.call(this);
+      const state = window as unknown as { gainNodes: GainNode[] };
+      (state.gainNodes ??= []).push(node);
+      return node;
+    };
     const originalStart = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (...args) {
       (window as unknown as { played: number }).played = ((window as unknown as { played: number }).played ?? 0) + 1;
@@ -81,6 +156,18 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await expect(echo).toBeDisabled();
   await expect(noise).toBeDisabled();
   await expect(autoGain).toBeDisabled();
+  for (const checkbox of [echo, noise, autoGain]) {
+    const group = checkbox.locator('..').locator('..');
+    const tooltip = group.getByRole('tooltip', { includeHidden: true });
+    await expect(tooltip).toHaveText('音声の停止中に変更できます。');
+    await group.hover();
+    await expect(tooltip).toBeVisible();
+    await group.focus();
+    await expect(tooltip).toBeVisible();
+  }
+  expect(await page.evaluate(() => (window as unknown as { gainNodes: GainNode[] }).gainNodes.map(node => node.gain.value))).toEqual([1, 1]);
+  await page.getByRole('slider', { name: '出力音量' }).press('ArrowRight');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { gainNodes: GainNode[] }).gainNodes[1].gain.value)).toBeCloseTo(1.01);
   expect(await page.evaluate(() => (window as unknown as { capturedConstraints: MediaStreamConstraints }).capturedConstraints.audio))
     .toMatchObject({ echoCancellation: { exact: true }, noiseSuppression: { exact: true }, autoGainControl: { exact: true } });
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeDisabled();
@@ -115,6 +202,9 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await expect(echo).toBeEnabled();
   await expect(noise).toBeEnabled();
   await expect(autoGain).toBeEnabled();
+  for (const checkbox of [echo, noise, autoGain]) {
+    await expect(checkbox.locator('..').locator('..').getByRole('tooltip', { includeHidden: true })).toHaveCount(0);
+  }
   await expect(metrics.nth(0)).toContainText('—');
   await expect(metrics.nth(1)).toContainText('—');
   await expect(metrics.nth(2)).toContainText('—');
