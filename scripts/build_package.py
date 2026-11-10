@@ -292,7 +292,6 @@ def build_package(
         "frontend/dist",
         "start.bat",
         "start.sh",
-        "README.md",
         "LICENSE",
     ]
     if (PROJECT_ROOT / "MacStart.command").is_file():
@@ -318,6 +317,15 @@ def build_package(
         else:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
+
+    readme_txt = PROJECT_ROOT / "docs" / "README.txt"
+    if readme_txt.is_file():
+        shutil.copy2(readme_txt, package_dir / "README.txt")
+        readme_ja = PROJECT_ROOT / "docs" / "README_ja.txt"
+        if readme_ja.is_file():
+            shutil.copy2(readme_ja, package_dir / "README_ja.txt")
+    elif (PROJECT_ROOT / "README.md").is_file():
+        shutil.copy2(PROJECT_ROOT / "README.md", package_dir / "README.md")
 
     # Ensure empty modules and model_dir directories exist
     (package_dir / "modules").mkdir(exist_ok=True)
