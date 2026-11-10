@@ -327,6 +327,74 @@ In contrast, OpenVINO compiles the entire RMVPE computation graph into a **singl
 2. **Deterministic Steady-State Latency**: Initial cold-start compilation takes 10.63 ms, after which steady-state execution completes in **5.43 ms** (with a recorded minimum of **3.22 ms**).
 3. **Thermal and Queue Isolation**: Executing pitch estimation in 5.43 ms on the ~2–5 W NPU block eliminates competition with 3D rendering queues on the Arc GPU while keeping host CPU utilization minimal.
 
+### 2.4 Apple Silicon (M-Series): CoreML Execution Provider, Graph Partitioning Barriers, and Two-Tier Static Shape Architecture
+
+Physical testing and profiling on Apple Silicon (M2, macOS 15.x ARM64) revealed the architectural mechanisms governing CoreML acceleration across the Apple Neural Engine (ANE) and Metal GPU.
+
+#### 2.4.1 Empirical Telemetry: Dynamic Shape Tax & Graph Partition Explosion
+
+Evaluating RVC models (e.g., `tsukuyomi_v2_40k_e100_float.onnx`, 1,278 graph nodes) under ONNX Runtime's `CoreMLExecutionProvider` in its default dynamic-shape mode reveals severe fragmentation:
+
+- **Graph Partitioning**: Supported by CoreML: **655 nodes** (51.2%), rejected to CPU: **623 nodes** (48.8%).
+- **Partition Explosion**: The model is fragmented into **99 independent CoreML subgraphs**, generating 99 distinct `.mlmodel` bundles in `/tmp`.
+- **Steady-State Latency**: 20-iteration benchmark (128-frame chunk):
+  - `CPUExecutionProvider`: 399.79 ms
+  - `CoreMLExecutionProvider` (`MLComputeUnits: ALL` / ANE): 231.62 ms (42% reduction vs CPU)
+  - `CoreMLExecutionProvider` (`MLComputeUnits: CPUAndGPU` / Metal GPU): 229.49 ms (42.6% reduction vs CPU)
+- **Activity Monitor Duty Cycle vs Real Compute**: Even in "GPU Preferred" mode, Activity Monitor reports low GPU utilization (2–5%). Because individual audio chunks complete on the M2 GPU in a few milliseconds within a 500 ms window, the time-averaged duty cycle remains low despite Metal GPU pipeline compilation (verified by Apple's `AGXMetal` compiler context diagnostics).
+
+#### 2.4.2 Root-Cause Breakdown of Graph Partitioning in RVC Models
+
+Deep inspection of ORT CoreML EP telemetry (`coreml_execution_provider.cc`, `helper.cc`) identifies four failure modes causing the 99-partition split:
+
+1. **Dynamic Shape Arithmetic & `int64` Rejection (331 nodes)**:
+   Exporting PyTorch models with dynamic axes introduces extensive shape-calculation subgraphs (`Reshape: 106`, `Unsqueeze: 103`, `Concat: 52`, `Pad: 36`, `Sub: 30`, `Less: 2`). In legacy `NeuralNetwork` mode, CoreML EP strictly rejects `int64`/`int32` integer tensors with `has unsupported inputs`, falling back to CPU.
+2. **NeuralNetwork Format Operator Gaps (270 nodes)**:
+   - **`ConvTranspose` (4 nodes)**: HiFi-GAN's 4-stage vocoder upsamplers are rejected with `ConvTranspose: ML Program required`.
+   - **Dynamic `MatMul` (18 nodes)**: Attention layers ($Q \times K^T$) are rejected because `NeuralNetwork` format requires matrix input B to be a constant initializer.
+   - **3D Tensor Operations**: 3D `Concat`, 3D `Resize`, and dynamic `Where` masking are unsupported in `NeuralNetwork` mode.
+3. **HiFi-GAN NSF Harmonic Generator (16 nodes)**:
+   The Neural Source Filter (`l_sin_gen`) uses `CumSum` (phase accumulation), `ScatterND`, `Floor`, and pseudo-random generators (`RandomNormalLike`, `RandomUniformLike`). CoreML EP lacks operator translation for these nodes.
+4. **MRF Residual Fusion Cascade**:
+   HiFi-GAN Multi-Receptive Field (MRF) fusion routes parallel dilated convolutions into residual adders. When intermediate upsamplers or shape nodes drop to CPU, each convergence point forces a partition boundary, compounding into 99 submodel transitions.
+
+#### 2.4.3 The 16,384 Convolution Spatial Memory Limit (`CheckShapeForConvMemoryLimit`)
+
+Converting input shapes to fixed dimensions (Static Shapes) constant-folds out all 512 dynamic shape nodes and unblocks `MLProgram` compilation (CoreML coverage rises to 92.4% / 708 nodes). However, 24 partitions still persist when processing 128 frames.
+
+Detailed ORT diagnostic traces isolate the exact C++ barrier:
+```text
+[helper.cc:174 CheckShapeForConvMemoryLimit] Input shape: {1, 64, 25600} exceeds CoreML convolution memory limit of 16384
+[base_op_builder.cc:46 IsOpSupported] Operator [Conv] is not supported by the impl
+```
+
+- **Origin**: CoreML EP internally maps 1D audio convolutions (`Conv1d`) to 2D tensors $[N, C, 1, W]$. To prevent Metal driver crashes against hardware texture bounds (`MTLDevice.maxTextureWidth2D = 16384`), ORT enforces a hardcoded spatial limit of **16,384**.
+- **HiFi-GAN Upsampling Expansion**: RVC's vocoder upsamples 100 fps features by $400\times$ (40 kHz) or $480\times$ (48 kHz). In the 3rd and 4th upsampling stages, audio waveform lengths expand beyond 16,384 samples (e.g., $128 \times 400 = 51,200$ samples), causing all 41 downstream `Conv` layers to drop to CPU.
+- **Maximum Safe Chunk Durations by Sample Rate**:
+  - **40 kHz Vocoder**: $16,384 \div 40,000 \approx \mathbf{0.4096\text{ s}}$ (40 feature frames / 6,553 input samples at 16 kHz)
+  - **48 kHz Vocoder**: $16,384 \div 48,000 \approx \mathbf{0.3413\text{ s}}$ (34 feature frames / 5,461 input samples at 16 kHz)
+  - **96 kHz Vocoder**: $16,384 \div 96,000 \approx \mathbf{0.1706\text{ s}}$ (17 feature frames / 2,730 input samples at 16 kHz)
+
+> **Empirical Proof**: When evaluated with a 32-frame chunk ($32 \times 400 = 12,800 \le 16,384$), CoreML coverage increases to **97.9% (750 / 766 nodes)** and partitions drop from 99 to **9**, with only the NSF harmonic phase generator remaining on CPU.
+
+#### 2.4.4 Two-Tier Static Shape Architecture
+
+Because VCClient determines conversion parameters (`chunk_sec`, `crossfade_sec`, `sample_rate`) before audio processing starts, the backend can dynamically determine the execution profile without manual user intervention:
+
+```mermaid
+flowchart TD
+    A["Voice Changer Conversion Request<br/>(chunk_sec, crossfade_sec, extra_sec)"] --> B["Compute Total Output Samples<br/>total_samples = total_sec × sample_rate"]
+    B --> C{"total_samples ≤ 16,384 ?"}
+    
+    C -- "YES (Real-Time Voice: ≤ 0.34–0.41s)" --> D["Tier 1: Peak Performance Engine<br/>• In-memory Static Shape<br/>• ModelFormat: MLProgram<br/>★ 98% GPU/ANE Native Execution<br/>★ Minimal Partitions (~9)<br/>★ Sub-100ms Latency"]
+    C -- "NO (Batch / Long Chunk: > 0.41s)" --> E["Tier 2: Robust Fallback Engine<br/>• Dynamic Shape<br/>• ModelFormat: NeuralNetwork<br/>★ Zero Memory Limit Crashes<br/>★ Continuous Arbitrary-Duration Conversion"]
+```
+
+1. **Tier 1 (Peak Real-Time Performance: $\le 16,384$ output samples)**:
+   Typical real-time voice conversion targets low latency with 0.20–0.30s chunks. Adding crossfade (0.05–0.10s) yields $\le 0.40$s total window, fitting comfortably within the 16,384 limit. Applying in-memory static shape surgery with `MLProgram` executes 98% of the model natively on Metal GPU / ANE with minimal submodel overhead.
+2. **Tier 2 (Robust Fallback: $> 16,384$ output samples)**:
+   For oversized chunks (e.g., 0.5–1.0s) or offline batch conversion, the pipeline gracefully routes to the existing `NeuralNetwork` dynamic-shape provider. While partitioned, it guarantees crash-free execution without memory limit terminations.
+
 ---
 
 ## 3. DirectML Device Enumeration Mechanics
