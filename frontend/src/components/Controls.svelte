@@ -54,7 +54,7 @@
   const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
   const showStartMessage = $derived(!showStop && !session.canStart && !!startMessage);
   $effect(() => {
-    meters.setEnabled(session.active === true && settings?.inputMode === 'server', settings?.ioAnalysisEnabled === true,
+    meters.setEnabled(session.active === true, settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === true,
       settings?.processAnalysisEnabled === true && settings?.performanceMonitorEnabled === true, settings?.ioAnalysisInterval ?? null,
       settings?.processAnalysisInterval ?? null, modelSettings?.chunkSeconds ?? null);
   });
@@ -82,7 +82,7 @@
           {#if showStartMessage}<span id="start-reason" class="start-tooltip" role="tooltip">{startMessage}</span>{/if}
         </span>
         <button class="button" aria-pressed={settings?.passThrough === true}
-          disabled={!session.canAdjustGain || settings?.passThrough == null || settings.recording !== false || session.recordingArmed} onclick={() => session.togglePassThrough()}>
+          disabled={!session.canTogglePassThrough} onclick={() => session.togglePassThrough()}>
           <Repeat2 size={16} />{ui.t('common.controls.passthrough')}
         </button>
         <button class="button recording-button" class:recording-armed={session.recordingArmed && settings?.recording !== true}
@@ -102,8 +102,8 @@
         <div class="meter" aria-hidden="true"><span style:--empty={`${(1 - levelMeterFraction(meter.value ?? 0)) * 100}%`}></span></div>
         <div class="meter-scale" aria-hidden="true"><span>−60</span><span>−40</span><span>−20</span><span>0 dBFS</span></div>
       {/each}
-      {#if session.active && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
-      {:else if session.active && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
+      {#if session.active && settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
+      {:else if session.active && settings?.inputMode === 'server' && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
       <BufferChart input={meters.inputHistory} output={meters.outputHistory} chunkSeconds={modelSettings?.chunkSeconds ?? null} />
       <dl>
         <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>{meters.inputBuffer === null ? '—' : `${meters.inputBuffer.toFixed(3)} s`}</dd></div>

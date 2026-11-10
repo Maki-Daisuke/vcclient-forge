@@ -85,7 +85,7 @@ test('switches from client to server mode with the keyboard', async ({ page }) =
   const client = page.getByRole('radio', { name: 'クライアントモード' });
   const server = page.getByRole('radio', { name: 'サーバーモード' });
   await expect(client).toBeChecked();
-  await expect(client).toBeDisabled();
+  await expect(client).toBeEnabled();
   await server.focus();
   await server.press('Space');
   await saved(page);

@@ -8,6 +8,7 @@
   const ui = useUi();
   const session = useSession();
   const settings = $derived(session.settings);
+  let deviceError = $state(false);
 
   function rateLabel(rate: number | null | undefined) {
     return rate === null || rate === undefined ? '—' : rate < 0
@@ -19,11 +20,36 @@
   <div class="segmented-control">
     <label><input type="radio" name="input-mode" value="server" checked={settings?.inputMode === 'server'}
       onchange={() => session.useServerMode()} /><span>{ui.t('common.controls.server_mode')}</span></label>
-    <label><input type="radio" name="input-mode" value="client" checked={settings?.inputMode === 'client'} disabled /><span>{ui.t('common.settings_dialog.client_mode')}</span></label>
+    <label><input type="radio" name="input-mode" value="client" checked={settings?.inputMode === 'client'} onchange={() => session.useClientMode()} /><span>{ui.t('common.settings_dialog.client_mode')}</span></label>
   </div>
   {#if !settings?.inputMode}<span class="muted">—</span>{/if}
 </fieldset>
-<p class="muted">{ui.t('forge.client_mode_unavailable')}</p>
+{#if settings?.inputMode === 'client'}
+<section class="settings-section">
+  <label class="select-field"><span>{ui.t('common.settings_dialog.input_device')}</span>
+    <select bind:value={session.clientAudio.inputId} disabled={!session.canConfigure}>
+      <option value="">{ui.t('forge.browser_default')}</option>
+      {#each session.clientAudio.inputs as device (device.deviceId)}
+        <option value={device.deviceId}>{device.label || ui.t('forge.browser_device')}</option>
+      {/each}
+    </select>
+  </label>
+  <label class="select-field"><span>{ui.t('common.settings_dialog.output_device')}</span>
+    <select bind:value={session.clientAudio.outputId} disabled={!session.canConfigure || !session.clientAudio.canSelectOutput}>
+      <option value="">{ui.t('forge.browser_default')}</option>
+      {#each session.clientAudio.outputs as device (device.deviceId)}
+        <option value={device.deviceId}>{device.label || ui.t('forge.browser_device')}</option>
+      {/each}
+    </select>
+  </label>
+  <button class="button small" disabled={!session.canConfigure} onclick={async () => {
+    deviceError = false;
+    try { await session.clientAudio.requestDevices(); } catch { deviceError = true; }
+  }}>{ui.t('forge.browser_devices')}</button>
+  {#if deviceError}<p role="alert">{ui.t('forge.browser_devices_error')}</p>{/if}
+  {#if !session.clientAudio.canSelectOutput}<p class="muted">{ui.t('forge.browser_output_default')}</p>{/if}
+</section>
+{:else}
 <section class="settings-section">
   <div class="device-row">
     <DeviceField label={ui.t('common.settings_dialog.input_device')} id={settings?.inputDevice} direction="input"
@@ -43,6 +69,7 @@
   <CheckField label={ui.t('common.settings_dialog.wasapi_exclusive_mode')} checked={settings?.wasapiExclusive ?? null}
     disabled={!session.canConfigure || settings?.inputMode !== 'server'} onchange={value => session.setWasapiExclusive(value)} />
 </section>
+{/if}
 <style>
   .mode-field { border: 0; padding: 8px 0; margin: 0; min-width: 0; }
   .segmented-control { display: flex; width: 100%; padding: 4px; border-radius: 7px; background: var(--surface-soft); }

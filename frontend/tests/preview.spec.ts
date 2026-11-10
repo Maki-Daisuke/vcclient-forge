@@ -16,7 +16,7 @@ test('places voice controls with the selected model and groups other controls in
   const mode = page.getByRole('group', { name: '入出力モード' });
   await expect(page.getByRole('heading', { name: '入出力モード' })).toHaveCount(0);
   await expect(mode.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
-  await expect(mode.getByRole('radio', { name: 'クライアントモード' })).toBeDisabled();
+  await expect(mode.getByRole('radio', { name: 'クライアントモード' })).toBeEnabled();
   await expect(groups.nth(0).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toHaveCount(0);
   await expect(groups.nth(2).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toBeVisible();
   await expect(groups.nth(2).getByRole('heading', { name: 'クライアントモード専用' })).toBeVisible();

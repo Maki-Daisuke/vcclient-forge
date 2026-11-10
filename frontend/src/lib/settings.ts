@@ -47,7 +47,7 @@ export interface ModelEdits {
 // Only these fields can be changed by the native-audio UI.
 export interface ConfigurationEdits {
   currentModelId?: number;
-  inputMode?: 'server';
+  inputMode?: 'server' | 'client';
   passThrough?: boolean;
   recording?: boolean;
   inputDevice?: number;

@@ -55,15 +55,24 @@ test('retains a failed toggle for explicit retry', async ({ page }) => {
   expect(state.config.pass_through).toBe(true);
 });
 
-test('leaves passthrough disabled when its state is unavailable or client mode is selected', async ({ page }) => {
+test('leaves passthrough disabled when its state is unavailable', async ({ page }) => {
   const state = await mockSession(page);
   delete state.config.pass_through;
   await page.goto('/');
   const button = page.getByRole('button', { name: 'パススルー' });
   await expect(button).toBeDisabled();
-  state.config.pass_through = false;
-  state.config.voice_changer_input_mode = 'client';
-  await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(button).toBeDisabled();
   expect(state.writes).toHaveLength(0);
+});
+
+test('switches passthrough in client mode without changing native gain controls', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  await page.goto('/');
+  const button = page.getByRole('button', { name: 'パススルー' });
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect.poll(() => state.config.pass_through).toBe(true);
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await button.click();
+  await expect.poll(() => state.config.pass_through).toBe(false);
 });

@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
-import { operateNative, organizeModels, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
+import { operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
+import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
 import { importModel, uploadFile } from './model-upload';
 import type { ModelCatalogState } from './catalog.svelte';
@@ -12,6 +13,8 @@ type PendingWrite =
   | { kind: 'model'; id: number; edits: ModelEdits };
 
 export class NativeSession {
+  readonly clientAudio = new ClientAudio();
+  private clientActive = false;
   draft = $state<ConfigurationEdits>({});
   modelDraft = $state<{ id: number; edits: ModelEdits } | null>(null);
   isSaving = $state(false);
@@ -61,7 +64,8 @@ export class NativeSession {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode === 'server' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
   get canAdjustModel() {
-    return this.canAdjustGain && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
+    return this.catalog.state.status === 'ready' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation
+      && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
       && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
   get canAdjustFilter() {
@@ -77,7 +81,8 @@ export class NativeSession {
     if (this.error) return 'save_error';
     if (this.isSaving || this.dirty) return 'saving';
     const settings = this.settings!;
-    if (settings.inputMode !== 'server') return 'mode';
+    if (!settings.inputMode) return 'mode';
+    if (settings.inputMode === 'client') return this.currentModel?.status === 'ready' ? null : 'model';
     const devices = this.catalog.deviceState;
     if (devices.status === 'loading') return 'devices_loading';
     if (devices.status === 'error') return 'devices_error';
@@ -92,6 +97,7 @@ export class NativeSession {
 
   async mount() {
     await this.reload();
+    if (this.settings?.inputMode === 'client') await this.clientAudio.refreshDevices().catch(() => {});
     this.schedulePoll();
   }
 
@@ -183,8 +189,14 @@ export class NativeSession {
     if (this.settings.noiseGate !== value) this.edit({ noiseGate: value });
   }
 
+  get canTogglePassThrough() {
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null
+      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation
+      && this.settings.passThrough != null && this.settings.recording === false && !this.recordingArmed;
+  }
+
   togglePassThrough() {
-    if (!this.canAdjustGain || this.settings?.passThrough == null || this.settings.recording !== false || this.recordingArmed) return;
+    if (!this.canTogglePassThrough || !this.settings) return;
     this.edit({ passThrough: !this.settings.passThrough }, true);
   }
 
@@ -266,6 +278,14 @@ export class NativeSession {
 
   useServerMode() {
     if (this.canConfigure && this.settings?.inputMode !== 'server') this.edit({ inputMode: 'server' }, true);
+  }
+
+  useClientMode() {
+    if (this.canConfigure && this.settings?.inputMode !== 'client') {
+      this.recordingArmed = false;
+      this.edit({ inputMode: 'client' }, true);
+      void this.clientAudio.refreshDevices().catch(() => {});
+    }
   }
 
   setWasapiExclusive(value: boolean) {
@@ -384,6 +404,35 @@ export class NativeSession {
       // Stop also waits for the current PUT, but is not blocked by a failed save.
       await this.flight;
       if (this.disposed) return;
+      if (this.settings?.inputMode === 'client') {
+        if (operation === 'start') {
+          await this.request(signal => operateNative('stop', signal));
+          const confirmed = await this.request(signal => updateConfiguration({ currentModelId: this.currentModelId! }, signal));
+          this.catalog.applyConfiguration(confirmed);
+          if (confirmed.settings.inputMode !== 'client') throw new ApiError('not_applied');
+          const rates = await this.request(readAudioSampleRates);
+          if (!rates.input || !rates.output) throw new ApiError('invalid_response');
+          await this.clientAudio.start(rates.input, rates.output, error => {
+            this.clientAudio.stop();
+            this.clientActive = false;
+            this.active = false;
+            this.operationError = new ApiError('client_audio', undefined, error.message);
+            void this.request(signal => operateNative('stop', signal)).catch(error => {
+              if (!this.disposed) this.operationError = this.apiError(error);
+            });
+          });
+          if (this.disposed) return;
+          this.clientActive = true;
+          this.active = true;
+        } else {
+          this.clientAudio.stop();
+          this.clientActive = false;
+          this.active = false;
+          await this.request(signal => operateNative('stop', signal));
+        }
+        this.statusError = false;
+        return;
+      }
       this.active = await this.request(async signal => {
         if (operation === 'start') {
           // Reapply/confirm the selected model through the existing PUT before starting.
@@ -418,7 +467,8 @@ export class NativeSession {
       this.statusError = false;
     } catch (error) {
       if (!this.disposed) {
-        this.operationError = this.apiError(error);
+        this.operationError = error instanceof ApiError ? error : this.settings?.inputMode === 'client'
+          ? new ApiError('client_audio', undefined, error instanceof Error ? error.message : undefined) : this.apiError(error);
         this.active = null;
       }
     } finally {
@@ -435,7 +485,7 @@ export class NativeSession {
     try {
       const active = await this.request(readNativeActive, 8_000);
       if (!this.disposed && version === this.statusVersion) {
-        this.active = active;
+        this.active = active || this.clientActive;
         this.statusError = false;
       }
     } catch {
@@ -467,6 +517,7 @@ export class NativeSession {
 
   dispose() {
     this.disposed = true;
+    this.clientAudio.stop();
     ++this.statusVersion;
     clearTimeout(this.timer);
     clearTimeout(this.poll);

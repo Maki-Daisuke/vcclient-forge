@@ -231,7 +231,7 @@ Inspection of the current `web_front/index.js` bundle confirmed the following pr
 
 Backend/API changes alone do not deliver usable features: users need a UI that can operate them. The minified legacy frontend (`web_front/index.js`) is coupled to existing endpoints and slot-array conventions, and the original `web_front` source for v2.0.78-beta was not released. Keeping it as the only UI would leave new backend capabilities inaccessible or require preserving its legacy contract.
 
-The solution is a clean-slate Svelte 5 UI, starting with Server Mode over REST. The new UI does not yet implement Client Mode or Socket.IO notifications. Connect it to the existing Socket.IO API incrementally; the API and legacy UI remain compatible while the UI migration proceeds.
+The solution is a clean-slate Svelte 5 UI, starting with Server Mode over REST. The UI also uses the existing Socket.IO API for notifications and initial Client Mode audio support; the API and legacy UI remain compatible while the UI migration proceeds.
 
 ---
 
@@ -244,7 +244,7 @@ While Forge prioritizes **Server Mode** (native OS audio devices) for low latenc
 - **Cross-Platform Portability**: Web Audio capture remains available without installing Forge's native audio backend on the client device.
 - **Instant Fallback**: A reliable safety net when host audio drivers (WASAPI/CoreAudio/PortAudio) fail or conflict.
 
-Client Mode is a later feature of the new UI, not a prerequisite for replacing the old UI. A temporary development interval with only Server Mode is explicitly accepted.
+Client Mode is developed incrementally and is not a prerequisite for replacing the old UI.
 
 ### 3.2 Existing Audio Transport
 
@@ -332,10 +332,10 @@ remain the integration baseline. Socket.IO may itself use WebSocket as its
 underlying transport; that does not make its application protocol raw WebSocket.
 
 The new UI can consume existing `data`, `perf`, and `command` notifications.
-Client Mode remains future work for the new UI and should use the existing
-Socket.IO audio API. Review callback scheduling, sample conversion, bounded
-buffering, and reconnect behavior independently, without assuming a protocol
-change is necessary or silently breaking existing clients.
+The new UI streams Client Mode audio through the existing Socket.IO audio API.
+Device permissions, sample rates, buffering and disconnect behavior need
+real-device validation. A partial input chunk remains in the backend across
+worker restarts. The UI stops on disconnect rather than reconnecting automatically.
 
 ---
 
@@ -408,8 +408,8 @@ Inspection of `web_front/assets/i18n/*/translation.json` demonstrated that:
 ## 6. The UI Rebirth & Migration Roadmap
 
 Forge replaces the UI incrementally. Server Mode remains the working reference;
-the new UI's Client Mode is not yet implemented, while the existing Socket.IO
-API and legacy UI remain available during the transition.
+the new UI has initial Client Mode audio support using the existing Socket.IO API.
+Real-device validation and Client Mode feature parity remain outstanding.
 
 ```mermaid
 flowchart TD

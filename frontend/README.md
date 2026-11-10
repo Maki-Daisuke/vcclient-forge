@@ -22,8 +22,19 @@ The UI prevents enabling passthrough during recording because the existing backe
 does not collect input audio in that mode. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
 retry is not guaranteed to recover audio. Real recording has not been verified.
-Client Mode audio and other unconnected settings controls remain disabled.
-Audio runs on the backend's native devices; the browser does not capture audio.
+Client Mode captures a browser microphone and streams float32 audio through the
+existing Socket.IO API. Its output is played by Web Audio. The browser requests
+microphone permission on Start or when loading the device list; output selection
+requires browser support for AudioContext.setSinkId. The browser's audio context
+uses the backend input sample rate, and Web Audio resamples the returned output as
+needed. Client Mode supports passthrough through the existing configuration API;
+recording, gain and other unconnected Client Mode controls remain disabled. Client Mode
+also displays the backend input buffer and conversion time when process analysis and
+performance monitoring are enabled. Client Mode start/stop uses the existing native stop endpoint to
+stop the shared conversion worker. The backend retains a partial input chunk across
+worker restarts, so a short fragment can persist across sessions. The user confirmed
+hearing converted audio in Client Mode; device combinations and recovery remain to
+be validated.
 While Server Mode audio is active and backend input/output analysis is enabled,
 the UI subscribes to the existing Socket.IO `/test` namespace and displays the
 input/output RMS levels. The meter bars use a logarithmic -60 to 0 dBFS scale;
@@ -46,8 +57,8 @@ browser events; both values and graph lines were also observed in the UI against
 a live backend during conversion.
 The model list contains the selected model's portrait, details, and voice controls.
 Audio devices, volume, noise suppression, and inference controls are grouped into
-independent expandable sections. Server Mode can be selected from Client Mode;
-switching back to Client Mode is not connected yet. Sample rates remain read-only.
+independent expandable sections. Server Mode and Client Mode can be selected while
+audio is stopped. Sample rates remain read-only.
 The preferred inference device uses the backend compute-device list and can be changed
 while Server Mode audio is stopped. The full configuration is read and preserved when
 saving. The UI reads the configuration back and, when a model is selected, checks
@@ -240,7 +251,7 @@ displayed value has been checked against the real backend via GET. Configuration
 writes have been covered by mocked browser requests; real-backend PUT and audible
 noise-gate behavior have not yet been verified.
 Browser-side echo cancellation and noise-suppression options are grouped under
-Client Mode Only and remain disabled until Client Mode audio is connected.
+Client Mode Only and remain disabled; capture currently disables both options.
 
 High/low-pass switches and cutoffs are editable in Server Mode when a usable model
 is selected. Before a filter
