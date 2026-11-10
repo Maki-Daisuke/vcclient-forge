@@ -60,6 +60,7 @@ class RVCPipeline(VCPipeline):
         self.embedder = EmbedderManager.get_embedder(slot_info.embedder, self.device)
         if slot_info.model_file is None:
             raise ValueError(f"RVC slot {slot_info.slot_index} has no model file configured.")
+        target_frames = self._calculate_target_feats_length()
         self.rvc = cast(
             RVCInferencer,
             InferencerManager.get_inferencer(
@@ -67,6 +68,8 @@ class RVCPipeline(VCPipeline):
                 ModelDir / str(slot_info.slot_index) / slot_info.model_file,
                 self.device,
                 inferencer_type_version=cast(RVCInferencerOnnxVersion, slot_info.version),
+                target_frames=target_frames,
+                sample_rate=self.get_output_sample_rate(),
             ),
         )
         if slot_info.index_file is not None:
@@ -181,6 +184,18 @@ class RVCPipeline(VCPipeline):
 
     def get_chunk_sec(self) -> float:
         return self.slot_info.chunk_sec
+
+    def _calculate_target_feats_length(self) -> int:
+        from vcclient.device.coreml_patch import calculate_target_feats_length
+
+        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+        chunk_sec = self.get_chunk_sec()
+        return calculate_target_feats_length(
+            chunk_sec=chunk_sec,
+            crossfade_sec=conf.crossfade_sec,
+            extra_frame_sec=conf.extra_frame_sec,
+            sola_search_frame_sec=conf.sola_search_frame_sec,
+        )
 
     def needs_crossfade(self) -> bool:
         return True

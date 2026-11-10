@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from . import providers
+from .coreml_patch import (
+    COREML_CONV_MEMORY_LIMIT,
+    calculate_target_feats_length,
+    patch_rvc_model_for_coreml,
+)
 from .data_types import DeviceConfig
 from .device_manager import (
     find_openvino_ep_device,
@@ -23,7 +28,9 @@ from .openvino_patch import (
 from .runtime_env import setup_runtime_env
 
 __all__ = [
+    "COREML_CONV_MEMORY_LIMIT",
     "DeviceConfig",
+    "calculate_target_feats_length",
     "find_openvino_ep_device",
     "get_cuda_info",
     "get_device",
@@ -33,6 +40,7 @@ __all__ = [
     "is_cuda_available",
     "is_openvino_available",
     "patch_rmvpe_model_for_openvino",
+    "patch_rvc_model_for_coreml",
     "patch_rvc_model_for_openvino",
     "providers",
     "reload",

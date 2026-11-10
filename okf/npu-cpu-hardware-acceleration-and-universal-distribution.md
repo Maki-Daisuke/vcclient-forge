@@ -341,7 +341,7 @@ Evaluating RVC models (e.g., `tsukuyomi_v2_40k_e100_float.onnx`, 1,278 graph nod
   - `CPUExecutionProvider`: 399.79 ms
   - `CoreMLExecutionProvider` (`MLComputeUnits: ALL` / ANE): 231.62 ms (42% reduction vs CPU)
   - `CoreMLExecutionProvider` (`MLComputeUnits: CPUAndGPU` / Metal GPU): 229.49 ms (42.6% reduction vs CPU)
-- **Activity Monitor Duty Cycle vs Real Compute**: Even in "GPU Preferred" mode, Activity Monitor reports low GPU utilization (2–5%). Because individual audio chunks complete on the M2 GPU in a few milliseconds within a 500 ms window, the time-averaged duty cycle remains low despite Metal GPU pipeline compilation (verified by Apple's `AGXMetal` compiler context diagnostics).
+- **Activity Monitor Duty Cycle vs Real Compute**: In "GPU + CPU" (`CPUAndGPU`) mode, Activity Monitor reports low GPU utilization (2–5%) because CoreML's scheduler often keeps small chunks on CPU (AMX) to avoid Metal kernel launch overhead. In contrast, "ANE + GPU + CPU" (`ALL`) mode actively coordinates ANE convolution processing with Metal GPU transposed convolutions, sustaining both high throughput and low latency (~30 ms).
 
 #### 2.4.2 Root-Cause Breakdown of Graph Partitioning in RVC Models
 

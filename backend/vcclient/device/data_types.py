@@ -83,7 +83,12 @@ class DeviceConfig(BaseModel):
         )
         return resolve_cpu_provider()
 
-    def _resolve_provider(self) -> tuple[list[str], list[dict[str, Any]]]:
+    def _resolve_provider(
+        self,
+        model_format: str = "NeuralNetwork",
+        require_static_shapes: bool = False,
+        target_frames: int | None = None,
+    ) -> tuple[list[str], list[dict[str, Any]]]:
         """Resolve ONNX Runtime execution provider and options for this device descriptor."""
         if self.is_cpu():
             from .providers.cpu import resolve_cpu_provider
@@ -113,7 +118,12 @@ class DeviceConfig(BaseModel):
             if "CoreMLExecutionProvider" in ort.get_available_providers():
                 from .providers.coreml import resolve_coreml_device_provider
 
-                return resolve_coreml_device_provider(self)
+                return resolve_coreml_device_provider(
+                    self,
+                    model_format=model_format,
+                    require_static_shapes=require_static_shapes,
+                    target_frames=target_frames,
+                )
             return self._fallback_to_cpu("CoreMLExecutionProvider")
 
         from .providers.cpu import resolve_cpu_provider
@@ -142,10 +152,14 @@ class DeviceConfig(BaseModel):
         model_payload: str | bytes | Path,
         patch_type: str | None = None,
         so: onnxruntime.SessionOptions | None = None,
+        *,
+        target_frames: int | None = None,
+        upsample_rate: int = 400,
     ) -> tuple[onnxruntime.InferenceSession, list[str], list[dict[str, Any]]]:
         """Create an ONNX InferenceSession optimized for this compute device descriptor.
 
         Handles EP resolution, provider options, device-specific graph patches,
+        CoreML Two-Tier MLProgram/NeuralNetwork static shape specialization,
         and NPU-to-CPU vocoder safety fallbacks.
         """
         from pathlib import Path
@@ -163,7 +177,38 @@ class DeviceConfig(BaseModel):
 
             target_device = get_device(0)
 
-        providers_list, provider_options = target_device._resolve_provider()
+        model_format = "NeuralNetwork"
+        require_static_shapes = False
+
+        if target_device.provider == "coreml" and patch_type == "rvc" and target_frames is not None:
+            from .coreml_patch import COREML_CONV_MEMORY_LIMIT, patch_rvc_model_for_coreml
+
+            output_samples = target_frames * upsample_rate
+            if output_samples <= COREML_CONV_MEMORY_LIMIT:
+                logger.info(
+                    "Applying CoreML MLProgram static shape patch (target_frames=%d, output_samples=%d <= %d)",
+                    target_frames,
+                    output_samples,
+                    COREML_CONV_MEMORY_LIMIT,
+                )
+                try:
+                    model_payload = patch_rvc_model_for_coreml(model_payload, target_frames)
+                    model_format = "MLProgram"
+                    require_static_shapes = True
+                except Exception as e:
+                    logger.warning("Failed to apply CoreML static shape patch: %s; falling back to NeuralNetwork", e)
+            else:
+                logger.info(
+                    "RVC output length (%d samples) exceeds CoreML limit (%d); using dynamic NeuralNetwork fallback",
+                    output_samples,
+                    COREML_CONV_MEMORY_LIMIT,
+                )
+
+        providers_list, provider_options = target_device._resolve_provider(
+            model_format=model_format,
+            require_static_shapes=require_static_shapes,
+            target_frames=target_frames if require_static_shapes else None,
+        )
 
         if any("openvino" in p.lower() for p in providers_list):
             if patch_type == "rvc":
