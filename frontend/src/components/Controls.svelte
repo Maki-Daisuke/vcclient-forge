@@ -6,6 +6,7 @@
   import CheckField from './CheckField.svelte';
   import LogSlider from './LogSlider.svelte';
   import ComputeDeviceField from './ComputeDeviceField.svelte';
+  import InferenceSetting from './InferenceSetting.svelte';
   import SettingsStatus from './SettingsStatus.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
@@ -171,14 +172,14 @@
     <details class="control-group" use:initializeSection={'inference'} ontoggle={event => saveSection('inference', event)}>
       <summary><Cpu size={17} />{ui.t('forge.inference_settings')}</summary>
       <div class="control-group-body">
-        <ComputeDeviceField />
+        <InferenceSetting label={ui.t('forge.preferred_device')}><ComputeDeviceField /></InferenceSetting>
         <div class="field-grid">
-          <LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
-            disabled={!session.canConfigure || settings?.inputMode !== 'server' || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} />
-          <LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
-            disabled={!session.canConfigure || settings?.inputMode !== 'server'} oncommit={value => session.setExtraSeconds(value)} />
-          <LogSlider label={ui.t('forge.crossfade')} value={settings?.crossfadeSeconds ?? null} min={0.01} max={0.15} allowZero
-            disabled={!session.canConfigure || settings?.inputMode !== 'server'} oncommit={value => session.setCrossfadeSeconds(value)} />
+          <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
+            disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
+          <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
+            disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
+          <InferenceSetting label={ui.t('forge.crossfade')}><LogSlider label={ui.t('forge.crossfade')} value={settings?.crossfadeSeconds ?? null} min={0.01} max={0.15} allowZero
+            disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setCrossfadeSeconds(value)} /></InferenceSetting>
         </div>
       </div>
     </details>

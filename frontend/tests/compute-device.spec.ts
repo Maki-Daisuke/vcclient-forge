@@ -5,7 +5,7 @@ import { openControlSections } from './catalog-fixtures';
 async function openInference(page: import('@playwright/test').Page) {
   await page.goto('/');
   await openControlSections(page);
-  return page.getByLabel('優先デバイス');
+  return page.getByRole('combobox', { name: '優先デバイス' });
 }
 
 test('lists compute devices and saves a selected device while stopped', async ({ page }) => {

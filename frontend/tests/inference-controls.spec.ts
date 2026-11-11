@@ -6,6 +6,48 @@ const chunk = 'チャンクフレーム（秒）';
 const crossfade = 'クロスフェード（秒）';
 const saved = 'main > .configuration-status';
 
+test('explains inference controls are unavailable during conversion', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  await page.goto('/');
+  await openControlSections(page);
+  for (const name of ['優先デバイス', chunk, 'Extraフレーム（秒）', crossfade]) {
+    const group = page.getByRole('group', { name, exact: true });
+    const tooltip = group.getByRole('tooltip', { includeHidden: true });
+    await expect(tooltip).toHaveText('音声の停止中に変更できます。');
+    await group.hover();
+    await expect(tooltip).toBeVisible();
+    await group.focus();
+    await expect(tooltip).toBeVisible();
+  }
+});
+
+test('saves inference settings while client audio is stopped', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.voice_changer_input_mode = 'client';
+  await page.goto('/');
+  await openControlSections(page);
+  const device = page.getByLabel('優先デバイス');
+  await expect(device).toBeEnabled();
+  await expect(page.getByRole('group', { name: '優先デバイス', exact: true })).toHaveCount(0);
+  await device.selectOption('1');
+  await expect.poll(() => state.config.gpu_device_id_int).toBe(1);
+  await expect(device).toBeEnabled();
+  const chunkSlider = page.getByRole('slider', { name: chunk });
+  await expect(chunkSlider).toBeEnabled();
+  await chunkSlider.press('End');
+  await expect.poll(() => state.models[0].chunk_sec).toBe(5);
+  await expect(chunkSlider).toBeEnabled();
+  const extra = page.getByRole('slider', { name: 'Extraフレーム（秒）' });
+  await extra.press('End');
+  await expect.poll(() => state.config.extra_frame_sec).toBe(10);
+  await expect(extra).toBeEnabled();
+  const crossfadeSlider = page.getByRole('slider', { name: crossfade });
+  await crossfadeSlider.press('Home');
+  await expect.poll(() => state.config.crossfade_sec).toBe(0);
+  await expect(crossfadeSlider).toBeEnabled();
+});
+
 test('saves chunk in the selected model and retains other slot fields', async ({ page }) => {
   const state = await mockSession(page);
   const other = structuredClone(state.models[2]);

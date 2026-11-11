@@ -143,8 +143,8 @@ Before starting native audio, the UI disables the saved exclusive-mode setting u
 the existing API. Previously saved device sample rates remain in use until the device
 changes; changing it resets the rate to Auto.
 The chunk, Extra frame, and crossfade logarithmic sliders save on release while
-server audio is stopped. Chunk belongs to the selected model; the others are
-configuration settings. Real-device audio validation remains pending.
+audio is stopped in either mode. Chunk belongs to the selected model; the others are
+configuration settings. Client Mode changes have not yet been verified with real audio.
 Server recording uses the existing configuration API and starts an output WAV
 download after a successful stop. Recording can be armed before audio starts, and
 stopping audio saves the take and returns to the armed state. Passthrough is blocked
@@ -152,7 +152,7 @@ while recording is armed or active. Backend
 recordings use fixed paths and may overwrite earlier recordings; real audio testing
 remains pending.
 Preferred inference-device selection reads the existing compute-device catalog and saves
-the selected ID through the existing configuration API while Server Mode audio is stopped.
+the selected ID through the existing configuration API while audio is stopped in either mode.
 The UI checks the saved configuration and the reported pipeline device ID when a model is selected.
 This does not verify the actual execution providers. The user confirmed switching
 with the live backend; conversion after switching has not yet been confirmed.

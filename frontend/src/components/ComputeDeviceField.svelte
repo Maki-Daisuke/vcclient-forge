@@ -20,8 +20,8 @@
 
 <label class="select-field">
   <span>{ui.t('forge.preferred_device')}</span>
-  <select value={id === null ? '' : String(id)} title={value}
-    disabled={!session.canConfigure || session.settings?.inputMode !== 'server' || id === null || state.status !== 'ready'}
+  <select value={id === null ? '' : String(id)} title={session.active === true ? undefined : value}
+    disabled={!session.canConfigure || !session.settings?.inputMode || id === null || state.status !== 'ready'}
     onchange={event => session.selectComputeDevice(Number(event.currentTarget.value))}>
     {#if id === null}<option value="" disabled>—</option>{/if}
     {#if id !== null && !devices.some(device => device.id === id)}<option value={String(id)} disabled>{value}</option>{/if}

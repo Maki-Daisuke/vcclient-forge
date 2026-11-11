@@ -281,7 +281,7 @@ export class NativeSession {
 
   selectComputeDevice(id: number) {
     const devices = this.catalog.computeDeviceState;
-    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.gpuDevice === null
+    if (!this.canConfigure || !this.settings?.inputMode || this.settings.gpuDevice === null
       || devices.status !== 'ready' || !Number.isSafeInteger(id) || !devices.devices.some(device => device.id === id)
       || id === this.settings.gpuDevice) return;
     this.edit({ gpuDevice: id }, true);
@@ -354,20 +354,20 @@ export class NativeSession {
   }
 
   setExtraSeconds(value: number) {
-    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.extraSeconds == null
+    if (!this.canConfigure || !this.settings?.inputMode || this.settings.extraSeconds == null
       || !Number.isFinite(value) || value < 0.01 || value > 10 || value === this.settings.extraSeconds) return;
     this.edit({ extraSeconds: value }, true);
   }
 
   setCrossfadeSeconds(value: number) {
-    if (!this.canConfigure || this.settings?.inputMode !== 'server' || this.settings.crossfadeSeconds == null
+    if (!this.canConfigure || !this.settings?.inputMode || this.settings.crossfadeSeconds == null
       || !Number.isFinite(value) || (value !== 0 && (value < 0.01 || value > 0.15)) || value === this.settings.crossfadeSeconds) return;
     this.edit({ crossfadeSeconds: value }, true);
   }
 
   setChunkSeconds(value: number) {
     const model = this.currentModel;
-    if (!this.canConfigure || this.settings?.inputMode !== 'server' || model?.status !== 'ready'
+    if (!this.canConfigure || !this.settings?.inputMode || model?.status !== 'ready'
       || model.settings?.chunkSeconds == null || !Number.isFinite(value) || value < 0.05 || value > 5
       || value === model.settings.chunkSeconds) return;
     this.modelDraft = { id: model.id, edits: { chunkSeconds: value } };

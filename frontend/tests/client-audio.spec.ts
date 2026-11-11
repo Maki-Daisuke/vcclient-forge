@@ -81,6 +81,13 @@ test('applies client gains before capture and playback and updates them while ru
   await output.press('ArrowLeft');
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: '優先デバイス' })).toBeDisabled();
+  for (const name of ['優先デバイス', 'チャンクフレーム（秒）', 'Extraフレーム（秒）', 'クロスフェード（秒）']) {
+    const group = page.getByRole('group', { name, exact: true });
+    await group.hover();
+    await expect(group.getByRole('tooltip')).toHaveText('音声の停止中に変更できます。');
+    if (name !== '優先デバイス') await expect(page.getByRole('slider', { name })).toBeDisabled();
+  }
   const gains = () => page.evaluate(() => (window as unknown as { gainNodes: GainNode[] }).gainNodes.map(node => node.gain.value));
   expect((await gains())[0]).toBeCloseTo(1.01);
   expect((await gains())[1]).toBeCloseTo(0.99);
@@ -198,6 +205,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await expect(metrics.nth(2)).toContainText('0.050 s');
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: '優先デバイス', exact: true })).toHaveCount(0);
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeEnabled();
   await expect(echo).toBeEnabled();
   await expect(noise).toBeEnabled();

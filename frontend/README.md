@@ -79,7 +79,7 @@ device's index no longer has the same name and host after the rescan, the UI ask
 for a new selection before starting; names and host APIs cannot distinguish devices
 with identical metadata. A failed rescan likewise requires selection confirmation.
 The preferred inference device uses the backend compute-device list and can be changed
-while Server Mode audio is stopped. The full configuration is read and preserved when
+while audio is stopped in either mode. The full configuration is read and preserved when
 saving. The UI reads the configuration back and, when a model is selected, checks
 the reported pipeline device ID. This does not verify the actual execution providers. Device
 list failures do not prevent other controls from loading; Reload retries the list.
@@ -90,10 +90,10 @@ display ranges of 0.05–5, 0.01–10, and 0.01–0.15 seconds respectively; cro
 also allows zero. Values
 outside these display ranges remain visible and are indicated separately; these
 ranges do not enforce backend limits.
-All three can be adjusted while server audio is stopped. The client shows a preview
+All three can be adjusted while audio is stopped in either mode. The client shows a preview
 while dragging and saves on release; chunk belongs to the selected model, while
 extra frame and crossfade are configuration settings. The backend limits the
-effective crossfade to the chunk duration. Real-device audio validation is pending.
+effective crossfade to the chunk duration. Client Mode changes have not yet been verified with real audio.
 Each filter's cutoff slider is available only when that filter is enabled.
 Sections start closed, and their open/closed state is stored in the browser's
 local storage. It is separate for each browser or webview and origin; if storage
