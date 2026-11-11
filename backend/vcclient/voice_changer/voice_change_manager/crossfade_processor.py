@@ -68,6 +68,9 @@ class CrossfadeProcessor:
                 result[-audio_with_overlap_buffer.shape[0] :] = audio_with_overlap_buffer
             return result
 
+        # Ensure crossfade_size never exceeds output_audio_size
+        crossfade_size = min(crossfade_size, output_audio_size)
+
         if (
             self.crossfade_size != crossfade_size
             or self.crossfade_offset != crossfade_offset

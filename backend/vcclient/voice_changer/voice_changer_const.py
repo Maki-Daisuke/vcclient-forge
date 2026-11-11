@@ -91,3 +91,4 @@ ChunkSecs: list[float] = [
 ]
 
 ExtraSec: list[float] = [0.08, 0.16, 0.34, 0.68, 1.36, 2.73, 3, 4, 5, 6, 7, 8, 9, 10]
+DEFAULT_CROSSFADE_SEC: float = 0.05

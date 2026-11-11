@@ -67,3 +67,24 @@ def test_crossfade_processor_normal_positive_crossfade():
 
     assert result.shape == (output_audio_size,)
     assert not np.isnan(result).any()
+
+
+def test_crossfade_processor_oversized_crossfade_clamped():
+    """Verify that crossfade_size > output_audio_size does not raise broadcasting ValueError and safely clamps."""
+    processor = CrossfadeProcessor()
+    output_audio_size = 200
+    oversized_crossfade = 400
+    sola_search_frame = 50
+    audio_buffer = np.sin(np.linspace(0, 10, 1000, dtype=np.float32))
+
+    result = processor.apply(
+        audio_with_overlap_buffer=audio_buffer,
+        output_audio_size=output_audio_size,
+        crossfade_size=oversized_crossfade,
+        crossfade_offset=0.0,
+        crossfade_end=1.0,
+        sola_search_frame=sola_search_frame,
+    )
+
+    assert result.shape == (output_audio_size,)
+    assert not np.isnan(result).any()

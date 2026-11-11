@@ -21,6 +21,7 @@ entries:
   - remote-backend-tcp-proxy-architecture.md
   - npu-cpu-hardware-acceleration-and-universal-distribution.md
   - device-config-and-unified-hardware-descriptor.md
+  - automatic-crossfade-and-boundary-stitching.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -78,3 +79,7 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 16. **[DeviceConfig & Catalog Index Architecture](./device-config-and-unified-hardware-descriptor.md)**
     Specifies the transition from overloaded integer sentinels (`-1`, `0`, `1000`, even/odd parity) to a sequential hardware catalog index (`list[DeviceConfig]`). With host CPU assigned to index `0` and accelerators numbered sequentially (`1..N`), device resolution operates as an $O(1)$ array lookup. Preserves compatibility with the bundled legacy frontend (`web_front/`) without frontend modifications while supporting two-stage concurrent hybrid pipelining (NPU/CPU front-end + GPU back-end).
+
+17. **[Automatic Crossfade & Buffer-Boundary Stitching](./automatic-crossfade-and-boundary-stitching.md)**
+    Analyzes why manual crossfade duration configuration (`crossfade_sec`) is eliminated in favor of a fixed pipeline target (`DEFAULT_CROSSFADE_SEC = 0.05`). Explains the acoustic mechanics of SOLA phase alignment, why 50 ms is the sweet spot between sub-50ms artifacts and >50ms non-stationary drift, and how adaptive clamping prevents array broadcast exceptions on short output chunks while maintaining API backward compatibility.
+

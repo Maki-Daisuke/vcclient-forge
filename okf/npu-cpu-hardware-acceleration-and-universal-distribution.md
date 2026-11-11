@@ -204,7 +204,7 @@ Client NPUs (e.g., Intel AI Boost) enforce deterministic, ahead-of-time (AOT) me
 In VCClient Forge's streaming pipeline, the input audio tensor dimensions passed to acoustic models are not arbitrary; they derive deterministically from active slot configurations and audio buffering rules:
 
 - **Chunk Frame Size**: $S_{\text{chunk}} = \text{chunk\_sec} \times 16000$ (UI-configurable; default `0.5s` = 8,000 samples).
-- **Crossfade Overlap**: $S_{\text{cf}} = \min(\text{chunk\_sec}, \text{crossfade\_sec}) \times 16000$ (configurable in advanced settings; default `0.05s` = 800 samples).
+- **Crossfade Overlap**: $S_{\text{cf}} = \min(\text{chunk\_sec}, \text{DEFAULT\_CROSSFADE\_SEC}) \times 16000$ (fixed pipeline constant `0.05s` = 800 samples).
 - **SOLA Search Window**: $S_{\text{sola}} = \text{sola\_search\_frame\_sec} \times 16000$ (default `0.012s` = 192 samples).
 - **Past Context Frame (EXTRA)**: $S_{\text{extra}} = \text{extra\_frame\_sec} \times 16000$ (configurable via EXTRA dropdown; default `0.08s` = 1,280 samples).
 - **Hop Alignment**: Padded to a multiple of the 160-sample hop size ($\Delta_{\text{hop}}$).
@@ -224,7 +224,7 @@ $$S_{\text{RMVPE}} = (\text{chunk\_sec} \times 16000) + 1120 \text{ samples}$$
 
 1. **Static Shape Binding (`waveform[1, 4096]`)**:
    - _Advantage_: Enables compiler AOT memory layout optimization without runtime dynamic dimension handling.
-   - _Limitation_: Inflexible. If a user modifies `chunk_sec`, `crossfade_sec`, or `extra_frame_sec` in the UI, or if the Web client transmits a larger buffer, the dimension mismatch raises an immediate runtime exception.
+   - _Limitation_: Inflexible. If a user modifies `chunk_sec` or `extra_frame_sec` in the UI, or if the Web client transmits a larger buffer, the dimension mismatch raises an immediate runtime exception.
 2. **Arbitrarily Large Upper Bounds (`waveform[1, 160..160000]`)**:
    - _Limitation_: Client NPUs have limited on-chip SRAM (typically 2–8 MB). Setting an excessive upper bound (e.g., 10 seconds) forces intermediate activation tensors to spill into system DRAM (LPDDR5X), inducing bus contention and degrading execution latency, or causes compilation failure due to scheduler memory limits.
 3. **Fixed Oversized Zero-Padding**:
@@ -234,7 +234,7 @@ $$S_{\text{RMVPE}} = (\text{chunk\_sec} \times 16000) + 1120 \text{ samples}$$
 
 Forge resolves this trade-off via a two-part strategy for NPU execution:
 
-1. **Runtime Dimension Inference**: Rather than hardcoding 4,096 samples, the runtime calculates the exact static shape (or tightly bounded dynamic range) from the active slot configuration (`chunk_sec`, `extra_frame_sec`, `crossfade_sec`) at model initialization time.
+1. **Runtime Dimension Inference**: Rather than hardcoding 4,096 samples, the runtime calculates the exact static shape (or tightly bounded dynamic range) from the active configuration (`chunk_sec`, `extra_frame_sec`, and `DEFAULT_CROSSFADE_SEC`) at model initialization time.
 2. **Persistent Compilation Caching (`cache_dir`)**: OpenVINO's `cache_dir` configuration persists the compiled hardware executable (`.blob`) to disk. While initial AOT compilation takes several seconds, subsequent model reloads with the same configuration load in under 50 ms directly from cache, avoiding UI blocking during routine startup and slot switching.
 
 #### 2.3.3 NPU Capacity Limits on Full Neural Vocoders
@@ -379,11 +379,11 @@ Detailed ORT diagnostic traces isolate the exact C++ barrier:
 
 #### 2.4.4 Two-Tier Static Shape Architecture
 
-Because VCClient determines conversion parameters (`chunk_sec`, `crossfade_sec`, `sample_rate`) before audio processing starts, the backend can dynamically determine the execution profile without manual user intervention:
+Because VCClient determines conversion parameters (`chunk_sec`, `extra_frame_sec`, `sample_rate`, and fixed `DEFAULT_CROSSFADE_SEC`) before audio processing starts, the backend can dynamically determine the execution profile without manual user intervention:
 
 ```mermaid
 flowchart TD
-    A["Voice Changer Conversion Request<br/>(chunk_sec, crossfade_sec, extra_sec)"] --> B["Compute Total Output Samples<br/>total_samples = total_sec × sample_rate"]
+    A["Voice Changer Conversion Request<br/>(chunk_sec, extra_sec, sample_rate)"] --> B["Compute Total Output Samples<br/>total_samples = total_sec × sample_rate"]
     B --> C{"total_samples ≤ 16,384 ?"}
     
     C -- "YES (Real-Time Voice: ≤ 0.34–0.41s)" --> D["Tier 1: Peak Performance Engine<br/>• In-memory Static Shape<br/>• ModelFormat: MLProgram<br/>★ 98% GPU/ANE Native Execution<br/>★ Minimal Partitions (~9)<br/>★ Sub-100ms Latency"]

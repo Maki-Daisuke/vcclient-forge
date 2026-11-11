@@ -18,7 +18,12 @@ from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
-from ...voice_changer_const import ModelDir, PitchEstimatorType, RVCInferencerOnnxVersion
+from ...voice_changer_const import (
+    DEFAULT_CROSSFADE_SEC,
+    ModelDir,
+    PitchEstimatorType,
+    RVCInferencerOnnxVersion,
+)
 from ..embedders.embedder_manager import EmbedderManager
 from ..inferencer.inferencer_manager import InferencerManager
 from ..inferencer.rvc_inferencer import RVCInferencer
@@ -113,8 +118,7 @@ class RVCPipeline(VCPipeline):
             if sample_count <= 0:
                 sample_count = 8000
 
-            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-            real_crossfade_sec = min(chunk_sec, conf.crossfade_sec)
+            real_crossfade_sec = min(chunk_sec, DEFAULT_CROSSFADE_SEC)
 
             # Generate synthetic audio (440Hz sine wave) with sufficient amplitude to open noise gate
             t = np.arange(sample_count, dtype=np.float32) / input_sample_rate
@@ -192,7 +196,7 @@ class RVCPipeline(VCPipeline):
         chunk_sec = self.get_chunk_sec()
         return calculate_target_feats_length(
             chunk_sec=chunk_sec,
-            crossfade_sec=conf.crossfade_sec,
+            crossfade_sec=DEFAULT_CROSSFADE_SEC,
             extra_frame_sec=conf.extra_frame_sec,
             sola_search_frame_sec=conf.sola_search_frame_sec,
         )

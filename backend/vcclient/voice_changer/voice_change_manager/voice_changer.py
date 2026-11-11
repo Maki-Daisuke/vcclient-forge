@@ -43,7 +43,11 @@ from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
 from ..event_emitter import EventEmitter
 from ..slot_manager.slot_manager import SlotManager
-from ..voice_changer_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE, PitchEstimatorType
+from ..voice_changer_const import (
+    DEFAULT_CROSSFADE_SEC,
+    GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE,
+    PitchEstimatorType,
+)
 from .crossfade_processor import CrossfadeProcessor
 from .vc_pipelines.pipeline_manager import PipelineManager
 from .vc_pipelines.vc_pipeline import VCPipeline
@@ -652,7 +656,12 @@ class VoiceChanger(EventEmitter):
             padded_shape = resampled_waveform.shape
             logger.debug("data type resampled is short. padded.: %s, shape: %s", original_shape, padded_shape)
 
-        real_crossfade_sec = min(vc_chunk_sec, conf.crossfade_sec)
+        if hasattr(self, "vc_info") and self.vc_info.vc_output_sample_rate > 0 and output_size > 0:
+            actual_chunk_sec = output_size / self.vc_info.vc_output_sample_rate
+        else:
+            actual_chunk_sec = vc_chunk_sec
+
+        real_crossfade_sec = min(DEFAULT_CROSSFADE_SEC, actual_chunk_sec)
         converted_waveform = pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)
         if vc_needs_crossfade is True:
             crossfade_frame = int(round(real_crossfade_sec * self.vc_info.vc_output_sample_rate))
