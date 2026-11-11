@@ -355,12 +355,30 @@ class VoiceChanger(EventEmitter):
         self._save_record()
 
     def _save_record(self) -> None:
+        def audio(chunks: list[np.ndarray]) -> np.ndarray:
+            if not chunks:
+                return np.empty(0, dtype=np.float32)
+            return np.concatenate(
+                [chunk.astype(np.float32) / 32768 if chunk.dtype == np.int16 else chunk for chunk in chunks]
+            )
+
         try:
-            wavfile.write(SERVER_IO_RECORDING_FILE_IN, self.input_sample_rate, np.concatenate(self.input_record))
-            wavfile.write(SERVER_IO_RECORDING_FILE_OUT, self.output_sample_rate, np.concatenate(self.output_record))
-            if self.vc_info.monitor_enabled is True:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            wavfile.write(
+                SERVER_IO_RECORDING_FILE_IN,
+                getattr(self, "input_sample_rate", conf.input_sample_rate),
+                audio(self.input_record),
+            )
+            wavfile.write(
+                SERVER_IO_RECORDING_FILE_OUT,
+                getattr(self, "output_sample_rate", conf.output_sample_rate),
+                audio(self.output_record),
+            )
+            if self.vc_info.monitor_enabled is True or self.monitor_record:
                 wavfile.write(
-                    SERVER_IO_RECORDING_FILE_MONITOR, self.output_sample_rate, np.concatenate(self.monitor_record)
+                    SERVER_IO_RECORDING_FILE_MONITOR,
+                    getattr(self, "monitor_sample_rate", conf.monitor_sample_rate),
+                    audio(self.monitor_record),
                 )
         except Exception as e:
             logger.warning("Failed to save recording: %s", e, exc_info=True)
@@ -577,14 +595,19 @@ class VoiceChanger(EventEmitter):
         """
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
 
+        if self.vc_info.recording_start_flag is True:
+            self.input_record.append(waveform)
+
         if conf.pass_through is True or getattr(self, "vc_pipeline", None) is None:
             waveform_out = self._exec_resample_pass_through_in_out(waveform)
             if self.vc_info.recording_start_flag is True:
-                self.output_record.append(waveform_out)
+                self.output_record.append(waveform_out / 32768 if waveform.dtype == np.int16 else waveform_out)
             if self.vc_info.monitor_enabled is True:
                 waveform_monitor = self._exec_resample_pass_through_in_monitor(waveform)
                 if self.vc_info.recording_start_flag is True:
-                    self.monitor_record.append(waveform_monitor)
+                    self.monitor_record.append(
+                        waveform_monitor / 32768 if waveform.dtype == np.int16 else waveform_monitor
+                    )
                 return (waveform_out, waveform_monitor)
             return (waveform_out, None)
 
@@ -600,9 +623,6 @@ class VoiceChanger(EventEmitter):
         else:
             input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
             output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
-
-        if self.vc_info.recording_start_flag is True:
-            self.input_record.append(waveform)
 
         input_data_type = waveform.dtype
         if vc_input_bitdepth == np.int16 and waveform.dtype != np.int16:
