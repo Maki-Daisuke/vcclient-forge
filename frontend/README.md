@@ -11,25 +11,25 @@ the UI disables the saved exclusive-mode setting using the existing configuratio
 The audio button switches between Start and Stop based on the confirmed backend state.
 If the audio state cannot be read, Stop remains available.
 The Start/Stop, Passthrough, and Record buttons appear above the audio meters.
-Server-mode recording can be armed before starting native audio with passthrough off.
+Recording can be armed before starting audio in either mode, including with passthrough.
 Starting audio starts recording; stopping audio saves and downloads the take, then
 returns to the armed state. The Record button can also start or stop recording
 during audio. Arming is local to the page and is cleared on a browser reload.
-Recording starts after the audio start is confirmed, so its initial audio may not
-be included. A successful recording stop starts an output WAV download.
+In Server Mode recording starts after audio start is confirmed, so its initial audio may not
+be included. Client Mode arms backend recording before opening the microphone.
+After stopping, a nonempty output WAV is downloaded; an empty recording shows a notice.
 The backend stores input.wav, output.wav, and optionally monitor.wav at fixed paths,
 overwriting prior recordings. Audio is held in memory until recording stops.
-The UI prevents enabling passthrough during recording because the existing backend
-does not collect input audio in that mode. Failed recording saves are reported;
+Passthrough may be toggled while recording. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
-retry is not guaranteed to recover audio. Real recording has not been verified.
+retry is not guaranteed to recover audio. Client Mode recording in this UI has not yet been verified with real audio.
 Client Mode captures a browser microphone and streams float32 audio through the
 existing Socket.IO API. Its output is played by Web Audio. The browser requests
 microphone permission on Start or when loading the device list; output selection
 requires browser support for AudioContext.setSinkId. The browser's audio context
 uses the backend input sample rate, and Web Audio resamples the returned output as
-needed. Client Mode supports passthrough through the existing configuration API;
-recording and other unconnected Client Mode controls remain disabled. Client Mode
+needed. Client Mode supports passthrough and recording through the existing configuration API.
+The recording is backend output, before the browser's output gain. Client Mode
 also displays the backend input buffer and conversion time when process analysis and
 performance monitoring are enabled. Client Mode start/stop uses the existing native stop endpoint to
 stop the shared conversion worker. The backend retains a partial input chunk across
@@ -228,7 +228,7 @@ latest pending edits. Failed saves retain drafts and require explicit retry or d
 Reload/start are blocked while edits are pending; Stop waits for an in-flight write.
 
 The Passthrough button toggles the backend's `pass_through` configuration while
-Server Mode is selected, including during native audio. Its pressed state reflects
+either mode is selected, including during audio. Its pressed state reflects
 the current draft or last confirmed value; it is disabled if that value is unknown.
 It shares the serialized configuration queue, readback, and retry/discard behavior.
 The backend resets passthrough on restart and does not persist it in the settings

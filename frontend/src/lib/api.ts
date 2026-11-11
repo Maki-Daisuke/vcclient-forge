@@ -242,8 +242,7 @@ export async function updateConfiguration(edits: ConfigurationEdits, signal: Abo
   }
   const config = object(await getJson(configurationUrl, signal));
   parseConfiguration(config);
-  if (edits.recording === true && (config.pass_through !== false || !(await readNativeActive(signal)))) throw new ApiError('recording_unavailable');
-  if (edits.passThrough === true && config.recording_started !== false) throw new ApiError('recording_unavailable');
+  if (edits.recording === true && config.voice_changer_input_mode === 'server' && !(await readNativeActive(signal))) throw new ApiError('recording_unavailable');
   if (edits.recording !== undefined) {
     const info = object(await getJson('/api/voice-changer-manager/information', signal));
     const voice = object(info.voice_changer_information);

@@ -145,12 +145,11 @@ changes; changing it resets the rate to Auto.
 The chunk, Extra frame, and crossfade logarithmic sliders save on release while
 audio is stopped in either mode. Chunk belongs to the selected model; the others are
 configuration settings. Client Mode changes have not yet been verified with real audio.
-Server recording uses the existing configuration API and starts an output WAV
-download after a successful stop. Recording can be armed before audio starts, and
-stopping audio saves the take and returns to the armed state. Passthrough is blocked
-while recording is armed or active. Backend
-recordings use fixed paths and may overwrite earlier recordings; real audio testing
-remains pending.
+Recording in both modes uses the existing configuration API. It can be armed before
+audio starts; stopping audio saves the take and returns to the armed state. Passthrough
+can be toggled while recording. The UI downloads a nonempty WAV and reports empty audio.
+Backend recordings use fixed paths and may overwrite earlier recordings; real audio
+testing of Client Mode recording in the new UI remains pending.
 Preferred inference-device selection reads the existing compute-device catalog and saves
 the selected ID through the existing configuration API while audio is stopped in either mode.
 The UI checks the saved configuration and the reported pipeline device ID when a model is selected.

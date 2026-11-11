@@ -23,7 +23,8 @@ export class NativeSession {
   error = $state<ApiError | null>(null);
   active = $state<boolean | null>(null);
   statusError = $state(false);
-  recordingCompleted = $state(false);
+  recordingCompleted = $state<Blob | null>(null);
+  recordingNotice = $state<'empty' | 'download_failed' | null>(null);
   recordingArmed = $state(false);
   uploadStatus = $state<'idle' | 'uploading' | 'registering' | 'success' | 'refresh_failed' | 'error' | 'uncertain'>('idle');
   uploadError = $state<ApiError | null>(null);
@@ -215,7 +216,7 @@ export class NativeSession {
   get canTogglePassThrough() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null
       && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation
-      && this.settings.passThrough != null && this.settings.recording === false && !this.recordingArmed;
+      && this.settings.passThrough != null && this.settings.recording != null;
   }
 
   togglePassThrough() {
@@ -225,14 +226,15 @@ export class NativeSession {
 
   get canToggleRecording() {
     const settings = this.settings;
-    return this.catalog.state.status === 'ready' && settings?.inputMode === 'server' && settings.recording !== null
+    return this.catalog.state.status === 'ready' && settings?.inputMode != null && settings.recording !== null
       && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty
-      && this.active !== null && (settings.recording === true || settings.passThrough === false);
+      && this.active !== null;
   }
 
   toggleRecording() {
     if (!this.canToggleRecording || !this.settings) return;
-    this.recordingCompleted = false;
+    this.recordingCompleted = null;
+    this.recordingNotice = null;
     if (this.settings.recording === false && this.active === false) {
       this.recordingArmed = !this.recordingArmed;
       return;
@@ -429,7 +431,7 @@ export class NativeSession {
         this.catalog.applyConfiguration(confirmed);
         this.devicesNeedingSelection = this.devicesNeedingSelection.filter(key =>
           sent.edits[key] === undefined || sent.edits[key] !== this.draft[key] || confirmed.settings[key] !== sent.edits[key]);
-        if (sent.edits.recording === false) this.recordingCompleted = true;
+        if (sent.edits.recording === false) await this.prepareRecordingDownload();
         // A response acknowledges only the values it sent, never newer interactions.
         this.draft = Object.fromEntries(Object.entries(this.draft).filter(
           ([key, value]) => sent.edits[key as keyof ConfigurationEdits] !== value,
@@ -473,15 +475,42 @@ export class NativeSession {
           if (confirmed.settings.inputMode !== 'client') throw new ApiError('not_applied');
           const rates = await this.request(readAudioSampleRates);
           if (!rates.input || !rates.output) throw new ApiError('invalid_response');
-          await this.clientAudio.start(rates.input, rates.output, error => {
+          if (this.recordingArmed) {
+            const recording = await this.request(signal => updateConfiguration({ recording: true }, signal));
+            this.catalog.applyConfiguration(recording);
+          }
+          try { await this.clientAudio.start(rates.input, rates.output, error => {
             this.clientAudio.stop();
             this.clientActive = false;
             this.active = false;
+            this.operation = 'stop';
             this.operationError = new ApiError('client_audio', undefined, error.message);
-            void this.request(signal => operateNative('stop', signal)).catch(error => {
-              if (!this.disposed) this.operationError = this.apiError(error);
-            });
-          });
+            void (async () => {
+              try {
+                if (this.settings?.recording === true) {
+                  const recording = await this.request(signal => updateConfiguration({ recording: false }, signal));
+                  if (!this.disposed) {
+                    this.catalog.applyConfiguration(recording);
+                    this.recordingArmed = true;
+                    await this.prepareRecordingDownload();
+                  }
+                }
+              } catch (error) {
+                if (!this.disposed) this.operationError = this.apiError(error);
+              } finally {
+                await this.request(signal => operateNative('stop', signal)).catch(error => {
+                  if (!this.disposed) this.operationError = this.apiError(error);
+                });
+                if (!this.disposed) this.operation = null;
+              }
+            })();
+          }); } catch (error) {
+            if (this.settings?.recording === true) {
+              const recording = await this.request(signal => updateConfiguration({ recording: false }, signal));
+              this.catalog.applyConfiguration(recording);
+            }
+            throw error;
+          }
           if (this.disposed) return;
           this.clientActive = true;
           this.active = true;
@@ -489,7 +518,17 @@ export class NativeSession {
           this.clientAudio.stop();
           this.clientActive = false;
           this.active = false;
+          let recordingError: unknown;
+          if (this.settings?.recording === true) {
+            try {
+              const recording = await this.request(signal => updateConfiguration({ recording: false }, signal));
+              this.catalog.applyConfiguration(recording);
+              this.recordingArmed = true;
+              await this.prepareRecordingDownload();
+            } catch (error) { recordingError = error; }
+          }
           await this.request(signal => operateNative('stop', signal));
+          if (recordingError) throw recordingError;
         }
         this.statusError = false;
         return;
@@ -503,7 +542,7 @@ export class NativeSession {
           if (confirmed.settings.inputMode !== 'server') throw new ApiError('not_applied');
           const active = await operateNative('start', signal);
           if (this.recordingArmed) {
-            this.recordingCompleted = false;
+            this.recordingCompleted = null;
             const recording = await updateConfiguration({ recording: true }, signal);
             if (!this.disposed) this.catalog.applyConfiguration(recording);
           }
@@ -516,8 +555,7 @@ export class NativeSession {
             if (!this.disposed) {
               this.catalog.applyConfiguration(recording);
               this.recordingArmed = true;
-              this.recordingCompleted = false;
-              this.recordingCompleted = true;
+              await this.prepareRecordingDownload();
             }
           } catch (error) { recordingError = error; }
         }
@@ -538,6 +576,29 @@ export class NativeSession {
         await this.refreshActive();
         this.schedule();
       }
+    }
+  }
+
+  private async prepareRecordingDownload() {
+    try {
+      const response = await fetch('/output.wav', { cache: 'no-store' });
+      if (!response.ok) throw new Error('Recording download failed');
+      const blob = await response.blob();
+      const bytes = new DataView(await blob.arrayBuffer());
+      if (bytes.byteLength < 12 || bytes.getUint32(0) !== 0x52494646 || bytes.getUint32(8) !== 0x57415645) throw new Error('Invalid WAV file');
+      for (let offset = 12; offset + 8 <= bytes.byteLength;) {
+        const size = bytes.getUint32(offset + 4, true);
+        if (size > bytes.byteLength - offset - 8) throw new Error('Invalid WAV chunk');
+        if (bytes.getUint32(offset) === 0x64617461) {
+          if (size === 0) this.recordingNotice = 'empty';
+          else this.recordingCompleted = blob;
+          return;
+        }
+        offset += 8 + size + (size % 2);
+      }
+      throw new Error('Missing WAV data');
+    } catch {
+      this.recordingNotice = 'download_failed';
     }
   }
 

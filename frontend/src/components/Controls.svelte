@@ -92,9 +92,11 @@
   $effect(() => {
     if (session.recordingCompleted) {
       const link = document.createElement('a');
-      link.href = '/output.wav';
+      const url = URL.createObjectURL(session.recordingCompleted);
+      link.href = url;
       link.download = 'output.wav';
       link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }
   });
 </script>
