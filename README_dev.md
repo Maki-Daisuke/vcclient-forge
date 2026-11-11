@@ -58,7 +58,7 @@ npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Wi
 npm run build -- --edition cuda      # NVIDIA GPU (CUDA 12.x / cuDNN 9)
 ```
 
-* `npm run build` builds all supported components (`standard` by default): frontend assets in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
+* `npm run build` builds all supported components (`standard` by default): legacy web UI assets in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies. The Svelte development UI has a separate build described below.
 * `npm run build -- --edition <edition>` selects the hardware edition (`standard` or `cuda`). `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` synchronizes backend dependencies for the specified edition.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
@@ -83,35 +83,61 @@ http://localhost:18888/
 
 Initial model assets are downloaded into `model_dir/` upon the first startup.
 
-### New UI Appearance Preview
+### Svelte Frontend Development
 
-The Svelte 5 UI under `frontend/` is a standalone development UI based on the
-v2.1.4 layout. It reads the model list, current selection, descriptions,
-portraits, and current configuration from the existing backend GET APIs. Gains,
-filters, analysis settings, configured device names/hosts, and selected-model parameters
-are reflected in controls; unavailable values show `—`. Server Mode supports
-model/device selection while stopped, start/stop, and live input/output gain,
-pitch, index, noise-gate, and filter adjustment using existing APIs. Other settings and browser audio remain disabled.
-Audio devices, volume, noise suppression, and inference controls use expandable sections in
-the main view. Monitor volume follows output volume in the current native backend. See the
-frontend README for the setup flow. Native playback was confirmed by the user;
-gain-adjustment latency and longer sessions remain to be validated.
+The new UI in `frontend/` uses Svelte 5, TypeScript, and Vite. Its dependencies
+are managed separately from the root and desktop frontend packages. From the
+repository root, install the locked dependencies and start the Vite server:
 
 ```bash
 npm --prefix frontend ci
 npm run dev:frontend
+```
+
+Open the URL printed by Vite, normally `http://127.0.0.1:5173`. For model data
+and audio features, start the backend in another terminal. If its dependencies
+have not been installed, synchronize the edition for your hardware first:
+
+```bash
+uv sync --project backend --extra standard  # Or cuda
+npm start
+```
+
+Vite proxies `/api`, `/model_dir`, `/output.wav`, and Socket.IO to
+`http://127.0.0.1:18888`. To use another backend, set `VCCLIENT_BACKEND_URL`
+before starting Vite. For example, in PowerShell:
+
+```powershell
+$env:VCCLIENT_BACKEND_URL = 'http://127.0.0.1:18889'
+npm run dev:frontend
+```
+
+The UI reads and updates the backend configuration and models; changes made in
+the development UI affect the backend it connects to. Client Mode also requires
+browser microphone permission for audio capture.
+
+To check types and build the standalone preview:
+
+```bash
 npm run check:frontend
 npm run build:frontend:preview
 ```
 
-Vite prints the preview URL (normally `http://127.0.0.1:5173`). The preview builds
-to `frontend/preview-dist`; the production `npm run build:frontend` task still
-prepares the legacy UI in `frontend/dist`. See [frontend/README.md](frontend/README.md)
-for the component/state structure and `npm run test:frontend` browser checks.
-Run `npm start` in another terminal for real model information. Vite proxies
-`/api` and `/model_dir` to `http://127.0.0.1:18888`; set `VCCLIENT_BACKEND_URL`
-before starting Vite to override it. A stopped backend displays a reloadable
-error. The UI does not change the selected model or settings.
+The preview build goes to `frontend/preview-dist`; `npm --prefix frontend run preview`
+serves it. `npm run build:frontend` instead prepares the legacy UI in `frontend/dist`,
+which is used by the current backend and desktop distribution.
+
+For browser tests, install Playwright's Chromium once and run:
+
+```bash
+npm --prefix frontend exec -- playwright install chromium
+npm run test:frontend
+```
+
+These tests use mocked APIs and start a preview server on port 5174, which must be
+free. Alternatively, set `PLAYWRIGHT_CHANNEL` to `msedge` or `chrome` to use an
+installed browser. `npm test` does not include frontend tests. See
+[frontend/README.md](frontend/README.md) for the UI's current behavior and implementation details.
 
 ### Desktop Host (Wails v3)
 
