@@ -213,6 +213,8 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
   wasapiExclusive: 'wasapi_exclude_emabled',
   extraSeconds: 'extra_frame_sec',
   crossfadeSeconds: 'crossfade_sec',
+  ioAnalysisEnabled: 'realtime_output_status_enabled', processAnalysisEnabled: 'realtime_process_status_enabled',
+  performanceMonitorEnabled: 'enable_performance_monitor',
   inputGain: 'audio_input_device_gain', outputGain: 'audio_output_device_gain',
   noiseGate: 'noise_gate',
   highPassEnabled: 'enable_high_pass_filter', lowPassEnabled: 'enable_low_pass_filter',
@@ -220,7 +222,7 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
 };
 
 const filterKeys = ['highPassEnabled', 'lowPassEnabled', 'highPassCutoff', 'lowPassCutoff'];
-const liveKeys = ['inputGain', 'outputGain', 'noiseGate', 'passThrough', 'recording', ...filterKeys];
+const liveKeys = ['inputGain', 'outputGain', 'noiseGate', 'passThrough', 'recording', 'ioAnalysisEnabled', 'processAnalysisEnabled', 'performanceMonitorEnabled', ...filterKeys];
 
 export async function readNativeActive(signal: AbortSignal): Promise<boolean> {
   const info = object(await getJson(`${nativeUrl}/information`, signal));

@@ -60,6 +60,9 @@ export interface ConfigurationEdits {
   wasapiExclusive?: boolean;
   extraSeconds?: number;
   crossfadeSeconds?: number;
+  ioAnalysisEnabled?: boolean;
+  processAnalysisEnabled?: boolean;
+  performanceMonitorEnabled?: boolean;
   inputGain?: number;
   outputGain?: number;
   noiseGate?: number;

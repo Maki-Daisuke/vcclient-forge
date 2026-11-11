@@ -183,6 +183,17 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   const bars = page.locator('.meter > span');
   await expect.poll(async () => Number.parseFloat(await bars.nth(0).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
   await expect.poll(async () => Number.parseFloat(await bars.nth(1).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
+  await page.getByRole('button', { name: '詳細設定', exact: true }).click();
+  const realtime = page.getByRole('dialog').getByRole('checkbox', { name: 'リアルタイム表示' });
+  await realtime.uncheck();
+  await expect.poll(() => state.config.realtime_process_status_enabled).toBe(false);
+  await expect(bars.nth(0)).toHaveAttribute('style', /--empty:\s*100%/);
+  await expect(bars.nth(1)).toHaveAttribute('style', /--empty:\s*100%/);
+  await expect(page.locator('.performance dl > div').nth(1)).toContainText('—');
+  await realtime.check();
+  await expect.poll(() => state.config.realtime_process_status_enabled).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => Number.parseFloat(await bars.nth(0).evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
   await page.getByRole('slider', { name: 'ノイズゲートのしきい値' }).press('ArrowRight');
   await expect.poll(() => state.config.noise_gate).toBe(-54);
   await page.getByRole('slider', { name: 'ハイパスのカットオフ' }).press('ArrowRight');

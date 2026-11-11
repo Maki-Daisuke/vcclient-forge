@@ -156,6 +156,10 @@ The UI checks the saved configuration and the reported pipeline device ID when a
 This does not verify the actual execution providers. The user confirmed switching
 with the live backend; conversion after switching has not yet been confirmed.
 Client audio uses Socket.IO; sample-rate edits remain unavailable.
+Advanced Settings provides one Realtime Display switch for both backend analysis
+notifications and Client Mode meter sampling. It enables the performance monitor
+when switched on, retains existing notification intervals, and shows mixed legacy
+settings as indeterminate. Changes use the existing configuration API.
 Model upload uses the existing chunk uploader and slot import APIs for `.pth` and
 `.onnx` files with an optional index. Native audio must be stopped; import is
 serialized with UI settings and audio start. The user confirmed a real model upload;

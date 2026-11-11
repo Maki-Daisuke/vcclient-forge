@@ -2,34 +2,27 @@
   import { SlidersHorizontal, Keyboard, ScrollText, Info } from '@lucide/svelte';
   import PreviewDialog from './PreviewDialog.svelte';
   import CheckField from './CheckField.svelte';
-  import SelectField from './SelectField.svelte';
   import { useUi } from '../lib/ui.svelte';
-  import { useCatalog } from '../lib/catalog.svelte';
-  import { displayNumber } from '../lib/settings';
+  import { useSession } from '../lib/session.svelte';
   const ui = useUi();
-  const catalog = useCatalog();
-  const settings = $derived(catalog.settings);
+  const session = useSession();
 </script>
 
 <nav class="advanced-actions" aria-label={ui.t('common.advanced_area.advanced_settings')}>
-  <PreviewDialog title={ui.t('common.advanced_settings_dialog.title')} description={ui.t('forge.advanced_readonly')}>
+  <PreviewDialog title={ui.t('common.advanced_settings_dialog.title')}>
     {#snippet trigger()}<SlidersHorizontal size={16} />{ui.t('common.advanced_area.advanced_settings')}{/snippet}
     <CheckField label={ui.t('forge.confirm_passthrough_setting')} checked={ui.confirmPassthrough} disabled={false}
       onchange={value => ui.confirmPassthrough = value} />
-    <section class="settings-section">
-      <h3>{ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}</h3>
-      <CheckField label={ui.t('common.advanced_settings_dialog.enable_realtime_io_analysis')} checked={settings?.ioAnalysisEnabled ?? null} />
-      <SelectField label={ui.t('forge.io_analysis_interval')} value={displayNumber(settings?.ioAnalysisInterval, ' s')} />
-      <CheckField label={ui.t('common.advanced_settings_dialog.enable_realtime_voice_processing_analysis')} checked={settings?.processAnalysisEnabled ?? null} />
-      <SelectField label={ui.t('forge.process_analysis_interval')} value={displayNumber(settings?.processAnalysisInterval, ' s')} />
-    </section>
-    <section class="settings-section">
-      <h3>{ui.t('common.advanced_settings.recording_settings')}</h3>
-      <CheckField label={ui.t('common.advanced_settings.record_for_analysis')} />
-      <p class="muted">{ui.t('common.advanced_settings.record_for_analysis_description')}</p>
-    </section>
-    <CheckField label={ui.t('common.advanced_settings.show_sample_audio_button')} />
-    <p class="muted">{ui.t('forge.browser_settings_unavailable')}</p>
+    <CheckField label={ui.t('forge.realtime_display')} checked={session.realtimeDisplayEnabled ?? false}
+      mixed={session.realtimeDisplayEnabled === null} disabled={!session.canAdjustRealtimeDisplay}
+      onchange={value => session.setRealtimeDisplay(value)} />
+    {#if session.error}
+      <p role="alert">{ui.t('forge.save_failed')} {ui.t(`forge.write_error_${session.error.code}`, { status: session.error.status })} {session.error.detail ?? ''}</p>
+      <div class="button-row">
+        <button class="button small" disabled={!!session.operation} onclick={() => session.retry()}>{ui.t('forge.retry_save')}</button>
+        <button class="button small" disabled={!!session.operation} onclick={() => session.discard()}>{ui.t('forge.discard_changes')}</button>
+      </div>
+    {/if}
   </PreviewDialog>
   <PreviewDialog title={ui.t('common.shortcut_settings.title')} wide>
     {#snippet trigger()}<Keyboard size={16} />{ui.t('common.advanced_area.key_settings')}{/snippet}

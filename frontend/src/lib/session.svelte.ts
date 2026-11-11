@@ -213,6 +213,25 @@ export class NativeSession {
     this.edit({ noiseGate: enabled ? this.lastEnabledNoiseGate : -100 }, true);
   }
 
+  get realtimeDisplayEnabled(): boolean | null {
+    const settings = this.settings;
+    if (!settings || settings.ioAnalysisEnabled === null || settings.processAnalysisEnabled === null || settings.performanceMonitorEnabled === null) return null;
+    if (!settings.ioAnalysisEnabled && !settings.processAnalysisEnabled) return false;
+    if (settings.ioAnalysisEnabled && settings.processAnalysisEnabled && settings.performanceMonitorEnabled) return true;
+    return null;
+  }
+
+  get canAdjustRealtimeDisplay() {
+    const settings = this.settings;
+    return this.catalog.state.status === 'ready' && settings?.ioAnalysisEnabled != null && settings.processAnalysisEnabled != null
+      && settings.performanceMonitorEnabled != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+  }
+
+  setRealtimeDisplay(enabled: boolean) {
+    if (!this.canAdjustRealtimeDisplay || this.realtimeDisplayEnabled === enabled) return;
+    this.edit({ ioAnalysisEnabled: enabled, processAnalysisEnabled: enabled, ...(enabled ? { performanceMonitorEnabled: true } : {}) }, true);
+  }
+
   get canTogglePassThrough() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null
       && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation

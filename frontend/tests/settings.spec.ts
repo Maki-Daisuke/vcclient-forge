@@ -92,12 +92,14 @@ test('existing configuration and selected model values populate controls without
   await expect(dialog.getByRole('slider', { name: 'ローパスのカットオフ', exact: true })).toHaveAttribute('aria-valuetext', '9500 Hz');
   await expect(dialog.getByRole('slider', { name: 'ノイズゲートのしきい値', exact: true })).toHaveAttribute('aria-valuetext', '-55 dB');
   await page.getByRole('button', { name: '詳細設定', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('checkbox', { name: 'リアルタイム入出力解析を有効にする' })).toBeChecked();
-  await expect(page.getByRole('dialog').getByRole('checkbox', { name: 'リアルタイム音声処理解析を有効にする' })).not.toBeChecked();
-  await expect(page.getByRole('dialog').getByRole('combobox', { name: '入出力解析の送信間隔' })).toContainText('0.4 s');
-  await expect(page.getByRole('dialog').getByRole('combobox', { name: '音声処理解析の送信間隔' })).toContainText('2.2 s');
+  const realtime = page.getByRole('dialog').getByRole('checkbox', { name: 'リアルタイム表示' });
+  await expect(realtime).toBeEnabled();
+  expect(await realtime.evaluate(element => (element as HTMLInputElement).indeterminate)).toBe(true);
+  await expect(page.getByRole('dialog').getByRole('combobox', { name: '入出力解析の送信間隔' })).toHaveCount(0);
+  await expect(page.getByRole('dialog').getByRole('combobox', { name: '音声処理解析の送信間隔' })).toHaveCount(0);
   for (const field of await page.getByRole('dialog').locator('input, textarea, select, [role=slider]').all()) {
-    await expect(field).toBeDisabled();
+    if (['リアルタイム表示', 'パススルー有効時に確認'].includes((await field.locator('..').innerText()).trim())) await expect(field).toBeEnabled();
+    else await expect(field).toBeDisabled();
   }
   expect(writes).toEqual([]);
 });

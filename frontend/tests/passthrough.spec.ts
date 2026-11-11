@@ -29,7 +29,7 @@ test('advanced setting skips confirmation and remembers the choice', async ({ pa
   await page.goto('/');
   await page.getByRole('button', { name: '詳細設定', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  const setting = dialog.getByRole('checkbox', { name: 'パススルー有効時に確認する' });
+  const setting = dialog.getByRole('checkbox', { name: 'パススルー有効時に確認' });
   await expect(setting).toBeChecked();
   await setting.uncheck();
   await page.keyboard.press('Escape');

@@ -68,7 +68,7 @@
       settings?.processAnalysisInterval ?? null, modelSettings?.chunkSeconds ?? null);
   });
   $effect(() => {
-    if (session.active !== true || settings?.inputMode !== 'client') {
+    if (session.active !== true || settings?.inputMode !== 'client' || session.realtimeDisplayEnabled !== true) {
       clientLevels = null;
       clientOutputBuffer = null;
       clientOutputHistory = [];
@@ -151,8 +151,7 @@
         <div class="meter" aria-hidden="true"><span style:--empty={`${(1 - levelMeterFraction(meter.value ?? 0)) * 100}%`}></span></div>
         <div class="meter-scale" aria-hidden="true"><span>−60</span><span>−40</span><span>−20</span><span>0 dBFS</span></div>
       {/each}
-      {#if session.active && settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === false}<p class="muted">{ui.t('forge.meters_disabled')}</p>
-      {:else if session.active && settings?.inputMode === 'server' && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
+      {#if session.active && settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === true && meters.status === 'unavailable'}<p class="muted">{ui.t('forge.meters_disconnected')}</p>{/if}
       <BufferChart input={meters.inputHistory} output={settings?.inputMode === 'client' ? clientOutputHistory : meters.outputHistory} chunkSeconds={modelSettings?.chunkSeconds ?? null} />
       <dl>
         <div><dt>{ui.t('common.performance.input_buffer')}</dt><dd>{meters.inputBuffer === null ? '—' : `${meters.inputBuffer.toFixed(3)} s`}</dd></div>
@@ -160,7 +159,6 @@
         <div><dt>{ui.t('forge.conversion_time')}</dt><dd>{meters.conversionTimeSeconds === null ? '—' : `${meters.conversionTimeSeconds.toFixed(3)} s`}</dd></div>
       </dl>
       <button class="button small" disabled={!meters.inputHistory.length && !meters.outputHistory.length && !clientOutputHistory.length} onclick={() => { meters.clearHistory(); clientOutputHistory = []; }}>{ui.t('common.performance.clear')}</button>
-      {#if session.active && (settings?.processAnalysisEnabled === false || settings?.performanceMonitorEnabled === false)}<p class="muted">{ui.t('forge.input_buffer_disabled')}</p>{/if}
     </section>
   </aside>
   <section class="controls-column" aria-label={ui.t('common.controls.title')}>

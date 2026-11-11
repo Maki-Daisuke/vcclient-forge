@@ -36,6 +36,10 @@ stop the shared conversion worker. The backend retains a partial input chunk acr
 worker restarts, so a short fragment can persist across sessions. The user confirmed
 hearing converted audio in Client Mode; device combinations and recovery remain to
 be validated.
+Advanced Settings has one Realtime Display switch. Turning it off disables both
+backend analysis notifications and stops Client Mode meter sampling; turning it on
+enables both notifications and the backend performance monitor. Existing notification
+intervals are retained. Mixed legacy settings are shown as an indeterminate checkbox.
 Client Mode input and output gains are applied locally with Web Audio and saved in
 browser local storage separately from Server Mode gains. When browser automatic gain
 control is enabled, the manual input gain is disabled and bypassed. In Client Mode,

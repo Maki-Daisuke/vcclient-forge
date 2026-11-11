@@ -52,7 +52,7 @@ test('does not connect while stopped or when output analysis is disabled', async
   state.active = true;
   state.config.realtime_output_status_enabled = false;
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(page.getByText('バックエンドの入出力解析が無効です。')).toBeVisible();
+  await expect(page.locator('.meter > span').first()).toHaveAttribute('style', /--empty:\s*100%/);
   expect(socket()).toBeUndefined();
 });
 

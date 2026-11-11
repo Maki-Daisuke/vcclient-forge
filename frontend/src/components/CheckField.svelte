@@ -1,10 +1,10 @@
 <script lang="ts">
-  let { label, ariaLabel, checked = null, disabled = true, tooltip, onchange }: { label: string; ariaLabel?: string; checked?: boolean | null; disabled?: boolean; tooltip?: string; onchange?: (value: boolean) => void } = $props();
+  let { label, ariaLabel, checked = null, mixed = false, disabled = true, tooltip, onchange }: { label: string; ariaLabel?: string; checked?: boolean | null; mixed?: boolean; disabled?: boolean; tooltip?: string; onchange?: (value: boolean) => void } = $props();
   const tooltipId = $props.id();
 </script>
 
 {#snippet field()}
-  <label class="check-field"><input type="checkbox" aria-label={ariaLabel} disabled={disabled || checked === null} checked={checked === true} indeterminate={checked === null} onchange={event => onchange?.(event.currentTarget.checked)} /><span>{label}</span></label>
+  <label class="check-field"><input type="checkbox" aria-label={ariaLabel} disabled={disabled || checked === null} checked={checked === true} indeterminate={checked === null || mixed} onchange={event => onchange?.(event.currentTarget.checked)} /><span>{label}</span></label>
 {/snippet}
 {#if tooltip}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex: The disabled control's explanation must be keyboard accessible. -->
