@@ -8,6 +8,9 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInf
 from vcclient.voice_changer.voice_change_manager.pitch_estimator.onnxfcpe_pitch_estimator import (
     FCPEOnnxPitchEstimator,
 )
+from vcclient.voice_changer.voice_change_manager.pitch_estimator.onnxrmvpe_pitch_estimator import (
+    RMVPEOnnxPitchEstimator,
+)
 from vcclient.voice_changer.voice_change_manager.pitch_estimator.pitch_estimator_manager import (
     PitchEstimatorManager,
 )
@@ -53,6 +56,61 @@ def test_fcpe_onnx_estimation():
     # Check that estimated pitch around the center is approximately 440Hz (+/- 10Hz)
     center_pitch = pitch[0, pitch.shape[1] // 2]
     assert 430.0 < center_pitch < 450.0
+
+
+def test_rmvpe_onnx_estimation_handles_short_audio():
+    """Verify RMVPE does not crash on ultra-short audio (< 0.139s / 2224 samples, e.g. 1920 samples)."""
+    rmvpe_path = Path("modules/rmvpe/rmvpe_20231006.onnx")
+    if not rmvpe_path.exists():
+        pytest.skip("modules/rmvpe/rmvpe_20231006.onnx is not present")
+
+    estimator = RMVPEOnnxPitchEstimator(pitch_estimator_type="rmvpe", file=str(rmvpe_path), device_id=-1)
+
+    sr = 16000
+    # Test short chunks: 0.05s (800 samples) and 0.12s (1920 samples) where Pad reflect previously crashed
+    for duration in [0.05, 0.12, 0.5]:
+        t = np.linspace(0, duration, int(sr * duration), endpoint=False)
+        audio = (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+
+        pitch_coarse, pitch = estimator.estimate(
+            audio=audio,
+            prev_pitch=None,
+            up_key=0,
+            sample_rate=sr,
+            window_length=160,
+            silence_front_sec=0.0,
+        )
+
+        expected_frames = len(audio) // 160
+        assert pitch_coarse.shape == (1, expected_frames)
+        assert pitch.shape == (1, expected_frames)
+
+
+def test_fcpe_onnx_estimation_handles_short_audio():
+    """Verify FCPE does not crash on ultra-short audio chunks."""
+    fcpe_path = Path("modules/fcpe/fcpe.onnx")
+    if not fcpe_path.exists():
+        pytest.skip("modules/fcpe/fcpe.onnx is not present")
+
+    estimator = FCPEOnnxPitchEstimator(pitch_estimator_type="fcpe", file=str(fcpe_path), device_id=-1)
+
+    sr = 16000
+    for duration in [0.05, 0.12, 0.5]:
+        t = np.linspace(0, duration, int(sr * duration), endpoint=False)
+        audio = (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+
+        pitch_coarse, pitch = estimator.estimate(
+            audio=audio,
+            prev_pitch=None,
+            up_key=0,
+            sample_rate=sr,
+            window_length=160,
+            silence_front_sec=0.0,
+        )
+
+        expected_frames = len(audio) // 160
+        assert pitch_coarse.shape == (1, expected_frames)
+        assert pitch.shape == (1, expected_frames)
 
 
 def test_pitch_estimator_manager_load():

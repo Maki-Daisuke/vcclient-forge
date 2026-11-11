@@ -63,13 +63,13 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
                 )
 
             pitch_length = audio.shape[0] // window_length
-            silence_front_frame = silence_front_sec * sample_rate
-            start_window = int(silence_front_frame / window_length)
-            slience_front_frame_offset = start_window * window_length
-            target_frame_length = len(audio) - slience_front_frame_offset
-            minimum_frames = int(round(0.01 * sample_rate))
-            target_frame_length = max(minimum_frames, target_frame_length)
-            audio = audio[-target_frame_length:]
+
+            # RMVPE requires at least 2560 samples for /rmvpe/Pad reflect padding (safe threshold: 3200 samples = 0.2s)
+            min_samples = 3200
+            if audio.shape[0] < min_samples:
+                pad_size = min_samples - audio.shape[0]
+                audio = np.pad(audio, (pad_size, 0), mode="constant")
+
             audio = np.expand_dims(audio, axis=0)
 
             output = self.onnx_session.run(
@@ -79,15 +79,13 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
                     "threshold": np.array([0.3]).astype(np.float32),
                 },
             )
-            f0 = output[0].squeeze()
+            f0 = np.atleast_1d(output[0].squeeze())
             f0 *= pow(2, up_key / 12)
-            pitch = prev_pitch.squeeze(axis=0)
-            pitch = np.concatenate([pitch, f0], axis=0)
 
-            if pitch.shape[0] < pitch_length:
-                pitch = np.concatenate([np.zeros(pitch_length - pitch.shape[0]), pitch], axis=0)
+            if f0.shape[0] < pitch_length:
+                pitch = np.pad(f0, (pitch_length - f0.shape[0], 0), mode="constant")
             else:
-                pitch = pitch[-pitch_length:]
+                pitch = f0[-pitch_length:]
 
             f0_mel = 1127 * np.log(1 + pitch / 700)
             f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - self.f0_mel_min) * 254 / (self.f0_mel_max - self.f0_mel_min) + 1
