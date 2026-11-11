@@ -170,6 +170,11 @@ goes to `frontend/preview-dist`; `npm --prefix frontend run preview` serves it.
 `npm run build:frontend` still prepares the legacy Python-served `frontend/dist`.
 The preview is not yet selected by the desktop host or portable packages.
 
+The log button opens a separate page and retrieves `/vcclient.log` on demand.
+Use its reload button to fetch the latest contents; it does not start another
+audio session. The desktop host has a separate log-window bridge for when the
+new UI is integrated, but that integration is not yet available in the package.
+
 Browser checks run against the built preview with intercepted API responses;
 they do not require the Python backend or open native audio devices. They cover startup GETs, sparse
 slot IDs, metadata/selection, loading and error recovery, invalid responses,

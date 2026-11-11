@@ -203,6 +203,11 @@ startup, and portable packaging still use the legacy UI. Type checks and preview
 builds run in CI; browser checks are available via `npm run test:frontend` (see
 `frontend/README.md` for browser installation).
 
+The preview opens its read-only log page separately, fetching `/vcclient.log` on
+request without mounting another audio session. The Wails host includes a log
+window bridge for the new UI, but desktop integration remains pending until that
+UI is served by the backend.
+
 The visual scaffold, read-only integration, and initial native control coordinator
 are implemented, with native playback confirmed. Remaining settings and broader on-device validation precede Step 1's
 native-conversion exit criteria. Copying assets to

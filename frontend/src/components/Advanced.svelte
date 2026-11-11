@@ -33,11 +33,10 @@
       {/each}
     </div>
   </PreviewDialog>
-  <PreviewDialog title={ui.t('log_viewer.title')} wide>
-    {#snippet trigger()}<ScrollText size={16} />{ui.t('common.advanced_area.log')}{/snippet}
-    <div class="button-row"><button class="button" disabled>{ui.t('log_viewer.autoload', { status: 'OFF' })}</button><button class="button" disabled>{ui.t('log_viewer.latest')}</button></div>
-    <pre class="log-placeholder">{ui.t('forge.log_empty')}</pre>
-  </PreviewDialog>
+  <button class="button" onclick={() => {
+    const desktop = (window as Window & { vcclientForge?: { openLogWindow?: () => boolean } }).vcclientForge;
+    if (!desktop?.openLogWindow?.()) window.open(`${location.pathname}?view=log`, 'vcclient-forge-log');
+  }}><ScrollText size={16} />{ui.t('common.advanced_area.log')}</button>
   <PreviewDialog title={ui.t('forge.about')}>
     {#snippet trigger()}<Info size={16} />{ui.t('forge.about')}{/snippet}
     <h3>VCClient Forge</h3>
