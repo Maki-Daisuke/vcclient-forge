@@ -76,3 +76,36 @@ jobs:
 
       - name: Build desktop host
         run: npm run build:desktop
+
+  test-cuda-arm64:
+    name: self-hosted-linux-arm64 / cuda / py3.14
+    runs-on: [self-hosted, linux, ARM64, gpu]
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python 3.14
+        run: uv python install 3.14
+
+      - name: Install system audio dependencies (Linux)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libportaudio2
+
+      - name: Install dependencies (CUDA + Dev)
+        run: uv sync --project backend --extra cuda --extra dev --python 3.14
+
+      - name: Run test suite (mypy & pytest with CUDA)
+        run: npm run test:backend
+
+
