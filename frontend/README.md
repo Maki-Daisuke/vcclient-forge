@@ -227,7 +227,9 @@ key release, and focus loss flush the latest value. A slow request retains only 
 latest pending edits. Failed saves retain drafts and require explicit retry or discard.
 Reload/start are blocked while edits are pending; Stop waits for an in-flight write.
 
-The Passthrough button toggles the backend's `pass_through` configuration while
+The Passthrough button asks for confirmation before enabling passthrough by default;
+this confirmation can be disabled in Advanced Settings and is saved in browser local storage.
+The button toggles the backend's `pass_through` configuration while
 either mode is selected, including during audio. Its pressed state reflects
 the current draft or last confirmed value; it is disabled if that value is unknown.
 It shares the serialized configuration queue, readback, and retry/discard behavior.

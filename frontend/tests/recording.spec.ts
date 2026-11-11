@@ -46,6 +46,7 @@ test('client recording supports passthrough and returns to armed state after sto
   await expect.poll(() => state.config.pass_through).toBe(false);
   await expect(passthrough).toBeEnabled();
   await passthrough.click();
+  await page.getByRole('dialog', { name: 'パススルーを有効にしますか？' }).getByRole('button', { name: '有効化' }).click();
   await expect.poll(() => state.config.pass_through).toBe(true);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: '停止', exact: true }).click();

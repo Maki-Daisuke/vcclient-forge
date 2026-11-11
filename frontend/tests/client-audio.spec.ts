@@ -193,6 +193,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await expect.poll(() => state.config.low_pass_filter_cutoff).toBe(9499);
   const passthrough = page.getByRole('button', { name: 'パススルー' });
   await passthrough.click();
+  await page.getByRole('dialog', { name: 'パススルーを有効にしますか？' }).getByRole('button', { name: '有効化' }).click();
   await expect.poll(() => state.config.pass_through).toBe(true);
   await expect(passthrough).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => sockets.length).toBeGreaterThanOrEqual(2);

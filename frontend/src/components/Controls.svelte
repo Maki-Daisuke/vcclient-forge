@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Play, Square, Circle, Repeat2, Volume2, AudioLines, Cpu, AudioWaveform } from '@lucide/svelte';
+  import { Dialog } from 'bits-ui';
   import AudioSettings from './AudioSettings.svelte';
   import NoiseSettings from './NoiseSettings.svelte';
   import RangeField from './RangeField.svelte';
@@ -49,6 +50,8 @@
   }
   const ui = useUi();
   const session = useSession();
+  let passthroughConfirmOpen = $state(false);
+  let passthroughCancel: HTMLButtonElement | undefined = $state();
   const meters = new AudioMeters();
   let clientLevels = $state<{ input: number; output: number } | null>(null);
   let clientOutputBuffer = $state<number | null>(null);
@@ -113,10 +116,24 @@
           </button>
           {#if showStartMessage}<span id="start-reason" class="start-tooltip" role="tooltip">{startMessage}</span>{/if}
         </span>
-        <button class="button" aria-pressed={settings?.passThrough === true}
-          disabled={!session.canTogglePassThrough} onclick={() => session.togglePassThrough()}>
-          <Repeat2 size={16} />{ui.t('common.controls.passthrough')}
-        </button>
+        <Dialog.Root bind:open={passthroughConfirmOpen}>
+          <Dialog.Trigger class="button" aria-pressed={settings?.passThrough === true} disabled={!session.canTogglePassThrough}
+            onclick={(event: MouseEvent) => { if (settings?.passThrough === true || !ui.confirmPassthrough) { event.preventDefault(); session.togglePassThrough(); } }}>
+            <Repeat2 size={16} />{ui.t('common.controls.passthrough')}
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay class="dialog-overlay" />
+            <Dialog.Content class="dialog-content delete-confirm-dialog" onOpenAutoFocus={event => { event.preventDefault(); passthroughCancel?.focus(); }}>
+              <header class="dialog-header"><Dialog.Title class="dialog-title">{ui.t('forge.passthrough_confirm')}</Dialog.Title></header>
+              <div class="dialog-body"><Dialog.Description>{ui.t('forge.passthrough_confirm_description')}</Dialog.Description></div>
+              <footer class="dialog-footer">
+                <button class="button primary action-primary" disabled={!session.canTogglePassThrough || settings?.passThrough !== false}
+                  onclick={() => { if (session.canTogglePassThrough && settings?.passThrough === false) session.togglePassThrough(); passthroughConfirmOpen = false; }}>{ui.t('forge.enable')}</button>
+                <button class="button" bind:this={passthroughCancel} onclick={() => passthroughConfirmOpen = false}>{ui.t('forge.cancel')}</button>
+              </footer>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
         <button class="button recording-button" class:recording-armed={session.recordingArmed && settings?.recording !== true}
           aria-label={ui.t('common.controls.record')} aria-pressed={settings?.recording === true || session.recordingArmed} disabled={!session.canToggleRecording} onclick={() => session.toggleRecording()}>
           {#if settings?.recording}<Square size={14} fill="currentColor" />{:else}<Circle size={14} />{/if}{ui.t(settings?.recording ? 'forge.recording_active' : session.recordingArmed ? 'forge.recording_armed' : 'common.controls.record')}

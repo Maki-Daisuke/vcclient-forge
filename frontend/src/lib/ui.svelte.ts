@@ -38,6 +38,8 @@ const previewMessages = {
     client_only_settings: 'Client Mode Only',
     auto_gain_control: 'Automatic Gain Control (Client Mode Only)',
     client_processing_stopped: 'Change this setting while audio is stopped.',
+    passthrough_confirm: 'Enable passthrough?', passthrough_confirm_description: 'Your unconverted voice will be sent to the output.',
+    confirm_passthrough_setting: 'Confirm Before Enabling Passthrough',
     pitch_estimator_stopped: 'Change the pitch estimator while audio is stopped.',
     pitch_estimator_unavailable: 'The pitch estimator cannot be changed right now.',
     start_block_model: 'No usable model is selected. Choose a model card at the top of the screen.',
@@ -91,7 +93,7 @@ const previewMessages = {
     enable_noise_gate: 'Enable noise gate',
     io_analysis_interval: 'Input/output analysis interval',
     process_analysis_interval: 'Voice processing analysis interval',
-    browser_settings_unavailable: 'Browser-only settings are not available in this view yet.',
+    browser_settings_unavailable: 'Some browser settings are not available yet.',
     models_readonly: 'Select a model from its card while stopped.',
     reorder: 'Reorder', reorder_confirm: 'Apply order', cancel: 'Cancel', reorder_hint: 'Drag and drop to reorder, then select Apply',
     edit_model_info: 'Edit model information', delete_model: 'Delete model', delete_action: 'Delete', delete_confirm: 'Delete this model?', delete_confirm_description: 'The model files will be deleted. This cannot be undone.',
@@ -164,6 +166,8 @@ const previewMessages = {
     echo_cancellation: 'エコーキャンセル', client_noise_suppression: 'ノイズサプレッション',
     auto_gain_control: '自動音量調整（クライアントモードのみ）',
     client_processing_stopped: '音声の停止中に変更できます。',
+    passthrough_confirm: 'パススルーを有効にしますか？', passthrough_confirm_description: '変換前の声がそのまま出力されます。',
+    confirm_passthrough_setting: 'パススルー有効時に確認する',
     pitch_estimator_stopped: 'ピッチ推定器は音声の停止中に変更できます。',
     pitch_estimator_unavailable: '現在、ピッチ推定器は変更できません。',
     start_block_model: '使用するモデルが選択されていません。画面上部のモデルカードを選んでください。',
@@ -217,7 +221,7 @@ const previewMessages = {
     enable_noise_gate: 'ノイズゲートを有効にする',
     io_analysis_interval: '入出力解析の送信間隔',
     process_analysis_interval: '音声処理解析の送信間隔',
-    browser_settings_unavailable: 'ブラウザ側だけで管理する項目は、まだ表示に対応していません。',
+    browser_settings_unavailable: '一部のブラウザ設定は、まだ利用できません。',
     models_readonly: '停止中にカードから使用するモデルを選べます。',
     reorder: '並べ替え', reorder_confirm: '確定', cancel: 'キャンセル', reorder_hint: 'ドラッグ＆ドロップで並び替えたら確定を押してください',
     edit_model_info: 'モデル情報の編集', delete_model: 'モデルを削除', delete_action: '削除', delete_confirm: 'このモデルを削除しますか？', delete_confirm_description: 'モデルのファイルが削除されます。この操作は取り消せません。',
@@ -271,7 +275,7 @@ const previewMessages = {
 const contextKey = Symbol('ui');
 export const uiPreferencesStorageKey = 'vcclient-forge.ui-preferences.v1';
 
-function loadUiPreferences(): { language: string; theme: 'light' | 'dark' } {
+function loadUiPreferences(): { language: string; theme: 'light' | 'dark'; confirmPassthrough: boolean } {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(uiPreferencesStorageKey) ?? 'null');
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
@@ -279,16 +283,18 @@ function loadUiPreferences(): { language: string; theme: 'light' | 'dark' } {
       return {
         language: languages.some(([code]) => code === value.language) ? value.language as string : 'en',
         theme: value.theme === 'dark' ? 'dark' : 'light',
+        confirmPassthrough: value.confirmPassthrough !== false,
       };
     }
   } catch { /* Use defaults when storage is unavailable or invalid. */ }
-  return { language: 'en', theme: 'light' };
+  return { language: 'en', theme: 'light', confirmPassthrough: true };
 }
 
 export class UiState {
   private initialPreferences = loadUiPreferences();
   language = $state(this.initialPreferences.language);
   theme = $state<'light' | 'dark'>(this.initialPreferences.theme);
+  confirmPassthrough = $state(this.initialPreferences.confirmPassthrough);
   private i18n = createInstance();
 
   constructor() {
@@ -304,7 +310,7 @@ export class UiState {
   }
 
   savePreferences() {
-    try { localStorage.setItem(uiPreferencesStorageKey, JSON.stringify({ language: this.language, theme: this.theme })); }
+    try { localStorage.setItem(uiPreferencesStorageKey, JSON.stringify({ language: this.language, theme: this.theme, confirmPassthrough: this.confirmPassthrough })); }
     catch { /* Keep the UI usable if storage is unavailable. */ }
   }
 
