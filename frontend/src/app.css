@@ -92,6 +92,9 @@ svg { flex-shrink: 0; }
 .model-cards { display: flex; gap: 14px; overflow-x: auto; padding: 2px 1px 4px; }
 .model-card-wrapper { flex: 0 0 136px; }
 .model-card-wrapper.draggable-model { cursor: grab; }
+.model-card-wrapper.selection-blocked { cursor: not-allowed; }
+.model-card-wrapper.selection-blocked .model-card { pointer-events: none; }
+.model-card-tooltip { z-index: 20; max-width: min(280px, 75vw); padding: 8px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-size: .8rem; line-height: 1.5; }
 .model-card { position: relative; flex: 0 0 136px; display: flex; align-items: center; flex-direction: column; gap: 8px; padding: 15px 9px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; }
 .model-card-wrapper .model-card { width: 100%; }
 .model-card:disabled { color: var(--muted); }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Trash2, Pencil, RefreshCw } from '@lucide/svelte';
-  import { Dialog } from 'bits-ui';
+  import { Dialog, Tooltip } from 'bits-ui';
   import { untrack } from 'svelte';
   import PreviewDialog from './PreviewDialog.svelte';
   import UploadDialog from './UploadDialog.svelte';
@@ -110,9 +110,14 @@
     <p role="alert">{session.modelOperationError.status === 404 ? ui.t('forge.model_operation_restart') : `${ui.t('forge.model_operation_failed')} ${session.modelOperationError.detail ?? ''}`}</p>
   {/if}
   {#if catalog.models.length > 0}
+    <Tooltip.Provider delayDuration={0}>
     <div class="model-cards">
       {#each displayedModels as model, position (model.id)}
-        <div class="model-card-wrapper" class:draggable-model={reordering} draggable={reordering} role="group" aria-label={modelName(model)}
+        <Tooltip.Root disabled={session.active !== true || model.status !== 'ready' || reordering}>
+        <Tooltip.Trigger>
+        {#snippet child({ props })}
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex: The disabled model card's explanation must be keyboard accessible. -->
+        <div {...props} class="model-card-wrapper" class:draggable-model={reordering} class:selection-blocked={session.active === true && model.status === 'ready' && !reordering} draggable={reordering} role="group" aria-label={modelName(model)} tabindex={session.active === true && model.status === 'ready' && !reordering ? 0 : -1}
           ondragstart={(event) => { if (reordering) { dragged = position; event.dataTransfer?.setData('text/plain', String(model.id)); } }}
           ondragend={() => dragged = null}
           ondragover={(event) => { if (reordering) event.preventDefault(); }}
@@ -136,8 +141,15 @@
           {/if}
         </button>
         </div>
+        {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content class="model-card-tooltip" role="tooltip" side="bottom" sideOffset={6}>{ui.t('forge.model_switch_stop_first')}</Tooltip.Content>
+        </Tooltip.Portal>
+        </Tooltip.Root>
       {/each}
     </div>
+    </Tooltip.Provider>
   {/if}
 <div class="model-heading">
   <h2>{currentModel ? `${currentModel.id + 1}. ${modelName(currentModel)}` : ui.t('common.model.not_selected')}</h2>
