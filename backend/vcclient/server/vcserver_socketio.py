@@ -16,7 +16,6 @@ from vcclient.const import (
 )
 from vcclient.logger import logger
 from vcclient.server.event_emitter import set_event_emitter
-from vcclient.server.server_const import get_frontend_path
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
@@ -122,18 +121,12 @@ def create_socketio_app(
     sio: SocketIOServer,
     app_fastapi: Any = None,
 ) -> socketio.ASGIApp:
-    frontend_path = get_frontend_path()
-
     static_files: dict[str, Any] = {
         "/vcclient.log": {"filename": f"{LOG_FILE}", "content_type": "text/plain"},
         "/input.wav": {"filename": f"{SERVER_IO_RECORDING_FILE_IN}", "content_type": "audio/wav"},
         "/output.wav": {"filename": f"{SERVER_IO_RECORDING_FILE_OUT}", "content_type": "audio/wav"},
         "/monitor.wav": {"filename": f"{SERVER_IO_RECORDING_FILE_MONITOR}", "content_type": "audio/wav"},
     }
-
-    if not (frontend_path / "ui").exists():
-        static_files[""] = f"{frontend_path}"
-        static_files["/"] = f"{frontend_path}/index.html"
 
     return socketio.ASGIApp(
         sio,

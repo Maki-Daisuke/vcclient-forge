@@ -16,7 +16,6 @@ export default defineConfig(({ mode }) => {
     base: './',
     server: { proxy },
     preview: { proxy },
-    // Keep the Python-served legacy UI in dist until the native controls work.
-    build: { outDir: 'preview-dist' },
+    build: { outDir: 'preview-dist', manifest: true },
   };
 });

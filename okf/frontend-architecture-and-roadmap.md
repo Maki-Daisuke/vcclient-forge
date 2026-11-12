@@ -18,6 +18,8 @@ API does not rule out compatible implementation improvements.
 
 ## Deployment Assumptions
 
+**Current deployment:** `npm run build:frontend` builds the Svelte UI to `frontend/dist`. The backend serves it at `/`, and portable packages include this build. Legacy `client/` and `web_front/` directories have been removed. The dated milestones below describe the historical migration.
+
 ### Appearance Preview Baseline (2026-11-06)
 
 The initial `frontend/` scaffold was a standalone Svelte 5 + TypeScript + Vite appearance
@@ -34,8 +36,7 @@ community dictionaries are imported from their tracked upstream location with
 English fallback and Arabic RTL. Added preview messages are translated into
 Japanese and English. The initial scaffold used sample model data; the read-only
 model integration below replaced it. Later milestones connected Server Mode
-controls and settings writes. The new UI's Socket.IO notifications and browser
-microphone access remain unimplemented.
+controls and settings writes. Socket.IO notifications and browser microphone access were implemented in subsequent milestones.
 
 ### Read-Only Model Integration (2026-11-06)
 

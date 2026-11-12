@@ -238,11 +238,22 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
                 missing.append(str(artifact))
 
     frontend = PROJECT_ROOT / "frontend" / "dist"
-    source = PROJECT_ROOT / "web_front"
-    required_frontend = {Path("index.html")}
-    required_frontend.update(
-        path.relative_to(source) for path in source.rglob("*") if path.is_file()
-    )
+    frontend_manifest = frontend / ".vite" / "manifest.json"
+    required_frontend = {Path("index.html"), Path(".vite/manifest.json")}
+    if frontend_manifest.is_file():
+        entries = json.loads(frontend_manifest.read_text(encoding="utf-8"))
+        if not isinstance(entries, dict) or not any(
+            isinstance(entry, dict) and entry.get("isEntry") for entry in entries.values()
+        ):
+            raise ValueError(f"Invalid frontend build manifest: {frontend_manifest}")
+        for entry in entries.values():
+            if not isinstance(entry, dict) or not isinstance(entry.get("file"), str):
+                raise ValueError(f"Invalid frontend build manifest: {frontend_manifest}")
+            for name in [entry["file"], *entry.get("css", []), *entry.get("assets", [])]:
+                artifact = frontend / name
+                if not artifact.resolve().is_relative_to(frontend.resolve()):
+                    raise ValueError(f"Invalid frontend artifact path: {name}")
+                required_frontend.add(Path(name))
     missing.extend(
         str(frontend / relative)
         for relative in sorted(required_frontend)

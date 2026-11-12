@@ -24,10 +24,6 @@ def get_frontend_path() -> Path:
     if cwd_dist.exists():
         return cwd_dist
 
-    cwd_web_front = Path("web_front")
-    if cwd_web_front.exists():
-        return cwd_web_front
-
     return frontend_dist
 
 

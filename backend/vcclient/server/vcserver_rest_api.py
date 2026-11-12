@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -133,16 +133,6 @@ def _create_rest_api() -> FastAPI:
     def serve_monitor_wav():
         return _serve_audio_file(SERVER_IO_RECORDING_FILE_MONITOR)
 
-    frontend_ui_dir = get_frontend_path() / "ui"
-    if frontend_ui_dir.exists():
-        app_fastapi.mount("/ui", StaticFiles(directory=str(frontend_ui_dir), html=True), name="ui")
-
-    @app_fastapi.get("/", include_in_schema=False)
-    def root_redirect(request: Request):
-        query = request.url.query
-        target = f"/ui/2.1.4/?{query}" if query else "/ui/2.1.4/"
-        return RedirectResponse(url=target, status_code=307)
-
     app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
     app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
     app_fastapi.mount("/upload_dir", StaticFiles(directory=f"""{UPLOAD_DIR}"""), name="static")
@@ -172,6 +162,12 @@ def _create_rest_api() -> FastAPI:
     app_fastapi.include_router(task_manager.router)
 
     app_fastapi.router.add_api_route("/api/operation/initialize", initialize, methods=["POST"])
+
+    async def unknown_api(scope, receive, send):
+        raise StarletteHTTPException(status_code=404, detail="Not Found")
+
+    app_fastapi.mount("/api", unknown_api)
+    app_fastapi.mount("/", StaticFiles(directory=str(get_frontend_path()), html=True, check_dir=False), name="frontend")
     return app_fastapi
 
 

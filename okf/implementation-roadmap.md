@@ -84,9 +84,8 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Appearance scaffold implemented (2026-11-06)**: `frontend/` has a standalone
   Svelte 5/Vite preview of the v2.1.4 layout using Bits UI, sample data, disabled
   backend controls, navigable dialogs, themes, and the 13 community translation
-  dictionaries. It builds to `frontend/preview-dist`; production `frontend/dist`
-  still serves the legacy UI. Native conversion and settings synchronization are
-  not connected, so this milestone's exit criteria remain open.
+  dictionaries. This initial scaffold built to `frontend/preview-dist`; later
+  milestones connected the backend and switched production `frontend/dist` to Svelte.
 
 - **Read-only model integration implemented (2026-11-06)**: The new UI loads
   stored slots and the configured current slot via GET. A validated API adapter
@@ -286,7 +285,7 @@ Sources: [Control and state plan](./server-first-architecture-and-static-pipelin
 ## 4. Existing Foundations, Not New Roadmap Tasks
 
 - [Runtime/toolchain](./modern-runtime-and-toolchain.md): uv-managed pinned Python, locked hardware editions (`standard` and `cuda`), root npm tasks, and PyInstaller onedir packaging already exist. Continue testing them as migration gates.
-- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the production frontend build still copies tracked legacy assets. Item 4's Svelte/Vite appearance preview exists separately; native integration and the production build cutover remain planned.
+- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the Svelte frontend now builds to `frontend/dist` for backend serving and distribution; legacy frontend directories have been removed.
 - [Pitch estimators](./streamlined-pitch-estimation-and-torch-free-pipeline.md): RMVPE default and ONNX FCPE alternative already exist. Pure-ONNX inference does not mean removing CPU PyTorch needed for legacy model export.
 - [Hardware acceleration & universal distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md): AVX-512 CPU acceleration benchmarks, NPU execution characteristics, and the layered platform baseline strategy (OpenVINO + DirectML baseline on Windows, CoreML on macOS, OpenVINO on Linux, bundled across `standard` and `cuda` editions) are fully implemented and verified on physical hardware (Windows CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and macOS Apple Silicon M2 via CoreML).
 - [ngrok removal](./deprecating-and-removing-ngrok.md): Bundled ngrok is already removed. Tailscale Serve is optional external setup, not an unfinished Forge integration.

@@ -1,6 +1,6 @@
-# Forge UI preview
+# Forge UI
 
-Svelte 5 + TypeScript + Vite development UI based on the v2.1.4 layout.
+Svelte 5 + TypeScript + Vite UI based on the v2.1.4 layout.
 Bits UI supplies sliders and accessible dialogs; standard HTML supplies simple
 buttons, selects, and checkboxes. The model list, configured selection, metadata,
 portraits, and current settings are read from the existing backend GET APIs.
@@ -22,7 +22,7 @@ The backend stores input.wav, output.wav, and optionally monitor.wav at fixed pa
 overwriting prior recordings. Audio is held in memory until recording stops.
 Passthrough may be toggled while recording. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
-retry is not guaranteed to recover audio. Client Mode recording in this UI has not yet been verified with real audio.
+retry is not guaranteed to recover audio. Client Mode recording has been verified with real audio.
 Client Mode captures a browser microphone and streams float32 audio through the
 existing Socket.IO API. Its output is played by Web Audio. The browser requests
 microphone permission on Start or when loading the device list; output selection
@@ -165,8 +165,7 @@ Slot numbers displayed to users are one-based; backend IDs remain zero-based.
 
 The dev URL is printed by Vite (normally `http://127.0.0.1:5173`). Standalone output
 goes to `frontend/preview-dist`; `npm --prefix frontend run preview` serves it.
-`npm run build:frontend` still prepares the legacy Python-served `frontend/dist`.
-The preview is not yet selected by the desktop host or portable packages.
+`npm run build:frontend` builds the Python-served UI in `frontend/dist`, used by the desktop host and portable packages.
 
 The log button opens a separate page and retrieves `/vcclient.log` on demand.
 Use its reload button to fetch the latest contents; it does not start another

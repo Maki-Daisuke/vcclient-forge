@@ -27,7 +27,7 @@
 
 <div class="app-shell">
   <header class="app-header">
-    <div class="brand"><AudioLines size={29} /><h1>VCClient <span>Forge</span></h1><span class="preview-badge">{ui.t('forge.preview')}</span></div>
+    <div class="brand"><AudioLines size={29} /><h1>VCClient <span>Forge</span></h1></div>
     <div class="header-actions">
       <select aria-label={ui.t('forge.language')} bind:value={ui.language}>
         {#each languages as [code, name]}<option value={code}>{name}</option>{/each}

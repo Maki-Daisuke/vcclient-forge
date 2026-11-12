@@ -10,7 +10,7 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:desktop": "wails3 task --dir desktop dev",
     "build:desktop": "wails3 task --dir desktop build",
-    "build:frontend": "node scripts/build_frontend.js",
+    "build:frontend": "npm --prefix frontend run build -- --outDir dist",
     "build:frontend:preview": "npm --prefix frontend run build",
     "check:frontend": "npm --prefix frontend run check",
     "test:frontend": "npm --prefix frontend test",

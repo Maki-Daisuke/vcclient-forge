@@ -51,6 +51,7 @@ Clone the repository and build the workspace for your target hardware accelerato
 git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
 npm ci
+npm --prefix frontend ci
 npm --prefix desktop/frontend ci
 
 # Choose ONE edition matching your development/testing target:
@@ -58,7 +59,7 @@ npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Wi
 npm run build -- --edition cuda      # NVIDIA GPU (CUDA 12.x / cuDNN 9)
 ```
 
-* `npm run build` builds all supported components (`standard` by default): legacy web UI assets in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies. The Svelte development UI has a separate build described below.
+* `npm run build` builds all supported components (`standard` by default): the Svelte UI in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
 * `npm run build -- --edition <edition>` selects the hardware edition (`standard` or `cuda`). `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` synchronizes backend dependencies for the specified edition.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
@@ -85,7 +86,7 @@ Initial model assets are downloaded into `model_dir/` upon the first startup.
 
 ### Svelte Frontend Development
 
-The new UI in `frontend/` uses Svelte 5, TypeScript, and Vite. Its dependencies
+The UI in `frontend/` uses Svelte 5, TypeScript, and Vite. Its dependencies
 are managed separately from the root and desktop frontend packages. From the
 repository root, install the locked dependencies and start the Vite server:
 
@@ -124,8 +125,8 @@ npm run build:frontend:preview
 ```
 
 The preview build goes to `frontend/preview-dist`; `npm --prefix frontend run preview`
-serves it. `npm run build:frontend` instead prepares the legacy UI in `frontend/dist`,
-which is used by the current backend and desktop distribution.
+serves it. `npm run build:frontend` builds the UI in `frontend/dist`,
+which is served by the backend and included in desktop distributions.
 
 For browser tests, install Playwright's Chromium once and run:
 
@@ -145,12 +146,13 @@ The desktop host lives in `desktop/`. Complete the Wails v3 toolchain setup unde
 
 ```bash
 npm ci
+npm --prefix frontend ci
 npm --prefix desktop/frontend ci
 uv sync --project backend --extra standard   # Or cuda; choose one hardware edition
 npm run dev:desktop
 ```
 
-Wails embeds `desktop/frontend/dist`, displays startup status/logs via `@xterm/xterm`, and launches the local Python virtual environment (`backend/.venv/Scripts/python.exe` on Windows, `backend/.venv/bin/python` on Linux/macOS) directly. It waits for the readiness sentinel from its own backend before navigating to `http://127.0.0.1:18888/`; the existing UI remains Python-served. Closing the window terminates its child process tree cleanly.
+Wails embeds `desktop/frontend/dist`, displays startup status/logs via `@xterm/xterm`, and launches the local Python virtual environment (`backend/.venv/Scripts/python.exe` on Windows, `backend/.venv/bin/python` on Linux/macOS) directly. It waits for the readiness sentinel from its own backend before navigating to `http://127.0.0.1:18888/`; the UI is Python-served. Closing the window terminates its child process tree cleanly.
 
 `npm run test:desktop` tests the bootstrap states, builds the Vite frontend, and runs `go test .` inside `desktop/`. `npm run build:desktop` builds only the desktop executable (`desktop/bin/vcclient-forge.exe` on Windows, `desktop/bin/vcclient-forge` on Linux/macOS), not a complete Python distribution.
 
@@ -300,13 +302,10 @@ vcclient-forge/
 │   └── frontend/               # Embedded bootstrap UI (Vite + TypeScript + xterm.js)
 ├── frontend/                   # Frontend workspace
 │   └── dist/                   # Built Web UI assets (.gitignored)
-├── web_front/                  # Bundled web UI assets (/ui/2.1.4/ and /ui/2.0.78/)
-├── client/                     # Frozen 2024 uncompiled React reference source
 ├── tests/                      # Node.js test suite for desktop bootstrap & build orchestration
 ├── okf/                        # Open Knowledge Format architectural documentation
 ├── scripts/
 │   ├── build.js                # Invokes component npm tasks without duplicating their commands
-│   ├── build_frontend.js       # Synchronizes web_front assets to frontend/dist
 │   ├── build_backend.py        # Builds backend artifacts with PyInstaller
 │   ├── build_package.py        # Validates and packages existing artifacts (sub-2GB target)
 │   └── clean.js                # Workspace cleaning script

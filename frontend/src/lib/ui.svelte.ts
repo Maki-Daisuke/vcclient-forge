@@ -3,7 +3,7 @@ import { createInstance, type TOptions } from 'i18next';
 import type { ResourceLanguage } from 'i18next';
 
 const dictionaries = import.meta.glob<ResourceLanguage>(
-  '../../../web_front/ui/2.1.4/assets/i18n/*/translation.json',
+  './i18n/*/translation.json',
   { eager: true, import: 'default' },
 );
 
@@ -16,7 +16,6 @@ export const languages = [
 
 const previewMessages = {
   en: {
-    preview: 'UI Preview',
     pitch_unavailable: 'This model does not support pitch adjustment.',
     index_unavailable: 'No index file is configured for this model.',
     index_rate: 'Index Rate',
@@ -144,7 +143,6 @@ const previewMessages = {
     licenses: 'Translations and placeholder icons: w-okada/voice-changer. See frontend/NOTICE.md.',
   },
   ja: {
-    preview: 'UI プレビュー',
     pitch_unavailable: 'このモデルはピッチ調整に対応していません。',
     index_unavailable: 'このモデルにはIndexファイルが設定されていません。',
     index_rate: 'Index使用率',
