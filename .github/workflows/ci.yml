@@ -24,6 +24,12 @@ jobs:
         with:
           node-version: "26"
 
+      - name: Check and build frontend
+        run: |
+          npm --prefix frontend ci
+          npm run check:frontend
+          npm run build:frontend
+
       - name: Install uv
         uses: astral-sh/setup-uv@v10.3.2
         with:

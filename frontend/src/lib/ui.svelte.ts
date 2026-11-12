@@ -1,0 +1,328 @@
+import { getContext, setContext } from 'svelte';
+import { createInstance, type TOptions } from 'i18next';
+import type { ResourceLanguage } from 'i18next';
+
+const dictionaries = import.meta.glob<ResourceLanguage>(
+  './i18n/*/translation.json',
+  { eager: true, import: 'default' },
+);
+
+export const languages = [
+  ['en', 'English'], ['ja', '日本語'], ['ko', '한국어'], ['de', 'Deutsch'],
+  ['ar', 'العربية'], ['el', 'Ελληνικά'], ['es', 'Español'], ['fr', 'Français'],
+  ['it', 'Italiano'], ['la', 'Latina'], ['ms', 'Bahasa Melayu'],
+  ['ru', 'Русский'], ['zh', '中文'],
+] as const;
+
+const previewMessages = {
+  en: {
+    pitch_unavailable: 'This model does not support pitch adjustment.',
+    index_unavailable: 'No index file is configured for this model.',
+    index_rate: 'Index Rate',
+    advanced_readonly: 'Analysis settings are read-only; unavailable values are shown as —.',
+    mode: 'Input/Output Mode', input_output: 'Audio Devices', inference_settings: 'Inference Settings', preferred_device: 'Preferred Device',
+    conversion_time: 'Conversion time',
+    chunk_frames: 'Chunk frames (seconds)', extra_frames: 'Extra frames (seconds)',
+    slider_range_hint: 'The current value is outside the displayed slider range.',
+    client_mode_unavailable: 'Client Mode audio is not connected yet.',
+    browser_default: 'System default', browser_device: 'Audio device',
+    show_legacy_devices: 'Show legacy devices',
+    devices_rescan: 'Detect devices', devices_rescanning: 'Detecting…',
+    devices_rescan_error: 'Could not detect audio devices. Check the connection and stop audio before retrying.',
+    device_reselect: 'Select a device again',
+    browser_devices_error: 'Could not access audio devices. Check microphone permissions.',
+    browser_output_default: 'This browser uses its default output device.',
+    wasapi_saved_running: 'Exclusive mode is enabled in the saved settings. Stop audio; it will be disabled on the next start.',
+    wasapi_saved_stopped: 'Exclusive mode is enabled in the saved settings. It will be disabled before audio starts.',
+    client_only_settings: 'Client Mode Only',
+    auto_gain_control: 'Automatic Gain Control (Client Mode Only)',
+    client_processing_stopped: 'Change this setting while audio is stopped.',
+    passthrough_confirm: 'Enable passthrough?', passthrough_confirm_description: 'Your unconverted voice will be sent to the output.',
+    realtime_display: 'Realtime Display',
+    log_refresh: 'Refresh', log_loading: 'Loading log…', log_fetch_error: 'Could not load the log.', log_no_entries: 'The log is empty.',
+    confirm_passthrough_setting: 'Confirm Before Enabling Passthrough',
+    pitch_estimator_stopped: 'Change the pitch estimator while audio is stopped.',
+    pitch_estimator_unavailable: 'The pitch estimator cannot be changed right now.',
+    start_block_model: 'No usable model is selected. Choose a model card at the top of the screen.',
+    start_block_input: 'The input device is unselected or unavailable. Choose a microphone in Audio Devices.',
+    start_block_output: 'The output device is unselected or unavailable. Choose an output device in Audio Devices.',
+    start_block_monitor: 'The monitor device is unavailable. Choose another monitor device or Unselected in Audio Devices.',
+    start_block_mode: 'Switch to Server Mode in Audio Devices to start native audio.',
+    start_block_loading: 'Loading the current settings…',
+    start_block_load_error: 'Settings could not be loaded. Use Reload above to try again.',
+    start_block_devices_loading: 'Loading audio devices…',
+    start_block_devices_error: 'Audio devices could not be loaded. Use Reload above to try again.',
+    start_block_devices_changed: 'The device list changed. Select the affected devices again in Audio Devices.',
+    start_block_unknown: 'Start is unavailable until the native audio status can be confirmed.',
+    start_block_saving: 'Start will be available once the settings have been applied.',
+    start_block_save_error: 'Resolve the settings error using Retry saving or Discard edits and reload.',
+    start_block_operation: 'Waiting for the current audio operation to finish…',
+    start_block_running: 'Native audio is already enabled.',
+    applying: 'Applying…', save_failed: 'Settings could not be confirmed. Your changes are retained.',
+    retry_save: 'Retry saving', discard_changes: 'Discard edits and reload',
+    write_error_http: 'Backend error (HTTP {{status}}).',
+    write_error_network: 'Cannot reach the backend. The update may already have been applied.',
+    write_error_client_audio: 'Check microphone permissions, the audio device and the connection.',
+    write_error_timeout: 'The response timed out. The update may already have been applied.',
+    write_error_invalid_response: 'The backend returned an unexpected response.',
+    write_error_not_applied: 'The requested change was not reflected by the backend.',
+    write_error_active: 'Stop native audio before changing the model or devices.',
+    write_error_recording_unavailable: 'Recording state could not be confirmed. Reload and check the audio state.',
+    recording_empty: 'No audio was recorded.', recording_download_failed: 'Could not retrieve the recording.',
+    recording_active: 'Recording', recording_armed: 'Ready',
+    write_error_invalid_filter: 'Check both cutoffs and the selected model’s sample rate. If audio is not initialized, discard the edits and start audio before trying again.',
+    filter_requires_model: 'Select a usable model before adjusting filters.',
+    audio_start: 'Starting…', audio_stop: 'Stopping…', audio_running: 'Native audio enabled',
+    audio_stopped: 'Stopped', audio_unknown: 'Audio status unknown',
+    operation_failed: 'The audio operation could not be confirmed.',
+    audio_status_error: 'Cannot read audio status. Rechecking automatically; Stop remains available.',
+    meters_disabled: 'Input/output analysis is disabled in the backend settings.',
+    meters_disconnected: 'Input/output meter data is unavailable.',
+    input_buffer_disabled: 'Input buffer information is disabled in the backend settings.',
+    settings_loading: 'Loading current settings…',
+    settings_unavailable: 'Settings could not be loaded. Use Reload above to try again.',
+    device_loading: 'Device #{{id}} (loading list…)',
+    device_error: 'Device #{{id}} (list unavailable; use Reload to retry)',
+    device_missing: 'Device #{{id}} (not in device list)',
+    gpu_id: 'GPU #{{id}}',
+    input_device_rate: 'Input device sample rate',
+    output_device_rate: 'Output device sample rate',
+    monitor_device_rate: 'Monitor device sample rate',
+    high_pass_filter: 'High-pass Filter', low_pass_filter: 'Low-pass Filter', enable: 'Enable',
+    high_pass_cutoff: 'High-pass cutoff', low_pass_cutoff: 'Low-pass cutoff',
+    noise_gate_threshold: 'Noise gate threshold',
+    enable_noise_gate: 'Enable noise gate',
+    io_analysis_interval: 'Input/output analysis interval',
+    process_analysis_interval: 'Voice processing analysis interval',
+    models_readonly: 'Select a model from its card while stopped.',
+    reorder: 'Reorder', reorder_confirm: 'Apply order', cancel: 'Cancel', reorder_hint: 'Drag and drop to reorder, then select Apply',
+    edit_model_info: 'Edit model information', delete_model: 'Delete model', delete_action: 'Delete', delete_confirm: 'Delete this model?', delete_confirm_description: 'The model files will be deleted. This cannot be undone.',
+    delete_stop_first: 'Stop voice conversion before deleting this model.', model_switch_stop_first: 'Stop voice conversion to switch models.', model_operation_wait: 'Wait for the current operation to finish.',
+    model_operation_failed: 'The model operation could not be confirmed. Reload the model list before retrying.',
+    model_operation_restart: 'The backend does not support this operation yet. Restart the backend and try again.',
+    model_icon_invalid: 'Choose a non-empty PNG, JPEG, WebP, GIF, AVIF, or BMP image.',
+    model_edit_stop_first: 'Stop voice conversion before editing model information.',
+    model_info_saving: 'Saving model information…',
+    model_info_save_failed: 'The changes could not be confirmed. Some may already have been saved. Check the model information and try again.',
+    upload_optional: 'optional',
+    upload_hint: 'RVC models (.pth or .onnx) are added to an available slot. .pth files are converted to ONNX.',
+    upload_zip_drop: 'Drop a ZIP here or select a ZIP file',
+    upload_or: 'or',
+    upload_zip_model: 'Model in ZIP', upload_zip_index: 'Index in ZIP', upload_zip_choose: 'Select a model',
+    upload_no_index: 'No index', upload_change_files: 'Choose different files',
+    upload_zip_only: 'Choose one ZIP file.', upload_zip_no_model: 'No .pth or .onnx model was found in the ZIP.',
+    upload_zip_invalid: 'Could not read the ZIP file.', upload_zip_extract_failed: 'Could not extract the selected files. Check that the ZIP is valid and not password-protected.',
+    upload_zip_inspecting: 'Reading ZIP contents…', upload_zip_extracting: 'Extracting selected files…',
+    upload_not_ready: 'Stop audio and wait for pending settings before uploading.',
+    upload_progress: 'Uploading… {{percent}}%', upload_progress_label: 'Upload progress',
+    upload_registering: 'Registering model… This may take some time.',
+    upload_success: 'Model added.', upload_another: 'Add another model',
+    upload_failed: 'Could not add the model.',
+    upload_uncertain: 'Could not confirm whether the model was added. Reload and check the model list before trying again.',
+    upload_refresh_failed: 'The model was submitted, but the list could not be reloaded. Reload to check it.',
+    models_loading: 'Loading model information…',
+    model_selection: 'Model Selection',
+    models_empty: 'No models are stored. Please upload a model.',
+    reload_models: 'Reload',
+    catalog_error_network: 'Cannot connect to the backend. Start it and reload the model information.',
+    catalog_error_http: 'Could not load model information (HTTP {{status}}). Please reload.',
+    catalog_error_invalid_response: 'The backend returned an unexpected response. Model information cannot be displayed.',
+    catalog_error_timeout: 'The backend did not respond in time. Please reload.',
+    current_model_unavailable: 'The configured model (slot {{slot}}) is not in the model list.',
+    model_status_pending: 'Downloading',
+    model_status_broken: 'Unreadable model',
+    model_status_unsupported: 'Unsupported model',
+    sample_models_preview: 'Sample model downloads are not connected yet.',
+    controls_preview: 'Audio preview',
+    not_connected: 'Not connected yet',
+    model_management: 'Manage models',
+    language: 'Language', theme: 'Toggle color theme', close: 'Close',
+    host: 'Audio host', sample_rate: 'Sample rate',
+    about: 'About',
+    log_empty: 'There are no logs in this appearance preview.',
+    licenses: 'Translations and placeholder icons: w-okada/voice-changer. See frontend/NOTICE.md.',
+  },
+  ja: {
+    pitch_unavailable: 'このモデルはピッチ調整に対応していません。',
+    index_unavailable: 'このモデルにはIndexファイルが設定されていません。',
+    index_rate: 'Index使用率',
+    advanced_readonly: '解析設定は読み取り専用です。取得できない値は「—」で示しています。',
+    mode: '入出力モード', input_output: 'オーディオデバイス', inference_settings: '推論設定', preferred_device: '優先デバイス',
+    conversion_time: '変換時間',
+    chunk_frames: 'チャンクフレーム（秒）', extra_frames: 'Extraフレーム（秒）',
+    slider_range_hint: '現在の値はスライダーの表示範囲外です。',
+    client_mode_unavailable: 'クライアントモードの音声は、まだ接続していません。',
+    browser_default: 'システムの既定', browser_device: 'オーディオデバイス',
+    show_legacy_devices: 'レガシーデバイスを表示',
+    devices_rescan: 'デバイス再検出', devices_rescanning: '再検出中…',
+    devices_rescan_error: 'デバイスを再検出できませんでした。接続と音声の停止状態を確認してから再試行してください。',
+    device_reselect: 'デバイスを選び直してください',
+    browser_devices_error: 'オーディオデバイスを取得できません。マイクの許可を確認してください。',
+    browser_output_default: 'このブラウザでは既定の出力デバイスを使用します。',
+    wasapi_saved_running: '保存設定では排他モードが有効です。音声を停止すると、次回開始時に無効になります。',
+    wasapi_saved_stopped: '保存設定では排他モードが有効です。音声を開始する前に無効にします。',
+    client_only_settings: 'クライアントモード専用',
+    echo_cancellation: 'エコーキャンセル', client_noise_suppression: 'ノイズサプレッション',
+    auto_gain_control: '自動音量調整（クライアントモードのみ）',
+    client_processing_stopped: '音声の停止中に変更できます。',
+    passthrough_confirm: 'パススルーを有効にしますか？', passthrough_confirm_description: '変換前の声がそのまま出力されます。',
+    realtime_display: 'リアルタイム表示',
+    log_refresh: '再読み込み', log_loading: 'ログを読み込み中…', log_fetch_error: 'ログを取得できませんでした。', log_no_entries: 'ログはありません。',
+    confirm_passthrough_setting: 'パススルー有効時に確認',
+    pitch_estimator_stopped: 'ピッチ推定器は音声の停止中に変更できます。',
+    pitch_estimator_unavailable: '現在、ピッチ推定器は変更できません。',
+    start_block_model: '使用するモデルが選択されていません。画面上部のモデルカードを選んでください。',
+    start_block_input: '入力デバイスが未選択、または見つかりません。「オーディオデバイス」でマイクを選んでください。',
+    start_block_output: '出力デバイスが未選択、または見つかりません。「オーディオデバイス」で出力先を選んでください。',
+    start_block_monitor: 'モニターデバイスが見つかりません。「オーディオデバイス」で別のモニター出力先か「未選択」を選んでください。',
+    start_block_mode: '「オーディオデバイス」でサーバーモードに切り替えると、音声を開始できます。',
+    start_block_loading: '現在の設定を読み込んでいます……',
+    start_block_load_error: '設定を取得できません。「再読み込み」で取得し直してください。',
+    start_block_devices_loading: '音声デバイスの一覧を読み込んでいます……',
+    start_block_devices_error: '音声デバイスの一覧を取得できません。「再読み込み」で取得し直してください。',
+    start_block_devices_changed: 'デバイス一覧が変わりました。「オーディオデバイス」で該当するデバイスを選び直してください。',
+    start_block_unknown: '音声の動作状態を確認できるまで、開始できません。',
+    start_block_saving: '設定の反映が完了すると開始できます。',
+    start_block_save_error: '設定の反映エラーがあります。「保存を再試行」か「変更を破棄して再読み込み」で解消してください。',
+    start_block_operation: '音声操作の完了を待っています……',
+    start_block_running: '音声処理はすでに有効です。',
+    applying: '反映中…', save_failed: '設定の反映を確認できませんでした。変更内容は保持しています。',
+    retry_save: '保存を再試行', discard_changes: '変更を破棄して再読み込み',
+    write_error_http: 'バックエンドでエラーが発生しました（HTTP {{status}}）。',
+    write_error_network: 'バックエンドに接続できません。変更が反映済みの可能性があります。',
+    write_error_client_audio: 'マイクの許可、オーディオデバイスと接続状態を確認してください。',
+    write_error_timeout: '応答が間に合いませんでした。変更が反映済みの可能性があります。',
+    write_error_invalid_response: 'バックエンドの応答形式が想定と異なります。',
+    write_error_not_applied: '要求した変更がバックエンドに反映されていません。',
+    write_error_active: 'モデルやデバイスを変更する前に、音声を停止してください。',
+    write_error_recording_unavailable: '録音状態を確認できません。再読み込みして音声の状態を確認してください。',
+    recording_empty: '録音された音声がありません。', recording_download_failed: '録音ファイルを取得できませんでした。',
+    recording_active: '録音中', recording_armed: '録音待機',
+    write_error_invalid_filter: '両方のカットオフと選択モデルのサンプルレートを確認してください。音声が初期化されていない場合は、変更を破棄して音声を開始してからやり直してください。',
+    filter_requires_model: 'フィルターを調整するには、使用するモデルを選んでください。',
+    audio_start: '開始しています……', audio_stop: '停止しています……', audio_running: '音声処理が有効',
+    audio_stopped: '停止中', audio_unknown: '音声の状態を確認中',
+    operation_failed: '音声操作の結果を確認できませんでした。',
+    audio_status_error: '音声の状態を取得できません。自動で再確認します。「停止」は操作できます。',
+    meters_disabled: 'バックエンドの入出力解析が無効です。',
+    meters_disconnected: '入出力メーターの情報を取得できません。',
+    input_buffer_disabled: 'バックエンドの音声処理解析が無効のため、入力バッファを取得できません。',
+    settings_loading: '現在の設定を読み込んでいます……',
+    settings_unavailable: '設定を読み込めませんでした。上の「再読み込み」からやり直せます。',
+    device_loading: 'デバイス #{{id}}（一覧を読み込み中……）',
+    device_error: 'デバイス #{{id}}（一覧を取得できません。「再読み込み」で再試行）',
+    device_missing: 'デバイス #{{id}}（一覧にありません）',
+    gpu_id: 'GPU #{{id}}',
+    input_device_rate: '入力デバイスのサンプルレート',
+    output_device_rate: '出力デバイスのサンプルレート',
+    monitor_device_rate: 'モニターデバイスのサンプルレート',
+    high_pass_filter: 'ハイパスフィルタ', low_pass_filter: 'ローパスフィルタ', enable: '有効化',
+    high_pass_cutoff: 'ハイパスのカットオフ', low_pass_cutoff: 'ローパスのカットオフ',
+    noise_gate_threshold: 'ノイズゲートのしきい値',
+    enable_noise_gate: 'ノイズゲートを有効にする',
+    io_analysis_interval: '入出力解析の送信間隔',
+    process_analysis_interval: '音声処理解析の送信間隔',
+    models_readonly: '停止中にカードから使用するモデルを選べます。',
+    reorder: '並べ替え', reorder_confirm: '確定', cancel: 'キャンセル', reorder_hint: 'ドラッグ＆ドロップで並び替えたら確定を押してください',
+    edit_model_info: 'モデル情報の編集', delete_model: 'モデルを削除', delete_action: '削除', delete_confirm: 'このモデルを削除しますか？', delete_confirm_description: 'モデルのファイルが削除されます。この操作は取り消せません。',
+    delete_stop_first: '削除するには、先に音声変換を停止してください。', model_switch_stop_first: 'モデルは音声の停止中に切り替えられます。', model_operation_wait: '処理が終わるまでお待ちください。',
+    model_operation_failed: 'モデルの操作を確認できませんでした。再試行する前にモデル一覧を再読み込みしてください。',
+    model_operation_restart: 'バックエンドがこの操作に対応していません。バックエンドを再起動してから、もう一度お試しください。',
+    model_icon_invalid: 'PNG、JPEG、WebP、GIF、AVIF、BMP形式の空でない画像を選択してください。',
+    model_edit_stop_first: 'モデル情報を編集するには、先に音声変換を停止してください。',
+    model_info_saving: 'モデル情報を保存しています…',
+    model_info_save_failed: '変更を確認できませんでした。一部は保存されている可能性があります。モデル情報を確認してから再試行してください。',
+    upload_optional: '任意',
+    upload_hint: 'RVCモデル（.pth／.onnx）を空きスロットに追加します。.pthはONNXに変換されます。',
+    upload_zip_drop: 'ZIPをここにドロップ、またはZIPファイルを選択',
+    upload_or: 'または',
+    upload_zip_model: 'ZIP内のモデル', upload_zip_index: 'ZIP内のIndex', upload_zip_choose: 'モデルを選択',
+    upload_no_index: 'Indexなし', upload_change_files: 'ファイルを選び直す',
+    upload_zip_only: 'ZIPファイルを１つ選択してください。', upload_zip_no_model: 'ZIP内に.pthまたは.onnxのモデルが見つかりません。',
+    upload_zip_invalid: 'ZIPファイルを読み込めませんでした。', upload_zip_extract_failed: 'ファイルを取り出せませんでした。ZIPが正しく、パスワードで保護されていないことを確認してください。',
+    upload_zip_inspecting: 'ZIPの内容を確認しています…', upload_zip_extracting: 'ファイルを取り出しています…',
+    upload_not_ready: '音声を停止し、設定の保存が終わってからアップロードしてください。',
+    upload_progress: 'アップロード中… {{percent}}%', upload_progress_label: 'アップロードの進捗',
+    upload_registering: 'モデルを登録しています… 時間がかかる場合があります。',
+    upload_success: 'モデルを追加しました。', upload_another: '別のモデルを追加',
+    upload_failed: 'モデルを追加できませんでした。',
+    upload_uncertain: 'モデルが追加されたか確認できません。一覧を再読み込みしてから確認してください。',
+    upload_refresh_failed: 'モデルの登録後、一覧を読み込めませんでした。再読み込みして確認してください。',
+    models_loading: 'モデル情報を読み込んでいます……',
+    model_selection: 'モデル選択',
+    models_empty: '保存されているモデルはありません。モデルをアップロードしてください。',
+    reload_models: '再読み込み',
+    catalog_error_network: 'バックエンドに接続できません。起動を確認して、再読み込みしてください。',
+    catalog_error_http: 'モデル情報を取得できませんでした（HTTP {{status}}）。再読み込みしてください。',
+    catalog_error_invalid_response: 'バックエンドの応答形式が想定と異なるため、モデル情報を表示できません。',
+    catalog_error_timeout: 'バックエンドの応答が間に合いませんでした。再読み込みしてください。',
+    current_model_unavailable: '設定されているモデル（スロット {{slot}}）が一覧にありません。',
+    model_status_pending: 'ダウンロード中',
+    model_status_broken: '読み込めないモデル',
+    model_status_unsupported: '未対応のモデル',
+    sample_models_preview: 'サンプルモデルのダウンロードは、まだ接続していません。',
+    controls_preview: '音声操作プレビュー',
+    not_connected: '未接続',
+    model_management: 'モデル管理',
+    language: '表示言語', theme: '配色を切り替える', close: '閉じる',
+    host: 'オーディオホスト', sample_rate: 'サンプルレート',
+    about: 'このアプリについて',
+    log_empty: '見た目のプレビューのため、ログはありません。',
+    licenses: '翻訳・プレースホルダー画像：w-okada/voice-changer。詳細は frontend/NOTICE.md を参照してください。',
+  },
+};
+
+const contextKey = Symbol('ui');
+export const uiPreferencesStorageKey = 'vcclient-forge.ui-preferences.v1';
+
+function loadUiPreferences(): { language: string; theme: 'light' | 'dark'; confirmPassthrough: boolean } {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(uiPreferencesStorageKey) ?? 'null');
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      const value = stored as Record<string, unknown>;
+      return {
+        language: languages.some(([code]) => code === value.language) ? value.language as string : 'en',
+        theme: value.theme === 'dark' ? 'dark' : 'light',
+        confirmPassthrough: value.confirmPassthrough !== false,
+      };
+    }
+  } catch { /* Use defaults when storage is unavailable or invalid. */ }
+  return { language: 'en', theme: 'light', confirmPassthrough: true };
+}
+
+export class UiState {
+  private initialPreferences = loadUiPreferences();
+  language = $state(this.initialPreferences.language);
+  theme = $state<'light' | 'dark'>(this.initialPreferences.theme);
+  confirmPassthrough = $state(this.initialPreferences.confirmPassthrough);
+  private i18n = createInstance();
+
+  constructor() {
+    const resources = Object.fromEntries(Object.entries(dictionaries).map(([path, dictionary]) => {
+      const language = path.split('/').at(-2)!;
+      return [language, { translation: {
+        ...dictionary,
+        forge: previewMessages[language as keyof typeof previewMessages] ?? previewMessages.en,
+      } }];
+    }));
+    // Bundled resources initialize synchronously, with no HTTP backend or detector.
+    void this.i18n.init({ resources, lng: this.language, fallbackLng: 'en', interpolation: { escapeValue: false } });
+  }
+
+  savePreferences() {
+    try { localStorage.setItem(uiPreferencesStorageKey, JSON.stringify({ language: this.language, theme: this.theme, confirmPassthrough: this.confirmPassthrough })); }
+    catch { /* Keep the UI usable if storage is unavailable. */ }
+  }
+
+  t(key: string, options: TOptions = {}): string {
+    return this.i18n.t(key, { ...options, lng: this.language }) as string;
+  }
+}
+
+export function provideUi() {
+  return setContext(contextKey, new UiState());
+}
+
+export function useUi(): UiState {
+  return getContext(contextKey);
+}

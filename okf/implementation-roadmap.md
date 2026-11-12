@@ -66,21 +66,131 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 4. Deliver the Minimal Svelte 5 Native-Audio UI
 
+- **Model information editing**: The selected model's name and icon can be saved
+  through existing uploader and slot APIs while audio is stopped. The UI keeps
+  drafts on failure and refreshes the model when possible because icon and name
+  are saved separately. Browser tests mock the APIs. The user confirmed that
+  the display changed after editing; fields and persistence were not specified.
+
+- **Model deletion and reordering**: The Svelte UI can delete the selected model
+  after confirmation or reorder models using drag-and-drop.
+  Both operations currently require stopped audio. The backend compacts model
+  directories, updates the selected slot and pipeline reference, and uses a
+  journal to recover interrupted moves during startup. Operation assumes a
+  single interactive client; concurrent multi-tab use is not supported.
+  Automated coverage uses temporary files and mocked browser APIs. The user has
+  confirmed reordering and model deletion against the running backend.
+
+- **Appearance scaffold implemented (2026-11-06)**: `frontend/` has a standalone
+  Svelte 5/Vite preview of the v2.1.4 layout using Bits UI, sample data, disabled
+  backend controls, navigable dialogs, themes, and the 13 community translation
+  dictionaries. This initial scaffold built to `frontend/preview-dist`; later
+  milestones connected the backend and switched production `frontend/dist` to Svelte.
+
+- **Read-only model integration implemented (2026-11-06)**: The new UI loads
+  stored slots and the configured current slot via GET. A validated API adapter
+  maps responses to display data; per-app catalog state owns loading, failure,
+  timeout, retry, and selection by ID. Model cards, management, metadata, and
+  portraits now use real backend data; offline/error states never use sample
+  models. Vite proxies API/image requests to the backend. Model selection and
+  settings/audio writes remain disabled; native integration is still pending.
+
+- **Read-only settings display implemented (2026-11-06)**: The existing GET pair
+  supplies configuration and selected-model settings to disabled controls.
+  Existing device-list GETs resolve native device names/hosts by configured ID,
+  including monitor output. Device failures preserve the settings display and
+  show IDs with status; reload reads cached lists without a native rescan.
+  Missing fields are shown as unknown; failed loads clear prior values. Backend
+  APIs are unchanged. The following native-controls milestone extends this baseline.
+
+- **Native controls implemented; playback confirmed (2026-11-06)**:
+  Model/device selection while stopped, Server Mode selection, start/stop, and live
+  input/output gain use existing APIs. Drafts and confirmed state are separated;
+  a coordinator throttles gains to 100 ms, flushes completion, serializes/coalesces
+  writes, and retains failures for explicit retry/discard. Fresh full GET/PUT/GET
+  preserves unrelated fields and detects silent rollback. Runtime enable state is
+  polled; no stream-health claim or live meters. Monitor gain follows output gain
+  because of existing backend behavior. All 41 API-mocked browser checks passed;
+  the user separately confirmed native audio playback. Gain-adjustment latency
+  and longer sessions remain to be validated; no backend changes.
+
+- **Live pitch/index controls implemented (2026-11-06)**: Existing slot GET/PUT/GET
+  preserves full model data and verifies target IDs and applied values. Per-slot
+  drafts share the serialized 100 ms gain coordinator, with completion flush and
+  retry/discard. Unsupported models/index-less slots stay disabled. All 49 mocked
+  browser checks passed; real-device pitch/index listening remains to be checked.
+  Backend APIs and persistence are unchanged.
+
+- **Main control sections reorganized (2026-11-06)**: Model-specific voice controls appear with
+  the selected model; audio devices, volume, noise suppression, and inference controls
+  are independently expandable in the main view.
+  Output/monitor share the existing output-volume slider. Pitch-estimator radios
+  are connected for stopped server audio; other unconnected settings remain disabled.
+  Backend APIs are unchanged.
+
+- **Server passthrough control**: The Svelte UI can toggle the existing passthrough
+  configuration while native audio is running, with readback and retry/discard.
+  Mocked browser tests cover the control; live audio verification remains pending.
+
+- **WASAPI exclusive mode**: The Svelte UI can change the existing setting while
+  native audio is stopped. Real-device verification remains pending.
+
+- **Inference timing controls**: The Svelte UI can adjust chunk and Extra frame
+  with logarithmic sliders while audio is stopped. Chunk is model-specific;
+  Extra frame is shared. The backend determines crossfade duration automatically.
+
+- **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
+  optional index to a vacant slot through existing APIs while audio is stopped.
+  Browser tests mock the APIs. The user confirmed a real model upload; the tested
+  model format and index presence were not specified. ZIP drag and drop extracts
+  files in the browser and is covered by mocked tests. The user confirmed a ZIP
+  import and subsequent voice conversion.
+
+- **Server recording**: The Svelte UI can start and stop recording using existing
+  APIs and download the output WAV. Recording can be armed before starting audio;
+  stopping audio saves a take and returns to the armed state. Recording uses fixed
+  backend filenames and cannot be combined with passthrough. Real audio verification
+  remains pending.
+
+- **Filter controls implemented (2026-11-06)**: Server Mode with a selected model provides high/low-pass
+  switches and cutoff sliders. The existing full PUT is preceded by current
+  configuration and voice-information reads and a cutoff/sample-rate check;
+  invalid combinations remain unsent. Browser tests mock writes, and displayed
+  values were checked against a real GET. Real PUT and listening validation are
+  pending. Backend APIs are unchanged.
+
+- **Noise-gate control implemented (2026-11-06)**: The noise suppression section
+  adjusts the threshold over −120 to 0 dB, with the existing ≤ −100 dB bypass
+  explained. It shares the serialized settings queue and existing full PUT API.
+  All 55 mocked browser checks passed and real-backend GET display was confirmed;
+  real PUT and audible adjustment remain to be checked.
+
 - Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
 - Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
 - Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.
 - **Depends on**: Usable native conversion and a defined settings contract. UI scaffolding and asset migration can proceed alongside items 2-3; advanced inference optimization is not a dependency.
-- **Exit**: End-to-end native conversion through the new UI without a Socket.IO client; rapid edits, slow/failed responses, and keyboard completion behave correctly.
+- **Exit**: End-to-end native conversion through the new UI; rapid edits, slow/failed responses, and keyboard completion behave correctly. Socket.IO notifications are addressed in item 5.
 - **Sources**: [UI Step 1](./frontend-architecture-and-roadmap.md#step-1-minimal-svelte-5-ui-for-server-mode), [Settings redesign](./frontend-architecture-and-roadmap.md#settings-redesign-decouple-interaction-from-rest-synchronization), [Translation preservation](./frontend-architecture-and-roadmap.md#5-preserving-100-of-community-i18n-translation-assets).
 
-### 5. Migrate Notifications, Then Retire the Legacy UI and Socket.IO
+### 5. Connect Socket.IO Notifications
 
-- Add `/ws/events` for performance/state notifications, scheduled outside callbacks on the server event loop. Verify settings/model/device changes and startup/shutdown with the new UI.
-- Remove legacy Client Mode, Socket.IO/Engine.IO dependencies and ASGI wiring, obsolete emitters, and replaced tests only after native controls and replacement notifications work.
-- Remove `web_front` after asset migration, and retire legacy API assumptions as part of the explicit migration. Do not build a second compatibility protocol for the old UI; rollback uses the previous release.
-- **Depends on**: Item 4 and verified native lifecycle behavior. `/ws/audio` must not be required for this cutover.
-- **Exit**: Native conversion, monitor output, notifications, and shutdown work without Socket.IO. A temporary browser-audio gap is accepted.
-- **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-websocket-notifications--socketio-removal).
+- **Input/output meters implemented**: The Svelte UI subscribes to the existing
+  Socket.IO `realtime_output_status` event while Server Mode audio is active and
+  input/output analysis is enabled. It displays RMS values, clears stale data,
+  and reconnects after disconnects. Browser tests simulate Socket.IO messages;
+  values and bars were also verified in the UI against a live backend during
+  audio conversion, and the user confirmed the meters displayed. Callback
+  overhead has not been measured.
+- **Buffer meters implemented**: The UI converts existing output and process
+  status sample counts to seconds using current backend sample rates, with
+  independent stale handling and bounded histories. Browser tests simulate the
+  notifications; both values and graph lines were also observed in the UI against
+  a live backend during conversion.
+- Connect remaining performance and state notifications. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
+- Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API and legacy UI available during the transition.
+- **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.
+- **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI while existing API clients remain compatible.
+- **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-socketio-notifications).
 
 ### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2) [Completed]
 
@@ -91,18 +201,18 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Exit**: A usable packaged native desktop workflow with clean process lifecycle, fast Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
 - **Sources**: [Desktop Transition](./frontend-architecture-and-roadmap.md#desktop-packaging-transitioning-from-tauri-to-wails), [Wails ADR](./migrating-desktop-host-from-tauri-to-wails.md), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 
-### 7. Restore Browser Audio as WebSocket Adapters
+### 7. Restore Browser Audio through Socket.IO
 
-- Add `/ws/audio` with a specified little-endian Float32 PCM format and frame/continuity metadata; use the common preparation/inference path. Add AudioWorklet capture/playback and reuse `/ws/events`.
-- First restore browser-input/browser-output operation alongside the native pair, without Socket.IO. Keep main/monitor routing contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
+- Connect browser capture and playback through AudioWorklet and the existing Socket.IO audio API; use the common preparation/inference path.
+- First restore browser-input/browser-output operation alongside the native pair. Keep main/monitor routing and existing API contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
 - Validate browser secure-context/microphone requirements and Wails WebView2 permissions where applicable. Optional Tailscale Serve remains user-managed, not a bundled tunnel dependency.
 - **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
-- **Exit**: Browser audio works through WebSocket only, with one selected input and bounded latency/recovery behavior.
-- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-websocket-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- **Exit**: Browser audio works through Socket.IO, with one selected input and validated buffering and recovery; existing API compatibility is maintained.
+- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
 ### 8. Evaluate Mixed Native/Browser Routing
 
-- Independently select native or WebSocket input and main/monitor destinations. Evaluate native input to browser output and browser input to native output; mode names may survive as presets rather than internal coupling.
+- Independently select native or Socket.IO-backed browser input and main/monitor destinations. Evaluate native input to browser output and browser input to native output; mode names may survive as presets rather than internal coupling.
 - Define and test independent clock drift, network jitter, conversion, output isolation, and failure/reconnect policies before supporting each combination. Do not infer compatibility from modular interfaces alone.
 - **Depends on**: Proven native and browser adapter paths from items 3 and 7.
 - **Exit**: Explicitly supported combinations pass routing, rate, main/monitor isolation, and discontinuity tests. This is an extension, not a gate for the native release.
@@ -175,7 +285,7 @@ Sources: [Control and state plan](./server-first-architecture-and-static-pipelin
 ## 4. Existing Foundations, Not New Roadmap Tasks
 
 - [Runtime/toolchain](./modern-runtime-and-toolchain.md): uv-managed pinned Python, locked hardware editions (`standard` and `cuda`), root npm tasks, and PyInstaller onedir packaging already exist. Continue testing them as migration gates.
-- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the frontend build currently copies tracked legacy assets and still needs item 4's Vite migration.
+- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the Svelte frontend now builds to `frontend/dist` for backend serving and distribution; legacy frontend directories have been removed.
 - [Pitch estimators](./streamlined-pitch-estimation-and-torch-free-pipeline.md): RMVPE default and ONNX FCPE alternative already exist. Pure-ONNX inference does not mean removing CPU PyTorch needed for legacy model export.
 - [Hardware acceleration & universal distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md): AVX-512 CPU acceleration benchmarks, NPU execution characteristics, and the layered platform baseline strategy (OpenVINO + DirectML baseline on Windows, CoreML on macOS, OpenVINO on Linux, bundled across `standard` and `cuda` editions) are fully implemented and verified on physical hardware (Windows CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and macOS Apple Silicon M2 via CoreML).
 - [ngrok removal](./deprecating-and-removing-ngrok.md): Bundled ngrok is already removed. Tailscale Serve is optional external setup, not an unfinished Forge integration.

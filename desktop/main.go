@@ -49,6 +49,16 @@ func main() {
 	})
 
 	initJS := `
+		// Only the log viewer uses a native child window; other links still open in the browser.
+		window.vcclientForge = {
+			openLogWindow: function() {
+				if (window._wails && typeof window._wails.invoke === 'function') {
+					window._wails.invoke('wails:event:emit:open-log-window');
+					return true;
+				}
+				return false;
+			}
+		};
 		// Transparently redirect window.open() to default system browser
 		window.open = function(url) {
 			if (url && typeof url === 'string') {
@@ -137,13 +147,30 @@ func main() {
 	}
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "VCClient Forge",
-		Width:     1000,
-		Height:    800,
-		MinWidth:  360,
-		MinHeight: 480,
-		URL:       "/",
-		JS:        initJS,
+		Name:                 "main",
+		Title:                "VCClient Forge",
+		Width:                1000,
+		Height:               800,
+		MinWidth:             360,
+		MinHeight:            480,
+		URL:                  "/",
+		JS:                   initJS,
+		AllowSimpleEventEmit: true,
+	})
+
+	app.Event.On("open-log-window", func(event *application.CustomEvent) {
+		if event.Sender != "main" {
+			return
+		}
+		if logWindow, ok := app.Window.GetByName("log-viewer"); ok {
+			logWindow.Show()
+			logWindow.Focus()
+			return
+		}
+		app.Window.NewWithOptions(application.WebviewWindowOptions{
+			Name: "log-viewer", Title: "VCClient Forge - Log", Width: 900, Height: 600,
+			MinWidth: 360, MinHeight: 300, URL: BACKEND_URL + "/?view=log",
+		})
 	})
 
 	showFatalError := func(msg string) {
@@ -169,6 +196,9 @@ func main() {
 	})
 
 	window.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		if logWindow, ok := app.Window.GetByName("log-viewer"); ok {
+			logWindow.Close()
+		}
 		doCleanup()
 	})
 

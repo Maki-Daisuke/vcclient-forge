@@ -49,25 +49,13 @@ Forge established an immediately intuitive, modern full-stack architecture that 
 * **Isolated uv Environment**: `pyproject.toml`, `uv.lock`, and standalone `.venv` reside directly inside `backend/`, cleanly decoupling backend Python dependencies from root task runners.
 * **Deterministic Static Asset Resolution**: `vcclient.server.server_const.get_frontend_path()` resolves `frontend/dist` via relative anchors from `__file__`, ensuring identical asset resolution both in local development and inside portable distribution zips.
 
-### 4.2. Strangler Fig Frontend Strategy (`frontend/dist`)
-An essential discovery was made regarding the legacy frontend assets:
-* **`client/` (Reference Implementation A)**: Contains early 2024 uncompiled React/Webpack source code (frozen at commit `2024-02-28`). It lacks Beatrice UI, modern multi-language localizations, and contemporary UI features. Compiling it directly causes regression.
-* **`web_front/` (Reference Implementation B)**: Contains the December 2025 golden binary bundle extracted from `vcclient_win_cuda_2.0.78-beta.zip`.
-* **Interface-First Shim**: Rather than contaminating `frontend/` with obsolete source or minified blobs, Forge established `frontend/dist` as an ignored build artifact (`.gitignore`).
-* **Safe Incremental Migration**: `npm run build:frontend` currently runs `scripts/build_frontend.js` to synchronize `web_front` into `frontend/dist`. The planned replacement is a new Svelte 5 + Vite UI, beginning with Server Mode. It can continue targeting `frontend/dist`, preserving the backend's static-asset location; the frontend build and package scripts still need to be updated as part of that migration.
+### 4.2. Svelte Frontend Deployment
 
-```
-voice-changer/
-├── backend/                  # Python / uv project (vcclient, main.py, tests)
-├── frontend/                 # Next-generation Svelte 5 + Vite UI (dist is .gitignored)
-├── client/                   # Reference implementation A (frozen 2024 source)
-├── web_front/                # Reference implementation B (golden 2025 binary)
-├── modules/                  # Pretrained ONNX/PyTorch models
-├── okf/                      # Open Knowledge Format bundle
-├── scripts/                  # Build & packaging scripts
-├── package.json              # Root orchestrator (npm start, npm test, etc.)
-└── start.bat / start.sh       # Portable-package executable launchers
-```
+The Svelte/Vite UI in `frontend/` replaces the legacy frontend. `npm run build:frontend`
+builds it into `frontend/dist`, which FastAPI serves and the portable distribution
+includes. Vite's manifest is used to validate the built assets during packaging.
+The previous `client/` source and `web_front/` bundles have been removed; retained
+translations and the placeholder image are in `frontend/src/`.
 
 ## 5. Pruning the Legacy CUI Layer
 

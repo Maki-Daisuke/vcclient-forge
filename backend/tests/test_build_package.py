@@ -29,10 +29,17 @@ def prepare_artifacts(builder: ModuleType, mock_freeze: bool = True) -> Path:
     manifest = builder.get_build_dir("standard", "3.14") / "backend-manifest.json"
     manifest.write_text(json.dumps({executable: 7, "_internal/runtime.dll": 7}), encoding="utf-8")
     for name in ("index.html", "index.js", "945.index.js", "assets/image.png"):
-        for directory in ("web_front", "frontend/dist"):
-            destination = root / directory / name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(b"frontend")
+        destination = root / "frontend/dist" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"frontend")
+    frontend_manifest = root / "frontend/dist/.vite/manifest.json"
+    frontend_manifest.parent.mkdir(parents=True, exist_ok=True)
+    frontend_manifest.write_text(
+        json.dumps(
+            {"index.html": {"file": "index.js", "isEntry": True, "assets": ["945.index.js", "assets/image.png"]}}
+        ),
+        encoding="utf-8",
+    )
     for name in ("start.bat", "start.sh", "README.md", "LICENSE"):
         (root / name).write_text("asset", encoding="utf-8")
     desktop_name = "vcclient-forge.exe" if builder.platform.system() == "Windows" else "vcclient-forge"
