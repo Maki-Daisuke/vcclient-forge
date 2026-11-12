@@ -97,6 +97,7 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert str(tmp_path / "package.json") + ":vcclient" in freeze
     assert "vcclient.server.vcserver_socketio" in freeze
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
+    assert ("nvidia.cu13" in freeze) == (edition == "cuda")
 
 
 def test_linux_cuda_bundles_nvidia_wheel_binaries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

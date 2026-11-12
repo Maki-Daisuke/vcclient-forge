@@ -32,18 +32,12 @@ dependencies = [
 
 [project.optional-dependencies]
 cuda = [
-    "onnxruntime-gpu>=1.20.0,<1.25.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
-    "onnxruntime-gpu>=1.26.0,<1.32.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-    "nvidia-cublas-cu12>=12.4.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
-    "nvidia-cudnn-cu12>=9.1.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
-    "nvidia-cufft-cu12>=11.2.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
-    "nvidia-cuda-runtime-cu12>=12.4.0; sys_platform != 'linux' or platform_machine != 'aarch64'",
-    "nvidia-curand-cu12>=10.3.0; sys_platform == 'linux' and platform_machine != 'aarch64'",
-    "nvidia-cublas>=13.0.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-    "nvidia-cudnn-cu13>=9.1.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-    "nvidia-cufft>=12.0.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-    "nvidia-cuda-runtime>=13.0.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
-    "nvidia-curand>=10.3.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "onnxruntime-gpu>=1.27.0,<1.32.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cublas>=13.0.0,<14; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cudnn-cu13>=9.1.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cufft>=12.0.0; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cuda-runtime>=13.0.0,<14; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-curand>=10.3.0; sys_platform == 'win32' or sys_platform == 'linux'",
     "onnxruntime-ep-openvino>=1.8.0; (sys_platform == 'win32' or sys_platform == 'linux') and (platform_machine == 'AMD64' or platform_machine == 'x86_64')",
 ]
 standard = [
@@ -79,15 +73,7 @@ conflicts = [
 ]
 
 [tool.uv.sources]
-onnxruntime-gpu = [
-    { index = "onnxruntime-cuda-13", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-]
 torch = [{ index = "pytorch-cpu" }]
-
-[[tool.uv.index]]
-name = "onnxruntime-cuda-13"
-url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-13/pypi/simple/"
-explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

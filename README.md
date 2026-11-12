@@ -17,10 +17,10 @@ Download the standalone package matching your operating system and hardware from
 
 | OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                           |
 | :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :---------------------------------------------- |
-| **Windows** | x86_64                   | **NVIDIA GPU** (GeForce / RTX)    | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 12.x / cuDNN 9 (TF32 / Tensor Core) |
-|             |                          | AMD Radeon / Intel Arc / CPU      | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / AMD DirectML / AVX-512 CPU     |
+| **Windows** | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 13.x / cuDNN 9                      |
+|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / DirectML / CPU                 |
 |             | ARM64                    | Any                               | _Not Supported_                          | —                                               |
-| **Linux**   | x86_64                   | **NVIDIA GPU**                    | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 12.x / cuDNN 9                      |
+| **Linux**   | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 13.x / cuDNN 9                      |
 |             |                          | AMD / Intel / CPU                 | **`vcclient-linux-x64-standard-*.7z`**   | Intel OpenVINO / AVX-512 CPU                    |
 |             | ARM64                    | **NVIDIA GPU** (DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     | NVIDIA CUDA 13.x                                |
 |             |                          | Non-NVIDIA / CPU                  | **`vcclient-linux-arm64-standard-*.7z`** | ARM NEON / SVE CPU                              |
@@ -29,7 +29,8 @@ Download the standalone package matching your operating system and hardware from
 
 > [!TIP]
 >
-> - **NVIDIA GPU users on Windows**: Select `win-x64-cuda` for optimal Tensor Core and CUDA performance.
+> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU and a CUDA 13-compatible NVIDIA driver (R580 or newer).
+> - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices; real-time performance depends on the device and model.
 > - **Intel Arc / AMD Radeon / Mac users**: Select the universal `standard` package for your platform. Hardware acceleration (OpenVINO, DirectML, CoreML) is configured automatically out of the box!
 
 ### 2. Launch

@@ -19,6 +19,8 @@ tags:
 > **Implementation Status Notice**:
 > The layered platform baselines, dynamic hardware acceleration probing (`DeviceManager`), and Two-Tier Standard & CUDA distribution architecture described in this document **are fully implemented and verified** in VCClient Forge. Real-time inference has been empirically verified across physical hardware including Windows NVIDIA CUDA, Windows Intel Arc GPU (via OpenVINO GPU EP with in-memory 4D ONNX patching), Windows AMD Radeon (via DirectML), and macOS Apple Silicon (M2 via CoreML NeuralNetwork format on ANE and GPU).
 
+> **CUDA 13 transition:** The CUDA edition now resolves CUDA 13 packages on Windows x64, Linux x64 and Linux ARM64. The supported NVIDIA GPU baseline is Turing or newer with a CUDA 13-compatible driver. Windows users with older DirectX 12-compatible GPUs can use the standard edition's DirectML provider; performance depends on the device and model. Linux has no DirectML fallback. Previously recorded hardware validation does not establish validation of this CUDA 13 configuration on every platform.
+
 ## Executive Summary
 
 Real-time neural voice conversion has historically been treated across the community as a workload strictly requiring a discrete GPU. This assumption originated in PyTorch-based execution environments where small-batch CPU inference suffers from significant framework overhead.
@@ -33,7 +35,7 @@ Through micro-benchmarks on modern x86/ARM hardware and architectural evaluation
 4. **Target Distribution Architecture: Pragmatic Layered Editions**:
    Rather than maintaining fragmented platform editions, Forge's packaging roadmap establishes a consolidated tiering:
    - **Standard Edition**: Lightweight standard release bundling platform baselines (`onnxruntime-directml` + `onnxruntime-ep-openvino` plugin on Windows x64; `onnxruntime` + OpenVINO plugin on Linux x64; `onnxruntime` CPU on Linux ARM64; `onnxruntime` CoreML on macOS ARM64).
-   - **CUDA Edition**: High-performance release bundling `onnxruntime-gpu` plus the standalone `onnxruntime-ep-openvino` plugin on x64, and native CUDA 13 on ARM64 (targeting the NVIDIA DGX Spark / GB10 Grace Blackwell Superchip), enabling hybrid offloading while respecting PyPI wheel coexistence boundaries.
+   - **CUDA Edition**: Bundles CUDA 13 `onnxruntime-gpu` and the standalone `onnxruntime-ep-openvino` plugin on x64, with CUDA 13 also on ARM64 (including NVIDIA DGX Spark / GB10), respecting PyPI wheel coexistence boundaries.
 
 ---
 

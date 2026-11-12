@@ -56,7 +56,7 @@ npm --prefix desktop/frontend ci
 
 # Choose ONE edition matching your development/testing target:
 npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Windows DirectML, Apple CoreML, CPU)
-npm run build -- --edition cuda      # NVIDIA GPU (CUDA 12.x / cuDNN 9)
+npm run build -- --edition cuda      # NVIDIA Turing or newer (CUDA 13.x / cuDNN 9)
 ```
 
 * `npm run build` builds all supported components (`standard` by default): the Svelte UI in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
