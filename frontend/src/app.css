@@ -66,6 +66,7 @@ svg { flex-shrink: 0; }
 .brand, .header-actions, .button-row, .transport-row, .tags, .section-heading, .range-label, .range-limits, .dialog-header, .model-heading { display: flex; align-items: center; gap: 10px; }
 .brand > svg { color: var(--accent); }
 .header-actions { gap: 14px; }
+.header-actions .icon-button { background: var(--surface); border-color: var(--border); color: var(--text); }
 .tag { display: inline-flex; align-items: center; border-radius: 4px; padding: 3px 7px; font-size: .72rem; font-weight: 500; background: var(--surface-soft); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
 .preview-notice { background: var(--accent-soft); color: var(--accent); font-size: .83rem; line-height: 1.7; border-radius: 6px; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 22px; }
