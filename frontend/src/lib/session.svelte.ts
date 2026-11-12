@@ -380,11 +380,6 @@ export class NativeSession {
     this.edit({ extraSeconds: value }, true);
   }
 
-  setCrossfadeSeconds(value: number) {
-    if (!this.canConfigure || !this.settings?.inputMode || this.settings.crossfadeSeconds == null
-      || !Number.isFinite(value) || (value !== 0 && (value < 0.01 || value > 0.15)) || value === this.settings.crossfadeSeconds) return;
-    this.edit({ crossfadeSeconds: value }, true);
-  }
 
   setChunkSeconds(value: number) {
     const model = this.currentModel;

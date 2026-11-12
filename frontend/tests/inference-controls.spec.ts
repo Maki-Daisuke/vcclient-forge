@@ -3,7 +3,7 @@ import { mockSession } from './session-fixtures';
 import { openControlSections } from './catalog-fixtures';
 
 const chunk = 'チャンクフレーム（秒）';
-const crossfade = 'クロスフェード（秒）';
+const extra = 'Extraフレーム（秒）';
 const saved = 'main > .configuration-status';
 
 test('explains inference controls are unavailable during conversion', async ({ page }) => {
@@ -11,7 +11,7 @@ test('explains inference controls are unavailable during conversion', async ({ p
   state.active = true;
   await page.goto('/');
   await openControlSections(page);
-  for (const name of ['優先デバイス', chunk, 'Extraフレーム（秒）', crossfade]) {
+  for (const name of ['優先デバイス', chunk, extra]) {
     const group = page.getByRole('group', { name, exact: true });
     const tooltip = group.getByRole('tooltip', { includeHidden: true });
     await expect(tooltip).toHaveText('音声の停止中に変更できます。');
@@ -42,10 +42,6 @@ test('saves inference settings while client audio is stopped', async ({ page }) 
   await extra.press('End');
   await expect.poll(() => state.config.extra_frame_sec).toBe(10);
   await expect(extra).toBeEnabled();
-  const crossfadeSlider = page.getByRole('slider', { name: crossfade });
-  await crossfadeSlider.press('Home');
-  await expect.poll(() => state.config.crossfade_sec).toBe(0);
-  await expect(crossfadeSlider).toBeEnabled();
 });
 
 test('saves chunk in the selected model and retains other slot fields', async ({ page }) => {
@@ -70,21 +66,7 @@ test('saves chunk in the selected model and retains other slot fields', async ({
   await expect(slider).toHaveAttribute('aria-valuetext', '5 s');
 });
 
-test('saves crossfade as configuration and can select zero', async ({ page }) => {
-  const state = await mockSession(page);
-  await page.goto('/');
-  await openControlSections(page);
-  const slider = page.getByRole('slider', { name: crossfade });
-  await slider.press('Home');
-  await expect(page.locator(saved)).toHaveAttribute('data-state', 'saved');
-  expect(state.writes[0]).toMatchObject({ crossfade_sec: 0, future_setting: { keep: [1, 2] } });
-  await expect(slider).toHaveAttribute('aria-valuetext', '0 s');
-  await slider.press('End');
-  await expect(page.locator(saved)).toHaveAttribute('data-state', 'saved');
-  expect(state.config.crossfade_sec).toBe(0.15);
-});
-
-for (const [label, kind] of [[chunk, 'model'], [crossfade, 'configuration']] as const) {
+for (const [label, kind] of [[chunk, 'model'], [extra, 'configuration']] as const) {
   test(`${kind} setting is disabled while audio is active`, async ({ page }) => {
     const state = await mockSession(page);
     state.active = true;

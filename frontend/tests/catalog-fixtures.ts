@@ -38,7 +38,6 @@ export const configuration = {
   low_pass_filter_cutoff: 9500,
   noise_gate: -55,
   extra_frame_sec: 0.68,
-  crossfade_sec: 0.1,
   realtime_output_status_enabled: true,
   realtime_output_status_send_interval_sec: 0.4,
   enable_performance_monitor: true,

@@ -195,8 +195,6 @@
             disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
           <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
             disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
-          <InferenceSetting label={ui.t('forge.crossfade')}><LogSlider label={ui.t('forge.crossfade')} value={settings?.crossfadeSeconds ?? null} min={0.01} max={0.15} allowZero
-            disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setCrossfadeSeconds(value)} /></InferenceSetting>
         </div>
       </div>
     </details>

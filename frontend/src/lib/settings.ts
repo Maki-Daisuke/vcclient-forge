@@ -19,7 +19,6 @@ export interface ConfigurationSnapshot {
   lowPassCutoff: number | null;
   noiseGate: number | null;
   extraSeconds: number | null;
-  crossfadeSeconds: number | null;
   ioAnalysisEnabled: boolean | null;
   ioAnalysisInterval: number | null;
   processAnalysisEnabled: boolean | null;
@@ -59,7 +58,6 @@ export interface ConfigurationEdits {
   gpuDevice?: number;
   wasapiExclusive?: boolean;
   extraSeconds?: number;
-  crossfadeSeconds?: number;
   ioAnalysisEnabled?: boolean;
   processAnalysisEnabled?: boolean;
   performanceMonitorEnabled?: boolean;

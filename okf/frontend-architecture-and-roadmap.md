@@ -142,9 +142,9 @@ WASAPI exclusive mode and device sample-rate controls are not displayed in the n
 Before starting native audio, the UI disables the saved exclusive-mode setting using
 the existing API. Previously saved device sample rates remain in use until the device
 changes; changing it resets the rate to Auto.
-The chunk, Extra frame, and crossfade logarithmic sliders save on release while
-audio is stopped in either mode. Chunk belongs to the selected model; the others are
-configuration settings. Client Mode changes have not yet been verified with real audio.
+The chunk and Extra frame logarithmic sliders save on release while audio is stopped
+in either mode. Chunk belongs to the selected model; Extra frame is a shared
+configuration setting. Crossfade duration is determined by the backend.
 Recording in both modes uses the existing configuration API. It can be armed before
 audio starts; stopping audio saves the take and returns to the armed state. Passthrough
 can be toggled while recording. The UI downloads a nonempty WAV and reports empty audio.

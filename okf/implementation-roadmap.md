@@ -136,9 +136,9 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **WASAPI exclusive mode**: The Svelte UI can change the existing setting while
   native audio is stopped. Real-device verification remains pending.
 
-- **Inference timing controls**: The Svelte UI can adjust chunk, Extra frame, and
-  crossfade with logarithmic sliders while audio is stopped. Chunk is model-specific;
-  the other settings are shared. Real audio validation remains pending.
+- **Inference timing controls**: The Svelte UI can adjust chunk and Extra frame
+  with logarithmic sliders while audio is stopped. Chunk is model-specific;
+  Extra frame is shared. The backend determines crossfade duration automatically.
 
 - **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
   optional index to a vacant slot through existing APIs while audio is stopped.

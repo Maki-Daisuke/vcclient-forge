@@ -33,8 +33,6 @@ for (const { value, fraction } of [
 
 for (const testCase of [
   { label: 'Extraフレーム（秒）', key: 'extra_frame_sec', value: Math.sqrt(0.01 * 10), fraction: 0.5 },
-  { label: 'クロスフェード（秒）', key: 'crossfade_sec', value: Math.sqrt(0.01 * 0.15), fraction: 0.5 },
-  { label: 'クロスフェード（秒）', key: 'crossfade_sec', value: 0, fraction: 0 },
 ]) {
   test(`displays ${testCase.label} ${testCase.value} s on the logarithmic slider`, async ({ page }) => {
     await mockCatalog(page);
@@ -77,8 +75,7 @@ test('existing configuration and selected model values populate controls without
   await expect(page.getByRole('slider', { name: 'チャンクフレーム（秒）', exact: true })).toBeEnabled();
   await expect(page.getByRole('slider', { name: 'Extraフレーム（秒）', exact: true })).toHaveAttribute('aria-valuetext', '0.68 s');
   await expect(page.getByRole('slider', { name: 'Extraフレーム（秒）', exact: true })).toBeEnabled();
-  await expect(page.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toHaveAttribute('aria-valuetext', '0.1 s');
-  await expect(page.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toBeEnabled();
+  await expect(page.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toHaveCount(0);
   const dialog = await openSettings(page);
   await expect(dialog.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
   await expect(dialog.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toContainText('USB microphone (Windows WASAPI)');
@@ -129,7 +126,6 @@ test('missing fields show unknown values rather than sample defaults', async ({ 
   await expect(page.locator('.range-field').filter({ hasText: '入力音量' }).locator('output')).toHaveText('—');
   const dialog = await openSettings(page);
   await expect(dialog.getByRole('combobox', { name: '優先デバイス', exact: true })).toContainText('—');
-  await expect(dialog.getByRole('slider', { name: 'クロスフェード（秒）', exact: true })).toHaveAttribute('aria-valuetext', '—');
   await expect(dialog.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toHaveJSProperty('indeterminate', true);
 });
 

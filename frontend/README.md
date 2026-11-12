@@ -89,15 +89,13 @@ the reported pipeline device ID. This does not verify the actual execution provi
 list failures do not prevent other controls from loading; Reload retries the list.
 The user confirmed device switching with the live backend; conversion after switching
 has not yet been confirmed.
-Chunk, extra frame, and crossfade durations use logarithmic sliders with
-display ranges of 0.05–5, 0.01–10, and 0.01–0.15 seconds respectively; crossfade
-also allows zero. Values
+Chunk and extra frame durations use logarithmic sliders with
+display ranges of 0.05–5 and 0.01–10 seconds respectively. Values
 outside these display ranges remain visible and are indicated separately; these
 ranges do not enforce backend limits.
-All three can be adjusted while audio is stopped in either mode. The client shows a preview
+Both can be adjusted while audio is stopped in either mode. The client shows a preview
 while dragging and saves on release; chunk belongs to the selected model, while
-extra frame and crossfade are configuration settings. The backend limits the
-effective crossfade to the chunk duration. Client Mode changes have not yet been verified with real audio.
+extra frame is a configuration setting. The backend determines the crossfade duration automatically.
 Each filter's cutoff slider is available only when that filter is enabled.
 Sections start closed, and their open/closed state is stored in the browser's
 local storage. It is separate for each browser or webview and origin; if storage

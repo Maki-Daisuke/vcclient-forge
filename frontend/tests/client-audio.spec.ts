@@ -3,7 +3,7 @@ import { openControlSections } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 
 test('shows automatic gain in the volume section only in client mode', async ({ page }) => {
-  await mockSession(page);
+  const state = await mockSession(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({ autoGainControl: true }) });
   });
@@ -26,6 +26,7 @@ test('shows automatic gain in the volume section only in client mode', async ({ 
   await expect(volume.getByRole('slider', { name: '入力音量' })).toBeEnabled();
   await page.getByText('クライアントモード', { exact: true }).click();
   await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
+  await expect.poll(() => state.config.voice_changer_input_mode).toBe('client');
   await page.reload();
   await openControlSections(page);
   await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
@@ -82,7 +83,7 @@ test('applies client gains before capture and playback and updates them while ru
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
   await expect(page.getByRole('combobox', { name: '優先デバイス' })).toBeDisabled();
-  for (const name of ['優先デバイス', 'チャンクフレーム（秒）', 'Extraフレーム（秒）', 'クロスフェード（秒）']) {
+  for (const name of ['優先デバイス', 'チャンクフレーム（秒）', 'Extraフレーム（秒）']) {
     const group = page.getByRole('group', { name, exact: true });
     await group.hover();
     await expect(group.getByRole('tooltip')).toHaveText('音声の停止中に変更できます。');
