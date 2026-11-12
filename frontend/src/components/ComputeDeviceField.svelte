@@ -3,6 +3,7 @@
   import { useSession } from '../lib/session.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { computeDeviceLabel } from '../lib/compute-device';
+  import PendingIndicator from './PendingIndicator.svelte';
 
   const catalog = useCatalog();
   const session = useSession();
@@ -14,7 +15,7 @@
 </script>
 
 <label class="select-field">
-  <span>{ui.t('forge.preferred_device')}</span>
+  <span>{ui.t('forge.preferred_device')} {#if !session.error && session.draft.gpuDevice !== undefined}<PendingIndicator />{/if}</span>
   <select value={id === null ? '' : String(id)} title={session.active === true ? undefined : value}
     disabled={!session.canConfigure || !session.settings?.inputMode || id === null || state.status !== 'ready'}
     onchange={event => session.selectComputeDevice(Number(event.currentTarget.value))}>

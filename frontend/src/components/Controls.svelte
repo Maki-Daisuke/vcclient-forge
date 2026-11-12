@@ -177,9 +177,9 @@
         <InferenceSetting label={ui.t('forge.preferred_device')}><ComputeDeviceField /></InferenceSetting>
         <div class="field-grid">
           <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
-            disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
+            disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} pending={!session.error && session.modelDraft?.id === session.currentModelId && session.modelDraft?.edits.chunkSeconds !== undefined} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
           <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
-            disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
+            disabled={!session.canConfigure || !settings?.inputMode} pending={!session.error && session.draft.extraSeconds !== undefined} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
         </div>
       </div>
     </details>

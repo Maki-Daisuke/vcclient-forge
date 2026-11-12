@@ -1,6 +1,7 @@
 <script lang="ts">
   import DeviceField from './DeviceField.svelte';
   import CheckField from './CheckField.svelte';
+  import PendingIndicator from './PendingIndicator.svelte';
   import { useCatalog } from '../lib/catalog.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
@@ -19,8 +20,8 @@
 <fieldset class="mode-field" aria-label={ui.t('forge.mode')} disabled={!session.canConfigure || !settings?.inputMode}>
   <div class="segmented-control">
     <label><input type="radio" name="input-mode" value="server" checked={settings?.inputMode === 'server'}
-      onchange={() => session.useServerMode()} /><span>{ui.t('common.controls.server_mode')}</span></label>
-    <label><input type="radio" name="input-mode" value="client" checked={settings?.inputMode === 'client'} onchange={() => session.useClientMode()} /><span>{ui.t('common.settings_dialog.client_mode')}</span></label>
+      onchange={() => session.useServerMode()} /><span>{ui.t('common.controls.server_mode')} {#if !session.error && session.draft.inputMode === 'server'}<PendingIndicator />{/if}</span></label>
+    <label><input type="radio" name="input-mode" value="client" checked={settings?.inputMode === 'client'} onchange={() => session.useClientMode()} /><span>{ui.t('common.settings_dialog.client_mode')} {#if !session.error && session.draft.inputMode === 'client'}<PendingIndicator />{/if}</span></label>
   </div>
   {#if !settings?.inputMode}<span class="muted">—</span>{/if}
 </fieldset>
@@ -54,11 +55,11 @@
 {:else}
 <section class="settings-section audio-device-section">
   <DeviceField label={ui.t('common.settings_dialog.input_device')} id={settings?.inputDevice} direction="input"
-    disabled={!session.canConfigure || settings?.inputMode !== 'server'} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('inputDevice')} onchange={id => session.selectDevice('inputDevice', id)} />
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} pending={!session.error && session.draft.inputDevice !== undefined} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('inputDevice')} onchange={id => session.selectDevice('inputDevice', id)} />
   <DeviceField label={ui.t('common.settings_dialog.output_device')} id={settings?.outputDevice} direction="output"
-    disabled={!session.canConfigure || settings?.inputMode !== 'server'} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('outputDevice')} onchange={id => session.selectDevice('outputDevice', id)} />
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} pending={!session.error && session.draft.outputDevice !== undefined} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('outputDevice')} onchange={id => session.selectDevice('outputDevice', id)} />
   <DeviceField label={ui.t('common.settings_dialog.monitor_device')} id={settings?.monitorDevice} direction="output"
-    disabled={!session.canConfigure || settings?.inputMode !== 'server'} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('monitorDevice')} onchange={id => session.selectDevice('monitorDevice', id)} />
+    disabled={!session.canConfigure || settings?.inputMode !== 'server'} pending={!session.error && session.draft.monitorDevice !== undefined} wasapiOnly={windowsDevices && !showLegacy} needsSelection={session.devicesNeedingSelection.includes('monitorDevice')} onchange={id => session.selectDevice('monitorDevice', id)} />
   <div class="device-actions">
     {#if windowsDevices}<CheckField label={ui.t('forge.show_legacy_devices')} checked={showLegacy} disabled={false} onchange={value => showLegacy = value} />{/if}
     <button class="button small" disabled={!session.canConfigure} onclick={() => session.rescanAudioDevices()}>{ui.t(session.deviceRescanning ? 'forge.devices_rescanning' : 'forge.devices_rescan')}</button>

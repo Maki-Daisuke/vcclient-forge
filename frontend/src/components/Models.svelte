@@ -6,6 +6,7 @@
   import UploadDialog from './UploadDialog.svelte';
   import CatalogStatus from './CatalogStatus.svelte';
   import ModelImage from './ModelImage.svelte';
+  import PendingIndicator from './PendingIndicator.svelte';
   import VoiceControls from './VoiceControls.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useCatalog } from '../lib/catalog.svelte';
@@ -124,8 +125,10 @@
           onclick={() => { if (!reordering) session.selectModel(model.id); }}
           aria-label={modelName(model)}
           aria-current={model.id === session.currentModelId ? 'true' : undefined}
+          aria-busy={!session.error && session.draft.currentModelId === model.id}
         >
           <span class="slot-number">{model.id + 1}</span>
+          {#if !session.error && session.draft.currentModelId === model.id}<span class="model-pending"><PendingIndicator /></span>{/if}
           <ModelImage src={model.imageUrl} />
           <span class="model-name" title={modelName(model)}>{modelName(model)}</span>
           {#if model.status !== 'ready'}

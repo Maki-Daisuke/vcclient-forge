@@ -96,6 +96,11 @@ svg { flex-shrink: 0; }
 .model-card-wrapper .model-card { width: 100%; }
 .model-card:disabled { color: var(--muted); }
 .model-card.selected { border: 2px solid var(--accent); background: var(--accent-soft); padding: 14px 8px 9px; }
+.model-pending { position: absolute; top: 6px; inset-inline-end: 6px; padding: 3px; border-radius: 50%; background: var(--surface); }
+.pending-indicator { display: inline-flex; align-items: center; vertical-align: middle; }
+.pending-spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: pending-spin .8s linear infinite; }
+@keyframes pending-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pending-spinner { animation: none; } }
 .model-card img { width: 100px; height: 100px; border-radius: 5px; object-fit: cover; opacity: .65; }
 .model-name { font-size: .75rem; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .catalog-message { color: var(--muted); padding: 14px 0; line-height: 1.7; font-size: .85rem; }

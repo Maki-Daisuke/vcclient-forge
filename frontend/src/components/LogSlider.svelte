@@ -2,8 +2,9 @@
   import { Slider } from 'bits-ui';
   import { useUi } from '../lib/ui.svelte';
   import { displayNumber } from '../lib/settings';
+  import PendingIndicator from './PendingIndicator.svelte';
 
-  let { label, value, min, max, allowZero = false, disabled = true, oncommit }: { label: string; value: number | null; min: number; max: number; allowZero?: boolean; disabled?: boolean; oncommit?: (value: number) => void } = $props();
+  let { label, value, min, max, allowZero = false, disabled = true, pending = false, oncommit }: { label: string; value: number | null; min: number; max: number; allowZero?: boolean; disabled?: boolean; pending?: boolean; oncommit?: (value: number) => void } = $props();
   const ui = useUi();
   let preview = $state<number | null>(null);
   let interacting = false;
@@ -21,7 +22,7 @@
 </script>
 
 <div class="range-field log-slider">
-  <div class="range-label"><span>{label}</span><output>{displayNumber(displayed, ' s')}</output></div>
+  <div class="range-label"><span>{label} {#if pending}<PendingIndicator />{/if}</span><output>{displayNumber(displayed, ' s')}</output></div>
   <Slider.Root type="single" value={position} min={0} max={1000} step={1} disabled={disabled || value === null} class="slider"
     onValueChange={value => { if (interacting) preview = allowZero && value === 0 ? 0 : Number((min * (max / min) ** ((value - (allowZero ? 1 : 0)) / (allowZero ? 999 : 1000))).toFixed(3)); }}
     onValueCommit={() => { if (!keyboardActive) commit(); }}

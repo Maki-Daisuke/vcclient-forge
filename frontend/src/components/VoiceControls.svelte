@@ -1,5 +1,6 @@
 <script lang="ts">
   import RangeField from './RangeField.svelte';
+  import PendingIndicator from './PendingIndicator.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
   const ui = useUi();
@@ -15,7 +16,7 @@
   <div class="estimator-wrapper start-button-wrapper" role="group" aria-label={ui.t('common.voice_controls.pitch_estimator')}
     tabindex={estimatorDisabled ? 0 : undefined} aria-describedby={estimatorDisabled ? 'pitch-estimator-reason' : undefined}>
     <fieldset class="radio-field" disabled={estimatorDisabled}>
-      <legend><h3>{ui.t('common.voice_controls.pitch_estimator')}</h3></legend>
+      <legend><h3>{ui.t('common.voice_controls.pitch_estimator')} {#if !session.error && session.modelDraft?.edits.pitchEstimator !== undefined}<PendingIndicator />{/if}</h3></legend>
       {#each ['rmvpe', 'fcpe'] as estimator}
         <label><input type="radio" name="pitch-estimator" value={estimator} checked={modelSettings?.pitchEstimator === estimator}
           onchange={() => session.setPitchEstimator(estimator as 'rmvpe' | 'fcpe')} />{estimator.toUpperCase()}</label>

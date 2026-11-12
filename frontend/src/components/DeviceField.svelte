@@ -1,13 +1,15 @@
 <script lang="ts">
   import { useCatalog } from '../lib/catalog.svelte';
   import { useUi } from '../lib/ui.svelte';
-  let { label, id, direction, disabled = true, wasapiOnly = false, needsSelection = false, onchange }: {
+  import PendingIndicator from './PendingIndicator.svelte';
+  let { label, id, direction, disabled = true, wasapiOnly = false, needsSelection = false, pending = false, onchange }: {
     label: string;
     id: number | null | undefined;
     direction: 'input' | 'output';
     disabled?: boolean;
     wasapiOnly?: boolean;
     needsSelection?: boolean;
+    pending?: boolean;
     onchange?: (id: number) => void;
   } = $props();
   const catalog = useCatalog();
@@ -28,7 +30,7 @@
 </script>
 
 <label class="select-field">
-  <span>{label}</span>
+  <span>{label} {#if pending}<PendingIndicator />{/if}</span>
   <select value={id == null || needsSelection ? '' : String(id)} title={needsSelection ? ui.t('forge.device_reselect') : value}
     disabled={disabled || catalog.deviceState.status !== 'ready'}
     onchange={event => onchange?.(Number(event.currentTarget.value))}>
