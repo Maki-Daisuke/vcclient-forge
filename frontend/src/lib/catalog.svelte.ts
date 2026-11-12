@@ -15,7 +15,7 @@ type DeviceState =
   | { status: 'ready'; devices: AudioDevices }
   | { status: 'error' };
 
-type ComputeDeviceState =
+export type ComputeDeviceState =
   | { status: 'loading' }
   | { status: 'ready'; devices: ComputeDevice[] }
   | { status: 'error' };

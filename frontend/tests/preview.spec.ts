@@ -7,7 +7,7 @@ test('places voice controls with the selected model and groups other controls in
   await page.goto('/');
   await expect(page.locator('main > .configuration-status')).toBeHidden();
   const groups = page.locator('.controls-column > details.control-group');
-  await expect(groups.locator('summary')).toHaveText(['オーディオデバイス', '音量コントロール', 'ノイズ抑制', '推論設定']);
+  await expect(groups.locator('summary')).toHaveText([/推論設定/, /オーディオデバイス/, '音量コントロール', 'ノイズ抑制']);
   await expect(page.locator('.transport-row button')).toHaveText(['開始', 'パススルー', '録音']);
   await expect(page.locator('.monitor-column .transport-row')).toBeVisible();
   await expect(page.getByRole('button', { name: '設定', exact: true })).toHaveCount(0);
@@ -17,28 +17,28 @@ test('places voice controls with the selected model and groups other controls in
   await expect(page.getByRole('heading', { name: '入出力モード' })).toHaveCount(0);
   await expect(mode.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
   await expect(mode.getByRole('radio', { name: 'クライアントモード' })).toBeEnabled();
-  await expect(groups.nth(0).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toHaveCount(0);
-  await expect(groups.nth(2).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toBeVisible();
-  await expect(groups.nth(2).getByRole('heading', { name: 'クライアントモード専用' })).toBeVisible();
-  await expect(groups.nth(1).getByRole('slider')).toHaveCount(2);
-  await expect(groups.nth(3).getByRole('combobox', { name: '優先デバイス' })).toBeVisible();
+  await expect(groups.nth(1).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toHaveCount(0);
+  await expect(groups.nth(3).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toBeVisible();
+  await expect(groups.nth(3).getByRole('heading', { name: 'クライアントモード専用' })).toBeVisible();
+  await expect(groups.nth(2).getByRole('slider')).toHaveCount(2);
+  await expect(groups.nth(0).getByRole('combobox', { name: '優先デバイス' })).toBeVisible();
   await expect(page.locator('.models-panel .voice-settings').getByRole('radio', { name: 'RMVPE' })).toBeDisabled();
   await expect(page.locator('.models-panel .voice-settings').getByRole('slider', { name: 'ピッチ調整' })).toBeVisible();
   for (const name of ['ピッチ調整', 'Index使用率', 'ピッチ推定器']) {
     await expect(page.locator('.voice-settings').getByRole('heading', { name, exact: true })).toBeVisible();
   }
   await expect(page.locator('.voice-settings').getByRole('heading', { name: 'ボイスコントロール' })).toHaveCount(0);
-  await groups.nth(0).locator('summary').click();
-  await expect(groups.nth(0)).not.toHaveAttribute('open');
-  await expect(groups.nth(0).getByRole('combobox', { name: '入力デバイス（マイク）' })).toHaveCount(0);
-  await expect(groups.nth(1).getByRole('slider', { name: '入力音量' })).toBeVisible();
-  await groups.nth(0).locator('summary').click();
-  await expect(groups.nth(0).getByRole('combobox', { name: '入力デバイス（マイク）' })).toBeVisible();
-  await groups.nth(2).locator('summary').click();
-  await expect(groups.nth(2)).not.toHaveAttribute('open');
-  await expect(groups.nth(2).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toHaveCount(0);
-  await expect(groups.nth(0).getByRole('combobox', { name: '入力デバイス（マイク）' })).toBeVisible();
-  await groups.nth(2).locator('summary').click();
+  await groups.nth(1).locator('summary').click();
+  await expect(groups.nth(1)).not.toHaveAttribute('open');
+  await expect(groups.nth(1).getByRole('combobox', { name: '入力デバイス（マイク）' })).toHaveCount(0);
+  await expect(groups.nth(2).getByRole('slider', { name: '入力音量' })).toBeVisible();
+  await groups.nth(1).locator('summary').click();
+  await expect(groups.nth(1).getByRole('combobox', { name: '入力デバイス（マイク）' })).toBeVisible();
+  await groups.nth(3).locator('summary').click();
+  await expect(groups.nth(3)).not.toHaveAttribute('open');
+  await expect(groups.nth(3).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toHaveCount(0);
+  await expect(groups.nth(1).getByRole('combobox', { name: '入力デバイス（マイク）' })).toBeVisible();
+  await groups.nth(3).locator('summary').click();
 });
 
 test('initialization only reads backend data and keeps browser audio and device access disabled', async ({ page }) => {
@@ -63,7 +63,7 @@ test('initialization only reads backend data and keeps browser audio and device 
     await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
   }
   const sliders = page.getByRole('slider');
-  await expect(sliders).toHaveCount(10);
+  await expect(sliders).toHaveCount(9);
   for (const name of ['入力音量', '出力音量']) await expect(page.getByRole('slider', { name, exact: true })).toBeEnabled();
   for (const name of ['ピッチ調整', 'Index使用率']) await expect(page.getByRole('slider', { name, exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '配色を切り替える' }).click();
@@ -80,21 +80,21 @@ test('starts closed and restores each section after reloading', async ({ page })
   await page.goto('/');
   const groups = page.locator('.controls-column > details.control-group');
   for (const group of await groups.all()) await expect(group).not.toHaveAttribute('open');
-  await groups.nth(0).locator('summary').click();
   await groups.nth(1).locator('summary').click();
+  await groups.nth(2).locator('summary').click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('vcclient-forge.control-sections.v1')))
     .toContain('"volume":true');
   await page.reload();
-  await expect(groups.nth(0)).toHaveAttribute('open');
+  await expect(groups.nth(0)).not.toHaveAttribute('open');
   await expect(groups.nth(1)).toHaveAttribute('open');
-  await expect(groups.nth(2)).not.toHaveAttribute('open');
+  await expect(groups.nth(2)).toHaveAttribute('open');
   await expect(groups.nth(3)).not.toHaveAttribute('open');
-  await groups.nth(0).locator('summary').click();
+  await groups.nth(1).locator('summary').click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('vcclient-forge.control-sections.v1')))
     .toContain('"input":false');
   await page.reload();
-  await expect(groups.nth(0)).not.toHaveAttribute('open');
-  await expect(groups.nth(1)).toHaveAttribute('open');
+  await expect(groups.nth(1)).not.toHaveAttribute('open');
+  await expect(groups.nth(2)).toHaveAttribute('open');
 });
 
 test('invalid or unavailable storage leaves controls usable and initially closed', async ({ page }) => {

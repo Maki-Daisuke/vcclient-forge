@@ -2,6 +2,7 @@
   import { useCatalog } from '../lib/catalog.svelte';
   import { useSession } from '../lib/session.svelte';
   import { useUi } from '../lib/ui.svelte';
+  import { computeDeviceLabel } from '../lib/compute-device';
 
   const catalog = useCatalog();
   const session = useSession();
@@ -9,13 +10,7 @@
   const id = $derived(session.settings?.gpuDevice ?? null);
   const state = $derived(catalog.computeDeviceState);
   const devices = $derived(state.status === 'ready' ? state.devices : []);
-  const value = $derived.by(() => {
-    if (id === null) return '—';
-    const device = devices.find(item => item.id === id);
-    if (device) return device.name;
-    const status = state.status === 'ready' ? 'missing' : state.status;
-    return ui.t(`forge.device_${status}`, { id });
-  });
+  const value = $derived(computeDeviceLabel(id, state, (key, options) => ui.t(key, options)));
 </script>
 
 <label class="select-field">

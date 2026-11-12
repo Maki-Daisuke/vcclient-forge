@@ -11,6 +11,8 @@
   import SettingsStatus from './SettingsStatus.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
+  import { useCatalog } from '../lib/catalog.svelte';
+  import { computeDeviceLabel } from '../lib/compute-device';
   import { displayNumber } from '../lib/settings';
   import { onDestroy } from 'svelte';
   import { AudioMeters, bufferHistoryDurationMs, levelMeterFraction, type BufferPoint } from '../lib/audio-meters.svelte';
@@ -50,6 +52,7 @@
   }
   const ui = useUi();
   const session = useSession();
+  const catalog = useCatalog();
   let passthroughConfirmOpen = $state(false);
   let passthroughCancel: HTMLButtonElement | undefined = $state();
   const meters = new AudioMeters();
@@ -57,6 +60,8 @@
   let clientOutputBuffer = $state<number | null>(null);
   let clientOutputHistory = $state<BufferPoint[]>([]);
   const settings = $derived(session.settings);
+  const computeDevice = $derived(computeDeviceLabel(settings?.gpuDevice ?? null, catalog.computeDeviceState,
+    (key, options) => ui.t(key, options)));
   const outputBuffer = $derived(settings?.inputMode === 'client' ? clientOutputBuffer : meters.outputBuffer);
   const modelSettings = $derived(session.modelSettings);
   const showStop = $derived(session.active === true || (session.active === null && session.statusError));
@@ -163,8 +168,20 @@
   </aside>
   <section class="controls-column" aria-label={ui.t('common.controls.title')}>
     <SettingsStatus />
+    <details class="control-group inference-section" use:initializeSection={'inference'} ontoggle={event => saveSection('inference', event)}>
+      <summary><Cpu size={17} />{ui.t('forge.inference_settings')}<span class="control-group-summary-value" title={computeDevice}>{computeDevice}</span></summary>
+      <div class="control-group-body">
+        <InferenceSetting label={ui.t('forge.preferred_device')}><ComputeDeviceField /></InferenceSetting>
+        <div class="field-grid">
+          <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
+            disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
+          <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
+            disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
+        </div>
+      </div>
+    </details>
     <details class="control-group input-section" use:initializeSection={'input'} ontoggle={event => saveSection('input', event)}>
-      <summary><AudioLines size={17} />{ui.t('forge.input_output')}</summary>
+      <summary><AudioLines size={17} />{ui.t('forge.input_output')}<span class="control-group-summary-value">{settings?.inputMode === 'server' ? ui.t('common.controls.server_mode') : settings?.inputMode === 'client' ? ui.t('common.settings_dialog.client_mode') : '—'}</span></summary>
       <div class="control-group-body"><AudioSettings /></div>
     </details>
     <details class="control-group" use:initializeSection={'volume'} ontoggle={event => saveSection('volume', event)}>
@@ -185,18 +202,6 @@
     <details class="control-group noise-section" use:initializeSection={'noise'} ontoggle={event => saveSection('noise', event)}>
       <summary><AudioWaveform size={17} />{ui.t('common.settings_dialog.noise_suppression')}</summary>
       <div class="control-group-body"><NoiseSettings /></div>
-    </details>
-    <details class="control-group" use:initializeSection={'inference'} ontoggle={event => saveSection('inference', event)}>
-      <summary><Cpu size={17} />{ui.t('forge.inference_settings')}</summary>
-      <div class="control-group-body">
-        <InferenceSetting label={ui.t('forge.preferred_device')}><ComputeDeviceField /></InferenceSetting>
-        <div class="field-grid">
-          <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
-            disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
-          <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
-            disabled={!session.canConfigure || !settings?.inputMode} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
-        </div>
-      </div>
     </details>
   </section>
 </div>

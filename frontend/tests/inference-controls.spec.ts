@@ -6,6 +6,24 @@ const chunk = 'チャンクフレーム（秒）';
 const extra = 'Extraフレーム（秒）';
 const saved = 'main > .configuration-status';
 
+test('shows the selected compute device when inference settings are collapsed', async ({ page }) => {
+  const state = await mockSession(page);
+  await page.goto('/');
+  const section = page.locator('details.inference-section');
+  const badge = section.locator('.control-group-summary-value');
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText('[DirectML] Test GPU');
+  await section.locator('summary').click();
+  await expect(badge).toBeHidden();
+  await section.getByLabel('優先デバイス').selectOption('1');
+  await expect.poll(() => state.config.gpu_device_id_int).toBe(1);
+  await section.locator('summary').click();
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText('[CUDA] NVIDIA Test GPU');
+  await page.reload();
+  await expect(badge).toHaveText('[CUDA] NVIDIA Test GPU');
+});
+
 test('explains inference controls are unavailable during conversion', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;

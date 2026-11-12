@@ -2,6 +2,24 @@ import { expect, test, type WebSocketRoute } from '@playwright/test';
 import { openControlSections } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 
+test('shows the audio mode when device settings are collapsed', async ({ page }) => {
+  const state = await mockSession(page);
+  await page.goto('/');
+  const section = page.locator('details.input-section');
+  const badge = section.locator('.control-group-summary-value');
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText('サーバーモード');
+  await section.locator('summary').click();
+  await expect(badge).toBeHidden();
+  await section.getByText('クライアントモード', { exact: true }).click();
+  await expect.poll(() => state.config.voice_changer_input_mode).toBe('client');
+  await section.locator('summary').click();
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveText('クライアントモード');
+  await page.reload();
+  await expect(badge).toHaveText('クライアントモード');
+});
+
 test('shows automatic gain in the volume section only in client mode', async ({ page }) => {
   const state = await mockSession(page);
   await page.addInitScript(() => {

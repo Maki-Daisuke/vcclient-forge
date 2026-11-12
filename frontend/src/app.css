@@ -145,11 +145,15 @@ dd { margin: 0; }
 .start-tooltip { position: absolute; z-index: 10; inset-inline-start: 0; top: calc(100% + 6px); width: max-content; max-width: min(280px, 75vw); padding: 8px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-size: .8rem; line-height: 1.5; visibility: hidden; pointer-events: none; }
 .start-button-wrapper:hover .start-tooltip, .start-button-wrapper:focus-within .start-tooltip { visibility: visible; }
 .control-group { margin: 12px 0 0; border: 1px solid var(--border); border-radius: 6px; }
-.control-group.input-section { margin-top: 0; }
+.control-group.inference-section { margin-top: 0; }
 summary { display: flex; align-items: center; gap: 9px; padding: 13px 16px; cursor: pointer; font-size: .9rem; font-weight: 600; list-style: none; }
 summary::-webkit-details-marker { display: none; }
 summary::after { content: '+'; margin-inline-start: auto; color: var(--muted); }
 details[open] > summary::after { content: '−'; }
+.control-group-summary-value { margin-inline-start: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 9px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font-size: .9rem; font-weight: bold; }
+.inference-section summary::after, .input-section summary::after { margin-inline-start: 0; }
+.control-group[open] .control-group-summary-value { display: none; }
+.control-group[open] summary::after { margin-inline-start: auto; }
 .control-group-body { padding: 5px 20px 16px; }
 .input-section .control-group-body, .noise-section .control-group-body { padding-bottom: 20px; }
 .control-group-body p.muted { font-size: .82rem; line-height: 1.55; margin: 8px 0; }
