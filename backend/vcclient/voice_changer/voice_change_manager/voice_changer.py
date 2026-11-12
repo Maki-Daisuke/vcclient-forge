@@ -50,6 +50,7 @@ from ..voice_changer_const import (
 )
 from .crossfade_processor import CrossfadeProcessor
 from .vc_pipelines.pipeline_manager import PipelineManager
+from .vc_pipelines.rvc_pipeline import RVCPipeline
 from .vc_pipelines.vc_pipeline import VCPipeline
 
 PerformanceListener = Callable[[PerformanceData], None]
@@ -152,9 +153,17 @@ class VoiceChanger(EventEmitter):
     def _check_reload_model_is_required_and_update(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         slot_index = conf.current_slot_index
-        if self.vc_info.slot_index != slot_index or (
-            self.vc_info.gpu_device_index != conf.gpu_device_id_int
-            and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
+        shape_changed = (
+            isinstance(self.vc_pipeline, RVCPipeline)
+            and self.vc_pipeline.target_frames != self.vc_pipeline._calculate_target_feats_length()
+        )
+        if (
+            self.vc_info.slot_index != slot_index
+            or (
+                self.vc_info.gpu_device_index != conf.gpu_device_id_int
+                and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
+            )
+            or shape_changed
         ):
             logger.info(
                 "slot_index: %s -> %s, gpu_device_index: %s -> %s",
@@ -174,6 +183,8 @@ class VoiceChanger(EventEmitter):
                 logger.error("Failed to switch model to slot %s: %s", slot_index, e)
                 self.vc_info.slot_index = prev_slot_index
                 self.vc_info.gpu_device_index = prev_gpu_index
+                if shape_changed and slot_index == prev_slot_index and conf.gpu_device_id_int == prev_gpu_index:
+                    raise
                 conf.current_slot_index = prev_slot_index
                 ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
             return None

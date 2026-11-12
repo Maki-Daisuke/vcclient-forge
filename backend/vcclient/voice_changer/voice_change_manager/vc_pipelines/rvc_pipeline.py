@@ -66,6 +66,7 @@ class RVCPipeline(VCPipeline):
         if slot_info.model_file is None:
             raise ValueError(f"RVC slot {slot_info.slot_index} has no model file configured.")
         target_frames = self._calculate_target_feats_length()
+        self.target_frames = target_frames
         self.rvc = cast(
             RVCInferencer,
             InferencerManager.get_inferencer(

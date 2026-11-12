@@ -42,6 +42,11 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 2. Separate Configuration Acceptance, Notification, and Application
 
+- Current behavior: when the RVC feature-frame length implied by chunk, extra,
+  automatic crossfade, or SOLA settings changes, the existing configuration check rebuilds
+  the inference pipeline. This prevents reuse of an inference session configured
+  for the previous length; it does not yet provide serialized in-flight updates
+  or a complete stop/restart state-reset contract.
 - Keep `ConfigurationManager` responsible for configuration storage/persistence. Introduce serialized request coordination, validation, coherent snapshots/change classification, and revision-aware requested/applied state.
 - Deliver commands to the owning thread. Apply scalar inference changes at chunk boundaries; coordinate structural changes explicitly and report completion/failure instead of waiting a fixed sleep. Treat recording start/stop as commands.
 - Define input/inference/output lifecycle and audio-format contracts, plus ownership of input context (`extra_chunk`), resampler/filter state, model histories, and crossfade state. Initially allow stop, finish in-flight work, reset affected state, rebuild, and restart.
