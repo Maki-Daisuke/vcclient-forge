@@ -182,5 +182,13 @@ for (const width of [1280, 375]) {
     await expect(buttons).toHaveText(['Start', 'Passthrough', 'Record']);
     const positions = await buttons.evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
     expect(Math.max(...positions) - Math.min(...positions)).toBeLessThanOrEqual(1);
+    const boxes = await buttons.evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right };
+    }));
+    const row = await page.locator('.transport-row').boundingBox();
+    const gaps = [boxes[0].left - (row!.x - 6), boxes[1].left - boxes[0].right,
+      boxes[2].left - boxes[1].right, row!.x + row!.width + 6 - boxes[2].right];
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1);
   });
 }

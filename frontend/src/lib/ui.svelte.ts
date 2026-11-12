@@ -70,7 +70,7 @@ const previewMessages = {
     write_error_active: 'Stop native audio before changing the model or devices.',
     write_error_recording_unavailable: 'Recording state could not be confirmed. Reload and check the audio state.',
     recording_empty: 'No audio was recorded.', recording_download_failed: 'Could not retrieve the recording.',
-    recording_active: 'Recording', recording_armed: 'Recording ready',
+    recording_active: 'Recording', recording_armed: 'Ready',
     write_error_invalid_filter: 'Check both cutoffs and the selected model’s sample rate. If audio is not initialized, discard the edits and start audio before trying again.',
     filter_requires_model: 'Select a usable model before adjusting filters.',
     audio_start: 'Starting…', audio_stop: 'Stopping…', audio_running: 'Native audio enabled',

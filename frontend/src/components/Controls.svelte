@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Play, Square, Circle, Repeat2, Volume2, AudioLines, Cpu, AudioWaveform } from '@lucide/svelte';
+  import { Play, Square, Circle, Volume2, AudioLines, Cpu, AudioWaveform } from '@lucide/svelte';
   import { Dialog } from 'bits-ui';
   import AudioSettings from './AudioSettings.svelte';
   import NoiseSettings from './NoiseSettings.svelte';
@@ -117,14 +117,17 @@
           <button class="button" class:primary={!showStop} class:running={session.active === true} aria-disabled={showStop ? !session.canStop : !session.canStart}
             aria-describedby={showStartMessage ? 'start-reason' : undefined}
             onclick={() => session.operate(showStop ? 'stop' : 'start')}>
-            {#if showStop}<Square size={16} fill="currentColor" />{ui.t('common.controls.stop')}{:else}<Play size={17} />{ui.t('common.controls.start')}{/if}
+            {#if showStop}<Square size={16} fill="currentColor" />{ui.t('common.controls.stop')}{:else}<Play class="start-icon" size={17} fill="currentColor" />{ui.t('common.controls.start')}{/if}
           </button>
           {#if showStartMessage}<span id="start-reason" class="start-tooltip" role="tooltip">{startMessage}</span>{/if}
         </span>
         <Dialog.Root bind:open={passthroughConfirmOpen}>
-          <Dialog.Trigger class="button" aria-pressed={settings?.passThrough === true} disabled={!session.canTogglePassThrough}
+          <Dialog.Trigger class="button passthrough-button" aria-pressed={settings?.passThrough === true} disabled={!session.canTogglePassThrough}
             onclick={(event: MouseEvent) => { if (settings?.passThrough === true || !ui.confirmPassthrough) { event.preventDefault(); session.togglePassThrough(); } }}>
-            <Repeat2 size={16} />{ui.t('common.controls.passthrough')}
+            <svg class="passthrough-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 9.5V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3.5M6 14.5V18a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3.5" />
+              <path d="M1 12h6l1-2 1.4 4 1.8-6 1.8 6 1.4-4 1 2H22m-2.5-2.5L22 12l-2.5 2.5" />
+            </svg>{ui.t('common.controls.passthrough')}
           </Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay class="dialog-overlay" />
@@ -141,7 +144,7 @@
         </Dialog.Root>
         <button class="button recording-button" class:recording-armed={session.recordingArmed && settings?.recording !== true}
           aria-label={ui.t('common.controls.record')} aria-pressed={settings?.recording === true || session.recordingArmed} disabled={!session.canToggleRecording} onclick={() => session.toggleRecording()}>
-          {#if settings?.recording}<Square size={14} fill="currentColor" />{:else}<Circle size={14} />{/if}{ui.t(settings?.recording ? 'forge.recording_active' : session.recordingArmed ? 'forge.recording_armed' : 'common.controls.record')}
+          {#if settings?.recording}<Square size={14} fill="currentColor" />{:else}<Circle class="record-icon" size={14} fill="currentColor" />{/if}{ui.t(settings?.recording ? 'forge.recording_active' : session.recordingArmed ? 'forge.recording_armed' : 'common.controls.record')}
         </button>
       </div>
       {#if session.operation}<p class="operation-status" role="status">{ui.t(`forge.audio_${session.operation}`)}</p>{/if}
