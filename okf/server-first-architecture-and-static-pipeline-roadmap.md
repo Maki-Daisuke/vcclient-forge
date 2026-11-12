@@ -290,7 +290,10 @@ Following empirical benchmarks on modern hardware, the optimization strategy cen
 2. **GPU Synthesis**: HiFi-GAN vocoder executes on GPU with IO Binding where parallel compute provides substantial acceleration (11.71 ms GPU vs 145.43 ms CPU).
 3. **Double Buffering**: Host and device stages overlap across consecutive chunks, reducing effective inference time to the maximum of the two stages while incurring less than 0.05 ms of PCIe transfer overhead.
 
-Monolithic graph fusion and ONNX-native FAISS conversion are superseded by this architecture.
+Monolithic graph fusion and ONNX-native feature retrieval remain conditional
+experiments to compare against this architecture; the existing component
+benchmarks do not establish an end-to-end winner. See the [implementation
+roadmap](./implementation-roadmap.md#9-optimize-inference-evaluate-hybrid-pipelining-and-boost-mode).
 
 Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).
 

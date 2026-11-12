@@ -108,13 +108,32 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Exit**: Explicitly supported combinations pass routing, rate, main/monitor isolation, and discontinuity tests. This is an extension, not a gate for the native release.
 - **Source**: [Routing and monitor contract](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
-### 9. Optimize Inference: Concurrent Hybrid Pipelining (Superseding Boost Mode)
+### 9. Optimize Inference: Evaluate Hybrid Pipelining and Boost Mode
 
 The original monolithic end-to-end graph fusion track ("Boost Mode") was evaluated against empirical micro-benchmarks on modern hardware (AMD Ryzen 9 7950X, NVIDIA GeForce RTX 4090). Key findings:
 
 - PCIe Gen 4 x16 DMA transfer latency is 18.3 μs for audio chunks (16 KB) and 37.2 μs for ContentVec embeddings (147 KB), showing that host-device data transfers are not the primary bottleneck.
 - For small tensors at batch size 1, CPU execution (7.35 ms) is faster than GPU execution (16.91 ms) for RMVPE due to GPU kernel launch and synchronization overheads.
-- Monolithic graph fusion across ContentVec, RMVPE, FAISS, and RVC is superseded by a 2-stage concurrent hybrid pipeline where CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$) overlaps with GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) via a bounded double-buffered queue.
+- A 2-stage concurrent hybrid pipeline is a candidate architecture: CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$ in the component benchmark) could overlap GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) via a bounded double-buffered queue. These component measurements do not compare complete hybrid and Boost implementations.
+
+Revisit Boost Mode as a conditional experiment rather than ruling it out. A
+single ONNX graph could combine ContentVec, pitch estimation, feature retrieval,
+and synthesis. Prototype ONNX top-1 retrieval first, then integrate components
+incrementally. A flat matrix search scans all vectors and is not equivalent to
+the current IVF search; evaluate IVF-equivalent retrieval separately, including
+model-specific index changes and state handling.
+
+Compare complete implementations on integrated CPU/NPU/GPU systems and systems
+with a powerful discrete or integrated GPU. Resource overlap may benefit the
+hybrid design, while a single-device session may reduce host dispatch and
+intermediate transfers; shared bandwidth, power limits, provider partitioning,
+and CPU fallback can change the outcome. Under the same audio, model, index,
+chunk settings, and quality criteria, measure sustained throughput, end-to-end
+audio latency and tail latency, queue/buffer delay, CPU/GPU/NPU utilization,
+memory, startup/rebuild time, and power where practical. Distinguish throughput
+from per-chunk latency: overlapping successive chunks does not eliminate the
+two sequential stages of an individual chunk. Record actual execution-provider
+placement and compare output quality and retrieval results. No winner is assumed.
 
 Follow the concurrent hybrid optimization milestones in order:
 
@@ -126,12 +145,26 @@ Follow the concurrent hybrid optimization milestones in order:
 | Hybrid Phase 4 | Lightweight vocoder evaluation (DDSP / Streamable architectures)              | Synthesis latency reduced below 5 ms while maintaining perceptual audio quality thresholds.                                                                   |
 | Hybrid Phase 5 | Client NPU streaming offload (Intel AI Boost / AMD XDNA)                      | Evaluation of fixed-chunk inference offload to client NPUs.                                                                                                   |
 
-CUDA Graph capture remains a conditional investigation for the isolated GPU vocoder stage only, gated on fixed shapes, pinned memory addresses, and measurable speedup.
+CUDA Graph capture is a conditional investigation for the isolated GPU vocoder or a suitable Boost graph, gated on provider support, fixed shapes, stable memory addresses, and measurable benefit.
 
 **Source**: [Concurrent Hybrid Pipeline Architecture](./hybrid-cpu-gpu-pipeline-architecture.md), [Server-First Architecture and Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md#4-architectural-pivot-from-monolithic-graph-fusion-to-concurrent-hybrid-pipelining), [Hardware Acceleration & Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
 
 ## 3. Conditional Improvements, Not Initial Requirements
 
+- **FAISS SQ8 retrieval experiment (planned)**: Evaluate converting compatible
+  `IndexIVFFlat` indexes to `IndexIVFScalarQuantizer` (SQ8) in memory when a
+  model is loaded. The hypothesis is that smaller search codes may improve CPU
+  cache behavior and SIMD throughput; no speedup or specific instruction use
+  has been established. Preserve the source file and the original float32
+  `big_npy` so selected IDs retrieve original reconstructed vectors. Quantization
+  can still change the selected IDs. Keep the original cluster centroids,
+  `nlist`, `nprobe`, metric, and IDs for a controlled comparison; verify that
+  each supported source index permits this and handle invalid search results.
+  Compare search latency and tail latency using representative query batch sizes,
+  index sizes, CPU architectures, FAISS builds, and thread settings. Measure
+  cache/SIMD behavior where tools permit, ID agreement and converted-audio
+  quality, startup/rebuild time, steady-state and peak memory, and the break-even
+  point for repeated searches. Retain IVFFlat if results do not justify conversion.
 - **Reactive control library**: Evaluate RxPY or lightweight signals after control ownership is clear; notifications do not replace application acknowledgements or thread dispatch.
 - **Dynamic in-flight component exchange**: Add only where interruption matters and state compatibility is defined. Safe stop/reset/restart comes first.
 - **Alternative buffers and stage splitting**: Evaluate rings, custom synchronization, or separate postprocessing only if the bounded-queue baseline exposes a measured bottleneck. No new C++ toolchain solely for a ring wrapper.
