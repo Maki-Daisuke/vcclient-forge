@@ -192,3 +192,50 @@ for (const width of [1280, 375]) {
     expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1);
   });
 }
+
+test('about dialog links upstream fork and Forge GitHub repository in a new window', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'このアプリについて', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'このアプリについて' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Forked from w-okada/voice-changer');
+
+  const upstreamLink = dialog.getByRole('link', { name: 'w-okada/voice-changer' });
+  await expect(upstreamLink).toHaveAttribute('href', 'https://github.com/w-okada/voice-changer');
+  await expect(upstreamLink).toHaveAttribute('target', '_blank');
+  await expect(upstreamLink).toHaveAttribute('rel', /\bnoopener\b/);
+
+  const forgeLink = dialog.getByRole('link', { name: /Project Page/ });
+  await expect(forgeLink).toHaveAttribute('href', 'https://github.com/Maki-Daisuke/vcclient-forge');
+  await expect(forgeLink).toHaveAttribute('target', '_blank');
+  await expect(forgeLink).toHaveAttribute('rel', /\bnoopener\b/);
+
+  const issuesLink = dialog.getByRole('link', { name: /GitHub Issues/ });
+  await expect(issuesLink).toContainText('バグ報告や要望はこちらへ');
+  await expect(issuesLink).toHaveAttribute('href', 'https://github.com/Maki-Daisuke/vcclient-forge/issues');
+  await expect(issuesLink).toHaveAttribute('target', '_blank');
+  await expect(issuesLink).toHaveAttribute('rel', /\bnoopener\b/);
+});
+
+test('about dialog links open via window.open when running inside desktop host', async ({ page }) => {
+  await page.addInitScript(() => {
+    const opened: string[] = [];
+    (window as unknown as { openedUrls: string[]; vcclientForge: object }).openedUrls = opened;
+    (window as unknown as { vcclientForge: object }).vcclientForge = { openLogWindow: () => true };
+    window.open = ((url?: string | URL) => {
+      if (url) opened.push(String(url));
+      return null;
+    }) as typeof window.open;
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'このアプリについて', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'このアプリについて' });
+  await dialog.getByRole('link', { name: 'w-okada/voice-changer' }).click();
+  await dialog.getByRole('link', { name: /Project Page/ }).click();
+  await dialog.getByRole('link', { name: /GitHub Issues/ }).click();
+  expect(await page.evaluate(() => (window as unknown as { openedUrls: string[] }).openedUrls)).toEqual([
+    'https://github.com/w-okada/voice-changer',
+    'https://github.com/Maki-Daisuke/vcclient-forge',
+    'https://github.com/Maki-Daisuke/vcclient-forge/issues',
+  ]);
+});

@@ -144,8 +144,8 @@ const previewMessages = {
     reset_settings_failed: 'Could not reset settings.',
     host: 'Audio host', sample_rate: 'Sample rate',
     about: 'About',
+    issue_description: 'Report bugs or feature requests',
     log_empty: 'There are no logs in this appearance preview.',
-    licenses: 'Translations and placeholder icons: w-okada/voice-changer. See frontend/NOTICE.md.',
   },
   ja: {
     pitch_unavailable: 'このモデルはピッチ調整に対応していません。',
@@ -277,8 +277,8 @@ const previewMessages = {
     reset_settings_failed: '設定を初期化できませんでした。',
     host: 'オーディオホスト', sample_rate: 'サンプルレート',
     about: 'このアプリについて',
+    issue_description: 'バグ報告や要望はこちらへ',
     log_empty: '見た目のプレビューのため、ログはありません。',
-    licenses: '翻訳・プレースホルダー画像：w-okada/voice-changer。詳細は frontend/NOTICE.md を参照してください。',
   },
 };
 
