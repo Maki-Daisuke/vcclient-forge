@@ -169,7 +169,7 @@ def test_device_manager_openvino_provider_configuration(monkeypatch: pytest.Monk
     assert "OpenVINOExecutionProvider" in providers
     assert "CPUExecutionProvider" in providers
     assert len(provider_options) == 2
-    assert provider_options[0]["device_type"] == "GPU"
+    assert provider_options[0]["device_type"] == "GPU.0"
     assert "EXECUTION_MODE_HINT" in provider_options[0]["load_config"]
     assert provider_options[0]["cache_dir"] == str(OpenVinoCacheDir.resolve())
 
@@ -217,6 +217,7 @@ def test_device_config_configure_session_options():
         device_index=0,
         device_type="GPU",
         name="[OpenVINO] Intel Arc",
+        metadata={"ov_device": "GPU.0"},
     )
     so = dev_ov._configure_session_options()
     assert so.graph_optimization_level == ort.GraphOptimizationLevel.ORT_DISABLE_ALL
@@ -237,6 +238,7 @@ def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
             device_index=0,
             device_type="GPU",
             name="[OpenVINO] Intel Arc",
+            metadata={"ov_device": "GPU.0"},
         )
     ]
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: True)
@@ -291,6 +293,7 @@ def test_device_config_create_session_avoids_provider_argument_collision(monkeyp
         device_index=0,
         device_type="GPU",
         name="[OpenVINO] Intel Arc",
+        metadata={"ov_device": "GPU.0"},
     )
     monkeypatch.setattr("vcclient.device.providers.openvino.is_openvino_available", lambda: True)
 
@@ -352,6 +355,7 @@ def test_device_config_create_session_cpu_and_openvino_patching(monkeypatch):
         device_index=0,
         device_type="GPU",
         name="[OpenVINO] Intel Arc",
+        metadata={"ov_device": "GPU.0"},
     )
 
     session_ov, ov_providers, _ = dev_ov.create_session(model_bytes, patch_type="rvc")
@@ -365,3 +369,85 @@ def test_device_config_create_session_cpu_and_openvino_patching(monkeypatch):
     op_types = [node.op_type for node in patched_model.graph.node]
     assert "Unsqueeze" in op_types
     assert "Squeeze" in op_types
+
+
+@pytest.mark.parametrize(
+    ("device_type", "device_index", "ov_device"),
+    [
+        ("GPU", 0, "GPU.0"),
+        ("GPU", 1, "GPU.1"),
+        ("NPU", 0, "NPU"),
+    ],
+)
+def test_openvino_device_selection_and_load_config(
+    monkeypatch: pytest.MonkeyPatch,
+    device_type: str,
+    device_index: int,
+    ov_device: str,
+):
+    import json
+    from types import SimpleNamespace
+
+    from vcclient.device.providers.openvino import (
+        configure_openvino_session_options,
+        resolve_openvino_device_provider,
+    )
+
+    gpu0_ep = SimpleNamespace(
+        ep_name="OpenVINOExecutionProvider",
+        device=SimpleNamespace(type="GPU"),
+        ep_metadata={"ov_device": "GPU.0"},
+    )
+    gpu1_ep = SimpleNamespace(
+        ep_name="OpenVINOExecutionProvider",
+        device=SimpleNamespace(type="GPU"),
+        ep_metadata={"ov_device": "GPU.1"},
+    )
+    npu_ep = SimpleNamespace(
+        ep_name="OpenVINOExecutionProvider",
+        device=SimpleNamespace(type="NPU"),
+        ep_metadata={"ov_device": "NPU"},
+    )
+    cpu_ep = SimpleNamespace(
+        ep_name="OpenVINOExecutionProvider",
+        device=SimpleNamespace(type="CPU"),
+        ep_metadata={"ov_device": "CPU"},
+    )
+    ep_by_name = {"GPU.0": gpu0_ep, "GPU.1": gpu1_ep, "NPU": npu_ep}
+    monkeypatch.setattr(ort, "get_ep_devices", lambda: [gpu0_ep, gpu1_ep, npu_ep, cpu_ep])
+
+    # Exact type match without ov_device must also select NPU rather than breaking on first GPU
+    assert find_openvino_ep_device(preferred_type="NPU") is npu_ep
+    # Non-existent ov_device must return None instead of silently falling back to another device
+    assert find_openvino_ep_device(preferred_ov_device="GPU.99") is None
+
+    dev = DeviceConfig(
+        id=1 + device_index,
+        canonical_id=f"openvino:{device_type.lower()}:{device_index}",
+        provider="openvino",
+        device_index=device_index,
+        device_type=device_type,  # type: ignore[arg-type]
+        name=f"[OpenVINO] {ov_device}",
+        metadata={"ov_device": ov_device},
+    )
+
+    # 1. Provider options path
+    _, opts_list = resolve_openvino_device_provider(dev)
+    assert opts_list[0]["device_type"] == ov_device
+    load_cfg = json.loads(opts_list[0]["load_config"])
+    assert set(load_cfg.keys()) == {ov_device}
+    assert load_cfg[ov_device]["EXECUTION_MODE_HINT"] == "ACCURACY"
+    assert load_cfg[ov_device]["CACHE_DIR"] == str(OpenVinoCacheDir.resolve())
+
+    # 2. SessionOptions.add_provider_for_devices path binds the exact EP device and uses its ov_device key
+    captured: dict[str, Any] = {}
+    so = SimpleNamespace(
+        graph_optimization_level=None,
+        add_provider_for_devices=lambda devs, opts: captured.update({"devs": devs, "opts": opts}),
+    )
+    configure_openvino_session_options(so, device=dev)  # type: ignore[arg-type]
+    assert captured["devs"] == [ep_by_name[ov_device]]
+    so_load_cfg = json.loads(captured["opts"]["load_config"])
+    assert set(so_load_cfg.keys()) == {ov_device}
+    assert so_load_cfg[ov_device]["EXECUTION_MODE_HINT"] == "ACCURACY"
+    assert so_load_cfg[ov_device]["CACHE_DIR"] == str(OpenVinoCacheDir.resolve())

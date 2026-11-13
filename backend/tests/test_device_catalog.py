@@ -93,6 +93,7 @@ def test_resolve_legacy_device_id_openvino_sentinel() -> None:
             provider="openvino",
             device_type="GPU",
             name="[OpenVINO] Intel Arc",
+            metadata={"ov_device": "GPU.0"},
         ),
     ]
     with patch("vcclient.device.device_manager._device_catalog", mock_catalog):
@@ -213,6 +214,7 @@ def test_device_config_create_session_npu_rvc_fallback() -> None:
         device_index=0,
         device_type="NPU",
         name="Intel AI Boost",
+        metadata={"ov_device": "NPU"},
     )
 
     with (
@@ -234,9 +236,20 @@ def test_device_config_create_session_npu_rvc_fallback() -> None:
         assert providers == ["CPUExecutionProvider"]
 
         # 2. RMVPE Pitch Estimator on NPU -> Allowed on NPU via create_session
+        import onnx
+        from onnx import TensorProto, helper
+
+        x = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 2])
+        y = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])
+        node = helper.make_node("Identity", inputs=["x"], outputs=["y"])
+        graph = helper.make_graph([node], "rmvpe_dummy", [x], [y])
+        rmvpe_bytes = onnx.helper.make_model(
+            graph, opset_imports=[helper.make_opsetid("", 17)], ir_version=9
+        ).SerializeToString()
+
         mock_session.get_providers.return_value = ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
         sess_rmvpe, providers_rmvpe, opts_rmvpe = npu_dev.create_session(
-            model_payload="dummy_rmvpe.onnx",
+            model_payload=rmvpe_bytes,
             patch_type="rmvpe",
         )
         assert providers_rmvpe == ["OpenVINOExecutionProvider", "CPUExecutionProvider"]

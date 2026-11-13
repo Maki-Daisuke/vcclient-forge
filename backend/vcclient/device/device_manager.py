@@ -109,7 +109,7 @@ def reload_device_catalog() -> list[DeviceConfig]:
                     )
                 )
         except Exception as e:
-            logger.debug("OpenVINO detection skipped: %s", e)
+            logger.warning("OpenVINO detection failed: %s", e)
 
     _device_catalog = catalog
     logger.info(
@@ -219,6 +219,12 @@ def is_openvino_available() -> bool:
     return providers.openvino.is_openvino_available()
 
 
-def find_openvino_ep_device(preferred_type: str = "GPU") -> Any | None:
-    """Find the most suitable OpenVINO EP device from ort.get_ep_devices()."""
-    return providers.openvino.find_openvino_ep_device(preferred_type)
+def find_openvino_ep_device(
+    preferred_type: str = "GPU",
+    preferred_ov_device: str | None = None,
+) -> Any | None:
+    """Find the OpenVINO EP device matching an exact ov_device or preferred device type."""
+    return providers.openvino.find_openvino_ep_device(
+        preferred_type=preferred_type,
+        preferred_ov_device=preferred_ov_device,
+    )

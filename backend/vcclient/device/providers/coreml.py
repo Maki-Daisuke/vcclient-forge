@@ -77,13 +77,13 @@ def detect_macos_gpus() -> list[GPUInfo]:
 
 
 def resolve_coreml_device_provider(
-    device: DeviceConfig | None = None,
+    device: DeviceConfig,
     model_format: str = "NeuralNetwork",
     require_static_shapes: bool = False,
     target_frames: int | None = None,
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """Resolve CoreMLExecutionProvider options for a typed DeviceConfig."""
-    compute_units = device.metadata.get("compute_units", "ALL") if device and device.metadata else "ALL"
+    compute_units = device.metadata.get("compute_units", "ALL")
     coreml_options: dict[str, Any] = {
         "ModelFormat": model_format,
         "MLComputeUnits": compute_units,
@@ -100,34 +100,6 @@ def resolve_coreml_device_provider(
     except Exception as e:
         logger.debug("Failed to set CoreML cache dir: %s", e)
     return (["CoreMLExecutionProvider", "CPUExecutionProvider"], [coreml_options, {}])
-
-
-def resolve_coreml_provider(
-    device_id: int,
-    available_providers: list[str],
-    model_format: str = "NeuralNetwork",
-    require_static_shapes: bool = False,
-    target_frames: int | None = None,
-) -> tuple[list[str], list[dict[str, Any]]] | None:
-    """Resolve CoreMLExecutionProvider if applicable, or None if not supported."""
-    if device_id >= 0 and "CoreMLExecutionProvider" in available_providers:
-        from ..data_types import DeviceConfig
-
-        compute_units = "CPUAndGPU" if device_id % 2 == 1 else "ALL"
-        fake_dev = DeviceConfig(
-            id=device_id,
-            canonical_id=f"coreml:{device_id}",
-            provider="coreml",
-            device_index=device_id,
-            metadata={"compute_units": compute_units},
-        )
-        return resolve_coreml_device_provider(
-            fake_dev,
-            model_format=model_format,
-            require_static_shapes=require_static_shapes,
-            target_frames=target_frames,
-        )
-    return None
 
 
 def prepare_coreml_model(
