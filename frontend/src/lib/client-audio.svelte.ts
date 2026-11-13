@@ -74,6 +74,16 @@ export class ClientAudio {
     try { localStorage.setItem(browserAudioStorageKey, JSON.stringify(this.options)); }
     catch { /* Keep the current page usable if browser storage is unavailable. */ }
   }
+  resetPreferences() {
+    this.options = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+    this.gains = { inputGain: 1, outputGain: 1 };
+    if (this.inputGainNode) this.inputGainNode.gain.value = 1;
+    if (this.outputGainNode) this.outputGainNode.gain.value = 1;
+    try {
+      localStorage.removeItem(browserAudioStorageKey);
+      localStorage.removeItem(clientGainStorageKey);
+    } catch { /* Keep the current page usable if browser storage is unavailable. */ }
+  }
 
   async refreshDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) return;

@@ -382,3 +382,74 @@ test('stop waits for the in-flight gain update without racing it', async ({ page
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['stop']);
 });
+
+test('reset settings clears local preferences and restores default backend configuration while keeping models', async ({ page }) => {
+  const state = await mockSession(page);
+  await page.goto('/');
+  await openControlSections(page);
+  await page.evaluate(() => {
+    localStorage.setItem('vcclient-forge.client-gain.v1', JSON.stringify({ input: 2.5, output: 1.5 }));
+    localStorage.setItem('vcclient-forge.browser-audio.v1', JSON.stringify({ inputDeviceId: 'mic-1', outputDeviceId: 'spk-1', inputGain: 1, outputGain: 1 }));
+    localStorage.setItem('vcclient-forge.test-stale-key', 'stale');
+  });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
+  await expect(page.locator('details.control-group[open]')).toHaveCount(4);
+
+  await page.getByRole('button', { name: '詳細設定', exact: true }).click();
+  await page.getByRole('dialog', { name: '詳細設定' }).getByRole('button', { name: '設定初期化' }).click();
+  const dialog = page.getByRole('dialog', { name: '設定を初期化しますか？' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('設定を初期状態に戻します。登録済みのモデルは削除されません。');
+  await dialog.getByRole('button', { name: '初期化する' }).click();
+
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(state.clears).toBe(1);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('details.control-group[open]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reset settings' })).toHaveCount(0);
+  await expect(page.getByText('Test model B').first()).toBeVisible();
+  await expect(page.getByText('Test model A').first()).toBeVisible();
+
+  const remainingKeys = await page.evaluate(() => ({
+    stale: localStorage.getItem('vcclient-forge.test-stale-key'),
+    sections: localStorage.getItem('vcclient-forge.control-sections.v1'),
+    clientGain: localStorage.getItem('vcclient-forge.client-gain.v1'),
+    browserAudio: localStorage.getItem('vcclient-forge.browser-audio.v1'),
+  }));
+  expect(remainingKeys).toEqual({ stale: null, sections: null, clientGain: null, browserAudio: null });
+});
+
+test('reset settings preserves local storage on backend failure', async ({ page }) => {
+  const state = await mockSession(page);
+  state.clearStatus = 500;
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('vcclient-forge.test-keep-key', 'keep'));
+
+  await page.getByRole('button', { name: '詳細設定', exact: true }).click();
+  await page.getByRole('dialog', { name: '詳細設定' }).getByRole('button', { name: '設定初期化' }).click();
+  const dialog = page.getByRole('dialog', { name: '設定を初期化しますか？' });
+  await dialog.getByRole('button', { name: '初期化する' }).click();
+
+  expect(state.clears).toBe(1);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('alert')).toContainText('設定を初期化できませんでした。');
+  await expect(dialog.getByRole('alert')).toContainText('HTTP 500');
+  await expect(dialog.getByRole('alert')).toContainText('Test clear failure');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
+  expect(await page.evaluate(() => localStorage.getItem('vcclient-forge.test-keep-key'))).toBe('keep');
+
+  await dialog.getByRole('button', { name: 'キャンセル' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('dialog', { name: '詳細設定' })).toBeVisible();
+});
+
+test('reset settings is disabled while voice conversion is active', async ({ page }) => {
+  const state = await mockSession(page);
+  state.active = true;
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '詳細設定', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '詳細設定' }).getByRole('button', { name: '設定初期化' })).toBeDisabled();
+});

@@ -137,6 +137,11 @@ const previewMessages = {
     not_connected: 'Not connected yet',
     model_management: 'Manage models',
     language: 'Language', theme: 'Toggle color theme', close: 'Close',
+    reset_settings: 'Reset settings',
+    reset_settings_confirm: 'Reset settings?',
+    reset_settings_description: 'Settings will be restored to their default state. Registered models will not be deleted.',
+    reset_settings_action: 'Reset',
+    reset_settings_failed: 'Could not reset settings.',
     host: 'Audio host', sample_rate: 'Sample rate',
     about: 'About',
     log_empty: 'There are no logs in this appearance preview.',
@@ -265,6 +270,11 @@ const previewMessages = {
     not_connected: '未接続',
     model_management: 'モデル管理',
     language: '表示言語', theme: '配色を切り替える', close: '閉じる',
+    reset_settings: '設定初期化',
+    reset_settings_confirm: '設定を初期化しますか？',
+    reset_settings_description: '設定を初期状態に戻します。登録済みのモデルは削除されません。',
+    reset_settings_action: '初期化する',
+    reset_settings_failed: '設定を初期化できませんでした。',
     host: 'オーディオホスト', sample_rate: 'サンプルレート',
     about: 'このアプリについて',
     log_empty: '見た目のプレビューのため、ログはありません。',
@@ -311,6 +321,14 @@ export class UiState {
 
   savePreferences() {
     try { localStorage.setItem(uiPreferencesStorageKey, JSON.stringify({ language: this.language, theme: this.theme, confirmPassthrough: this.confirmPassthrough })); }
+    catch { /* Keep the UI usable if storage is unavailable. */ }
+  }
+
+  resetPreferences() {
+    this.language = 'en';
+    this.theme = 'light';
+    this.confirmPassthrough = true;
+    try { localStorage.removeItem(uiPreferencesStorageKey); }
     catch { /* Keep the UI usable if storage is unavailable. */ }
   }
 

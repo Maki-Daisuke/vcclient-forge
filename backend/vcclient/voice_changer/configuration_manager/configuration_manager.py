@@ -136,6 +136,11 @@ class ConfigurationManager:
         self.voice_changer_configuration.monitor_sample_rate = monitor_sample_rate
         self.save_voice_changer_configuration()
 
+    def clear_configuration(self) -> None:
+        """Reset all configuration fields to defaults and overwrite the config file."""
+        self.voice_changer_configuration = VoiceChangerConfiguration()
+        self.save_voice_changer_configuration()
+
     def save_voice_changer_configuration(self) -> None:
         with open(ConfigFile, "w", encoding="utf-8") as f:
             f.write(

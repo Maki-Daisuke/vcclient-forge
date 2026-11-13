@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -18,7 +17,6 @@ from vcclient.const import (
     SERVER_IO_RECORDING_FILE_MONITOR,
     SERVER_IO_RECORDING_FILE_OUT,
 )
-from vcclient.device import reload_gpu_devices
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
 from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR, get_frontend_path
@@ -33,12 +31,7 @@ from vcclient.server.vcserver_rest_api_sample_manager import RestAPISampleManage
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
 from vcclient.server.vcserver_rest_api_task_manager import RestAPITaskManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
-from vcclient.voice_changer.audio_device_manager import reload_audio_devices
-from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
-from vcclient.voice_changer.module_manager import reload_modules
-from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
-from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir, ModuleDir
+from vcclient.voice_changer.voice_changer_const import ModelDir
 
 
 def get_custom_swagger_ui_html(
@@ -161,31 +154,9 @@ def _create_rest_api() -> FastAPI:
     task_manager = RestAPITaskManager()
     app_fastapi.include_router(task_manager.router)
 
-    app_fastapi.router.add_api_route("/api/operation/initialize", initialize, methods=["POST"])
-
     async def unknown_api(scope, receive, send):
         raise StarletteHTTPException(status_code=404, detail="Not Found")
 
     app_fastapi.mount("/api", unknown_api)
     app_fastapi.mount("/", StaticFiles(directory=str(get_frontend_path()), html=True, check_dir=False), name="frontend")
     return app_fastapi
-
-
-def initialize():
-    ConfigFile.unlink(missing_ok=True)
-    shutil.rmtree(ModelDir)
-    ModelDir.mkdir(parents=True, exist_ok=True)
-    shutil.rmtree(ModuleDir)
-    ModuleDir.mkdir(parents=True, exist_ok=True)
-
-    reload_audio_devices()
-    configuration_manager = ConfigurationManager.get_instance()
-    configuration_manager.reload()
-    reload_gpu_devices()
-    reload_modules()
-    slot_manager = SlotManager.get_instance()
-    slot_manager.reload()
-    voice_changer = VoiceChanger.get_instance()
-    voice_changer.initialize()
-
-    return {"message": "initialized."}

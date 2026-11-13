@@ -6,11 +6,11 @@ export async function mockSession(page: Page) {
   const state = {
     config: { ...configuration, pass_through: false, recording_started: false, future_setting: { keep: [1, 2] } } as Record<string, unknown>,
     models: structuredClone(slots) as Record<string, unknown>[],
-    active: false, infoFail: false, putStatus: 200, startStatus: 200, rollback: false,
+    active: false, infoFail: false, putStatus: 200, startStatus: 200, clearStatus: 200, rollback: false,
     gate: null as Promise<void> | null,
     modelGate: null as Promise<void> | null,
     modelStatus: 200, modelRollback: false, estimatorMismatch: false, gpuMismatch: false,
-    writes: [] as Record<string, unknown>[], operations: [] as string[],
+    writes: [] as Record<string, unknown>[], operations: [] as string[], clears: 0,
     modelWrites: [] as { id: number; data: Record<string, unknown> }[],
     inFlight: 0, maxInFlight: 0,
   };
@@ -35,6 +35,27 @@ export async function mockSession(page: Page) {
     } else if (path === '/api/slot-manager/slots') {
       expect(request.method()).toBe('GET');
       await route.fulfill({ json: state.models });
+    } else if (path === '/api/configuration-manager/clear') {
+      expect(request.method()).toBe('POST');
+      state.clears += 1;
+      if (state.clearStatus === 200) {
+        state.config = {
+          ...configuration,
+          pass_through: false,
+          recording_started: false,
+          current_slot_index: 0,
+          voice_changer_input_mode: 'client',
+          audio_input_device_index: -1,
+          audio_output_device_index: -1,
+          audio_monitor_device_index: -1,
+          audio_input_device_gain: 2,
+          audio_output_device_gain: 1,
+          audio_monitor_device_gain: 1,
+          noise_gate: -100,
+          gpu_device_id_int: 0,
+        };
+      }
+      await route.fulfill({ status: state.clearStatus, json: state.clearStatus === 200 ? state.config : { detail: 'Test clear failure' } });
     } else if (path.endsWith('/configuration')) {
       if (request.method() === 'GET') return route.fulfill({ json: state.config });
       expect(request.method()).toBe('PUT');

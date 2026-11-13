@@ -38,12 +38,15 @@
     }
     return closed;
   }
-  const sections = loadSections();
-  function initializeSection(node: HTMLDetailsElement, name: SectionName) {
-    node.open = sections[name];
-  }
+  let sections = $state(loadSections());
+  $effect(() => {
+    if (session.resetVersion === 0) return;
+    sections = { input: false, noise: false, volume: false, inference: false };
+  });
   function saveSection(name: SectionName, event: Event) {
-    sections[name] = (event.currentTarget as HTMLDetailsElement).open;
+    const open = (event.currentTarget as HTMLDetailsElement).open;
+    if (sections[name] === open) return;
+    sections[name] = open;
     try {
       localStorage.setItem(storageKey, JSON.stringify(sections));
     } catch {
@@ -168,7 +171,7 @@
   </aside>
   <section class="controls-column" aria-label={ui.t('common.controls.title')}>
     <SettingsStatus />
-    <details class="control-group inference-section" use:initializeSection={'inference'} ontoggle={event => saveSection('inference', event)}>
+    <details class="control-group inference-section" open={sections.inference} ontoggle={event => saveSection('inference', event)}>
       <summary><Cpu size={17} />{ui.t('forge.inference_settings')}<span class="control-group-summary-value" title={computeDevice}>{computeDevice}</span></summary>
       <div class="control-group-body">
         <InferenceSetting label={ui.t('forge.preferred_device')}><ComputeDeviceField /></InferenceSetting>
@@ -180,11 +183,11 @@
         </div>
       </div>
     </details>
-    <details class="control-group input-section" use:initializeSection={'input'} ontoggle={event => saveSection('input', event)}>
+    <details class="control-group input-section" open={sections.input} ontoggle={event => saveSection('input', event)}>
       <summary><AudioLines size={17} />{ui.t('forge.input_output')}<span class="control-group-summary-value">{settings?.inputMode === 'server' ? ui.t('common.controls.server_mode') : settings?.inputMode === 'client' ? ui.t('common.settings_dialog.client_mode') : '—'}</span></summary>
       <div class="control-group-body"><AudioSettings /></div>
     </details>
-    <details class="control-group" use:initializeSection={'volume'} ontoggle={event => saveSection('volume', event)}>
+    <details class="control-group" open={sections.volume} ontoggle={event => saveSection('volume', event)}>
       <summary><Volume2 size={17} />{ui.t('common.controls.volume_control')}</summary>
       <div class="control-group-body">
         {#if settings?.inputMode === 'client'}
@@ -199,7 +202,7 @@
           disabled={!session.canAdjustGain} onchange={value => session.setGain('outputGain', value)} oncommit={() => session.flush()} />
       </div>
     </details>
-    <details class="control-group noise-section" use:initializeSection={'noise'} ontoggle={event => saveSection('noise', event)}>
+    <details class="control-group noise-section" open={sections.noise} ontoggle={event => saveSection('noise', event)}>
       <summary><AudioWaveform size={17} />{ui.t('common.settings_dialog.noise_suppression')}</summary>
       <div class="control-group-body"><NoiseSettings /></div>
     </details>
