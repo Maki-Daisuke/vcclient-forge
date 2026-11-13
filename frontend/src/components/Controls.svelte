@@ -148,9 +148,6 @@
         </button>
       </div>
       {#if session.operation}<p class="operation-status" role="status">{ui.t(`forge.audio_${session.operation}`)}</p>{/if}
-      {#if session.operationError}
-        <p class="catalog-message" role="alert">{ui.t('forge.operation_failed')} {ui.t(`forge.write_error_${session.operationError.code}`, { status: session.operationError.status })} {session.operationError.detail ?? ''}</p>
-      {/if}
       {#if session.statusError}<p class="catalog-message" role="status">{ui.t('forge.audio_status_error')}</p>{/if}
     </div>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>

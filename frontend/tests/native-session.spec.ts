@@ -310,18 +310,27 @@ test('detects silent model rollback and discard reloads the actual model', async
   expect(state.operations).toEqual([]);
 });
 
-test('start failures are visible, do not claim success, and can be retried', async ({ page }) => {
+test('start failures appear in the shared notification, can be dismissed, and clear on retry', async ({ page }) => {
   const state = await mockSession(page);
   state.startStatus = 500;
   await page.goto('/');
   await openControlSections(page);
   await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.locator('.transport-block').getByRole('alert')).toContainText('Test start failure');
+  const notice = page.locator('main > .configuration-status');
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveAttribute('data-state', 'error');
+  await expect(notice.getByRole('alert')).toContainText('Test start failure');
+  await expect(page.locator('.transport-block').getByRole('alert')).toHaveCount(0);
+  await notice.getByRole('button', { name: '閉じる', exact: true }).click();
+  await expect(notice).toBeHidden();
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(notice.getByRole('alert')).toContainText('Test start failure');
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   state.startStatus = 200;
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
-  expect(state.operations).toEqual(['start', 'start']);
+  await expect(notice).toBeHidden();
+  expect(state.operations).toEqual(['start', 'start', 'start']);
 });
 
 test('unknown runtime state blocks start and device edits but still permits stop', async ({ page }) => {
