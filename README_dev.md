@@ -39,7 +39,7 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast, deterministic Pytho
      ```bash
      go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
      ```
-   * **Desktop Frontend Dependencies**: Run `npm --prefix desktop/frontend ci` from the repository root.
+   * **Desktop Frontend Dependencies**: Installed by `npm run setup:dev` below.
    * **Windows**: Uses pure Go (`CGO_ENABLED=0`) and Microsoft Edge WebView2 Runtime (pre-installed on Windows 10/11). No MSVC or Windows SDK is required.
    * **Linux / macOS**: Compiles with `CGO_ENABLED=1` against GTK4 + WebKitGTK 6.0 (`libgtk-4-dev` and `libwebkitgtk-6.0-dev` on Ubuntu 24.04) or macOS Cocoa/WebKit frameworks.
 
@@ -50,9 +50,7 @@ Clone the repository and build the workspace for your target hardware accelerato
 ```bash
 git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
-npm ci
-npm --prefix frontend ci
-npm --prefix desktop/frontend ci
+npm run setup:dev -- --edition cuda  # Or --edition standard (the default)
 
 # Choose ONE edition matching your development/testing target:
 npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Windows DirectML, Apple CoreML, CPU)
@@ -60,6 +58,7 @@ npm run build -- --edition cuda      # NVIDIA Turing or newer (CUDA 13.x / cuDNN
 ```
 
 * `npm run build` builds all supported components (`standard` by default): the Svelte UI in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
+* `npm run setup:dev` installs the locked root, Svelte frontend, and desktop frontend npm dependencies, downloads Go modules, and synchronizes backend dependencies for the selected edition. It does not install system prerequisites such as Node.js, uv, Go, Wails, or Linux system libraries.
 * `npm run build -- --edition <edition>` selects the hardware edition (`standard` or `cuda`). `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` synchronizes backend dependencies for the specified edition.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.

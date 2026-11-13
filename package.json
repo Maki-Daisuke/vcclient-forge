@@ -5,6 +5,7 @@
   "description": "VCClient Forge - Task Runner and Integration",
   "scripts": {
     "clean": "node scripts/clean.js",
+    "setup:dev": "npm ci && npm --prefix frontend ci && npm --prefix desktop/frontend ci && go -C desktop mod download && npm run build:backend --",
     "start": "uv run --project backend python backend/main.py",
     "dev:backend": "uv run --project backend python backend/main.py",
     "dev:frontend": "npm --prefix frontend run dev",
