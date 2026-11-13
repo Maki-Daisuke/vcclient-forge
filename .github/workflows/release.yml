@@ -63,7 +63,7 @@ jobs:
           cache-dependency-path: desktop/go.sum
 
       - name: Install Wails v3 CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
       - name: Install desktop build dependencies
         run: |

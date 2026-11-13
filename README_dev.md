@@ -37,7 +37,7 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast, deterministic Pytho
    * **Go 1.27+**: Install from [go.dev](https://go.dev/dl/). Verify with `go version`.
    * **Wails v3 CLI**:
      ```bash
-     go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
+     go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
      ```
    * **Desktop Frontend Dependencies**: Installed by `npm run setup:dev` below.
    * **Windows**: Uses pure Go (`CGO_ENABLED=0`) and Microsoft Edge WebView2 Runtime (pre-installed on Windows 10/11). No MSVC or Windows SDK is required.
