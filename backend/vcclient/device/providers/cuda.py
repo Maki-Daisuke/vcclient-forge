@@ -146,21 +146,18 @@ def detect_nvidia_gpus() -> list[GPUInfo]:
                     meta = getattr(dev, "metadata", {}) if dev is not None else {}
                     raw_name = meta.get("Description") or "NVIDIA GPU"
                     name = raw_name if raw_name.startswith("[CUDA]") else f"[CUDA] {raw_name}"
-                    try:
-                        adapter_idx = int(meta.get("DxgiAdapterNumber", len(gpu_list)))
-                    except Exception:
-                        adapter_idx = len(gpu_list)
+                    # CUDA EP expects a 0-based CUDA device ordinal, not the Windows DXGI adapter number.
+                    cuda_idx = len(gpu_list)
                     vram = parse_vram_string(meta.get("DxgiVideoMemory"))
                     gpu_list.append(
                         GPUInfo(
                             name=name,
-                            device_id=str(adapter_idx),
+                            device_id=str(cuda_idx),
                             adapter_ram=vram,
-                            device_id_int=adapter_idx,
+                            device_id_int=cuda_idx,
                         )
                     )
             if gpu_list:
-                gpu_list.sort(key=lambda g: g.device_id_int)
                 return gpu_list
         except Exception as e:
             logger.debug("Native CUDA EP device detection failed: %s", e)

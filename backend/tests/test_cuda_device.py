@@ -66,3 +66,42 @@ def test_detect_nvidia_gpus_handles_na_vram(monkeypatch: pytest.MonkeyPatch):
     assert gpus[1].name == "[CUDA] NVIDIA RTX 4090"
     assert gpus[1].adapter_ram == 24576 * 1024 * 1024
     assert gpus[1].device_id_int == 1
+
+
+@pytest.mark.parametrize(
+    ("ep_metadatas", "expected_ids"),
+    [
+        # Hybrid laptop (iGPU at DXGI 0, single NVIDIA dGPU at DXGI 1) must still map CUDA ordinal to 0
+        ([{"Description": "NVIDIA GeForce RTX 3050 Laptop GPU", "DxgiAdapterNumber": "1"}], [0]),
+        # Multi-GPU with iGPU at DXGI 0
+        (
+            [
+                {"Description": "NVIDIA GeForce RTX 4090", "DxgiAdapterNumber": "1"},
+                {"Description": "NVIDIA GeForce RTX 3060", "DxgiAdapterNumber": "2"},
+            ],
+            [0, 1],
+        ),
+        # Linux / environments without DxgiAdapterNumber
+        ([{"Description": "NVIDIA GeForce RTX 4090"}], [0]),
+    ],
+)
+def test_detect_nvidia_gpus_uses_cuda_ordinal_not_dxgi_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+    ep_metadatas: list[dict[str, str]],
+    expected_ids: list[int],
+):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(cuda_module, "is_cuda_available", lambda: True)
+    fake_eps = [
+        SimpleNamespace(ep_name="CPUExecutionProvider", device=SimpleNamespace(metadata={"Description": "CPU"})),
+        *[
+            SimpleNamespace(ep_name="CUDAExecutionProvider", device=SimpleNamespace(metadata=meta))
+            for meta in ep_metadatas
+        ],
+    ]
+    monkeypatch.setattr(ort, "get_ep_devices", lambda: fake_eps)
+
+    gpus = detect_nvidia_gpus()
+    assert [g.device_id_int for g in gpus] == expected_ids
+    assert [g.device_id for g in gpus] == [str(i) for i in expected_ids]
