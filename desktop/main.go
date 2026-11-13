@@ -71,20 +71,6 @@ func main() {
 			}
 			return null;
 		};
-
-		// Polyfill legacy Electron API for v2.0.78 UI
-		window.electronAPI = {
-			openBrowser: function(url) {
-				if (url && typeof url === 'string') {
-					if (url.startsWith('/')) {
-						url = 'http://127.0.0.1:18888' + url;
-					}
-					if (window.wails && window.wails.Browser) {
-						window.wails.Browser.OpenURL(url);
-					}
-				}
-			}
-		};
 	`
 
 	if runtime.GOOS == "darwin" {
