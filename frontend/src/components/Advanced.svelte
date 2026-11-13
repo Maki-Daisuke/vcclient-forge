@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SlidersHorizontal, Keyboard, ScrollText, Info, RotateCcw } from '@lucide/svelte';
+  import { SlidersHorizontal, ScrollText, Info, RotateCcw } from '@lucide/svelte';
   import { Dialog } from 'bits-ui';
   import PreviewDialog from './PreviewDialog.svelte';
   import CheckField from './CheckField.svelte';
@@ -63,15 +63,6 @@
       </div>
       <Dialog.Close class="button" disabled={session.clearing}>{ui.t('forge.close')}</Dialog.Close>
     {/snippet}
-  </PreviewDialog>
-  <PreviewDialog title={ui.t('common.shortcut_settings.title')} wide>
-    {#snippet trigger()}<Keyboard size={16} />{ui.t('common.advanced_area.key_settings')}{/snippet}
-    <CheckField label={ui.t('common.shortcut_settings_dialog.enable_shortcuts')} />
-    <div class="shortcut-list">
-      {#each ['toggleVoiceConversion', 'togglePassthrough', 'nextSlot', 'previousSlot', 'increaseInputVolume', 'decreaseInputVolume', 'increaseOutputVolume', 'decreaseOutputVolume', 'increaseMonitorVolume', 'decreaseMonitorVolume'] as action}
-        <div><span>{ui.t(`common.shortcut_settings.actions.${action}.name`)}</span><button class="button small" disabled>{ui.t('common.shortcut_settings_dialog.not_set')}</button></div>
-      {/each}
-    </div>
   </PreviewDialog>
   <button class="button" onclick={() => {
     const desktop = (window as Window & { vcclientForge?: { openLogWindow?: () => boolean } }).vcclientForge;

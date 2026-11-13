@@ -120,7 +120,7 @@ test('controls remain usable when storage access throws', async ({ page }) => {
 test('dialogs open, trap focus, close with Escape, and restore focus', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
-  for (const name of ['アップロード', '編集', '詳細設定', 'キー設定', 'このアプリについて']) {
+  for (const name of ['アップロード', '編集', '詳細設定', 'このアプリについて']) {
     const trigger = page.getByRole('button', { name, exact: true });
     await trigger.click();
     const dialog = page.getByRole('dialog');
