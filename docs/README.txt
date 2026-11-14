@@ -85,7 +85,14 @@ This initial download may take several minutes depending on your network
 connection, so please be patient and wait until it completes.
 
 ----------------------------------------------------------------------
-4. Support & Links
+4. Resetting Settings
+----------------------------------------------------------------------
+
+For troubleshooting, see:
+https://github.com/Maki-Daisuke/vcclient-forge/blob/forge/docs/en/troubleshooting.md
+
+----------------------------------------------------------------------
+5. Support & Links
 ----------------------------------------------------------------------
 - Project Site: https://github.com/Maki-Daisuke/vcclient-forge
 - Issues:       https://github.com/Maki-Daisuke/vcclient-forge/issues

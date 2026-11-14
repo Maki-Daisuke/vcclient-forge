@@ -291,10 +291,6 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
   return active;
 }
 
-export async function clearConfiguration(signal: AbortSignal): Promise<ConfirmedConfiguration> {
-  return parseConfiguration(await responseJson(await fetch('/api/configuration-manager/clear', { method: 'POST', signal }), signal));
-}
-
 export async function organizeModels(order: number[], deleteSelected: boolean, signal: AbortSignal): Promise<void> {
   const response = await fetch('/api/slot-manager/operation/organize', {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' },

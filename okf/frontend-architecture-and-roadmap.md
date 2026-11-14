@@ -198,7 +198,9 @@ The Noise Suppression section provides an enable checkbox (saving `-100` dB when
 and a noise-gate threshold slider over `−100` to `0` dB in `1` dB steps in both Server Mode and Client Mode.
 The existing pipeline bypasses the gate at `−100` dB or below. Its configuration edits share the
 gain/model coordinator and use the existing full-configuration GET/PUT/GET flow.
-Safe settings reset calls `POST /api/configuration-manager/clear`. Backend APIs are unchanged.
+To recover backend settings, stop the backend and rename the `settings` directory;
+the next startup creates new defaults. Model-specific settings and browser preferences
+are stored separately. See the bundled quick-start guide for recovery instructions.
 
 ### Production Build, CI, and Desktop Log Integration
 

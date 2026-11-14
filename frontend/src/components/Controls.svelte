@@ -39,10 +39,6 @@
     return closed;
   }
   let sections = $state(loadSections());
-  $effect(() => {
-    if (session.resetVersion === 0) return;
-    sections = { input: false, noise: false, volume: false, inference: false };
-  });
   function saveSection(name: SectionName, event: Event) {
     const open = (event.currentTarget as HTMLDetailsElement).open;
     if (sections[name] === open) return;

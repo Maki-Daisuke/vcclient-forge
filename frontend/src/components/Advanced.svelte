@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { SlidersHorizontal, ScrollText, Info, RotateCcw, ExternalLink, MessageSquarePlus } from '@lucide/svelte';
-  import { Dialog } from 'bits-ui';
+  import { SlidersHorizontal, ScrollText, Info, ExternalLink, MessageSquarePlus } from '@lucide/svelte';
   import PreviewDialog from './PreviewDialog.svelte';
   import CheckField from './CheckField.svelte';
   import { useUi } from '../lib/ui.svelte';
@@ -9,15 +8,6 @@
   const ui = useUi();
   const session = useSession();
   let advancedOpen = $state(false);
-  let resetConfirmOpen = $state(false);
-  let resetCancel: HTMLButtonElement | undefined = $state();
-
-  async function confirmResetSettings() {
-    if (await session.clearConfiguration(() => ui.resetPreferences())) {
-      resetConfirmOpen = false;
-      advancedOpen = false;
-    }
-  }
 
   function openExternal(event: MouseEvent) {
     const href = (event.currentTarget as HTMLAnchorElement).href;
@@ -30,7 +20,7 @@
 </script>
 
 <nav class="advanced-actions" aria-label={ui.t('common.advanced_area.advanced_settings')}>
-  <PreviewDialog title={ui.t('common.advanced_settings_dialog.title')} preventClose={session.clearing} bind:open={advancedOpen}>
+  <PreviewDialog title={ui.t('common.advanced_settings_dialog.title')} bind:open={advancedOpen}>
     {#snippet trigger()}<SlidersHorizontal size={16} />{ui.t('common.advanced_area.advanced_settings')}{/snippet}
     <CheckField label={ui.t('forge.confirm_passthrough_setting')} checked={ui.confirmPassthrough} disabled={false}
       onchange={value => ui.confirmPassthrough = value} />
@@ -44,35 +34,6 @@
         <button class="button small" disabled={!!session.operation} onclick={() => session.discard()}>{ui.t('forge.discard_changes')}</button>
       </div>
     {/if}
-    {#snippet footer()}
-      <div class="delete-button-wrapper">
-        <Dialog.Root bind:open={resetConfirmOpen} onOpenChange={open => { if (open) session.clearError = null; }}>
-          <Dialog.Trigger class="button" disabled={!session.canClearConfiguration}>
-            <RotateCcw size={16} />{ui.t('forge.reset_settings')}
-          </Dialog.Trigger>
-          <Dialog.Portal>
-            <Dialog.Overlay class="dialog-overlay" />
-            <Dialog.Content class="dialog-content delete-confirm-dialog"
-              escapeKeydownBehavior={session.clearing ? 'ignore' : 'close'}
-              interactOutsideBehavior={session.clearing ? 'ignore' : 'close'}
-              onOpenAutoFocus={event => { event.preventDefault(); resetCancel?.focus(); }}>
-              <header class="dialog-header"><Dialog.Title class="dialog-title">{ui.t('forge.reset_settings_confirm')}</Dialog.Title></header>
-              <div class="dialog-body">
-                <Dialog.Description>{ui.t('forge.reset_settings_description')}</Dialog.Description>
-                {#if session.clearError}
-                  <p role="alert">{ui.t('forge.reset_settings_failed')} {ui.t(`forge.write_error_${session.clearError.code}`, { status: session.clearError.status })} {session.clearError.detail ?? ''}</p>
-                {/if}
-              </div>
-              <footer class="dialog-footer">
-                <button class="button danger" disabled={!session.canClearConfiguration} onclick={confirmResetSettings}>{ui.t('forge.reset_settings_action')}</button>
-                <button class="button" disabled={session.clearing} bind:this={resetCancel} onclick={() => resetConfirmOpen = false}>{ui.t('forge.cancel')}</button>
-              </footer>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
-      </div>
-      <Dialog.Close class="button" disabled={session.clearing}>{ui.t('forge.close')}</Dialog.Close>
-    {/snippet}
   </PreviewDialog>
   <button class="button" onclick={() => {
     const desktop = (window as Window & { vcclientForge?: { openLogWindow?: () => boolean } }).vcclientForge;

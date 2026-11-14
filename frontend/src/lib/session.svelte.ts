@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { clearConfiguration, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
+import { loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
 import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
 import { importModel, uploadFile } from './model-upload';
@@ -31,14 +31,11 @@ export class NativeSession {
   uploadBytes = $state(0);
   uploadTotal = $state(0);
   operation = $state<'start' | 'stop' | null>(null);
-  clearing = $state(false);
   organizing = $state(false);
   modelInfoSaving = $state(false);
   modelInfoError = $state<ApiError | null>(null);
   modelOperationError = $state<ApiError | null>(null);
   operationError = $state<ApiError | null>(null);
-  clearError = $state<ApiError | null>(null);
-  resetVersion = $state(0);
   deviceRescanning = $state(false);
   deviceRescanError = $state(false);
   devicesNeedingSelection = $state<DeviceKey[]>([]);
@@ -65,12 +62,9 @@ export class NativeSession {
   }
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
-  get canReload() { return !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.clearing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
+  get canReload() { return !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
   get canConfigure() {
-    return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.clearing && !this.operation && !this.isSaving && !this.dirty;
-  }
-  get canClearConfiguration() {
-    return this.active !== true && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.clearing && !this.operation && !this.isSaving;
+    return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
@@ -186,54 +180,12 @@ export class NativeSession {
   }
 
   async reload() {
-    if (this.disposed || this.clearing || this.deviceRescanning || this.isSaving || this.operation || this.dirty) return;
+    if (this.disposed || this.deviceRescanning || this.isSaving || this.operation || this.dirty) return;
     this.saved = false;
     this.error = null;
     this.operationError = null;
     this.active = null;
     await Promise.all([this.catalog.reload(), this.refreshActive()]);
-  }
-
-  async clearConfiguration(onSuccess?: () => void): Promise<boolean> {
-    if (this.disposed || !this.canClearConfiguration) return false;
-    this.clearing = true;
-    this.clearError = null;
-    clearTimeout(this.timer);
-    try {
-      await this.flight;
-      if (this.disposed) return false;
-      const confirmed = await this.request(clearConfiguration);
-      if (this.disposed) return false;
-      this.draft = {};
-      this.modelDraft = null;
-      this.saved = false;
-      this.error = null;
-      this.operationError = null;
-      this.modelInfoError = null;
-      this.modelOperationError = null;
-      this.deviceRescanError = false;
-      this.devicesNeedingSelection = [];
-      this.recordingArmed = false;
-      this.recordingCompleted = null;
-      this.recordingNotice = null;
-      try {
-        localStorage.clear();
-      } catch {
-        // Keep resetting in-memory preferences when browser storage is unavailable.
-      }
-      this.clientAudio.resetPreferences();
-      onSuccess?.();
-      this.resetVersion += 1;
-      this.catalog.applyConfiguration(confirmed);
-      this.active = null;
-      await Promise.all([this.catalog.reload(), this.refreshActive()]);
-      return true;
-    } catch (error) {
-      if (!this.disposed) this.clearError = this.apiError(error);
-      return false;
-    } finally {
-      this.clearing = false;
-    }
   }
 
   setGain(key: 'inputGain' | 'outputGain', value: number) {
