@@ -241,10 +241,22 @@ test('unsupported pitch and missing index remain disabled with an explanation', 
   await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
   await expect(pitch(page)).toBeDisabled();
   await expect(index(page)).toBeDisabled();
-  await expect(page.locator('.voice-settings')).toContainText('このモデルはピッチ調整に対応していません');
-  await expect(page.locator('.voice-settings')).toContainText('Indexファイルが設定されていません');
-  const indexLabel = page.locator('.voice-settings .range-label-text').filter({ has: page.getByRole('heading', { name: 'Index使用率' }) });
-  await expect(indexLabel).toContainText('Indexファイルが設定されていません');
+  const pitchGroup = page.getByRole('group', { name: 'ピッチ調整', exact: true });
+  const indexGroup = page.getByRole('group', { name: 'Index使用率', exact: true });
+  const pitchTooltip = pitchGroup.locator('[role="tooltip"]');
+  const indexTooltip = indexGroup.locator('[role="tooltip"]');
+  await expect(pitchTooltip).toBeHidden();
+  await expect(indexTooltip).toBeHidden();
+  await pitchGroup.hover();
+  await expect(pitchTooltip).toBeVisible();
+  await expect(pitchTooltip).toContainText('このモデルはピッチ調整に対応していません');
+  await indexGroup.hover();
+  await expect(pitchTooltip).toBeHidden();
+  await expect(indexTooltip).toBeVisible();
+  await expect(indexTooltip).toContainText('Indexファイルが設定されていません');
+  await page.mouse.move(0, 0);
+  await indexGroup.focus();
+  await expect(indexTooltip).toBeVisible();
 });
 
 test('stop waits for the active model write', async ({ page }) => {
