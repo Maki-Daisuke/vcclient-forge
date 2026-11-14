@@ -29,7 +29,7 @@ Download the standalone package matching your operating system and hardware from
 
 > [!TIP]
 >
-> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU and a CUDA 13-compatible NVIDIA driver (R580 or newer).
+> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and newer, and GTX 16 series) and a CUDA 13-compatible NVIDIA driver (R580 or newer). Real-time performance depends on the GPU and model.
 > - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices; real-time performance depends on the device and model.
 > - **Intel Arc / AMD Radeon / Mac users**: Select the universal `standard` package for your platform. Hardware acceleration (OpenVINO, DirectML, CoreML) is configured automatically out of the box!
 
