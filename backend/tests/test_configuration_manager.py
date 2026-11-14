@@ -119,91 +119,124 @@ def test_operation_initialize_removed():
     assert response.status_code == 404
 
 
-def test_clear_configuration_resets_only_settings_and_preserves_models_and_modules(tmp_path, monkeypatch):
+def _setup_clear_test_env(tmp_path, monkeypatch, config: VoiceChangerConfiguration):
+    from pathlib import Path
+    from types import SimpleNamespace
+
     from starlette.testclient import TestClient
 
     from vcclient.server.vcserver_rest_api import _create_rest_api
+    from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
+    from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
     from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
+    from vcclient.voice_changer.voice_change_manager.vc_pipelines.pipeline_manager import PipelineManager
     from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
     conf_path = tmp_path / "vc_conf.json"
     models_dir = tmp_path / "model_dir"
-    model_file = models_dir / "7" / "model.onnx"
-    model_file.parent.mkdir(parents=True)
+    slot_dir = models_dir / str(config.current_slot_index)
+    slot_dir.mkdir(parents=True)
+    model_file = slot_dir / "model.onnx"
     model_file.write_bytes(b"model-data")
+    slot_info = RVCSlotInfo(
+        slot_index=config.current_slot_index,
+        name="Test Model",
+        model_file=Path("model.onnx"),
+        is_onnx=True,
+    )
+    (slot_dir / "params.json").write_text(slot_info.model_dump_json(), encoding="utf-8")
+
     modules_dir = tmp_path / "modules"
     module_file = modules_dir / "contentvec" / "contentvec-f.onnx"
     module_file.parent.mkdir(parents=True)
     module_file.write_bytes(b"module-data")
 
     monkeypatch.setattr("vcclient.voice_changer.configuration_manager.configuration_manager.ConfigFile", conf_path)
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
     monkeypatch.setattr(ConfigurationManager, "_instance", None)
+    monkeypatch.setattr(SlotManager, "_instance", None)
+    monkeypatch.setattr(LocalVoiceChangerInterface, "_instance", None)
+    monkeypatch.setattr(VoiceChanger, "_instance", None)
+
+    def _fake_get_pipeline(loaded_slot_info):
+        assert loaded_slot_info.slot_index == config.current_slot_index
+        return SimpleNamespace(
+            get_input_sample_rate=lambda: 48000,
+            get_output_sample_rate=lambda: 48000,
+            get_pitch_estimator_type=lambda: loaded_slot_info.pitch_estimator,
+            get_gpu_device_id=lambda: 0,
+        )
+
+    monkeypatch.setattr(PipelineManager, "get_pipeline", _fake_get_pipeline)
 
     cm = ConfigurationManager.get_instance()
-    custom = VoiceChangerConfiguration(
-        current_slot_index=7,
-        voice_changer_input_mode="server",
-        audio_input_device_index=3,
-        audio_output_device_gain=2.5,
-        noise_gate=-45,
-    )
-    cm.voice_changer_configuration = custom
+    cm.voice_changer_configuration = config
     cm.save_voice_changer_configuration()
 
-    voice = VoiceChanger.get_instance()
-    voice.vc_pipeline = object()  # type: ignore[assignment]
     local = LocalVoiceChangerInterface.get_instance()
-    monkeypatch.setattr(local, "local_voice_changer_enabled", False)
-    monkeypatch.setattr(local, "stream_running", False)
+    voice = VoiceChanger.get_instance()
+    assert voice.vc_info.slot_index == config.current_slot_index
+    assert voice.vc_pipeline is not None
 
-    client = TestClient(_create_rest_api())
-    response = client.post("/api/configuration-manager/clear")
+    return SimpleNamespace(
+        client=TestClient(_create_rest_api()),
+        cm=cm,
+        conf_path=conf_path,
+        model_file=model_file,
+        module_file=module_file,
+        local=local,
+        voice=voice,
+    )
+
+
+def test_clear_configuration_resets_only_settings_and_preserves_models_and_modules(tmp_path, monkeypatch):
+    env = _setup_clear_test_env(
+        tmp_path,
+        monkeypatch,
+        VoiceChangerConfiguration(
+            current_slot_index=7,
+            voice_changer_input_mode="server",
+            audio_input_device_index=3,
+            audio_output_device_gain=2.5,
+            noise_gate=-45,
+        ),
+    )
+
+    response = env.client.post("/api/configuration-manager/clear")
     assert response.status_code == 200
 
     expected = VoiceChangerConfiguration().model_dump()
     assert response.json() == expected
-    assert cm.get_voice_changer_configuration() == VoiceChangerConfiguration()
-    saved = json.loads(conf_path.read_text(encoding="utf-8"))
+    assert env.cm.get_voice_changer_configuration() == VoiceChangerConfiguration()
+    saved = json.loads(env.conf_path.read_text(encoding="utf-8"))
     assert saved["current_slot_index"] == 0
     assert saved["voice_changer_input_mode"] == "client"
-    assert voice.vc_pipeline is None
-    assert model_file.read_bytes() == b"model-data"
-    assert module_file.read_bytes() == b"module-data"
+    assert env.voice.vc_pipeline is None
+    assert env.model_file.read_bytes() == b"model-data"
+    assert env.module_file.read_bytes() == b"module-data"
 
 
 def test_clear_configuration_rejects_while_audio_is_active(tmp_path, monkeypatch):
-    from starlette.testclient import TestClient
-
-    from vcclient.server.vcserver_rest_api import _create_rest_api
-    from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
-    from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-
-    conf_path = tmp_path / "vc_conf.json"
-    monkeypatch.setattr("vcclient.voice_changer.configuration_manager.configuration_manager.ConfigFile", conf_path)
-    monkeypatch.setattr(ConfigurationManager, "_instance", None)
-
-    cm = ConfigurationManager.get_instance()
-    cm.voice_changer_configuration = VoiceChangerConfiguration(current_slot_index=5, noise_gate=-55)
-    cm.save_voice_changer_configuration()
-
-    local = LocalVoiceChangerInterface.get_instance()
-    voice = VoiceChanger.get_instance()
-    client = TestClient(_create_rest_api())
+    env = _setup_clear_test_env(
+        tmp_path,
+        monkeypatch,
+        VoiceChangerConfiguration(current_slot_index=5, noise_gate=-55),
+    )
 
     for active_target, attr in (
-        (local, "local_voice_changer_enabled"),
-        (local, "stream_running"),
+        (env.local, "local_voice_changer_enabled"),
+        (env.local, "stream_running"),
     ):
         with monkeypatch.context() as m:
             m.setattr(active_target, attr, True)
-            res = client.post("/api/configuration-manager/clear")
+            res = env.client.post("/api/configuration-manager/clear")
             assert res.status_code == 409
 
     with monkeypatch.context() as m:
-        m.setattr(voice, "is_convert_chunk_bulk_started", lambda: True)
-        res = client.post("/api/configuration-manager/clear")
+        m.setattr(env.voice, "is_convert_chunk_bulk_started", lambda: True)
+        res = env.client.post("/api/configuration-manager/clear")
         assert res.status_code == 409
 
-    assert cm.get_voice_changer_configuration().current_slot_index == 5
-    saved = json.loads(conf_path.read_text(encoding="utf-8"))
+    assert env.cm.get_voice_changer_configuration().current_slot_index == 5
+    saved = json.loads(env.conf_path.read_text(encoding="utf-8"))
     assert saved["noise_gate"] == -55

@@ -40,8 +40,10 @@ class RestAPIConfigurationManager:
         """Reset configuration to defaults while stopped without deleting models or modules."""
         local = LocalVoiceChangerInterface.get_instance()
         with local.lifecycle_lock:
+            if local.local_voice_changer_enabled or local.stream_running:
+                raise HTTPException(status_code=409, detail="Audio must be stopped before clearing configuration")
             voice = VoiceChanger.get_instance()
-            if local.local_voice_changer_enabled or local.stream_running or voice.is_convert_chunk_bulk_started():
+            if voice.is_convert_chunk_bulk_started():
                 raise HTTPException(status_code=409, detail="Audio must be stopped before clearing configuration")
             configuration_manager = ConfigurationManager.get_instance()
             logger.info("Clearing configuration to defaults")
