@@ -4,6 +4,12 @@ Svelte 5 + TypeScript + Vite UI based on the v2.1.4 layout.
 Bits UI supplies sliders and accessible dialogs; standard HTML supplies simple
 buttons, selects, and checkboxes. The model list, configured selection, metadata,
 portraits, and current settings are read from the existing backend GET APIs.
+On a fresh installation, the UI follows the browser's first supported language,
+falling back to English. The initial input mode is Client Mode. Browser echo
+cancellation, noise suppression, and automatic gain control start disabled.
+The backend tests available inference devices in priority order before saving its
+first configuration; this test checks session providers and a pipeline warmup,
+but does not establish which device executed every operation.
 Server Mode now supports model/device selection while stopped, start/stop, and
 live passthrough, input/output gain, pitch, index, noise-gate, and filter adjustment through existing PUT/POST APIs.
 WASAPI exclusive mode is unavailable in the new UI. Before starting Server Mode,

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
+from vcclient.voice_changer.voice_change_manager.vc_pipelines import pipeline_manager
 from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
 
 
@@ -32,7 +33,7 @@ def mock_rvc_pipeline():
 
 
 def test_warmup_invokes_run_with_synthetic_audio(mock_rvc_pipeline: RVCPipeline):
-    """Verify that _warmup generates a 440Hz sine wave matching chunk_sec and calls run()."""
+    """Verify that warmup generates a 440Hz sine wave matching chunk_sec and calls run()."""
     executed_audio: list[np.ndarray] = []
 
     def mock_run(audio: np.ndarray, real_crossfade_sec: float) -> np.ndarray:
@@ -45,7 +46,7 @@ def test_warmup_invokes_run_with_synthetic_audio(mock_rvc_pipeline: RVCPipeline)
 
     mock_rvc_pipeline.run = mock_run
 
-    mock_rvc_pipeline._warmup()
+    mock_rvc_pipeline.warmup()
 
     assert len(executed_audio) == 1
     audio = executed_audio[0]
@@ -62,8 +63,8 @@ def test_warmup_invokes_run_with_synthetic_audio(mock_rvc_pipeline: RVCPipeline)
     assert mock_rvc_pipeline.noise_gate_below_threshold_samples == 0
 
 
-def test_warmup_recovers_gracefully_from_error(mock_rvc_pipeline: RVCPipeline):
-    """Verify that _warmup catches exceptions and still resets internal buffers."""
+def test_warmup_propagates_error_and_resets_buffers(mock_rvc_pipeline: RVCPipeline):
+    """Verify that a failed warmup resets buffers and reports the error to the caller."""
 
     def mock_run_fail(audio: np.ndarray, real_crossfade_sec: float) -> np.ndarray:
         mock_rvc_pipeline.audio_buffer = np.ones(16384, dtype=float) * 42.0
@@ -71,8 +72,8 @@ def test_warmup_recovers_gracefully_from_error(mock_rvc_pipeline: RVCPipeline):
 
     mock_rvc_pipeline.run = mock_run_fail
 
-    # Should not raise
-    mock_rvc_pipeline._warmup()
+    with pytest.raises(RuntimeError, match="Simulated inference engine failure"):
+        mock_rvc_pipeline.warmup()
 
     # Buffers must still be reset
     assert np.all(mock_rvc_pipeline.audio_buffer == 0.0)
@@ -80,7 +81,21 @@ def test_warmup_recovers_gracefully_from_error(mock_rvc_pipeline: RVCPipeline):
 
 
 def test_warmup_skips_when_pipeline_incomplete():
-    """Verify that _warmup safely skips when pipeline components are not yet initialized."""
+    """Verify that warmup safely skips when pipeline components are not yet initialized."""
     pipeline = RVCPipeline.__new__(RVCPipeline)
     # Does not have embedder, rvc, etc.
-    pipeline._warmup()  # Must not crash
+    pipeline.warmup()  # Must not crash
+
+
+@pytest.mark.parametrize("warmup_error", [False, True])
+def test_pipeline_manager_warms_up_after_construction(monkeypatch, warmup_error):
+    class FakePipeline:
+        def __init__(self, slot):
+            self.slot = slot
+            self.warmup = MagicMock(side_effect=RuntimeError("warmup failed") if warmup_error else None)
+
+    monkeypatch.setattr(pipeline_manager, "RVCPipeline", FakePipeline)
+    slot = RVCSlotInfo(slot_index=0, model_file="model.onnx")
+    pipeline = pipeline_manager.PipelineManager.get_pipeline(slot)
+    assert pipeline.slot is slot
+    pipeline.warmup.assert_called_once_with()

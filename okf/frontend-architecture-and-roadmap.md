@@ -146,6 +146,11 @@ changes; changing it resets the rate to Auto.
 The chunk and Extra frame logarithmic sliders save on release while audio is stopped
 in either mode. Chunk belongs to the selected model; Extra frame is a shared
 configuration setting. Crossfade duration is determined by the backend.
+For a new configuration, the model chunk defaults to 0.5 seconds and Extra to 0.5 seconds;
+the noise gate defaults to −35 dB, and the high-pass (100 Hz) and low-pass (12000 Hz) filters
+are enabled. The default input mode is Client Mode. Browser automatic gain control, noise
+suppression, and echo cancellation start disabled. The UI uses the first supported browser
+language on first launch, falling back to English; a saved language takes precedence.
 Recording in both modes uses the existing configuration API. It can be armed before
 audio starts; stopping audio saves the take and returns to the armed state. Passthrough
 can be toggled while recording. The UI downloads a nonempty WAV and reports empty audio.

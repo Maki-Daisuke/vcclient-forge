@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..voice_changer_const import AudioDeviceType, ExtraSec, InferencerType, VoiceChangerInputMode, VoiceChangerType
+from ..voice_changer_const import AudioDeviceType, InferencerType, VoiceChangerInputMode, VoiceChangerType
 
 
 class PerformanceData(BaseModel):
@@ -93,10 +93,10 @@ class VoiceChangerConfiguration(BaseModel):
     pass_through: bool = False
     recording_started: bool = False
     enable_performance_monitor: bool = True
-    enable_high_pass_filter: bool = False
+    enable_high_pass_filter: bool = True
     high_pass_filter_cutoff: float = 100
-    enable_low_pass_filter: bool = False
-    low_pass_filter_cutoff: float = 10000
+    enable_low_pass_filter: bool = True
+    low_pass_filter_cutoff: float = 12000
     volume_tuning_type: str = "sqrt"
     audio_input_device_index: int = -1
     audio_output_device_index: int = -1
@@ -113,8 +113,8 @@ class VoiceChangerConfiguration(BaseModel):
     realtime_process_status_send_interval_sec: float = 1.0
     realtime_output_status_enabled: bool = True
     realtime_output_status_send_interval_sec: float = 0.2
-    noise_gate: float = -100
-    extra_frame_sec: float = ExtraSec[0]
+    noise_gate: float = -35
+    extra_frame_sec: float = 0.5
     sola_search_frame_sec: float = 0.012
     gpu_device_id_int: int = 0
     input_sample_rate: int = 48000

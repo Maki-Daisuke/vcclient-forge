@@ -277,6 +277,8 @@ To ensure UI device selectors match an existing option in `GET /api/gpu-device-m
 - When loading `settings/vc_conf.json` or applying configuration updates, `get_device()` normalizes out-of-range indices, including legacy `-1` and ordinarily `1000`, to CPU at index `0`. It does not automatically preserve a legacy `1000` OpenVINO selection.
 - A separate `resolve_legacy_device_id()` helper maps legacy `1000` to the first OpenVINO catalog entry when present, but the configuration loading and update paths do not call it.
 
+On the first backend startup without `settings/vc_conf.json`, Forge tries the initial model on detected devices in this order: CUDA GPUs, CoreML `ALL`, OpenVINO GPUs, DirectML GPUs, then CPU. Within each GPU provider, larger device numbers are tried first (for OpenVINO, `GPU.n` is used when available, otherwise the discovery index). The initializer constructs each candidate pipeline, checks its ONNX session providers and calls its public `warmup()` method; ONNX Runtime's runtime provider retry is disabled for this test. Provider presence alone does not prove that every operation ran on the accelerator. A successful catalog index is saved; if every candidate fails, startup reports an error without saving a default configuration. If the initial model is unavailable, selection is deferred. On subsequent starts the saved index is used, with out-of-range indices normalized and saved as CPU. Because only the catalog index is stored, a changed catalog can assign the same index to a different device.
+
 ---
 
 ## 5. Pipeline & Inference Layer Execution

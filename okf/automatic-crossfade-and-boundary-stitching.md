@@ -86,7 +86,7 @@ Forge removes `crossfade_sec` from user-facing configuration and fixes the pipel
    ```
 
 3. **Pipeline Warmup and Target Feature Length in `RVCPipeline`**:
-   `RVCPipeline._warmup` and `RVCPipeline._calculate_target_feats_length` in `backend/vcclient/voice_changer/voice_change_manager/vc_pipelines/rvc_pipeline.py` reference `DEFAULT_CROSSFADE_SEC` directly (`min(chunk_sec, DEFAULT_CROSSFADE_SEC)`), removing runtime configuration coupling during ONNX session initialization and static/bounded shape calculation.
+   `RVCPipeline.warmup` and `RVCPipeline._calculate_target_feats_length` in `backend/vcclient/voice_changer/voice_change_manager/vc_pipelines/rvc_pipeline.py` reference `DEFAULT_CROSSFADE_SEC` directly (`min(chunk_sec, DEFAULT_CROSSFADE_SEC)`), removing runtime configuration coupling during ONNX session initialization and static/bounded shape calculation.
 
 4. **Dynamic Clamping in `VoiceChanger._convert_chunk`**:
    In `backend/vcclient/voice_changer/voice_change_manager/voice_changer.py`, the runtime calculates the effective chunk duration from the actual output sample count (`output_size`), covering both bulk queue chunks (`vc_chunk_sec`) and arbitrary-length `direct_from_server=True` buffers:

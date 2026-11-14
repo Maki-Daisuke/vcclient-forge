@@ -191,7 +191,9 @@ class VoiceChanger(EventEmitter):
         return None
 
     def _set_pitch_estimator(self, pitch_estimator: PitchEstimatorType) -> None:
-        self._require_pipeline().set_pitch_estimator_type(pitch_estimator)
+        pipeline = self._require_pipeline()
+        pipeline.set_pitch_estimator_type(pitch_estimator)
+        PipelineManager.warmup(pipeline)
 
     def _check_and_update_pitch_estimator(self) -> None:
         if self.vc_info.slot_index < 0:

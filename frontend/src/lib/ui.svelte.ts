@@ -285,19 +285,28 @@ const previewMessages = {
 const contextKey = Symbol('ui');
 export const uiPreferencesStorageKey = 'vcclient-forge.ui-preferences.v1';
 
+function defaultLanguage(): string {
+  const preferred = typeof navigator === 'undefined' ? [] : [...(navigator.languages || []), navigator.language];
+  for (const language of preferred) {
+    const base = language?.toLowerCase().split('-')[0];
+    if (languages.some(([code]) => code === base)) return base;
+  }
+  return 'en';
+}
+
 function loadUiPreferences(): { language: string; theme: 'light' | 'dark'; confirmPassthrough: boolean } {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(uiPreferencesStorageKey) ?? 'null');
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
       const value = stored as Record<string, unknown>;
       return {
-        language: languages.some(([code]) => code === value.language) ? value.language as string : 'en',
+        language: languages.some(([code]) => code === value.language) ? value.language as string : defaultLanguage(),
         theme: value.theme === 'dark' ? 'dark' : 'light',
         confirmPassthrough: value.confirmPassthrough !== false,
       };
     }
   } catch { /* Use defaults when storage is unavailable or invalid. */ }
-  return { language: 'en', theme: 'light', confirmPassthrough: true };
+  return { language: defaultLanguage(), theme: 'light', confirmPassthrough: true };
 }
 
 export class UiState {

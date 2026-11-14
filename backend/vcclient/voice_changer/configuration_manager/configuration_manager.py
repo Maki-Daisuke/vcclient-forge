@@ -23,29 +23,31 @@ class ConfigurationManager:
     voice_changer_configuration: VoiceChangerConfiguration
 
     @classmethod
-    def get_instance(cls) -> ConfigurationManager:
+    def get_instance(cls, *, defer_initial_save: bool = False) -> ConfigurationManager:
         if cls._instance is None:
-            cls._instance = cls()
+            cls._instance = cls(defer_initial_save=defer_initial_save)
         return cls._instance
 
-    def __init__(self) -> None:
-        self.reload()
+    def __init__(self, *, defer_initial_save: bool = False) -> None:
+        self.reload(defer_initial_save=defer_initial_save)
         self.voice_changer_configuration.recording_started = False
         self.voice_changer_configuration.pass_through = False
 
-    def reload(self) -> None:
+    def reload(self, *, defer_initial_save: bool = False) -> None:
         if os.path.exists(ConfigFile):
             with open(ConfigFile, "r", encoding="utf-8") as f:
                 self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(f.read())
-            self.voice_changer_configuration.gpu_device_id_int = get_device(
-                self.voice_changer_configuration.gpu_device_id_int
-            ).id
+            saved_device = self.voice_changer_configuration.gpu_device_id_int
+            self.voice_changer_configuration.gpu_device_id_int = get_device(saved_device).id
             self.voice_changer_configuration.recording_started = False
             self.voice_changer_configuration.pass_through = False
+            if self.voice_changer_configuration.gpu_device_id_int != saved_device:
+                self.save_voice_changer_configuration()
             return None
 
         self.voice_changer_configuration = VoiceChangerConfiguration()
-        self.save_voice_changer_configuration()
+        if not defer_initial_save:
+            self.save_voice_changer_configuration()
 
     def get_voice_changer_configuration(self) -> VoiceChangerConfiguration:
         return self.voice_changer_configuration

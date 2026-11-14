@@ -4,6 +4,28 @@ import { mockCatalog } from './catalog-fixtures';
 test.use({ storageState: { cookies: [], origins: [] } });
 test.beforeEach(async ({ page }) => { await mockCatalog(page); });
 
+test('uses the browser language on first launch and retains an explicit selection', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'languages', { get: () => ['ja-JP', 'en-US'] });
+    Object.defineProperty(navigator, 'language', { get: () => 'ja-JP' });
+  });
+  await page.goto('/');
+  const language = page.locator('.header-actions select');
+  await expect(language).toHaveValue('ja');
+  await language.selectOption('en');
+  await page.reload();
+  await expect(language).toHaveValue('en');
+});
+
+test('falls back to English for unsupported browser languages', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'languages', { get: () => ['xx-XX'] });
+    Object.defineProperty(navigator, 'language', { get: () => 'xx-XX' });
+  });
+  await page.goto('/');
+  await expect(page.locator('.header-actions select')).toHaveValue('en');
+});
+
 test('defaults to English and remembers language and theme', async ({ page }) => {
   await page.goto('/');
   const language = page.locator('.header-actions select');

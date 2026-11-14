@@ -88,7 +88,6 @@ class RVCPipeline(VCPipeline):
             embedder_dim_size = 768
         self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, self.device)
         self._reset_buffers()
-        self._warmup()
 
     def _reset_buffers(self) -> None:
         self.audio_buffer = np.zeros([16384], dtype=float)
@@ -102,7 +101,7 @@ class RVCPipeline(VCPipeline):
         self.is_gate_open = True
         self.noise_gate_below_threshold_samples = 0
 
-    def _warmup(self) -> None:
+    def warmup(self) -> None:
         """Warm up ONNX sessions with a realistic audio chunk to trigger AOT/JIT compilation."""
         if not (
             hasattr(self, "embedder")
@@ -133,8 +132,6 @@ class RVCPipeline(VCPipeline):
             )
             self.run(dummy_audio, real_crossfade_sec=real_crossfade_sec)
             logger.info("RVCPipeline warmup complete.")
-        except Exception as e:
-            logger.warning("Pipeline warmup encountered an error (continuing anyway): %s", e)
         finally:
             self._reset_buffers()
 
@@ -218,7 +215,6 @@ class RVCPipeline(VCPipeline):
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type
-        self._warmup()
         logger.info("pitch estimator is changed: done")
 
     def _generate_inputs(

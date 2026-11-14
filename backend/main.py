@@ -38,6 +38,7 @@ from vcclient.initializer import (
     _check_and_convert_legacy_pth_models,
     _check_and_download_initial_samples,
     _check_and_download_rvc_modules,
+    _select_initial_compute_device,
 )
 from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
@@ -69,6 +70,9 @@ def start_server(
     print(f"VCClient Forge v{VERSION}", flush=True)
 
     ModelTransaction(ModelDir, ConfigFile).recover()
+    first_start = not ConfigFile.exists()
+    if first_start:
+        ConfigurationManager.get_instance(defer_initial_save=True)
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
     _check_and_download_initial_samples()
@@ -77,6 +81,8 @@ def start_server(
 
     reload_gpu_devices()
     reload_audio_devices()
+    if first_start and _select_initial_compute_device():
+        ConfigurationManager.get_instance().save_voice_changer_configuration()
 
     vcserver = VCServer(
         host=host,

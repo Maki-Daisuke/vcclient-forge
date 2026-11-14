@@ -62,6 +62,7 @@ def test_gpu_device_id_normalization(tmp_path, monkeypatch):
     cm = ConfigurationManager()
     # -1 should normalize to index 0 (CPU)
     assert cm.voice_changer_configuration.gpu_device_id_int == 0
+    assert json.loads(test_conf_path.read_text(encoding="utf-8"))["gpu_device_id_int"] == 0
 
     # Set configuration with out-of-bounds id
     new_conf = VoiceChangerConfiguration()
