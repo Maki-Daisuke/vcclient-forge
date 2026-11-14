@@ -85,7 +85,7 @@ Because these standalone tools provide a tailored, native experience, maintainin
 
 ### The Decision
 
-VCClient Forge will **fully prune all Beatrice support** from the backend and frontend codebases.
+VCClient Forge **fully pruned all Beatrice support** from the backend and frontend codebases.
 
 ### Doubling Down on RVC and Modern GPU Acceleration
 
@@ -98,12 +98,12 @@ Rather than dividing attention across divergent architectures, VCClient Forge fo
 
 ---
 
-## 4. Cleanup Roadmap
+## 4. Cleanup Status (Completed)
 
-1. **Backend Pruning**:
-   - Remove `simple_beatrice.py` and `beatricev2_pipeline.py`.
-   - Prune Beatrice data models and branch logic from `slot_manager.py`, `slot_manager_data_types.py`, and `pipeline_manager.py`.
-2. **Frontend Pruning**:
-   - Remove Beatrice-specific components, SVG assets, and conditional branches from the frontend.
-3. **Verification**:
-   - Validate that all remaining RVC pipeline and regression tests continue to pass with 100% reliability.
+1. **Backend Pruning** [Completed]:
+   - Removed `simple_beatrice.py` and `beatricev2_pipeline.py`.
+   - Pruned Beatrice data models and branch logic from `slot_manager.py`, `slot_manager_data_types.py`, and `pipeline_manager.py`.
+2. **Frontend Pruning** [Completed]:
+   - Replaced legacy `web_front/` with the RVC-only Svelte 5 UI (`frontend/`), omitting Beatrice-specific components, SVG assets, and conditional branches (only unused legacy translation keys remain inside the preserved `frontend/src/lib/i18n/*/translation.json` dictionaries).
+3. **Verification** [Completed]:
+   - Remaining RVC pipeline and regression tests cover the active RVC-only codebase.

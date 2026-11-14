@@ -31,7 +31,7 @@ While Tauri is a capable framework that excels at minimal binary sizes and low m
 > _(If the outcome and capabilities are identical, less code and concise documentation is a guiding principle.)_
 
 5. **Heavyweight Build Toolchain Friction**: On Windows, Tauri mandates installing the full Microsoft Visual C++ Build Tools (MSVC) and Windows SDK alongside the Rust toolchain, consuming multi-gigabytes of disk space and imposing high onboarding friction. In contrast, Go and Wails compile cleanly with lightweight prerequisites (pure Go without CGO on Windows), simplifying environment setup.
-6. **The Decisive Factor: Declarative Webview Script Injection (`WebviewWindowOptions.JS`)**: Wails v3 provides a first-class `JS: string` option in its window configuration. This enables injecting transparent compatibility polyfills (e.g. routing `window.open` to `wails.Browser.OpenURL` and polyfilling `window.electronAPI.openBrowser`) directly into the document context before DOM creation. This cleanly resolves all external link navigation and legacy Electron client compatibility in user space without low-level C++/COM event hooking or fragile platform-specific shell execution commands.
+6. **The Decisive Factor: Declarative Webview Script Injection (`WebviewWindowOptions.JS`)**: Wails v3 provides a first-class `JS: string` option in its window configuration. `desktop/main.go` injects `window.vcclientForge.openLogWindow`, `window.open` browser delegation (routing external URLs to `wails.Browser.OpenURL`), and the macOS WebKit default audio output sink polyfill directly into the document context before DOM creation without low-level C++/COM event hooking or platform-specific shell execution commands.
 
 Wails v3 delivers fast compilation (~3–5s), minimal configuration overhead, pure Go Windows builds, and direct reuse of the existing HTML/JS bootstrap assets.
 
@@ -102,10 +102,10 @@ Tauri v2 introduces a granular, enterprise-grade capabilities system (`src-tauri
 
 ## 3. Preservation of Existing Assets
 
-The migration to Wails preserves all frontend and UX investments made so far:
+The migration to Wails preserves core startup and packaging investments while transitioning to the Svelte 5 frontend:
 
-1. **The Diagnostic Bootstrap UI**: The unbuffered HTML/CSS/JS startup screen (`src-tauri/bootstrap/` or `desktop/bootstrap/`), complete with dark mode, live status messages, expandable logs, and retry buttons, will be directly mounted via Go's standard `embed.FS`.
-2. **Dual-UI Architecture**: The `/ui/2.1.4/` and `/ui/2.0.78/` static web distribution remains 100% unchanged, served natively by the Python FastAPI backend.
+1. **The Diagnostic Bootstrap UI**: The unbuffered HTML/CSS/JS startup screen (`desktop/bootstrap/`), complete with dark mode, live status messages, expandable logs, and retry buttons, is embedded via Go's standard `embed.FS`.
+2. **Frontend Serving**: The Python FastAPI backend serves the Svelte 5 frontend built into `frontend/dist` (replacing the retired legacy `/ui/2.1.4/` and `/ui/2.0.78/` static bundles).
 3. **Packaging Strategy**: Standalone portable packaging using PyInstaller onedir for the backend and the compiled desktop host remains functionally identical, maintaining our sub-2GB target ([Sub-2GB Portable Distribution](./sub-2gb-portable-distribution-and-packaging.md)).
 
 ---
@@ -122,7 +122,7 @@ The migration to Wails preserves all frontend and UX investments made so far:
 3. **Phase 3: Navigation & Window Lifecycle** [Completed]
    - Bound `app.Run()` strictly to the main OS thread for COM STA compliance (`HRESULT 0x800401f0` prevention).
    - Automated webview navigation to `http://127.0.0.1:18888/` upon backend readiness.
-   - Configured declarative link delegation to OS default browser and legacy Electron polyfills via `WebviewWindowOptions.JS`.
+   - Configured declarative link delegation (`window.open`), log window bridge (`window.vcclientForge.openLogWindow`), and macOS WebKit audio sink polyfill via `WebviewWindowOptions.JS`.
 4. **Phase 4: Toolchain & Build Script Integration** [Completed]
    - Updated `scripts/build.js`, `scripts/build_package.py`, and `package.json` to build and package the Wails v3 desktop host across Windows, Linux, and macOS via `wails3 task --dir desktop build`.
    - Deleted `src-tauri/` and pruned Rust dependencies.

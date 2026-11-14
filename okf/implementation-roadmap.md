@@ -36,9 +36,9 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   - Synthesis stage: HiFi-GAN vocoder runs in 11.71 ms on RTX 4090 vs 145.43 ms on CPU (12.4× GPU acceleration).
 - **Remaining Baseline Work**:
   - Run continuous long-duration (30+ minutes) streaming and silent-input tests on the active pipeline to evaluate end-to-end microphone-to-output latency, queue age, and clock drift.
-  - Reconcile the old Beatrice cleanup checklist: backend references in `backend/vcclient` are removed; verify remaining frontend/assets and regression coverage.
+  - Reconcile the old Beatrice cleanup checklist [Completed]: backend references in `backend/vcclient` and the legacy `web_front/` UI have been removed, leaving an RVC-only Svelte 5 UI (`frontend/`; only unused historical translation keys remain in `frontend/src/lib/i18n/*/translation.json`).
 - **Exit**: A documented end-to-end baseline under continuous streaming and confirmation of remaining legacy cleanup.
-- **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-roadmap).
+- **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-status-completed).
 
 ### 2. Separate Configuration Acceptance, Notification, and Application
 
@@ -132,8 +132,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   configuration while native audio is running, with readback and retry/discard.
   Mocked browser tests cover the control; live audio verification remains pending.
 
-- **WASAPI exclusive mode**: The Svelte UI can change the existing setting while
-  native audio is stopped. Real-device verification remains pending.
+- **WASAPI exclusive mode**: The Svelte UI hides the WASAPI exclusive toggle (`frontend/tests/wasapi.spec.ts`) and disables any saved exclusive-mode setting before starting native audio; `test_wasapi_exclusive.py` covers backend propagation.
 
 - **Inference timing controls**: The Svelte UI can adjust chunk and Extra frame
   with logarithmic sliders while audio is stopped. Chunk is model-specific;
@@ -149,25 +148,22 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Server recording**: The Svelte UI can start and stop recording using existing
   APIs and download the output WAV. Recording can be armed before starting audio;
   stopping audio saves a take and returns to the armed state. Recording uses fixed
-  backend filenames and cannot be combined with passthrough. Real audio verification
-  remains pending.
+  backend filenames. Passthrough can be toggled during recording; the user confirmed
+  real-audio recording and switching passthrough in Client Mode. See `frontend/README.md`
+  for the recording behavior and limitations.
 
-- **Filter controls implemented (2026-11-06)**: Server Mode with a selected model provides high/low-pass
+- **Filter controls implemented**: Both Server Mode and Client Mode with a selected model provide high/low-pass
   switches and cutoff sliders. The existing full PUT is preceded by current
   configuration and voice-information reads and a cutoff/sample-rate check;
   invalid combinations remain unsent. Browser tests mock writes, and displayed
-  values were checked against a real GET. Real PUT and listening validation are
-  pending. Backend APIs are unchanged.
+  values were checked against a real GET. Backend APIs are unchanged.
 
-- **Noise-gate control implemented (2026-11-06)**: The noise suppression section
-  adjusts the threshold over −120 to 0 dB, with the existing ≤ −100 dB bypass
-  explained. It shares the serialized settings queue and existing full PUT API.
-  All 55 mocked browser checks passed and real-backend GET display was confirmed;
-  real PUT and audible adjustment remain to be checked.
+- **Noise-gate control implemented**: In both Server Mode and Client Mode, the noise suppression section
+  provides an enable checkbox (saving `−100` dB when unchecked) and a threshold slider over `−100` to `0` dB in `1` dB steps. The pipeline bypasses the gate at `≤ −100` dB.
+  It shares the serialized settings queue and existing full PUT API; real-backend GET display was also confirmed.
 
-- Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
-- Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
-- Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.
+- **Production Svelte 5 build and asset migration [Completed]**: `npm run build:frontend` builds the Svelte 5 + Vite source in `frontend/` directly into `frontend/dist` for FastAPI serving and desktop/portable packaging. Legacy `web_front/` and `client/` have been retired, and all 13 community translation dictionaries (`frontend/src/lib/i18n/*/translation.json`) plus required image/license assets are preserved.
+- Implement remaining native control refinements and validate rapid edits, slow/failed responses, and keyboard completion cleanly end to end. Socket.IO notifications are addressed in item 5.
 - **Depends on**: Usable native conversion and a defined settings contract. UI scaffolding and asset migration can proceed alongside items 2-3; advanced inference optimization is not a dependency.
 - **Exit**: End-to-end native conversion through the new UI; rapid edits, slow/failed responses, and keyboard completion behave correctly. Socket.IO notifications are addressed in item 5.
 - **Sources**: [UI Step 1](./frontend-architecture-and-roadmap.md#step-1-minimal-svelte-5-ui-for-server-mode), [Settings redesign](./frontend-architecture-and-roadmap.md#settings-redesign-decouple-interaction-from-rest-synchronization), [Translation preservation](./frontend-architecture-and-roadmap.md#5-preserving-100-of-community-i18n-translation-assets).
@@ -187,7 +183,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   notifications; both values and graph lines were also observed in the UI against
   a live backend during conversion.
 - Connect remaining performance and state notifications. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
-- Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API and legacy UI available during the transition.
+- Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API compatible for existing clients; the legacy `web_front/` UI has been retired after migrating to `frontend/`.
 - **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.
 - **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI while existing API clients remain compatible.
 - **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-socketio-notifications).
@@ -201,13 +197,12 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Exit**: A usable packaged native desktop workflow with clean process lifecycle, fast Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
 - **Sources**: [Desktop Transition](./frontend-architecture-and-roadmap.md#desktop-packaging-transitioning-from-tauri-to-wails), [Wails ADR](./migrating-desktop-host-from-tauri-to-wails.md), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 
-### 7. Restore Browser Audio through Socket.IO
+### 7. Restore Browser Audio through Socket.IO [Implemented in Svelte 5 UI]
 
-- Connect browser capture and playback through AudioWorklet and the existing Socket.IO audio API; use the common preparation/inference path.
-- First restore browser-input/browser-output operation alongside the native pair. Keep main/monitor routing and existing API contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
-- Validate browser secure-context/microphone requirements and Wails WebView2 permissions where applicable. Optional Tailscale Serve remains user-managed, not a bundled tunnel dependency.
+- **Client Mode implemented**: The Svelte 5 UI (`frontend/`) implements Socket.IO Client Mode browser capture and playback using Web Audio / AudioWorklet, supporting browser input/output device selection, recording (confirmed with real audio per `frontend/README.md`), filters, noise gate, and browser audio constraints (echo cancellation, noise suppression, auto-gain control).
+- Remaining validation covers long-duration overload/disconnect recovery, buffering bounds across varied browsers, and remote HTTPS/WSS access via user-managed Tailscale Serve (or Wails WebView2 permissions where applicable).
 - **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
-- **Exit**: Browser audio works through Socket.IO, with one selected input and validated buffering and recovery; existing API compatibility is maintained.
+- **Exit**: Browser audio works reliably through Socket.IO, with validated buffering and recovery while preserving existing API compatibility.
 - **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
 
 ### 8. Evaluate Mixed Native/Browser Routing
@@ -289,6 +284,6 @@ Sources: [Control and state plan](./server-first-architecture-and-static-pipelin
 - [Pitch estimators](./streamlined-pitch-estimation-and-torch-free-pipeline.md): RMVPE default and ONNX FCPE alternative already exist. Pure-ONNX inference does not mean removing CPU PyTorch needed for legacy model export.
 - [Hardware acceleration & universal distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md): AVX-512 CPU acceleration benchmarks, NPU execution characteristics, and the layered platform baseline strategy (OpenVINO + DirectML baseline on Windows, CoreML on macOS, OpenVINO on Linux, bundled across `standard` and `cuda` editions) are fully implemented and verified on physical hardware (Windows CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and macOS Apple Silicon M2 via CoreML).
 - [ngrok removal](./deprecating-and-removing-ngrok.md): Bundled ngrok is already removed. Tailscale Serve is optional external setup, not an unfinished Forge integration.
-- [Beatrice decision](./deprecating-and-removing-beatrice.md): RVC-only scope is established; backend references are absent in this inventory. Frontend/assets and the stale cleanup checklist still require reconciliation in item 1.
+- [Beatrice decision](./deprecating-and-removing-beatrice.md): RVC-only scope is completed across both the backend (`backend/vcclient`) and the Svelte 5 frontend (`frontend/`), and legacy `web_front/` has been removed (only unused historical translation keys remain in `frontend/src/lib/i18n/*/translation.json`).
 
 Keep this execution index updated when a milestone lands or an experiment is rejected; update the corresponding detailed document rather than accumulating conflicting completion claims.

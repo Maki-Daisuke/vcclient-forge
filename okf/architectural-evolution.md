@@ -24,13 +24,13 @@ Forge's later removal of PyTorch from the real-time inference path is a separate
 
 ## 2. Anatomy of the Upstream "Chimera Monorepo"
 
-The upstream repository grew organically as a multi-purpose monorepo housing unrelated sub-projects:
+The upstream repository grew organically as a multi-purpose monorepo housing unrelated sub-projects (all five upstream directories below were removed in Forge, with `frontend/` replacing `web_front/`, `desktop/` replacing `client/`, and `docs/` now holding only the user-facing `README.txt` and `README_ja.txt` quick-start guides):
 
-* **`docs/` (Removed in Forge)**: Not documentation, but a standalone client-side Web application ("Voice Recorder") hosted on GitHub Pages (`https://w-okada.github.io/voice-changer/`). Used in 2022 to record reading scripts (including Natsume Soseki's *I Am a Cat* and the ITA corpus) to build training datasets for MMVC. Not used by VCClient.
-* **`trainer/`**: Dockerfiles and notebooks for training MMVC models on Google Colab or local GPU rigs.
-* **`client/`**: Electron wrapper assets for desktop packaging.
-* **`server/`**: The frozen 2024 source of the v1.x server, superseded by `vcclient_dev`.
-* **`web_front/`**: Compiled SPA assets (React/Webpack) served statically by FastAPI.
+* **`docs/` (Upstream Voice Recorder, Removed)**: Not documentation, but a standalone client-side Web application ("Voice Recorder") hosted on GitHub Pages (`https://w-okada.github.io/voice-changer/`). Used in 2022 to record reading scripts (including Natsume Soseki's *I Am a Cat* and the ITA corpus) to build training datasets for MMVC. Not used by VCClient. (In Forge, `docs/` contains only `README.txt` and `README_ja.txt`.)
+* **`trainer/` (Removed)**: Dockerfiles and notebooks for training MMVC models on Google Colab or local GPU rigs.
+* **`client/` (Removed)**: Electron wrapper assets for desktop packaging, superseded by `desktop/` (Wails v3).
+* **`server/` (Removed)**: The frozen 2024 source of the v1.x server, superseded by `vcclient_dev` / `backend/vcclient/`.
+* **`web_front/` (Removed)**: Compiled legacy SPA assets (React/Webpack) previously served statically by FastAPI, replaced by the Svelte 5 UI built from `frontend/` into `frontend/dist/`.
 
 ## 3. Entry Point Resolution: The `main.py` Puzzle
 

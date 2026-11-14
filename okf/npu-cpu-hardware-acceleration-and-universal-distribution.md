@@ -17,7 +17,7 @@ tags:
 # Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Standard Two-Tier Distribution
 
 > **Implementation Status Notice**:
-> The layered platform baselines, dynamic hardware acceleration probing (`DeviceManager`), and Two-Tier Standard & CUDA distribution architecture described in this document **are fully implemented and verified** in VCClient Forge. Real-time inference has been empirically verified across physical hardware including Windows NVIDIA CUDA, Windows Intel Arc GPU (via OpenVINO GPU EP with in-memory 4D ONNX patching), Windows AMD Radeon (via DirectML), and macOS Apple Silicon (M2 via CoreML NeuralNetwork format on ANE and GPU).
+> The layered platform baselines, hardware catalog (`DeviceManager`), and Two-Tier Standard & CUDA distribution architecture described in this document are implemented in VCClient Forge. Catalog discovery enumerates providers and devices but does not execute a CUDA test graph. Real-time inference has been empirically verified across physical hardware including Windows NVIDIA CUDA, Windows Intel Arc GPU (via OpenVINO GPU EP with in-memory 4D ONNX patching), Windows AMD Radeon (via DirectML), and macOS Apple Silicon (M2 via CoreML NeuralNetwork format on ANE and GPU).
 
 > **CUDA 13 transition:** The CUDA edition now resolves CUDA 13 packages on Windows x64, Linux x64 and Linux ARM64. The supported NVIDIA GPU baseline is Turing or newer with a CUDA 13-compatible driver. Windows users with older DirectX 12-compatible GPUs can use the standard edition's DirectML provider; performance depends on the device and model. Linux has no DirectML fallback. Previously recorded hardware validation does not establish validation of this CUDA 13 configuration on every platform.
 
@@ -275,7 +275,7 @@ If `so.has_providers()` evaluates to `True`, the `providers` and `provider_optio
 
 #### 2.3.6 OpenVINO GPU Operator Quirks & Workarounds (RMVPE Clip Mask Bug)
 
-During end-to-end audio validation with actual voice samples (`web_front/ui/2.1.4/assets/voices/JVNV/partial/F1_happy_regular_26.wav`), an anomaly was discovered where voice conversion produced a distorted, whispered voice (unvoiced noise).
+During end-to-end audio validation, voice conversion produced a distorted, whispered voice (unvoiced noise).
 
 1. **Root Cause**:
    - In `modules/rmvpe/rmvpe_20231006.onnx`, the post-processing centroid calculation uses `/rmvpe/Clip_1` (`inputs=['/rmvpe/Add_1_output_0', '', '/rmvpe/Cast_7_output_0']`), where the lower bound `min` is omitted (empty string `""`).
@@ -429,23 +429,22 @@ Legacy voice changer implementations and upstream v2.0.78-beta relied heavily on
 
 These mechanisms introduce maintenance fragmentation, slow down startup, and fail when running in isolated sandboxes or restricted user accounts.
 
-### 4.2 Target Strategy: In-Band, Framework-Native Detection
+### 4.2 Target Strategy & Current Implementation: In-Band, Framework-Native Detection
 
-Because VCClient Forge relies exclusively on **ONNX Runtime and NumPy** for all inference workflows, future device management will transition away from OS shell subprocesses toward cross-platform, in-band Python APIs provided by ONNX Runtime and NumPy:
+The `vcclient.device.providers` modules (`cuda.py`, `openvino.py`, `directml.py`, `coreml.py`) use ONNX Runtime provider enumeration where available and retain platform-specific subprocesses for device discovery or metadata:
 
-1. **CPU Feature Telemetry (NumPy)**:
-   - Inspect active vector extensions (AVX-512, AVX2, NEON) via NumPy runtime introspection (e.g., `np.show_runtime()`) for audio preprocessing pipelines (such as SOLA, STFT, and crossfading). Note that ONNX Runtime independently evaluates its own native MLAS assembly vector dispatch at the C++ level.
-2. **Provider & Device Enumeration (ONNX Runtime)**:
-   - Query registered execution backends via `ort.get_available_providers()` and enumerate physical accelerator devices recognized by active providers via `ort.get_ep_devices()`.
-3. **Execution Viability Probing (Subject to Implementation Design)**:
-   - Rather than relying solely on static enumeration, the planned device manager will verify that target Execution Providers can genuinely compile kernels and execute without silent fallback to CPU.
-   - _Design Status_: Concrete probing details—such as minimal in-memory test graph execution, active provider validation (`session.get_providers()`), and dynamic fallback heuristics (e.g., dGPU -> iGPU/NPU -> CPU)—remain subject to empirical evaluation during the upcoming backend device manager refactoring milestone.
+1. **Provider & Device Enumeration via `ort.get_ep_devices()` (Implemented for OpenVINO and DirectML)**:
+   - OpenVINO (`openvino.py`) and DirectML (`directml.py`) query `ort.get_ep_devices()` first to enumerate accelerator devices natively via ONNX Runtime; DirectML falls back to PowerShell CIM (`Win32_VideoController`) only if `get_ep_devices()` returns no adapters. Legacy Linux `lspci` probing has been removed.
+2. **CUDA Provider & Device Discovery (Implemented in `cuda.py`)**:
+   - CUDA availability is checked through ONNX Runtime's provider and EP-device lists. GPU discovery uses `ort.get_ep_devices()` when available and falls back to `nvidia-smi`; macOS CoreML discovery uses `system_profiler`. Catalog discovery does not execute a test graph and therefore does not establish that CUDA inference will run successfully without fallback.
+3. **CPU Feature Telemetry via NumPy (Unimplemented)**:
+   - Inspecting active vector extensions (AVX-512, AVX2, NEON) via NumPy runtime introspection (e.g., `np.show_runtime()`) for audio preprocessing pipelines (such as SOLA, STFT, and crossfading) remains unimplemented. Note that ONNX Runtime independently evaluates its own native MLAS assembly vector dispatch at the C++ level.
 
 ### 4.3 Architectural Advantages
 
-1. **Cross-Platform Consistency**: Discovery logic uses identical Python APIs across Windows, Linux, and macOS.
-2. **Subprocess Elimination**: Avoids 100–600 ms delays from spawning OS shells during application startup.
-3. **Sandbox & Container Safety**: Functions reliably in sandboxed environments where spawning child processes or querying system management interfaces is restricted or blocked.
+1. **Shared Provider Abstraction**: Provider modules expose a common device catalog while retaining platform-specific discovery where needed.
+2. **Reduced Reliance on Subprocesses**: ONNX Runtime enumeration can avoid subprocess-based device discovery where supported; fallback and metadata queries still use subprocesses.
+3. **Restricted Environments**: Native enumeration may work without subprocess access, but fallback discovery and metadata can be incomplete when child processes or system management interfaces are unavailable.
 
 ---
 

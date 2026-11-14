@@ -16,7 +16,7 @@ Exposing this parameter as an unconstrained user setting created three operation
    In `VoiceChanger._convert_chunk`, when `direct_from_server=True` (Web client Socket.IO / REST streaming), `output_size` is derived from the incoming `waveform.shape[0]` rather than the slot's nominal `vc_chunk_sec`. Previously, `real_crossfade_sec` was clamped only against `vc_chunk_sec` (`min(vc_chunk_sec, conf.crossfade_sec)`), and integer truncation vs. rounding could also allow `crossfade_frame` to exceed `output_size`. When `crossfade_size > output_audio_size`, array slicing in `CrossfadeProcessor.apply` attempted to broadcast buffers of incompatible shapes, raising unhandled exceptions (`ValueError: operands could not be broadcast together with shapes`).
 
 3. **UI Consolidation**:
-   In the bundled Modern Web UI (`v2.1.4`), the user control for `crossfade_sec` was already omitted from the control panels, and the legacy Classic UI (`v2.0.78`) is planned for deprecation.
+   In the Svelte 5 UI (`frontend/`), the user control for `crossfade_sec` is omitted from the control panels, and the legacy Classic (`v2.0.78`) and Modern (`v2.1.4`) `web_front/` bundles have been removed.
 
 ---
 

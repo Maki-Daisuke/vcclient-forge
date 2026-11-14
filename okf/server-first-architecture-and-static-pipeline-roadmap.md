@@ -71,7 +71,7 @@ The existing design has pipeline concurrency, but completed audio must wait for 
 
 ### 3.2 Target: One-Way Stream Processing
 
-Both input modes use the same processing worker through source-specific adapters. Server Mode and Client Mode are alternatives, and Client Mode is added after the Server-Mode-first UI migration:
+Both input modes use the same processing worker through source-specific adapters. Server Mode and Client Mode operate as alternative modes in the Svelte 5 UI (which now replaces the retired `web_front/` UI):
 
 ```text
 Native input callback / Socket.IO audio receiver
@@ -234,7 +234,7 @@ Refactor the responsibilities currently mixed in `ConfigurationManager` into an 
 
 This separation should support interchangeable native and Socket.IO-backed browser input/output adapters and inference components (`RvcPipeline` / proposed `BoostModePipeline`) with explicit audio-format, lifecycle, and state-ownership contracts. A configuration update does not necessarily rebuild the whole pipeline: update compatible scalar values in place and replace or reopen only affected components under coordinator control.
 
-The new UI does not yet support Client Mode; the existing Socket.IO API and legacy UI remain available during migration. Browser audio may later use independently selectable Socket.IO-backed input/output adapters rather than a coupled "Client Mode" switch. Initially reproduce the native/native and browser/browser combinations; later evaluate native input with browser output and browser input with native output. The earlier Server/Client Mode descriptions specify the initial paired configurations, not a permanent coupling between input and output. Mode names could remain as presets. Mixed routing requires explicit format conversion, clock-drift and network-jitter handling, and disconnect/recovery policies before it is supported; it does not introduce multiple simultaneous inputs or multi-user sessions.
+The Svelte 5 UI now supports both Server Mode (native audio) and Client Mode (browser audio over Socket.IO) and has replaced the legacy `web_front/` bundles. As future work, browser audio may use independently selectable Socket.IO-backed input/output adapters rather than a coupled "Client Mode" switch: first reproducing the native/native and browser/browser combinations (already working), and later evaluating native input with browser output or browser input with native output. The earlier Server/Client Mode descriptions specify the initial paired configurations, not a permanent coupling between input and output. Mode names could remain as presets. Mixed routing requires explicit format conversion, clock-drift and network-jitter handling, and disconnect/recovery policies before it is supported; it does not introduce multiple simultaneous inputs or multi-user sessions.
 
 Preserve the existing monitor capability: the minimum routing contract is **one selected input, one main output, and one optional monitor output**, not a single output only. Keep the monitor's signal source distinct from its destination adapter. Each enabled output needs independently owned bounded buffering/read positions, rate conversion and gain as required, and its own overflow/underflow and failure policy. Outputs must not compete to consume one queue, and a slow or disconnected output must not block inference or the other output. Account for independent playback clocks and define safe buffer lifetime if audio storage is shared. Arbitrary output counts are not required for the initial modularization.
 
@@ -361,7 +361,5 @@ Monolithic graph fusion and ONNX-native feature retrieval remain conditional
 experiments to compare against this architecture; the existing component
 benchmarks do not establish an end-to-end winner. See the [implementation
 roadmap](./implementation-roadmap.md#9-optimize-inference-evaluate-hybrid-pipelining-and-boost-mode).
-
-Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).
 
 Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).

@@ -81,10 +81,9 @@ ONNX Runtime GPU (`onnxruntime-gpu`) requires specific CUDA/cuDNN libraries for 
 
 In Forge, we isolate and bundle only the exact PyPI wheels needed by ONNX Runtime:
 
-- Bundled (Windows / Linux x64 CUDA 12): `nvidia-cublas-cu12`, `nvidia-cudnn-cu12`, `nvidia-cufft-cu12`, `nvidia-cuda-runtime-cu12`, and `nvidia-curand-cu12` (Linux x64).
-- Bundled (Linux ARM64 CUDA 13): `nvidia-cublas`, `nvidia-cudnn-cu13`, `nvidia-cufft`, `nvidia-cuda-runtime`, and `nvidia-curand`.
-- Pruned: `nvidia-curand-cu12` on Windows (saving ~77 MB) and other non-inference components (`cusparse`, `cusolver`, `nccl`, etc.).
-- Path Resolution: `backend/vcclient/device/runtime_env.py` automatically registers DLL directories on Windows and preloads shared libraries via `onnxruntime.preload_dlls` on Windows and Linux at startup.
+- Bundled (Windows x64 / Linux x64 / Linux ARM64 unified CUDA 13): `nvidia-cublas`, `nvidia-cudnn-cu13`, `nvidia-cufft`, `nvidia-cuda-runtime`, and `nvidia-curand`.
+- Pruned: Non-inference CUDA components (`cusparse`, `cusolver`, `nccl`, etc.) are excluded.
+- Path Resolution: `backend/vcclient/device/runtime_env.py` delegates CUDA runtime preparation to `backend/vcclient/device/providers/cuda.py`, which registers DLL directories on Windows and preloads shared libraries via `onnxruntime.preload_dlls` on Windows and Linux at startup.
 
 ### 4. Standardized 7z (LZMA2) Multi-Threaded Packaging
 

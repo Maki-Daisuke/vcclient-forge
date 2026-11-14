@@ -24,30 +24,32 @@ VCClient Forge moves beyond the original distribution's Python 3.10 stack and us
 - **Current CPython**: Use the project's pinned Python release and validate compatibility/performance as that pin advances.
 - **CPU Inference**: ONNX Runtime CPUExecutionProvider is available as a backend; its throughput and scheduling impact depend on model, thread settings, and hardware.
 
-## 3. Pure-ONNX Architecture and CUDA 12/13 Support
+## 3. Pure-ONNX Architecture and CUDA 13 Support
 
 VCClient Forge prioritizes high-performance, lightweight pure-ONNX inference:
 
-- **ONNX Runtime GPU**: Uses the CUDA execution provider with CUDA 12.x (Windows / Linux x64) or CUDA 13.x (Linux ARM64) and cuDNN 9 runtime dependencies selected by the project's CUDA extra.
-- **Transparent Hardware Acceleration Runtime Hook**: [`runtime_env.py`](../backend/vcclient/device/runtime_env.py) dynamically locates and preloads CUDA/cuDNN runtime libraries and registers OpenVINO Execution Provider plugins on Windows and Linux via `os.add_dll_directory`, `onnxruntime.preload_dlls`, and `onnxruntime.register_execution_provider_library`, eliminating missing DLL / shared object errors without requiring manual system-wide CUDA or OpenVINO installations.
-- **Hardware Fallback**: Supports CUDA, DirectML (Windows AMD/Intel), and highly parallelized CPU execution (`CPUExecutionProvider`).
+- **ONNX Runtime GPU**: Uses the CUDA execution provider with unified CUDA 13 (`nvidia-cublas`, `nvidia-cudnn-cu13`, `nvidia-cufft`, `nvidia-cuda-runtime`, `nvidia-curand`) across Windows x64, Linux x64, and Linux ARM64 selected by the project's `cuda` extra.
+- **Transparent Hardware Acceleration Runtime Hook**: [`runtime_env.py`](../backend/vcclient/device/runtime_env.py) delegates to [`vcclient.device.providers`](../backend/vcclient/device/providers/) (`cuda.py`, `openvino.py`, `directml.py`, `coreml.py`) to locate and preload CUDA/cuDNN runtime libraries and register OpenVINO Execution Provider plugins via `os.add_dll_directory`, `onnxruntime.preload_dlls`, and `onnxruntime.register_execution_provider_library`, avoiding manual system-wide CUDA or OpenVINO installations.
+- **Hardware Backends**: Supports CUDA, OpenVINO (CPU/GPU/NPU), DirectML (Windows), CoreML (macOS), and CPU (`CPUExecutionProvider`).
 
 ## 4. Hybrid Task Runner via `package.json`
 
 To bridge developer experience between the Node.js/Web frontend ecosystem and Python backend services, `package.json` acts as the unified task runner:
 
-| Command                 | Action                                  | Implementation                                              |
-| ----------------------- | --------------------------------------- | ----------------------------------------------------------- |
-| `npm start`             | Launch VCClient in Server mode          | `uv run --project backend python backend/main.py server`    |
-| `npm test`              | Run test suite                          | `uv run --project backend pytest backend/tests`             |
-| `npm run lint`          | Lint with Ruff                          | `uv run --project backend ruff check backend`               |
-| `npm run lint:fix`      | Auto-fix lints                          | `uv run --project backend ruff check --fix backend`         |
-| `npm run format`        | Format code with Ruff                   | `uv run --project backend ruff format backend`              |
-| `npm run format:check`  | Check formatting without modifying      | `uv run --project backend ruff format --check backend`      |
-| `npm run clean`         | Clean build artifacts, venv, and caches | `node scripts/clean.js`                                     |
-| `npm run build`         | Invoke frontend, desktop, and backend npm tasks | `node scripts/build.js` |
-| `npm run build:backend` | Sync backend dependencies for target edition | `uv run --no-project --python 3.14 python scripts/build_backend.py` |
-| `npm run package`       | Freeze backend (onedir) and package standalone archive | `uv run --no-project --python 3.14 python scripts/build_package.py` |
+| Command                  | Action                                                 | Implementation                                                      |
+| ------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| `npm start`              | Launch VCClient from source                            | `uv run --project backend python backend/main.py`                   |
+| `npm test`               | Run backend type checks and tests, and desktop tests   | `npm run test:backend && npm run test:desktop`                      |
+| `npm run lint`           | Lint with Ruff                                         | `uv run --project backend ruff check backend`                       |
+| `npm run lint:fix`       | Auto-fix lints                                         | `uv run --project backend ruff check --fix backend`                 |
+| `npm run format`         | Format backend Python and desktop Go                   | `uv run --project backend ruff format backend && gofmt -w desktop`  |
+| `npm run format:check`   | Check backend Python formatting without modifying      | `uv run --project backend ruff format --check backend`              |
+| `npm run clean`          | Clean build artifacts, venv, and caches                | `node scripts/clean.js`                                             |
+| `npm run build`          | Invoke frontend, desktop, and backend npm tasks        | `node scripts/build.js`                                             |
+| `npm run build:frontend` | Build production Svelte 5 assets                       | `npm --prefix frontend run build -- --outDir dist`                  |
+| `npm run test:frontend`  | Run Playwright browser tests                           | `npm --prefix frontend test`                                        |
+| `npm run build:backend`  | Sync backend dependencies for target edition           | `uv run --no-project --python 3.14 python scripts/build_backend.py` |
+| `npm run package`        | Freeze backend (onedir) and package standalone archive | `uv run --no-project --python 3.14 python scripts/build_package.py` |
 
 ## 5. Portable Packaging Pipeline (`scripts/build_package.py`)
 

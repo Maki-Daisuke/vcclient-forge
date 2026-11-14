@@ -2,15 +2,15 @@
 title: "DeviceConfig & Catalog Index Architecture"
 version: "0.2.0"
 okf_version: "0.2"
-description: "Architectural specification and migration plan for transitioning from overloaded integer sentinels to a sequential hardware catalog index (DeviceConfig) across API contracts, legacy UI compatibility, and inference pipelines."
+description: "Architectural specification for transitioning from overloaded integer sentinels to a sequential hardware catalog index (DeviceConfig) across API contracts, UI compatibility, and inference pipelines."
 ---
 
 # DeviceConfig & Catalog Index Architecture
 
 > **Implementation Status Notice**:
-> This architecture has been fully implemented across `vcclient.device`, API contracts, configuration managers, and inference pipelines (`RVCPipeline`, `ContentVec`, `FCPE`, `RMVPE`, `RVC`).
+> The `DeviceConfig` catalog, `gpu_device_id_int` sequential index (`0..N`), and provider-based initialization are implemented across `vcclient.device`, API contracts, configuration managers, and inference pipelines (`RVCPipeline`, `ContentVec`, `FCPE`, `RMVPE`, `RVC`). Section 6 (separate `analysis_device_id` / `synthesis_device_id` fields and automated dispatch heuristics) remains a planned design for Roadmap Item 9.
 
-> **Summary**: In legacy VCClient and v2.0.78-beta, hardware selection relied on an overloaded integer (`device_id_int: int`) mixing physical hardware indices with execution provider flags (`-1` for CPU, `1000` for OpenVINO, even/odd parity for CoreML). This document specifies the **Catalog Index Architecture**: `DeviceManager` discovers valid (physical adapter $\times$ Execution Provider) pairings at startup, constructing a deterministic catalog (`list[DeviceConfig]`) with sequential, zero-based integer identifiers (`0, 1, 2, ...`). The host CPU is assigned to index `0`, and available accelerators follow sequentially. This turns device resolution into an $O(1)$ array lookup, removes magic constants, supports client NPUs and multi-GPU topologies, and preserves compatibility with the bundled legacy frontend (`web_front/`) without frontend code changes.
+> **Summary**: Legacy VCClient used overloaded integers for physical device IDs and execution-provider selection. For example, `1000` denoted an OpenVINO GPU, while `-1` represented no selected or available device and generally fell back to CPU. The **Catalog Index Architecture** replaces these conventions: `DeviceManager` discovers available (physical adapter $\times$ Execution Provider) pairings at startup and assigns sequential, zero-based catalog indices. Index `0` is always CPUExecutionProvider, so invalid indices can safely fall back to CPU. Device resolution is an $O(1)$ array lookup. The `gpu_device_id_int` API field remains, but its values now represent catalog indices rather than legacy device IDs.
 
 ---
 
@@ -18,7 +18,7 @@ description: "Architectural specification and migration plan for transitioning f
 
 ### 1.1 Overloaded Integer Semantics
 
-In the existing codebase (`device_manager.py`, `rvc_pipeline.py`, `data_types.py`, `voice_changer_data_types.py`, and `voice_changer.py`), integer fields (`device_id`, `device_id_int`, `gpu_device_id_int`, `gpu_device_index`) serve multiple conflicting purposes:
+Before the catalog migration, integer fields such as `device_id`, `device_id_int`, `gpu_device_id_int`, and `gpu_device_index` served multiple conflicting purposes:
 
 | Legacy `device_id` | Intended Target            | Meaning & Role                                       | Architectural Limitation                                                              |
 | :----------------- | :------------------------- | :--------------------------------------------------- | :------------------------------------------------------------------------------------ |
@@ -29,12 +29,12 @@ In the existing codebase (`device_manager.py`, `rvc_pipeline.py`, `data_types.py
 | `0, 2, 4, ...`     | CoreML Apple Neural Engine | Encoded execution mode (`MLComputeUnits: ALL`)       | Overloads integer parity with execution policy                                        |
 | `1, 3, 5, ...`     | CoreML Apple GPU           | Encoded execution mode (`MLComputeUnits: CPUAndGPU`) | Overloads integer parity with execution policy                                        |
 
-Because the integer alone does not identify the provider, `_resolve_onnx_execution_provider` inspects available runtime libraries and platform operating systems via a waterfall heuristic.
+Because the legacy integer alone did not identify the provider, `_resolve_onnx_execution_provider` inspected available runtime libraries and the host platform via a waterfall heuristic.
 
 ### 1.2 Concrete Failure Modes
 
 1. **Provider Omission and Index Collision Across Coexisting Backends**:
-   In `RestAPIGPUDeviceManager.get_devices` (`vcserver_rest_api_gpu_device_manager.py`), when `is_cuda_available()` is `True`, the endpoint returns `get_cuda_info()`, which lists only CPU and NVIDIA GPUs and omits bundled `OpenVINOExecutionProvider` devices (such as Intel iGPU, Arc GPU, or NPU on hybrid laptops). Conversely, when multiple providers are exposed together, raw adapter index `0` cannot distinguish between providers in `_resolve_onnx_execution_provider`.
+   In the legacy implementation, `RestAPIGPUDeviceManager.get_devices` returned `get_cuda_info()` when CUDA was available, omitting OpenVINO devices. Conversely, when multiple providers were exposed together, raw adapter index `0` could not distinguish between providers. The current endpoint returns the device catalog instead.
 
 2. **NPU and Multi-Device Scaling Barrier**:
    Adding client NPUs (such as Intel AI Boost via OpenVINO) or addressing systems with both an Intel integrated GPU (`GPU.0`) and an Intel Arc discrete GPU (`GPU.1`) would require inventing additional sentinel constants (e.g., `1001`, `2000`) and maintaining brittle range checks across provider modules.
@@ -177,14 +177,14 @@ Using Pydantic v2's `@computed_field` ensures that both `device_id_int` and `dev
 
 ---
 
-## 4. UI & API Integration: Legacy Frontend Compatibility
+## 4. UI & API Integration: REST Contract & Frontend Compatibility
 
-The Catalog Index design maintains compatibility with the bundled legacy frontends (`web_front/ui/2.0.78/index.js` and `web_front/ui/2.1.4/assets/index-D8G8J-aW.js`) without modifying frontend bundles:
+The Catalog Index design originally maintained drop-in compatibility with the bundled legacy frontends (`web_front/`) without frontend bundle edits and continues to serve the Svelte 5 UI (`frontend/`) and REST API clients through the same `gpu_device_id_int` contract:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant UI as Legacy UI (web_front)
+    participant UI as Frontend UI / API Client
     participant API as FastAPI Layer
     participant CM as ConfigurationManager
     participant DM as DeviceManager Catalog
@@ -210,7 +210,7 @@ sequenceDiagram
 
 ### 4.1 Serialization for `GET /api/gpu-device-manager/devices`
 
-When `web_front` queries `/api/gpu-device-manager/devices`, `RestAPIGPUDeviceManager.get_devices` returns the full catalog (`get_device_catalog()`) regardless of whether CUDA is active, so that OpenVINO and CUDA devices are both visible in the `cuda` edition:
+When the UI queries `/api/gpu-device-manager/devices`, `RestAPIGPUDeviceManager.get_devices` returns the full catalog (`get_device_catalog()`) regardless of whether CUDA is active, so that OpenVINO and CUDA devices are both visible in the `cuda` edition:
 
 ```json
 [
@@ -253,11 +253,11 @@ When `web_front` queries `/api/gpu-device-manager/devices`, `RestAPIGPUDeviceMan
 ]
 ```
 
-`web_front` binds each `<option>` label to `item.name` and its value to `item.device_id_int`.
+The UI binds each `<option>` label to `item.name` and its value to `item.device_id_int`.
 
 ### 4.2 Constant-Time $O(1)$ Resolution and Configuration Normalization
 
-When the user selects a device in the UI, `web_front` transmits `{ "gpu_device_id_int": <id> }`. Resolving the selected hardware is a bounds-checked array lookup:
+When the user selects a device in the UI, the client transmits `{ "gpu_device_id_int": <id> }`. Resolving the selected hardware is a bounds-checked array lookup:
 
 ```python
 # backend/vcclient/device/device_manager.py
@@ -271,10 +271,11 @@ def get_device(device_id: int) -> DeviceConfig:
     return catalog[0]
 ```
 
-To ensure `web_front`'s `<select value={gpu_device_id_int}>` and status chip match an existing option in `GET /api/gpu-device-manager/devices`:
+To ensure UI device selectors match an existing option in `GET /api/gpu-device-manager/devices`:
 
 - `VoiceChangerConfiguration.gpu_device_id_int` defaults to `0` (instead of legacy `-1`).
-- When `ConfigurationManager.reload()` loads an existing `settings/vc_conf.json` (which may contain `-1` or `1000`) or when `set_voice_changer_configuration()` receives an update, `conf.gpu_device_id_int` is normalized to `get_device(conf.gpu_device_id_int).id`.
+- When loading `settings/vc_conf.json` or applying configuration updates, `get_device()` normalizes out-of-range indices, including legacy `-1` and ordinarily `1000`, to CPU at index `0`. It does not automatically preserve a legacy `1000` OpenVINO selection.
+- A separate `resolve_legacy_device_id()` helper maps legacy `1000` to the first OpenVINO catalog entry when present, but the configuration loading and update paths do not call it.
 
 ---
 
@@ -324,11 +325,14 @@ In `RVCPipeline` (`rvc_pipeline.py`), `make_onnx_upscaler` and the component man
 
 ---
 
-## 6. Bridge to Two-Stage Concurrent Hybrid Pipelining
+## 6. Bridge to Two-Stage Concurrent Hybrid Pipelining (Planned Design — Roadmap Item 9)
+
+> **Design Status**: Not yet implemented. Currently, `VoiceChangerConfiguration` defines only `gpu_device_id_int: int = 0`, and `DeviceManager` does not yet implement `get_optimal_synthesis_device()` or `get_optimal_analysis_device()`.
 
 Because execution targets are represented by catalog indices (`0..N`), two-stage hybrid pipelining (Roadmap Item 9) can assign separate catalog indices to the analysis front-end and synthesis back-end while remaining backward-compatible with `gpu_device_id_int`:
 
 ```python
+# Planned extension for Roadmap Item 9 (not yet implemented in VoiceChangerConfiguration)
 class VoiceChangerConfiguration(BaseModel):
     # Front-end: Acoustic Analysis (ContentVec + RMVPE / FCPE + FAISS)
     analysis_device_id: int = 0  # Defaults to Index 0 (CPU) or NPU
@@ -336,16 +340,16 @@ class VoiceChangerConfiguration(BaseModel):
     # Back-end: Vocoder Synthesis (RVC HiFi-GAN)
     synthesis_device_id: int = 0  # Defaults to Index 0 (CPU) or primary GPU
 
-    # Legacy field synchronized with synthesis_device_id for web_front GET/PUT and vc_conf.json compatibility
+    # Compatibility field synchronized with synthesis_device_id for GET/PUT and vc_conf.json
     gpu_device_id_int: int = 0
 ```
 
-When `PUT /api/configuration-manager/configuration` is called by `web_front` with `gpu_device_id_int`, a model validator synchronizes `synthesis_device_id` and `gpu_device_id_int` and normalizes both through `get_device().id`.
+When `PUT /api/configuration-manager/configuration` is called with `gpu_device_id_int`, a planned model validator can synchronize `synthesis_device_id` and `gpu_device_id_int` and normalize both through `get_device().id`.
 
-### Automated Dispatch Heuristic (Roadmap Item 9)
+### Planned Automated Dispatch Heuristic (Roadmap Item 9)
 
-- **Back-end (Synthesis)**: `DeviceManager.get_optimal_synthesis_device()` selects the highest-throughput GPU target, prioritizing `cuda` > `openvino:gpu` > `directml` > `cpu`. On Intel Arc 140V hardware, OpenVINO GPU with the 4D SineGen patch executes RVC synthesis in **36.45 ms** vs **47.77 ms** on DirectML (see [Benchmark Telemetry](./npu-cpu-hardware-acceleration-and-universal-distribution.md#231-benchmark-telemetry-across-execution-providers)).
-- **Front-end (Analysis)**: `DeviceManager.get_optimal_analysis_device()` selects a low-latency accelerator for pitch and feature extraction (`openvino:npu` / `openvino:gpu` > `cpu`). On Intel Lunar Lake, OpenVINO avoids DirectML's DirectX 12 command list recording and `WaitForSingleObject` fence stalls on RMVPE (`3.89 ms` on OpenVINO GPU and `5.09 ms` on OpenVINO NPU vs `42.84 ms` on DirectML).
+- **Back-end (Synthesis)**: Planned `DeviceManager.get_optimal_synthesis_device()` selects the highest-throughput GPU target, prioritizing `cuda` > `openvino:gpu` > `directml` > `cpu`. On Intel Arc 140V hardware, OpenVINO GPU with the 4D SineGen patch executes RVC synthesis in **36.45 ms** vs **47.77 ms** on DirectML (see [Benchmark Telemetry](./npu-cpu-hardware-acceleration-and-universal-distribution.md#231-benchmark-telemetry-across-execution-providers)).
+- **Front-end (Analysis)**: Planned `DeviceManager.get_optimal_analysis_device()` selects a low-latency accelerator for pitch and feature extraction (`openvino:npu` / `openvino:gpu` > `cpu`). On Intel Lunar Lake, OpenVINO avoids DirectML's DirectX 12 command list recording and `WaitForSingleObject` fence stalls on RMVPE (`3.89 ms` on OpenVINO GPU and `5.09 ms` on OpenVINO NPU vs `42.84 ms` on DirectML).
 
 ---
 

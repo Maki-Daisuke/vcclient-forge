@@ -150,7 +150,7 @@ Recording in both modes uses the existing configuration API. It can be armed bef
 audio starts; stopping audio saves the take and returns to the armed state. Passthrough
 can be toggled while recording. The UI downloads a nonempty WAV and reports empty audio.
 Backend recordings use fixed paths and may overwrite earlier recordings; real audio
-testing of Client Mode recording in the new UI remains pending.
+testing of Client Mode recording has been confirmed (`frontend/README.md`).
 Preferred inference-device selection reads the existing compute-device catalog and saves
 the selected ID through the existing configuration API while audio is stopped in either mode.
 The UI checks the saved configuration and the reported pipeline device ID when a model is selected.
@@ -171,12 +171,12 @@ Client Mode Only exposes browser echo cancellation, noise suppression and automa
 gain control; selections are stored locally and applied on audio start. The user
 confirmed all three with a real microphone.
 Save errors appear in a persistent bottom-right notification with retry and discard actions;
-successful saves do not show notifications. Backend APIs and supported operations
-are unchanged; the legacy production frontend is still separate.
+successful saves do not show notifications. The Svelte UI is now the production frontend;
+the legacy frontend has been removed.
 
-### Filter Controls (2026-11-06)
+### Filter Controls
 
-High/low-pass switches and cutoffs can be edited in Server Mode with a usable
+High/low-pass switches and cutoffs can be edited in both Server Mode and Client Mode with a usable
 model selected. Before using the
 existing full-configuration PUT, the frontend reads current configuration and
 voice-changer information, and rejects mismatched model IDs, unavailable sample rates or invalid cutoff
@@ -184,36 +184,29 @@ combinations. This avoids sending the checked invalid combinations to a backend
 that persists configuration before regenerating filter coefficients. Concurrent
 changes by another client are not atomic with that check. The common slider only
 emits edits for user interaction, preventing out-of-range loaded values from
-being silently clamped and saved. Browser tests use mocked writes; real-backend
-GET values were checked in the UI. Real PUT and listening validation are pending.
+being silently clamped and saved. Browser tests mock backend writes; real-backend
+GET values were also checked in the UI.
 
-### Noise-Gate Control (2026-11-06)
+### Noise-Gate Control
 
-The Noise Suppression section exposes the noise-gate threshold in Server Mode using the
-v2.1.4 range of −120 to 0 dB and 1 dB steps. The existing pipeline bypasses the
-gate at −100 dB or below. Its configuration edits share the gain/model coordinator
-and use the existing full-configuration GET/PUT/GET flow. Backend APIs are unchanged.
-All 55 browser checks passed with mocked writes; the displayed threshold was also
-checked against a real backend GET. Real-backend PUT and audible adjustment have
-not yet been verified for this control.
+The Noise Suppression section provides an enable checkbox (saving `-100` dB when unchecked)
+and a noise-gate threshold slider over `−100` to `0` dB in `1` dB steps in both Server Mode and Client Mode.
+The existing pipeline bypasses the gate at `−100` dB or below. Its configuration edits share the
+gain/model coordinator and use the existing full-configuration GET/PUT/GET flow.
+Safe settings reset calls `POST /api/configuration-manager/clear`. Backend APIs are unchanged.
 
-Run `npm --prefix frontend ci` and `npm run dev:frontend` from the repository root.
-`npm run build:frontend:preview` writes `frontend/preview-dist`, separate from
-the legacy Python-served `frontend/dist`. `npm run build:frontend`, desktop
-startup, and portable packaging still use the legacy UI. Type checks and preview
-builds run in CI; browser checks are available via `npm run test:frontend` (see
-`frontend/README.md` for browser installation).
+### Production Build, CI, and Desktop Log Integration
 
-The preview opens its read-only log page separately, fetching `/vcclient.log` on
-request without mounting another audio session. The Wails host includes a log
-window bridge for the new UI, but desktop integration remains pending until that
-UI is served by the backend.
+`npm run build:frontend` builds the Svelte 5 UI directly into `frontend/dist` for
+the FastAPI backend, Wails desktop startup, and portable packaging (`npm run package`).
+Legacy `web_front/` and `client/` directories have been removed.
+Type checks (`npm --prefix frontend run check`) and frontend builds run in CI on Windows,
+Linux, and macOS. Playwright browser tests (`npm run test:frontend`, isolated from the live
+backend via `frontend/tests/test-fixtures.ts`) run on Windows and Linux (see `frontend/README.md`).
 
-The visual scaffold, read-only integration, and initial native control coordinator
-are implemented, with native playback confirmed. Remaining settings and broader on-device validation precede Step 1's
-native-conversion exit criteria. Copying assets to
-their final home, switching the production build, and retiring the old UI remain
-later migration work.
+The log viewer fetches `/vcclient.log` on request with 2-second auto-refresh without
+mounting another audio session, and the Wails desktop host (`window.vcclientForge.openLogWindow`)
+opens it in a dedicated log window.
 
 Forge is a **local, single-user application with one active audio client**, packaged primarily with Wails v3. Users are responsible for operating it on a trusted machine/network. Multi-user hosting, application-level authentication, and per-client inference-session management are not goals of this roadmap. Server Mode and Client Mode are alternative input modes.
 
@@ -221,7 +214,7 @@ The Wails application connects to the loopback backend using local HTTP/WebSocke
 
 ## 1. Anatomy of the Legacy Frontend Bottlenecks
 
-Inspection of the current `web_front/index.js` bundle confirmed the following problems in the pitch and index settings paths. These findings support redesigning settings interaction and synchronization. Slider lockups have been reported, but the lockup itself has not yet been reproduced in a browser during this investigation; the request and state-update behavior below is directly observable in the code.
+Historical inspection of the retired legacy `web_front/index.js` bundle identified the following problems in the pitch and index settings paths. These findings motivated redesigning settings interaction and synchronization. Slider lockups had been reported, and while the lockup itself was not reproduced in a browser during that investigation, the request and state-update behavior below was directly observed in the legacy bundle.
 
 1. **Per-Change Writes and Reloads (Missing Coalescing)**:
    Pitch and index slider `onChange` handlers mutate the shared slot object and call `updateServerSlotInfo()` for each change event, without debounce or coalescing. The REST client issues a `PUT /api/slot-manager/slots/{slot_index}`; after the write succeeds, the state hook starts a `GET /api/slot-manager/slots` to reload the slot list. Thus each successful edit triggers both a write and a reload, rather than one synchronization of the latest value after a burst of edits. Request rate follows input events, not literally every pixel of pointer movement.
@@ -241,9 +234,9 @@ Inspection of the current `web_front/index.js` bundle confirmed the following pr
 
 ## 2. Why Backend Features Need a New UI
 
-Backend/API changes alone do not deliver usable features: users need a UI that can operate them. The minified legacy frontend (`web_front/index.js`) is coupled to existing endpoints and slot-array conventions, and the original `web_front` source for v2.0.78-beta was not released. Keeping it as the only UI would leave new backend capabilities inaccessible or require preserving its legacy contract.
+Backend/API changes alone do not deliver usable features: users need a UI that can operate them. The minified legacy frontend (`web_front/index.js`) was coupled to existing endpoints and slot-array conventions, and the original `web_front` source for v2.0.78-beta was not released. Keeping it as the only UI would have left new backend capabilities inaccessible or required preserving legacy bundle quirks.
 
-The solution is a clean-slate Svelte 5 UI, starting with Server Mode over REST. The UI also uses the existing Socket.IO API for notifications and initial Client Mode audio support; the API and legacy UI remain compatible while the UI migration proceeds.
+Forge replaced `web_front/` with the Svelte 5 UI (`frontend/`), supporting both Server Mode over REST and Client Mode over the existing Socket.IO API while preserving REST/Socket.IO API compatibility.
 
 ---
 
@@ -413,15 +406,13 @@ Inspection of `web_front/assets/i18n/*/translation.json` demonstrated that:
 - The translation assets are **pure key-value JSON dictionaries** (e.g., `"model_slot_edit": "編集"`).
 - Upstream used `react-i18next`, which is merely a thin React adapter around the framework-agnostic **`i18next`** core engine.
 - **Preserve the assets and semantics**: Reuse `i18next` core through a Svelte adapter/store first, preserving existing keys and text. A different translation engine requires explicit validation or conversion of interpolation, pluralization, fallback, and namespace behavior; JSON import alone does not guarantee compatibility.
-- **Move before deleting**: Copy translations and required image/license assets into the new frontend source tree before removing `web_front`. Validate key coverage, interpolation, and RTL layout for the retained languages.
+- **Completed asset migration**: All 13 community translation dictionaries and required image/license assets were moved into `frontend/src/` (`frontend/src/lib/i18n/*/translation.json`) before removing `web_front/`.
 
 ---
 
 ## 6. The UI Rebirth & Migration Roadmap
 
-Forge replaces the UI incrementally. Server Mode remains the working reference;
-the new UI has initial Client Mode audio support using the existing Socket.IO API.
-Real-device validation and Client Mode feature parity remain outstanding.
+Forge executed the UI migration in three stages and has now replaced `web_front/` in production. The Svelte 5 UI supports Server Mode (native audio), Socket.IO telemetry notifications, and Client Mode (browser audio over Socket.IO, including confirmed Client Mode recording). Remaining desktop/mode polish and mixed native/browser routing remain roadmap work.
 
 ```mermaid
 flowchart TD
@@ -468,8 +459,8 @@ flowchart TD
   backend notification was observed in the UI.
 - Connect the new UI's remaining performance metrics and state handling to existing Socket.IO notifications.
 - Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately without changing the existing API contract.
-- Keep the existing Socket.IO API and legacy UI available. Any eventual UI removal is a separate migration decision after required assets and functionality are addressed.
-- **Acceptance**: The new UI displays native-audio notifications correctly using Socket.IO; existing clients and API behavior remain compatible.
+- Keep the existing Socket.IO API compatible for existing clients; the legacy `web_front/` UI has been retired after completing the migration into `frontend/`.
+- **Acceptance**: The Svelte 5 UI displays native-audio notifications correctly using Socket.IO; existing Socket.IO API contracts remain compatible.
 
 ### Step 3: Incremental Socket.IO Client Mode
 
@@ -487,5 +478,5 @@ flowchart TD
 Key rationale:
 1. **The Desktop Wrapper is Functionally Thin**: Because neural inference (ONNX Runtime) and audio streaming (WASAPI) run in Python, and UI execution runs in WebView2, the host process merely supervises subprocess lifecycle and navigation. The marginal runtime memory difference between Rust and Go is negligible.
 2. **Elimination of Build & Toolchain Friction**: Wails v3 compiles in seconds rather than minutes, removes Tauri's extensive permission/capability configuration overhead, and compiles cleanly on Windows without CGO or MSVC build toolchains.
-3. **Declarative Hook Injection (`WebviewWindowOptions.JS`)**: Wails v3 allows injecting pre-execution scripts directly into the window context, solving external link delegation (`window.open`) and legacy Electron polyfilling (`window.electronAPI.openBrowser`) transparently in user space without low-level COM/event interception.
+3. **Declarative Hook Injection (`WebviewWindowOptions.JS`)**: Wails v3 allows injecting pre-execution scripts directly into the window context, providing external link delegation (`window.open`), the log window bridge (`window.vcclientForge.openLogWindow`), and the macOS WebKit default audio output sink polyfill in user space without low-level COM/event interception.
 4. **Asset Preservation**: All unbuffered bootstrap UI assets (HTML/CSS/JS) developed for Tauri are directly embedded into the Wails binary via standard `//go:embed`.
