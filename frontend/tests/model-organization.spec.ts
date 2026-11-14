@@ -1,5 +1,7 @@
-import { test, expect } from '@playwright/test';
-import { configuration, fulfillCatalog, slots } from './catalog-fixtures';
+import { test, expect } from './test-fixtures';
+import { configuration, fulfillCatalog, mockModelImages, slots } from './catalog-fixtures';
+
+test.beforeEach(async ({ page }) => { await mockModelImages(page); });
 
 test('deletes the selected model after confirmation and clears the selection', async ({ page }) => {
   let deleted = false;

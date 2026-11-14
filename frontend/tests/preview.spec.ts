@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './test-fixtures';
 import { mockCatalog, openControlSections } from './catalog-fixtures';
 import { readFileSync } from 'node:fs';
 

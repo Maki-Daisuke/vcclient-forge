@@ -1,5 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test-fixtures';
 import { mockSession } from './session-fixtures';
+import { waitForControlSection } from './catalog-fixtures';
 
 test('shows a pending indicator on the requested model until it is confirmed', async ({ page }) => {
   const state = await mockSession(page);
@@ -26,6 +27,7 @@ test('shows device progress until confirmation, and stops it on failure', async 
   await page.goto('/');
   const section = page.locator('details.inference-section');
   await section.locator('summary').click();
+  await waitForControlSection(page, 'inference');
   const field = section.locator('.select-field').filter({ has: page.getByLabel('優先デバイス') });
   const select = field.locator('select');
   await select.selectOption('1');
@@ -50,6 +52,7 @@ test('shows progress for an inference setting until the model update completes',
   state.modelGate = new Promise<void>(resolve => { release = resolve; });
   await page.goto('/');
   await page.locator('details.inference-section summary').click();
+  await waitForControlSection(page, 'inference');
   const slider = page.getByRole('slider', { name: 'チャンクフレーム（秒）' });
   const field = page.locator('.log-slider').filter({ has: slider });
   await slider.press('End');

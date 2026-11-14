@@ -1,6 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './test-fixtures';
+import { mockCatalog } from './catalog-fixtures';
 
 test.use({ storageState: { cookies: [], origins: [] } });
+test.beforeEach(async ({ page }) => { await mockCatalog(page); });
 
 test('defaults to English and remembers language and theme', async ({ page }) => {
   await page.goto('/');

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test-fixtures';
 import { ZipWriter, Uint8ArrayWriter, TextReader } from '@zip.js/zip.js';
 import { mockSession } from './session-fixtures';
 

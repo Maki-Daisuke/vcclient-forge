@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test-fixtures';
 import { mockSession } from './session-fixtures';
-import { openControlSections } from './catalog-fixtures';
+import { openControlSections, waitForControlSection } from './catalog-fixtures';
 
 const chunk = 'チャンクフレーム（秒）';
 const extra = 'Extraフレーム（秒）';
@@ -14,10 +14,13 @@ test('shows the selected compute device when inference settings are collapsed', 
   await expect(badge).toBeVisible();
   await expect(badge).toHaveText('[DirectML] Test GPU');
   await section.locator('summary').click();
+  await waitForControlSection(page, 'inference');
   await expect(badge).toBeHidden();
   await section.getByLabel('優先デバイス').selectOption('1');
   await expect.poll(() => state.config.gpu_device_id_int).toBe(1);
+  await expect(section.locator('.pending-indicator')).toHaveCount(0);
   await section.locator('summary').click();
+  await waitForControlSection(page, 'inference', false);
   await expect(badge).toBeVisible();
   await expect(badge).toHaveText('[CUDA] NVIDIA Test GPU');
   await page.reload();

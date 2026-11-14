@@ -1,5 +1,5 @@
 import { openControlSections } from './catalog-fixtures';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './test-fixtures';
 import { mockSession } from './session-fixtures';
 
 const inputGain = (page: Page) => page.getByRole('slider', { name: '入力音量', exact: true });

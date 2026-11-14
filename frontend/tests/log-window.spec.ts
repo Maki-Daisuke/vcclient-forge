@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test-fixtures';
 import { mockCatalog } from './catalog-fixtures';
 
 test('opens a separate log page that can refresh without starting the main UI', async ({ page }) => {

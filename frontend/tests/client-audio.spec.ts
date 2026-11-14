@@ -1,4 +1,4 @@
-import { expect, test, type WebSocketRoute } from '@playwright/test';
+import { expect, test, type WebSocketRoute } from './test-fixtures';
 import { openControlSections } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 

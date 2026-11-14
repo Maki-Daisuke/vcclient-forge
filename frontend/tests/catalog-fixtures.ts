@@ -85,6 +85,10 @@ export async function fulfillCatalog(route: Route, data: unknown = slots, curren
 
 export async function mockCatalog(page: Page) {
   await page.route('**/api/**', route => fulfillCatalog(route));
+  await mockModelImages(page);
+}
+
+export async function mockModelImages(page: Page) {
   await page.route('**/model_dir/**', route => route.fulfill({
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="steelblue"/></svg>',
@@ -92,7 +96,17 @@ export async function mockCatalog(page: Page) {
 }
 
 export async function openControlSections(page: Page) {
-  for (const summary of await page.locator('.controls-column > details.control-group > summary').all()) {
+  const names = ['inference', 'input', 'volume', 'noise'] as const;
+  const summaries = await page.locator('.controls-column > details.control-group > summary').all();
+  for (const [index, summary] of summaries.entries()) {
     if (!await summary.locator('..').evaluate(element => (element as HTMLDetailsElement).open)) await summary.click();
+    await waitForControlSection(page, names[index]);
   }
+}
+
+export async function waitForControlSection(page: Page, name: string, open = true) {
+  await expect.poll(() => page.evaluate(({ key, expected }) => {
+    try { return JSON.parse(localStorage.getItem('vcclient-forge.control-sections.v1') ?? '{}')[key] === expected; }
+    catch { return true; }
+  }, { key: name, expected: open })).toBe(true);
 }

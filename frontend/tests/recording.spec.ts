@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test-fixtures';
 import { mockSession } from './session-fixtures';
 
 function wav(dataSize = 4): Buffer {

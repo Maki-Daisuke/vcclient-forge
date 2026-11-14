@@ -1,5 +1,5 @@
 import { openControlSections } from './catalog-fixtures';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './test-fixtures';
 import { configuration, fulfillCatalog, mockCatalog, slots } from './catalog-fixtures';
 
 async function openSettings(page: Page) {

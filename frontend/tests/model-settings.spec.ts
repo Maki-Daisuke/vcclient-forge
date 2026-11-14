@@ -1,5 +1,5 @@
 import { openControlSections } from './catalog-fixtures';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './test-fixtures';
 import { mockSession } from './session-fixtures';
 
 const pitch = (page: Page) => page.getByRole('slider', { name: 'ピッチ調整', exact: true });

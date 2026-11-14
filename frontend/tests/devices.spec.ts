@@ -1,5 +1,5 @@
 import { openControlSections } from './catalog-fixtures';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './test-fixtures';
 import { configuration, inputDevices, outputDevices, mockCatalog } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 

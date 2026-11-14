@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './test-fixtures';
 import { slots, fulfillCatalog, mockCatalog } from './catalog-fixtures';
 
 test.beforeEach(async ({ page }) => {

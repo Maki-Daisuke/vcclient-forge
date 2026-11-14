@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test-fixtures';
 import { openControlSections } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test-fixtures';
 import { mockSession } from './session-fixtures';
 
 test('explains why model selection is disabled during conversion', async ({ page }) => {

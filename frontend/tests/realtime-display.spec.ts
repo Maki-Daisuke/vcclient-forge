@@ -1,4 +1,4 @@
-import { expect, test, type Page, type WebSocketRoute } from '@playwright/test';
+import { expect, test, type Page, type WebSocketRoute } from './test-fixtures';
 import { mockSession } from './session-fixtures';
 
 async function displaySetting(page: Page) {
