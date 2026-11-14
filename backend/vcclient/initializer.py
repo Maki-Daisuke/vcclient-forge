@@ -1,4 +1,6 @@
 import time
+from collections.abc import Callable
+from typing import TypeVar
 
 from tqdm import tqdm
 
@@ -9,43 +11,48 @@ from vcclient.voice_changer.module_manager import download_rvc_modules, is_rvc_r
 from vcclient.voice_changer.sample_manager import download_initial_samples
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 
+DownloadStatus = TypeVar("DownloadStatus", ModuleDownloadStatus, SampleDownloadStatus)
+
+
+def _download_progress(label_for_id: Callable[[str], str]) -> Callable[[list[DownloadStatus]], None]:
+    last_update = 0.0
+    previous_states: dict[str, str] = {}
+    displayed_lines = 0
+
+    def update(status: list[DownloadStatus]) -> None:
+        nonlocal last_update, previous_states, displayed_lines
+        if not status:
+            return
+
+        now = time.monotonic()
+        states: dict[str, str] = {item.id: item.status for item in status}
+        if states == previous_states and now - last_update < 0.1:
+            return
+        last_update = now
+        previous_states = states
+
+        lines = []
+        for item in status:
+            progress = min(1.0, max(0.0, item.progress))
+            filled = int(progress * 20)
+            bar = "=" * filled + (">" if filled < 20 else "")
+            state = {"done": " [OK]", "error": " [ERROR]", "validating": " [VERIFY]"}.get(item.status, "")
+            label = label_for_id(item.id)[:24]
+            lines.append(f"\r\x1b[2K{label:<24} [{bar:<20}] {int(progress * 100):>3}%{state}")
+
+        cursor_up = f"\x1b[{displayed_lines}A" if displayed_lines else ""
+        print(cursor_up + "\n".join(lines), flush=True)
+        displayed_lines = len(lines)
+
+    return update
+
 
 def _check_and_download_rvc_modules() -> None:
     if not is_rvc_ready():
         logger.info("RVC is not ready. Downloading RVC modules.")
         print("RVC is not ready. Downloading RVC modules (parallel)...", flush=True)
 
-        completed_ids: set[str] = set()
-        last_update = [0.0]
-
-        def download_callback(status: list[ModuleDownloadStatus]) -> None:
-            if not status:
-                return
-
-            # Print completed files one line per file
-            for s in status:
-                if s.status == "done" and s.id not in completed_ids:
-                    completed_ids.add(s.id)
-                    label = s.id.replace(".onnx", "").replace("-f", "")
-                    print(f"\r\x1b[2K  ✓ {label}: Done", flush=True)
-
-            now = time.monotonic()
-            all_done = all(s.status == "done" for s in status)
-            if not all_done and (now - last_update[0]) < 0.1:
-                return
-            last_update[0] = now
-
-            total_progress = sum(s.progress for s in status) / len(status)
-            total_pct = int(total_progress * 100)
-            bar_len = 20
-            filled = int(bar_len * total_progress)
-            bar = "=" * filled + (">" if filled < bar_len else "")
-            line = (
-                f"\r\x1b[2KDownloading modules [{bar:<{bar_len}}] {total_pct:>3}% ({len(completed_ids)}/{len(status)})"
-            )
-            print(line, end="", flush=True)
-
-        download_rvc_modules(download_callback)
+        download_rvc_modules(_download_progress(lambda name: name.replace(".onnx", "").replace("-f", "")))
         logger.info("RVC is not ready. Downloading RVC modules. Done.")
         print("\nRVC is not ready. Downloading RVC modules. Done.\n", flush=True)
 
@@ -84,35 +91,6 @@ def _check_and_download_initial_samples() -> None:
         logger.info("Sample is not ready. Downloading initial samples.")
         print("Sample is not ready. Downloading initial samples (parallel)...", flush=True)
 
-        completed_ids: set[str] = set()
-        last_update = [0.0]
-
-        def download_callback(status: list[SampleDownloadStatus]) -> None:
-            if not status:
-                return
-
-            for s in status:
-                if s.status == "done" and s.id not in completed_ids:
-                    completed_ids.add(s.id)
-                    label = s.id.replace("_o", "")
-                    print(f"\r\x1b[2K  ✓ {label}: Done", flush=True)
-
-            now = time.monotonic()
-            all_done = all(s.status == "done" for s in status)
-            if not all_done and (now - last_update[0]) < 0.1:
-                return
-            last_update[0] = now
-
-            total_progress = sum(s.progress for s in status) / len(status)
-            total_pct = int(total_progress * 100)
-            bar_len = 20
-            filled = int(bar_len * total_progress)
-            bar = "=" * filled + (">" if filled < bar_len else "")
-            line = (
-                f"\r\x1b[2KDownloading samples [{bar:<{bar_len}}] {total_pct:>3}% ({len(completed_ids)}/{len(status)})"
-            )
-            print(line, end="", flush=True)
-
-        download_initial_samples(download_callback)
+        download_initial_samples(_download_progress(lambda name: name.replace("_o", "")))
         logger.info("Sample is not ready. Downloading initial samples. Done.")
         print("\nSample is not ready. Downloading initial samples. Done.\n", flush=True)

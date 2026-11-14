@@ -1,14 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -64,11 +63,11 @@ func startLocalBackend(
 		for {
 			n, err := stdout.Read(buf)
 			if n > 0 {
-				text := unsafe.String(&buf[0], n)
+				text := string(buf[:n])
 				app.Event.Emit("backend-log", text)
 				copy(slideBuf[slideLen:cap(slideBuf)], buf[:n])
 				slideLen += n
-				if strings.Contains(unsafe.String(&slideBuf[0], slideLen), READY_SENTINEL) {
+				if bytes.Contains(slideBuf[:slideLen], []byte(READY_SENTINEL)) {
 					app.Event.Emit("backend-log", "\r\n\x1b[32m>>> Backend is ready! Navigating...\x1b[0m\r\n")
 					app.Event.Emit("backend-ready", true)
 					window.SetURL(BACKEND_URL)
@@ -94,7 +93,7 @@ func startLocalBackend(
 		for {
 			n, err := stderr.Read(buf)
 			if n > 0 {
-				app.Event.Emit("backend-log", unsafe.String(&buf[0], n))
+				app.Event.Emit("backend-log", string(buf[:n]))
 			}
 			if err != nil {
 				return
