@@ -5,6 +5,7 @@
   import CheckField from './CheckField.svelte';
   import { useUi } from '../lib/ui.svelte';
   import { useSession } from '../lib/session.svelte';
+  import lucideLicense from '../../public/lucide-LICENSE.txt?raw';
   const ui = useUi();
   const session = useSession();
   let advancedOpen = $state(false);
@@ -109,5 +110,15 @@
     </div>
     <h3>{ui.t('common.copyright.disclaimer')}</h3>
     <p class="muted">{ui.t('common.copyright.disclaimer_text')}</p>
+    <details class="license-details">
+      <summary>Lucide Icons — ISC License</summary>
+      <pre>{lucideLicense}</pre>
+    </details>
   </PreviewDialog>
 </nav>
+
+<style>
+  .license-details { margin-top: 16px; }
+  .license-details summary { cursor: pointer; }
+  .license-details pre { max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; }
+</style>
