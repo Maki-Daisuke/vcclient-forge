@@ -30,6 +30,18 @@ jobs:
           npm run check:frontend
           npm run build:frontend
 
+      - name: Install Playwright Chromium
+        if: runner.os == 'Windows'
+        run: npm --prefix frontend exec -- playwright install chromium
+
+      - name: Install Playwright Chromium (Linux)
+        if: runner.os == 'Linux'
+        run: npm --prefix frontend exec -- playwright install --with-deps chromium
+
+      - name: Run frontend browser tests
+        if: runner.os == 'Windows' || runner.os == 'Linux'
+        run: npm --prefix frontend test -- --workers=2
+
       - name: Install uv
         uses: astral-sh/setup-uv@v10.3.2
         with:

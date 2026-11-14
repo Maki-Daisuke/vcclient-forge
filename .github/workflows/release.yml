@@ -65,9 +65,10 @@ jobs:
       - name: Install Wails v3 CLI
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
-      - name: Install desktop build dependencies
+      - name: Install frontend build dependencies
         run: |
           npm ci
+          npm --prefix frontend ci
           npm --prefix desktop/frontend ci
 
       - name: Install 7-Zip (macOS)

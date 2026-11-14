@@ -272,8 +272,8 @@ npm run format:check
 
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
-* **`ci.yml`**: Runs Ruff linting, formatting checks, backend test suite (`npm run test:backend`, including mypy type checking and pytest), desktop test suite (`npm run test:desktop`), Go formatting checks (`gofmt`), and desktop host build (`npm run build:desktop`) on every push and pull request across Ubuntu, Windows, and macOS using Python 3.14, Node.js 26, and Go 1.27.
-* **`release.yml`**: Automatically builds portable standalone packages (including the Wails v3 desktop executable and PyInstaller frozen backend) across all hardware matrix editions when a new version tag (`v*`) is pushed, attaching the archives directly to GitHub Releases.
+* **`ci.yml`**: Runs frontend checks and Chromium browser tests (on Windows and Ubuntu), Ruff linting, formatting checks, backend tests, desktop tests, Go formatting checks, and the desktop build on pushes and pull requests. The main matrix covers Ubuntu, Windows, and macOS; the CUDA job runs on a self-hosted Linux ARM64 runner.
+* **`release.yml`**: Builds portable packages for all matrix editions when a version tag (`v*`) is pushed, attaching the archives to GitHub Releases. It can also be started manually from the GitHub Actions **Release Builds** page by selecting a branch, or with `gh workflow run release.yml --ref forge`. A branch run uploads the packages as workflow artifacts without publishing a release; artifacts are retained for seven days.
 
 ---
 

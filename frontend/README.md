@@ -167,10 +167,9 @@ The dev URL is printed by Vite (normally `http://127.0.0.1:5173`). Standalone ou
 goes to `frontend/preview-dist`; `npm --prefix frontend run preview` serves it.
 `npm run build:frontend` builds the Python-served UI in `frontend/dist`, used by the desktop host and portable packages.
 
-The log button opens a separate page and retrieves `/vcclient.log` on demand.
-Use its reload button to fetch the latest contents; it does not start another
-audio session. The desktop host has a separate log-window bridge for when the
-new UI is integrated, but that integration is not yet available in the package.
+The log button opens a separate window or page and retrieves `/vcclient.log` on
+opening and every two seconds. Its reload button fetches the latest contents
+immediately; the log view does not start another audio session.
 
 Browser checks run against the built preview with intercepted API responses;
 they do not require the Python backend or open native audio devices. They cover startup GETs, sparse
@@ -178,6 +177,10 @@ slot IDs, metadata/selection, loading and error recovery, invalid responses,
 timeout, portrait fallback, native selection/start/stop, gain/model coalescing, full
 configuration/slot preservation, failed writes and retries, no browser device access, dialog
 focus/nesting, themes, and all 13 languages at a narrow viewport:
+
+The shared test fixture blocks unmocked backend HTTP requests and Socket.IO
+connections, including those made from popups. Unexpected backend HTTP requests
+fail the test; tests that need backend responses provide explicit mocks.
 
 ```sh
 npm --prefix frontend exec -- playwright install chromium
