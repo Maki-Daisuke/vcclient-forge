@@ -79,7 +79,7 @@
   }}><ScrollText size={16} />{ui.t('common.advanced_area.log')}</button>
   <PreviewDialog title={ui.t('forge.about')}>
     {#snippet trigger()}<Info size={16} />{ui.t('forge.about')}{/snippet}
-    <h3>VCClient Forge</h3>
+    <h3>VCClient Forge <span class="about-version">v{__APP_VERSION__}</span></h3>
     <p class="muted">
       Forked from
       <a class="inline-link" href="https://github.com/w-okada/voice-changer" target="_blank" rel="noopener noreferrer"

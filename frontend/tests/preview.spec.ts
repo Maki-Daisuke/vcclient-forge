@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { mockCatalog, openControlSections } from './catalog-fixtures';
+import { readFileSync } from 'node:fs';
+
+const { version } = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
 
 test.beforeEach(async ({ page }) => { await mockCatalog(page); });
 
@@ -198,6 +201,7 @@ test('about dialog links upstream fork and Forge GitHub repository in a new wind
   await page.getByRole('button', { name: 'このアプリについて', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'このアプリについて' });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(`v${version}`, { exact: true })).toBeVisible();
   await expect(dialog).toContainText('Forked from w-okada/voice-changer');
 
   const upstreamLink = dialog.getByRole('link', { name: 'w-okada/voice-changer' });
