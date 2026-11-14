@@ -29,39 +29,18 @@ Download the standalone package matching your operating system and hardware from
 
 > [!TIP]
 >
-> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and newer, and GTX 16 series) and a CUDA 13-compatible NVIDIA driver (R580 or newer). Real-time performance depends on the GPU and model.
+> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and newer, and GTX 16 series). Please update your NVIDIA driver to the latest version (CUDA 13-compatible, R580 or newer); CUDA Toolkit and cuDNN are bundled and not required. Real-time performance depends on the GPU and model.
 > - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices; real-time performance depends on the device and model.
 > - **Intel Arc / AMD Radeon / Mac users**: Select the universal `standard` package for your platform. Hardware acceleration (OpenVINO, DirectML, CoreML) is configured automatically out of the box!
 
-### 2. Launch
+### 2. Extract, Launch & Migrate
 
-Extract the archive to any folder and run:
+Extract the downloaded `.7z` archive to any folder (on Ubuntu/Debian, install `7zip` if needed: `sudo apt-get update && sudo apt-get install -y 7zip`).
 
-- **Desktop App (Recommended)**:
-  Double-click **`vcclient-forge.exe`** (Windows) or execute **`./vcclient-forge`** (Linux / macOS).
-- **Web Browser Mode (Classic)**:
-  Double-click **`start.bat`** (Windows) or execute **`./start.sh`** (Linux / macOS).
-  Your default web browser will automatically open:
-  ```text
-  http://localhost:18888/
-  ```
+For **launch steps** (Windows / macOS / Ubuntu Linux, Desktop App or Web Browser Mode), **Linux dependencies**, **first-launch model downloads**, and **migrating `settings` and `model_dir` from w-okada VC (`v2.0.78`)**, see the bundled Quick Start guide:
 
-> [!NOTE]
-> Initial model assets will be downloaded automatically on first launch. This may take a few moments depending on your internet connection.
-
-### Migrating from w-okada VC (v2.0.78)
-
-To transfer your existing models and settings, simply copy the **`settings`** and **`model_dir`** folders from your original v2.0.78 directory into the extracted Forge folder.
-
-### Linux only
-
-- **OS**: Ubuntu 24.04 LTS or newer (`glibc >= 2.39`).
-- **NVIDIA Driver (`cuda` edition only)**: Host NVIDIA GPU driver is required (CUDA Toolkit and cuDNN are bundled and **not** required).
-- **Audio, Desktop & Archive Dependencies**:
-  ```bash
-  # Ubuntu / Debian
-  sudo apt-get update && sudo apt-get install -y libportaudio2 libwebkitgtk-6.0-4 7zip
-  ```
+- **English**: **[`docs/README.txt`](docs/README.txt)** (`README.txt` inside the extracted folder)
+- **日本語**: **[`docs/README_ja.txt`](docs/README_ja.txt)** (`README_ja.txt` inside the extracted folder)
 
 ---
 

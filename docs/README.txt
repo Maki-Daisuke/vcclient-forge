@@ -9,6 +9,11 @@ Thank you for downloading VCClient Forge!
 1. How to Launch
 ----------------------------------------------------------------------
 
+* Note for CUDA edition (Windows / Linux):
+  Please update your NVIDIA GPU driver to the latest version before use
+  (CUDA 13-compatible, R580 or newer). CUDA Toolkit and cuDNN are bundled,
+  so separate installation is not required.
+
 Windows
 -------
 
@@ -45,13 +50,14 @@ http://localhost:18888/
 Ubuntu Linux
 ------------
 
-[Install Dependencies]
+[Requirements & Dependencies]
 
-First, install the required system libraries:
+- OS: Ubuntu 24.04 LTS or newer (glibc >= 2.39)
+- Required system packages:
 
-  sudo apt update && sudo apt install -y libportaudio2 libwebkitgtk-6.0-4
+  sudo apt-get update && sudo apt-get install -y libportaudio2 libwebkitgtk-6.0-4 7zip
 
-[Desktop App]
+[Desktop App (Recommended)]
 
 Execute "./vcclient-forge" in Terminal.
 
@@ -81,7 +87,6 @@ connection, so please be patient and wait until it completes.
 ----------------------------------------------------------------------
 4. Support & Links
 ----------------------------------------------------------------------
-- GitHub:   https://github.com/Maki-Daisuke/vcclient-forge
-- Releases: https://github.com/Maki-Daisuke/vcclient-forge/releases
-- Issues:   https://github.com/Maki-Daisuke/vcclient-forge/issues
+- Project Site: https://github.com/Maki-Daisuke/vcclient-forge
+- Issues:       https://github.com/Maki-Daisuke/vcclient-forge/issues
 ======================================================================

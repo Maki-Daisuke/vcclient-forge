@@ -8,6 +8,11 @@ VCClient Forge をご利用いただきありがとうございます。
 1. 起動方法
 ----------------------------------------------------------------------
 
+※ cuda 版をご利用の場合（Windows / Linux 共通）:
+   あらかじめ NVIDIA GPU ドライバを最新版へアップデートしてお使いください
+   （CUDA 13 対応の R580 以降が必要です）。CUDA Toolkit と cuDNN は同梱
+   されているため、別途インストールする必要はありません。
+
 Windows
 -------
 
@@ -18,6 +23,8 @@ Windows
 【Web ブラウザ版】
 
 "start.bat" をダブルクリックしてください。
+ブラウザが自動的に開き、以下の URL にアクセスします:
+http://localhost:18888/
 
 macOS
 -----
@@ -42,19 +49,20 @@ http://localhost:18888/
 Ubuntu Linux
 ------------
 
-【依存ライブラリのインストール】
+【動作要件・依存ライブラリ】
 
-最初に、依存ライブラリをインストールしてください：
+- OS: Ubuntu 24.04 LTS 以降（glibc >= 2.39）
+- 必要なシステムパッケージ:
 
-  sudo apt update && sudo apt install -y libportaudio2 libwebkitgtk-6.0-4
+  sudo apt-get update && sudo apt-get install -y libportaudio2 libwebkitgtk-6.0-4 7zip
 
-【デスクトップ版】
+【デスクトップ版（おすすめ）】
 
-"vcclient-forge" を実行してください。
+ターミナルで "./vcclient-forge" を実行してください。
 
 【Web ブラウザ版】
 
-"./start.sh" を実行してください。
+ターミナルで "./start.sh" を実行してください。
 ブラウザが自動的に開き、以下の URL にアクセスします:
 http://localhost:18888/
 
@@ -78,7 +86,6 @@ http://localhost:18888/
 ----------------------------------------------------------------------
 4. サポート・リンク
 ----------------------------------------------------------------------
-- GitHub:   https://github.com/Maki-Daisuke/vcclient-forge
-- リリース: https://github.com/Maki-Daisuke/vcclient-forge/releases
+- Project Site:  https://github.com/Maki-Daisuke/vcclient-forge
 - 質問・不具合報告: https://github.com/Maki-Daisuke/vcclient-forge/issues
 ======================================================================
