@@ -110,7 +110,74 @@ Native input callback / Socket.IO audio receiver
 
 ### 3.3 Output Buffers: Bridge Production and Playback, Not Extra Batch Waiting
 
-**Current experiment:** The existing bulk worker retains fully zero postprocessed output chunks for at least 200 ms of consecutive silence, then skips them until nonzero output resumes. Main and monitor audio are tracked independently. The threshold is applied at chunk boundaries, so the retained silence can exceed 200 ms by up to one chunk. Playback callbacks fill shortages with silence; this allows queued audio to drain during silent periods, but does not eliminate backlog during sustained speech. Performance-only entries are retained for notifications. In Client Mode, a request with no converted audio ready receives no audio response; compatibility during extended silence still needs verification. This can shorten recorded silence and does not preserve timing between the two output streams. The latency and audio effects still need to be measured with real devices. The RVC noise gate also holds open for at least 200 ms below the close threshold, independently of this output silence delay; the resulting compute and audio effects need testing.
+**Current experiment:** The existing bulk worker retains digital silence chunks (`0.0`) for at least 200 ms of consecutive silence, then skips them until nonzero output resumes. Main and monitor audio are tracked independently. The threshold is applied at chunk boundaries, so the retained silence can exceed 200 ms by up to one chunk. Playback callbacks fill shortages with silence; this allows queued audio to drain during silent periods, and does not drain backlog during sustained speech. To absorb inference-time jitter when playback resumes from an empty or drained buffer without retaining stale speech tails, both Server Mode (`LocalVoiceChangerInterface`) and Client Mode (`ClientAudio`) insert a chunk-relative silence preroll (`max(0.02, chunk_sec * 0.1)` s) when nonzero audio resumes after silence. Performance-only entries are retained for notifications. In Client Mode, a request with no converted audio ready receives no audio response; compatibility during extended silence still needs verification. This can shorten recorded silence and does not preserve timing between the two output streams. Latency and audio effects still need end-to-end measurement with real devices. The RVC noise gate also holds open for at least 200 ms below the close threshold, independently of this output silence delay; the resulting compute and audio effects need testing.
+
+#### 3.3.1 Silence-Skip Underrun Mechanism and Relative Preroll Cushion
+
+When silence skipping drains `out_queue` (or Client Mode's `nextPlayback` timeline) to an initial buffered depth of $B_0 = 0$, playback of the first nonzero chunk in a new utterance starts with `0` margin ahead of the audio clock:
+
+1. **Arrival Deadline Coupling and Boundary Quantization**:
+   Let $D = \text{chunk\_sec}$ be the chunk playback duration, $t_k = t_0 + kD$ ($k = 0, 1, 2, \dots$) be the input chunk boundaries, $T_n$ be the end-to-end conversion and handoff latency of chunk $C_n$ ($n \ge 0$), and $B_0 \ge 0$ be the silence buffer depth present when $C_0$ begins playing.
+   - **Throughput bound**: Sustained operation requires average conversion time not to exceed chunk duration ($\bar{T} \le D$) so input does not accumulate ahead of the worker.
+   - **Non-underrun jitter budget**: Chunk $C_0$ accumulates during $[t_0, t_1]$ and finishes conversion at $t_1 + T_0$; chunk $C_n$ accumulates during $[t_n, t_{n+1}]$ and reaches playback at $t_{\text{out}, n} = t_{n+1} + T_n$ (when no worker backlog precedes it). With initial margin $B_0$, playback of $C_0$ starts at $t_1 + T_0 + B_0$ and plays for duration $D$ until $t_2 + T_0 + B_0$; chunks $C_0 \dots C_{n-1}$ sustain playback until $t_{n+1} + T_0 + B_0$. Avoiding an underrun before $C_n$ arrives therefore requires $t_{n+1} + T_n \le t_{n+1} + T_0 + B_0$, which simplifies to $T_n - T_0 \le B_0$. When silence skipping drains the buffer to $B_0 = 0$, even when $T_0 < D$ and $T_1 < D$, any chunk $C_1$ slower than $C_0$ ($T_1 > T_0$) leaves an underrun gap on $[t_2 + T_0,\ t_2 + T_1]$ of duration $T_1 - T_0$:
+
+```mermaid
+sequenceDiagram
+    participant Input
+    participant Buffer
+    participant Pipeline
+    participant Output
+
+    activate Input
+    Input->>Buffer: t0 - Capture C0 (chunk size D)
+    activate Buffer
+    Input-->>Buffer: Stream C0 samples (1/2)
+    Note over Buffer: Accumulate C0 [t0, t1] (fixed chunk D)
+    Input-->>Buffer: Stream C0 samples (2/2)
+    Buffer->>Pipeline: t1 - Enqueue C0 (chunk size D)
+    deactivate Buffer
+    activate Pipeline
+
+    Input->>Buffer: t1 - Capture C1 (chunk size D)
+    activate Buffer
+    Pipeline->>Output: t1 + T0 - Emit converted C0 (T0 < D)
+    deactivate Pipeline
+    activate Output
+    Note over Output: Play C0 [t1 + T0, t2 + T0] (duration D, B0 = 0)
+    Input-->>Buffer: Stream C1 samples
+    Buffer->>Pipeline: t2 - Enqueue C1 (chunk size D)
+    deactivate Buffer
+    activate Pipeline
+
+    Input->>Buffer: t2 - Capture C2 (chunk size D)
+    activate Buffer
+    Input-->>Buffer: t2 + T0 - Stream C2 (C0 playback ends)
+    deactivate Output
+    Note over Output: Underrun gap [t2 + T0, t2 + T1] (T1 - T0)
+    Pipeline->>Output: t2 + T1 - Emit converted C1 (T0 < T1 < D)
+    deactivate Pipeline
+    activate Output
+    Buffer->>Pipeline: t3 - Enqueue C2 (chunk size D)
+    deactivate Buffer
+
+    Note over Output: Play C1 [t2 + T1, t3 + T1] (duration D)
+    deactivate Output
+    deactivate Input
+```
+
+   - **Callback quantization**: In Server Mode, `audio_input_callback` drains `convert_chunk_bulk_queue_out` only at 10 ms callback ticks, so sub-millisecond inference jitter that misses one 10 ms tick adds a full 10 ms step to $T_n$.
+2. **Waveform Discontinuities (Click Artifacts)**:
+   When `out_queue` is empty during continuous speech, `audio_output_callback` fills one 10 ms block with `0.0` (`outdata.fill(0)`). Because `CrossfadeProcessor.apply` has stitched $C_{n-1}$ and $C_n$ into continuous nonzero waveforms, inserting a 10 ms digital-silence notch produces two abrupt vertical step transitions ($y \neq 0 \to 0.0$ and $0.0 \to y \neq 0$) heard as clicks. Before commit [`2283fa2ff44733e3eabdbb0eb551de8968ba1013`](https://github.com/Maki-Daisuke/vcclient-forge/commit/2283fa2ff44733e3eabdbb0eb551de8968ba1013), continuously enqueueing silent chunks preserved whatever queue cushion had built up from prior underflows or spikes, trading latency accumulation for jitter immunity.
+3. **Why Consumer-Side Queue Floors Are Avoided**:
+   Halting consumption in `audio_output_callback` when `out_queue.qsize()` drops to a fixed floor $K$ (e.g., 2–3 blocks) would trap the final $K$ blocks in `out_queue` whenever silence skipping stops chunk production. Depending on noise-gate release timing, trailing speech samples remain trapped in the queue at the end of an utterance and are emitted at the start of the next utterance. Letting `out_queue` drain completely to `0` plays out the full tail of every utterance and discards accumulated latency, while prepending silence only on resumption after silence rebuilds a cushion without trapping prior speech.
+4. **Relative Preroll Formula (`max(0.02, chunk_sec * 0.1)`)**:
+   - The term `chunk_sec * 0.1` sets the initial jitter budget $B_0$ to 10% of the configured chunk duration $D = \text{chunk\_sec}$. Longer inference runs encounter more OS scheduler preemptions, GIL contention, and clock-frequency shifts, so expected conversion-time jitter ($T_n - T_0$) scales with compute duration; because practical settings match `chunk_sec` to the hardware's inference budget ($\bar{T} \le D$), `0.1 * chunk_sec` scales $B_0$ proportionally to that jitter budget.
+   - Separately, in terms of user-visible latency, each chunk already requires one full chunk interval $D$ for input framing before conversion begins; reserving $B_0 = 0.1 D$ adds 10% of that inherent single-chunk buffering interval at utterance onset.
+   - The `0.02` s (20 ms = two 10 ms blocks) floor covers one 10 ms `audio_input_callback` collection-boundary quantization step plus one 10 ms block of inference-jitter margin on short chunks ($\le 200\text{ ms}$). For longer chunks (e.g., `0.5` s), the target scales to 50 ms (`5` blocks).
+5. **Replenishment Rules, Constraints, and Trade-Offs**:
+   - **Resumption-only trigger**: Preroll is inserted only on initial stream start and when nonzero audio resumes after trailing digital silence (`0.0`), not during mid-utterance underruns (where prepending zeros would extend an active dropout).
+   - **Shortfall-only top-up**: Server Mode enqueues only `max(0, target_blocks - queue.qsize())` zero blocks and Client Mode clamps `nextPlayback` via `Math.max(nextPlayback, context.currentTime + prerollSec)` so partial queue drains across brief pauses do not accumulate extra delay.
+   - **Trade-offs**: Each utterance following silence incurs `max(20 ms, 0.1 * chunk_sec)` of additional initial playback latency. Preroll does not prevent underruns when an intra-utterance conversion spike exceeds the available jitter budget ($T_n - T_0 > B_0$), and backlog during uninterrupted speech without silent pauses still requires the one-way pipeline changes in Section 3.2.
 
 In the current `sounddevice.OutputStream(callback=...)` design, PortAudio supplies `outdata` and determines when samples are needed. The application keeps completed samples between worker completion and these callbacks; the driver/PortAudio buffers do not replace that worker-to-callback handoff.
 

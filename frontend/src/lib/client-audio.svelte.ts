@@ -5,6 +5,8 @@ type SinkAudioContext = AudioContext & { setSinkId?: (id: string) => Promise<voi
 type BrowserAudioOption = 'echoCancellation' | 'noiseSuppression' | 'autoGainControl';
 const browserAudioStorageKey = 'vcclient-forge.browser-audio.v1';
 const clientGainStorageKey = 'vcclient-forge.client-gain.v1';
+const minOutputPrerollSec = 0.02;
+const outputPrerollChunkRatio = 0.1;
 
 function loadClientGains(): { inputGain: number; outputGain: number } {
   try {
@@ -48,6 +50,7 @@ export class ClientAudio {
   private readonly outputSamples = new Float32Array(2048);
   private sources = new Set<AudioBufferSourceNode>();
   private nextPlayback = 0;
+  private prerollNeeded = true;
   private generation = 0;
 
   get canSelectOutput() { return typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype; }
@@ -123,6 +126,8 @@ export class ClientAudio {
       throw new Error('The browser does not support the selected audio processing.');
     }
     const generation = ++this.generation;
+    this.nextPlayback = 0;
+    this.prerollNeeded = true;
     const context = new AudioContext({ sampleRate: inputRate, latencyHint: 'interactive' });
     this.context = context;
     try {
@@ -184,6 +189,16 @@ export class ClientAudio {
           for (const source of this.sources) source.stop();
           this.sources.clear();
           this.nextPlayback = 0;
+          this.prerollNeeded = true;
+        }
+        const hasSignal = samples.some(sample => sample !== 0);
+        const tailStart = Math.max(0, samples.length - Math.max(1, Math.round(outputRate * 0.01)));
+        let tailHasSignal = false;
+        for (let i = tailStart; i < samples.length; i++) {
+          if (samples[i] !== 0) {
+            tailHasSignal = true;
+            break;
+          }
         }
         const buffer = context.createBuffer(1, samples.length, outputRate);
         buffer.copyToChannel(samples, 0);
@@ -192,7 +207,13 @@ export class ClientAudio {
         source.connect(outputGainNode);
         source.onended = () => this.sources.delete(source);
         this.sources.add(source);
-        this.nextPlayback = Math.max(this.nextPlayback, context.currentTime);
+        if (hasSignal && this.prerollNeeded) {
+          const prerollSec = Math.max(minOutputPrerollSec, buffer.duration * outputPrerollChunkRatio);
+          this.nextPlayback = Math.max(this.nextPlayback, context.currentTime + prerollSec);
+        } else {
+          this.nextPlayback = Math.max(this.nextPlayback, context.currentTime);
+        }
+        this.prerollNeeded = !tailHasSignal;
         source.start(this.nextPlayback);
         this.nextPlayback += buffer.duration;
       });
@@ -232,6 +253,7 @@ export class ClientAudio {
     for (const source of this.sources) source.stop();
     this.sources.clear();
     this.nextPlayback = 0;
+    this.prerollNeeded = true;
     if (this.context) void this.context.close();
     this.context = null;
   }

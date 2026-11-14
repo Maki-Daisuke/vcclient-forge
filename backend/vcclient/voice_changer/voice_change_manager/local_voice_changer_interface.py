@@ -26,6 +26,8 @@ from .voice_changer import VoiceChanger
 
 local_voice_changer_callback_chunk_sec = 0.01
 local_voice_changer_loop_interval_sec = 0.2
+local_voice_changer_min_preroll_sec = 0.02
+local_voice_changer_preroll_chunk_ratio = 0.1
 
 
 class LocalVoiceChangerInterface(EventEmitter):
@@ -37,6 +39,8 @@ class LocalVoiceChangerInterface(EventEmitter):
     waveform_rest_output: np.ndarray
     waveform_rest_monitor: np.ndarray
     split_length: int
+    output_preroll_needed: bool
+    monitor_preroll_needed: bool
     audio_input_device_sample_rate: float
     audio_output_device_sample_rate: float
     audio_monitor_device_sample_rate: float
@@ -65,11 +69,62 @@ class LocalVoiceChangerInterface(EventEmitter):
         self.waveform_rest_output = np.array([], dtype=np.float32)
         self.waveform_rest_monitor = np.array([], dtype=np.float32)
         self.split_length = 0
+        self.output_preroll_needed = True
+        self.monitor_preroll_needed = True
         self.input_volume: float = 0.0
         self.input_volume_calculation_buffer: list[np.ndarray] = []
         self.output_volume: float = 0.0
         self.output_volume_calculation_buffer: list[np.ndarray] = []
         self.process_call_counter: int = 0
+
+    def _get_preroll_block_count(self) -> int:
+        """Compute target preroll block count from the active inference chunk duration."""
+        raw_chunk_sec = getattr(getattr(self, "vc", None), "vc_chunk_sec", None)
+        if isinstance(raw_chunk_sec, (int, float)) and raw_chunk_sec > 0:
+            chunk_sec = float(raw_chunk_sec)
+            self.vc_chunk_sec = chunk_sec
+        else:
+            fallback_chunk_sec = getattr(self, "vc_chunk_sec", 0.0)
+            chunk_sec = float(fallback_chunk_sec) if isinstance(fallback_chunk_sec, (int, float)) else 0.0
+        preroll_sec = max(
+            local_voice_changer_min_preroll_sec,
+            chunk_sec * local_voice_changer_preroll_chunk_ratio,
+        )
+        return max(2, int(round(preroll_sec / local_voice_changer_callback_chunk_sec)))
+
+    def _enqueue_preroll(self, queue: Queue[np.ndarray], block_size: int, dtype: np.dtype[Any]) -> None:
+        """Pad the front of an output queue up to the target preroll block count with silence."""
+        missing_blocks = max(0, self._get_preroll_block_count() - queue.qsize())
+        for _ in range(missing_blocks):
+            queue.put(np.zeros(block_size, dtype=dtype))
+
+    def _enqueue_stream_blocks(
+        self,
+        waveform: np.ndarray,
+        rest_attr: str,
+        block_size: int,
+        queue: Queue[np.ndarray],
+        preroll_attr: str,
+    ) -> None:
+        """Split a converted chunk into callback blocks and replenish preroll after silence."""
+        rest: np.ndarray = getattr(self, rest_attr)
+        if rest.dtype != waveform.dtype:
+            rest = np.array([], dtype=waveform.dtype)
+        combined = np.concatenate([rest, waveform])
+        splitted_waveforms = [combined[i : i + block_size] for i in range(0, len(combined), block_size)]
+        self.split_length = len(splitted_waveforms)
+        if splitted_waveforms and len(splitted_waveforms[-1]) < block_size:
+            setattr(self, rest_attr, splitted_waveforms.pop())
+        else:
+            setattr(self, rest_attr, np.array([], dtype=waveform.dtype))
+        if splitted_waveforms:
+            if getattr(self, preroll_attr) and any(np.any(block) for block in splitted_waveforms):
+                self._enqueue_preroll(queue, block_size, waveform.dtype)
+            setattr(self, preroll_attr, not bool(np.any(splitted_waveforms[-1])))
+            for block in splitted_waveforms:
+                queue.put(block)
+        elif not np.any(waveform):
+            setattr(self, preroll_attr, True)
 
     def truncate_output_buffer(self) -> None:
         for _ in range(self.out_queue.qsize()):
@@ -82,6 +137,8 @@ class LocalVoiceChangerInterface(EventEmitter):
                 _ = self.monitor_queue.get_nowait()
             except Empty:
                 break
+        self.output_preroll_needed = True
+        self.monitor_preroll_needed = True
 
     def set_dummy_input(self, url: str) -> None:
         if not hasattr(self, "audio_input_device_sample_rate") or not self.audio_input_device_sample_rate:
@@ -187,6 +244,8 @@ class LocalVoiceChangerInterface(EventEmitter):
         self.vc.start_convert_chunk_bulk()
         self.vc_info = self.vc.get_voice_changer_information()
         self.vc_chunk_sec = self.vc_info.chunk_sec
+        self.output_preroll_needed = True
+        self.monitor_preroll_needed = True
 
         if conf.audio_input_device_sample_rate == -1:
             self.audio_input_device_sample_rate = get_default_sample_rate(conf.audio_input_device_index, "audioinput")
@@ -355,36 +414,18 @@ class LocalVoiceChangerInterface(EventEmitter):
                 self.emit("perf", performance_data.model_dump_json())
 
             if converted is not None:
-                if self.waveform_rest_output.dtype != converted.dtype:
-                    self.waveform_rest_output = np.array([], dtype=converted.dtype)
-                self.waveform_rest_output = np.concatenate([self.waveform_rest_output, converted])
-                splitted_waveforms = [
-                    self.waveform_rest_output[i : i + self.output_block_size]
-                    for i in range(0, len(self.waveform_rest_output), self.output_block_size)
-                ]
-                self.split_length = len(splitted_waveforms)
-                if len(splitted_waveforms[-1]) < self.output_block_size:
-                    self.waveform_rest_output = splitted_waveforms.pop()
-                else:
-                    self.waveform_rest_output = np.array([], dtype=converted.dtype)
-                for w in splitted_waveforms:
-                    self.out_queue.put(w)
+                self._enqueue_stream_blocks(
+                    converted, "waveform_rest_output", self.output_block_size, self.out_queue, "output_preroll_needed"
+                )
 
             if converted_for_monitor is not None:
-                if self.waveform_rest_monitor.dtype != converted_for_monitor.dtype:
-                    self.waveform_rest_monitor = np.array([], dtype=converted_for_monitor.dtype)
-                self.waveform_rest_monitor = np.concatenate([self.waveform_rest_monitor, converted_for_monitor])
-                splitted_waveforms = [
-                    self.waveform_rest_monitor[i : i + self.monitor_block_size]
-                    for i in range(0, len(self.waveform_rest_monitor), self.monitor_block_size)
-                ]
-                self.split_length = len(splitted_waveforms)
-                if len(splitted_waveforms[-1]) < self.monitor_block_size:
-                    self.waveform_rest_monitor = splitted_waveforms.pop()
-                else:
-                    self.waveform_rest_monitor = np.array([], dtype=converted_for_monitor.dtype)
-                for w in splitted_waveforms:
-                    self.monitor_queue.put(w)
+                self._enqueue_stream_blocks(
+                    converted_for_monitor,
+                    "waveform_rest_monitor",
+                    self.monitor_block_size,
+                    self.monitor_queue,
+                    "monitor_preroll_needed",
+                )
         except Exception as e:
             logger.error("audio input callback ex: %s", e, exc_info=True)
 
