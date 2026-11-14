@@ -151,6 +151,20 @@
     </div>
     </Tooltip.Provider>
   {/if}
+<div class="selected-model-layout">
+  <div class="selected-model-info">
+    <div class="portrait">
+      {#if currentModel}
+        <ModelImage src={currentModel.imageUrl} alt={modelName(currentModel)} />
+      {:else}
+        <span class="muted">{ui.t('common.model.not_selected')}</span>
+      {/if}
+    </div>
+    {#if !currentModel && catalog.state.status === 'ready' && catalog.models.length > 0 && catalog.currentModelId !== null}
+      <p class="model-message">{ui.t('forge.current_model_unavailable', { slot: catalog.currentModelId + 1 })}</p>
+    {/if}
+  </div>
+  <div class="selected-model-controls">
 <div class="model-heading">
   <h2>{currentModel ? `${currentModel.id + 1}. ${modelName(currentModel)}` : ui.t('common.model.not_selected')}</h2>
   {#if currentModel}
@@ -197,19 +211,7 @@
     {/snippet}
   </PreviewDialog>
 </div>
-<div class="selected-model-layout">
-  <div class="selected-model-info">
-    <div class="portrait">
-      {#if currentModel}
-        <ModelImage src={currentModel.imageUrl} alt={modelName(currentModel)} />
-      {:else}
-        <span class="muted">{ui.t('common.model.not_selected')}</span>
-      {/if}
-    </div>
-    {#if !currentModel && catalog.state.status === 'ready' && catalog.models.length > 0 && catalog.currentModelId !== null}
-      <p class="model-message">{ui.t('forge.current_model_unavailable', { slot: catalog.currentModelId + 1 })}</p>
-    {/if}
-  </div>
   <VoiceControls />
+  </div>
 </div>
 </section>

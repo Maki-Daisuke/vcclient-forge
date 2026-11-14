@@ -110,13 +110,13 @@ svg { flex-shrink: 0; }
 .catalog-message { color: var(--muted); padding: 14px 0; line-height: 1.7; font-size: .85rem; }
 .catalog-error { color: var(--text); border-inline-start: 3px solid var(--accent); padding-inline-start: 12px; }
 .slot-number { position: absolute; inset-inline-start: 8px; top: 6px; font-size: .7rem; color: var(--muted); }
-.model-heading { margin: 25px 0 10px; flex-wrap: wrap; }
+.model-heading { margin: 0 0 10px; flex-wrap: wrap; }
 .model-heading h2 { overflow-wrap: anywhere; }
 .model-heading > .button { margin-inline-start: auto; }
 .tags { gap: 5px; flex-wrap: wrap; }
 .model-message { margin-top: 12px; padding: 12px 14px; border-radius: 5px; background: var(--surface-soft); color: var(--muted); font-size: .8rem; line-height: 1.6; overflow-wrap: anywhere; }
-.selected-model-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; }
-.selected-model-info, .voice-settings { min-width: 0; }
+.selected-model-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; margin-top: 25px; }
+.selected-model-info, .selected-model-controls, .voice-settings { min-width: 0; }
 .voice-settings p.muted { font-size: .82rem; line-height: 1.55; margin: 8px 0; }
 .models-panel { margin-bottom: 20px; }
 .conversion-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 25px; }
@@ -243,7 +243,7 @@ select, input:not([type='checkbox']):not([type='radio']), textarea { border: 1px
   .panel { padding: 16px; }
   .conversion-layout { grid-template-columns: minmax(0, 1fr); }
   .controls-column { order: 1; }
-  .selected-model-layout { grid-template-columns: 130px minmax(0, 1fr); gap: 18px; }
+  .selected-model-layout { grid-template-columns: 117px minmax(0, 1fr); gap: 18px; }
   .monitor-column { display: contents; }
   .transport-block { order: 0; }
   .performance { order: 2; }
@@ -258,7 +258,7 @@ select, input:not([type='checkbox']):not([type='radio']), textarea { border: 1px
   .brand { flex-wrap: wrap; }
   .field-grid { grid-template-columns: 1fr; }
   .selected-model-layout { grid-template-columns: 1fr; gap: 16px; }
-  .portrait { max-width: 140px; }
+  .portrait { max-width: 126px; }
   .control-group-body { padding: 5px 12px 14px; }
   .input-section .control-group-body, .noise-section .control-group-body { padding-bottom: 12px; }
   .dialog-header, .dialog-body, .dialog-footer { padding-inline: 16px; }
