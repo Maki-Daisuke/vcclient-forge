@@ -60,5 +60,5 @@ test('shows progress for an inference setting until the model update completes',
   expect(state.models[0].chunk_sec).toBe(0.3);
   release();
   await expect(field.locator('.pending-indicator')).toHaveCount(0);
-  expect(state.models[0].chunk_sec).toBe(5);
+  expect(state.models[0].chunk_sec).toBe(1);
 });
