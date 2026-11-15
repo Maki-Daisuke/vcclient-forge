@@ -28,7 +28,7 @@
   const displayedModels = $derived(reordering
     ? order.map(id => catalog.models.find(model => model.id === id)).filter((model): model is ModelSummary => model !== undefined)
     : catalog.models);
-  const deleteReason = $derived(session.active === true ? ui.t('forge.delete_stop_first') : ui.t('forge.model_operation_wait'));
+  const deleteReason = $derived(session.active === true ? ui.t('forge.delete_stop_first') : session.canConfigure && !session.canOrganizeModels ? ui.t('forge.apply_model_settings_first') : ui.t('forge.model_operation_wait'));
   const validIcon = $derived(!editIcon || (editIcon.size > 0 && /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(editIcon.name)
     && (!editIcon.type || editIcon.type.startsWith('image/'))));
   const editChanged = $derived(editName !== (currentModel?.name ?? '') || editIcon !== null);
@@ -56,7 +56,7 @@
   }
 
   function beginReorder() {
-    if (!session.canConfigure) return;
+    if (!session.canOrganizeModels) return;
     session.modelOperationError = null;
     order = catalog.models.map(model => model.id);
     reordering = true;
@@ -75,7 +75,7 @@
   }
 
   async function deleteModel() {
-    if (!currentModel || !session.canConfigure) return;
+    if (!currentModel || !session.canOrganizeModels) return;
     const remaining = catalog.models.filter(model => model.id !== currentModel.id).map(model => model.id);
     if (await session.organizeModels(remaining, true)) {
       confirmOpen = false;
@@ -94,14 +94,14 @@
     <div class="button-row">
       {#if reordering}
         <span class="reorder-hint">{ui.t('forge.reorder_hint')}</span>
-        <button class="button primary action-primary" disabled={!session.canConfigure} onclick={applyOrder}>{ui.t('forge.reorder_confirm')}</button>
+        <button class="button primary action-primary" disabled={!session.canOrganizeModels} onclick={applyOrder}>{ui.t('forge.reorder_confirm')}</button>
         <button class="button" disabled={session.organizing} onclick={() => { reordering = false; session.modelOperationError = null; }}>{ui.t('forge.cancel')}</button>
       {:else}
         <button class="button" disabled={!session.canReload} onclick={() => session.reload()}>
           <RefreshCw size={16} />{ui.t('forge.reload_models')}
         </button>
         <UploadDialog />
-        <button class="button" disabled={!session.canConfigure || catalog.models.length < 2} onclick={beginReorder}>{ui.t('forge.reorder')}</button>
+        <button class="button" disabled={!session.canOrganizeModels || catalog.models.length < 2} onclick={beginReorder}>{ui.t('forge.reorder')}</button>
       {/if}
     </div>
   </div>
@@ -185,11 +185,11 @@
     {#snippet footer()}
     <Dialog.Root bind:open={confirmOpen}>
       <span class="start-button-wrapper delete-button-wrapper">
-        <Dialog.Trigger class="button danger" aria-disabled={!session.canConfigure} aria-describedby={!session.canConfigure ? 'delete-reason' : undefined}
-          onclick={(event: MouseEvent) => { if (!session.canConfigure) event.preventDefault(); }}>
+        <Dialog.Trigger class="button danger" aria-disabled={!session.canOrganizeModels} aria-describedby={!session.canOrganizeModels ? 'delete-reason' : undefined}
+          onclick={(event: MouseEvent) => { if (!session.canOrganizeModels) event.preventDefault(); }}>
           <Trash2 size={16} />{ui.t('forge.delete_model')}
         </Dialog.Trigger>
-        {#if !session.canConfigure}<span id="delete-reason" class="start-tooltip" role="tooltip">{deleteReason}</span>{/if}
+        {#if !session.canOrganizeModels}<span id="delete-reason" class="start-tooltip" role="tooltip">{deleteReason}</span>{/if}
       </span>
       <Dialog.Portal>
         <Dialog.Overlay class="dialog-overlay" />
@@ -200,7 +200,7 @@
             {#if session.modelOperationError}<p role="alert">{ui.t('forge.model_operation_failed')}</p>{/if}
           </div>
           <footer class="dialog-footer">
-            <button class="button danger" disabled={!session.canConfigure} onclick={deleteModel}>{ui.t('forge.delete_action')}</button>
+            <button class="button danger" disabled={!session.canOrganizeModels} onclick={deleteModel}>{ui.t('forge.delete_action')}</button>
             <Dialog.Close class="button" disabled={session.organizing}>{ui.t('forge.cancel')}</Dialog.Close>
           </footer>
         </Dialog.Content>

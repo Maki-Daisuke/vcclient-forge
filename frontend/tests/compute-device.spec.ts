@@ -8,18 +8,21 @@ async function openInference(page: import('@playwright/test').Page) {
   return page.getByRole('combobox', { name: '優先デバイス' });
 }
 
-test('lists compute devices and saves a selected device while stopped', async ({ page }) => {
+test('lists compute devices and saves the selection on start', async ({ page }) => {
   const state = await mockSession(page);
   const select = await openInference(page);
   await expect(select).toBeEnabled();
   await expect(select).toHaveValue('2');
   await expect(select.locator('option')).toHaveText(['CPU', '[CUDA] NVIDIA Test GPU', '[DirectML] Test GPU']);
   await select.selectOption('1');
-  await expect.poll(() => state.writes.length).toBe(1);
+  await expect(select).toHaveValue('1');
+  expect(state.writes).toHaveLength(0);
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect.poll(() => state.writes.length).toBeGreaterThanOrEqual(1);
   expect(state.writes[0].gpu_device_id_int).toBe(1);
   expect(state.writes[0].future_setting).toEqual({ keep: [1, 2] });
   await expect(select).toHaveValue('1');
-  await expect(select).toBeEnabled();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
 });
 
 test('cannot change compute device while audio is active', async ({ page }) => {
@@ -55,6 +58,7 @@ test('reports a device change that the backend rolled back', async ({ page }) =>
   const select = await openInference(page);
   await expect(select).toBeEnabled();
   await select.selectOption('1');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('反映');
   expect(state.config.gpu_device_id_int).toBe(2);
 });
@@ -66,6 +70,7 @@ test('reports a pipeline device that differs from the saved preference', async (
   const select = await openInference(page);
   await expect(select).toBeEnabled();
   await select.selectOption('1');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('反映');
   expect(state.config.gpu_device_id_int).toBe(1);
 });

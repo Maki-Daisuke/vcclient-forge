@@ -32,8 +32,10 @@ test('rescans once while stopped and requires reselection if an index changes id
   const start = page.getByRole('button', { name: '開始', exact: true });
   await expect(start).toHaveAttribute('aria-disabled', 'true');
   await microphone(page).selectOption('32');
-  await expect.poll(() => state.config.audio_input_device_index).toBe(32);
   await expect(start).toHaveAttribute('aria-disabled', 'false');
+  expect(state.config.audio_input_device_index).toBe(8);
+  await start.click();
+  await expect.poll(() => state.config.audio_input_device_index).toBe(32);
   expect(state.config.audio_input_device_sample_rate).toBe(-1);
 });
 
@@ -86,9 +88,9 @@ test('allows explicitly choosing a new device that reused the old index', async 
   await page.getByRole('button', { name: 'デバイス再検出' }).click();
   await expect(microphone(page).locator('option:checked')).toHaveText('未選択');
   await microphone(page).selectOption('8');
-  await expect.poll(() => state.writes.length).toBeGreaterThan(0);
   await expect(microphone(page).locator('option:checked')).toHaveText('Replacement microphone (Windows WASAPI)');
   await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveAttribute('aria-disabled', 'false');
+  expect(state.writes).toHaveLength(0);
 });
 
 test('allows choosing no monitor after its device identity changes', async ({ page }) => {
@@ -106,8 +108,10 @@ test('allows choosing no monitor after its device identity changes', async ({ pa
   const monitor = page.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true });
   await expect(monitor.locator('option:checked')).toHaveText('未選択');
   await monitor.selectOption('-1');
-  await expect.poll(() => state.config.audio_monitor_device_index).toBe(-1);
   await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveAttribute('aria-disabled', 'false');
+  expect(state.config.audio_monitor_device_index).toBe(25);
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect.poll(() => state.config.audio_monitor_device_index).toBe(-1);
 });
 
 test('filters Windows devices until legacy devices are enabled', async ({ page }) => {

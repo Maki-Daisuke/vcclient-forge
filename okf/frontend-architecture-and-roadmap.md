@@ -143,9 +143,14 @@ WASAPI exclusive mode and device sample-rate controls are not displayed in the n
 Before starting native audio, the UI disables the saved exclusive-mode setting using
 the existing API. Previously saved device sample rates remain in use until the device
 changes; changing it resets the rate to Auto.
-The chunk and Extra frame logarithmic sliders save on release while audio is stopped
+The chunk and Extra frame logarithmic sliders are adjustable while audio is stopped
 in either mode. Chunk belongs to the selected model; Extra frame is a shared
 configuration setting. Crossfade duration is determined by the backend.
+Stopped-only settings are held in the frontend until Start; live controls continue
+to save independently. On Start, the UI saves pending model and configuration
+settings using the existing APIs and displays a warmup status. Each API write can
+rebuild the pipeline, so applying both types of changes may rebuild more than once.
+Pending settings have not been persisted and may be lost on page reload or exit.
 For a new configuration, the model chunk defaults to 0.5 seconds and Extra to 0.5 seconds;
 the noise gate defaults to −35 dB, and the high-pass (100 Hz) and low-pass (12000 Hz) filters
 are enabled. The default input mode is Client Mode. Browser automatic gain control, noise

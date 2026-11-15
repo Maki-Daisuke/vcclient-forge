@@ -12,12 +12,12 @@ test('shows the audio mode when device settings are collapsed', async ({ page })
   await section.locator('summary').click();
   await expect(badge).toBeHidden();
   await section.getByText('クライアントモード', { exact: true }).click();
-  await expect.poll(() => state.config.voice_changer_input_mode).toBe('client');
+  expect(state.config.voice_changer_input_mode).toBe('server');
   await section.locator('summary').click();
   await expect(badge).toBeVisible();
   await expect(badge).toHaveText('クライアントモード');
   await page.reload();
-  await expect(badge).toHaveText('クライアントモード');
+  await expect(badge).toHaveText('サーバーモード');
 });
 
 test('shows automatic gain in the volume section only in client mode', async ({ page }) => {
@@ -44,9 +44,10 @@ test('shows automatic gain in the volume section only in client mode', async ({ 
   await expect(volume.getByRole('slider', { name: '入力音量' })).toBeEnabled();
   await page.getByText('クライアントモード', { exact: true }).click();
   await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
-  await expect.poll(() => state.config.voice_changer_input_mode).toBe('client');
+  expect(state.config.voice_changer_input_mode).toBe('server');
   await page.reload();
   await openControlSections(page);
+  await page.getByText('クライアントモード', { exact: true }).click();
   await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
 });
 
@@ -61,7 +62,7 @@ test('switches to client mode and reports a denied microphone without starting a
   await page.goto('/');
   await openControlSections(page);
   await page.getByText('クライアントモード', { exact: true }).click();
-  await expect.poll(() => state.config.voice_changer_input_mode).toBe('client');
+  expect(state.config.voice_changer_input_mode).toBe('server');
   await expect(page.getByRole('button', { name: 'デバイス再検出' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'デバイス再検出' }).locator('..')).toHaveCSS('justify-content', 'flex-end');
   await page.getByRole('button', { name: '開始', exact: true }).click();

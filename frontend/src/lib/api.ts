@@ -306,6 +306,16 @@ export async function readModel(id: number, signal: AbortSignal): Promise<ModelS
   return model;
 }
 
+export async function confirmPitchEstimator(id: number, pitchEstimator: string, signal: AbortSignal): Promise<void> {
+  const info = object(await getJson('/api/voice-changer-manager/information', signal));
+  const voice = object(info.voice_changer_information);
+  const pipeline = object(voice.pipeline_info);
+  const estimator = object(pipeline.pitch_estimator_info);
+  if (voice.slot_index !== id || pipeline.slot_index !== id || estimator.pitch_estimator_type !== pitchEstimator) {
+    throw new ApiError('not_applied');
+  }
+}
+
 export async function setModelIcon(id: number, filename: string, signal: AbortSignal): Promise<ModelSummary> {
   await responseJson(await fetch('/api/slot-manager/slots/operation/set_icon_file', {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
@@ -330,7 +340,7 @@ export async function setModelName(id: number, name: string, signal: AbortSignal
   return result;
 }
 
-export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal): Promise<ModelSummary> {
+export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal, confirmPipeline = true): Promise<ModelSummary> {
   if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
   if ((edits.pitchEstimator !== undefined || edits.chunkSeconds !== undefined) && await readNativeActive(signal)) throw new ApiError('active');
   const url = `/api/slot-manager/slots/${id}`;
@@ -363,14 +373,8 @@ export async function updateModelSettings(id: number, edits: ModelEdits, signal:
   const result = parseModel(confirmed);
   if (result.id !== id || !result.settings) invalidResponse();
   if (Object.entries(changes).some(([key, value]) => confirmed[key] !== value)) throw new ApiError('not_applied');
-  if (edits.pitchEstimator !== undefined) {
-    const info = object(await getJson('/api/voice-changer-manager/information', signal));
-    const voice = object(info.voice_changer_information);
-    const pipeline = object(voice.pipeline_info);
-    const estimator = object(pipeline.pitch_estimator_info);
-    if (voice.slot_index !== id || pipeline.slot_index !== id || estimator.pitch_estimator_type !== edits.pitchEstimator) {
-      throw new ApiError('not_applied');
-    }
+  if (confirmPipeline && edits.pitchEstimator !== undefined) {
+    await confirmPitchEstimator(id, edits.pitchEstimator, signal);
   }
   return result;
 }

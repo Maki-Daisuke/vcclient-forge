@@ -1,0 +1,70 @@
+import { expect, test } from './test-fixtures';
+import { openControlSections } from './catalog-fixtures';
+import { mockSession } from './session-fixtures';
+
+test('keeps stopped-only settings in the UI while saving live gains, then applies them on start', async ({ page }) => {
+  const state = await mockSession(page);
+  let release!: () => void;
+  state.modelGate = new Promise<void>(resolve => { release = resolve; });
+  await page.goto('/');
+  await openControlSections(page);
+  await page.getByLabel('優先デバイス').selectOption('1');
+  await page.getByRole('slider', { name: 'チャンクフレーム（秒）' }).press('End');
+  await page.getByRole('slider', { name: 'Extraフレーム（秒）' }).press('End');
+  expect(state.writes).toHaveLength(0);
+  expect(state.modelWrites).toHaveLength(0);
+  await page.getByRole('slider', { name: '入力音量', exact: true }).press('ArrowRight');
+  await expect.poll(() => state.writes.length).toBe(1);
+  expect(state.config.gpu_device_id_int).toBe(2);
+  expect(state.config.extra_frame_sec).toBe(0.68);
+  expect(state.models[0].chunk_sec).toBe(0.3);
+  const start = page.getByRole('button', { name: '開始', exact: true });
+  await expect(start).toBeEnabled();
+  await start.click();
+  await expect.poll(() => state.modelWrites.length).toBe(1);
+  await expect(page.getByRole('status').filter({ hasText: 'ウォームアップ中' })).toBeVisible();
+  await expect(page.getByRole('tooltip', { name: 'ウォームアップ中……' })).toBeVisible();
+  state.modelGate = null;
+  release();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  expect(state.models[0].chunk_sec).toBe(1);
+  expect(state.config.gpu_device_id_int).toBe(1);
+  expect(state.config.extra_frame_sec).toBe(2);
+  expect(state.config.audio_input_device_gain).toBe(2.71);
+});
+
+test('keeps staged edits when saving at start fails', async ({ page }) => {
+  const state = await mockSession(page);
+  state.modelStatus = 503;
+  await page.goto('/');
+  await openControlSections(page);
+  const slider = page.getByRole('slider', { name: 'チャンクフレーム（秒）' });
+  await slider.press('End');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('HTTP 503');
+  expect(state.active).toBe(false);
+  await expect(slider).toHaveAttribute('aria-valuetext', '1 s');
+  state.modelStatus = 200;
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  expect(state.models[0].chunk_sec).toBe(1);
+});
+
+test('applies staged settings for multiple models without losing the selected model', async ({ page }) => {
+  const state = await mockSession(page);
+  await page.goto('/');
+  await openControlSections(page);
+  const chunk = page.getByRole('slider', { name: 'チャンクフレーム（秒）' });
+  await chunk.press('End');
+  await page.getByRole('button', { name: 'Test model A', exact: true }).click();
+  await expect(chunk).toHaveAttribute('aria-valuetext', '0.5 s');
+  await chunk.press('End');
+  await page.getByRole('radio', { name: 'RMVPE' }).check();
+  expect(state.modelWrites).toHaveLength(0);
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  expect(state.config.current_slot_index).toBe(2);
+  expect(state.modelWrites.map(write => write.id)).toEqual([2, 7]);
+  expect(state.models.find(model => model.slot_index === 2)).toMatchObject({ chunk_sec: 1, pitch_estimator: 'rmvpe' });
+  expect(state.models.find(model => model.slot_index === 7)).toMatchObject({ chunk_sec: 1 });
+});

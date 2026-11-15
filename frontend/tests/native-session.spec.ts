@@ -21,10 +21,9 @@ test('an unselected model explains the disabled Start button and selecting a car
   await expect(page.locator('#start-reason')).toBeVisible();
   expect(state.writes).toHaveLength(0);
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
-  await saved(page);
   await expect(start).toBeEnabled();
   await expect(page.locator('#start-reason')).toHaveCount(0);
-  expect(state.config.current_slot_index).toBe(2);
+  expect(state.config.current_slot_index).toBe(-1);
   expect(state.operations).toEqual([]);
 });
 
@@ -38,10 +37,8 @@ test('shows missing device guidance even when no model is selected', async ({ pa
   const reason = page.locator('#start-reason');
   await expect(reason).toContainText('入力デバイスが未選択');
   await page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true }).selectOption('8');
-  await saved(page);
   await expect(reason).toContainText('出力デバイスが未選択');
   await page.getByRole('combobox', { name: '出力デバイス（スピーカー）', exact: true }).selectOption('11');
-  await saved(page);
   await expect(reason).toContainText('使用するモデルが選択されていません');
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
 });
@@ -72,9 +69,8 @@ test('an unavailable monitor explains how to unblock Start without requiring mon
   await expect(start).toBeDisabled();
   await expect(page.locator('#start-reason')).toContainText('モニターデバイスが見つかりません');
   await page.getByRole('combobox', { name: 'モニター用出力デバイス（スピーカー）', exact: true }).selectOption('-1');
-  await saved(page);
   await expect(start).toBeEnabled();
-  expect(state.config.audio_monitor_device_index).toBe(-1);
+  expect(state.config.audio_monitor_device_index).toBe(99);
 });
 
 test('switches from client to server mode with the keyboard', async ({ page }) => {
@@ -88,9 +84,8 @@ test('switches from client to server mode with the keyboard', async ({ page }) =
   await expect(client).toBeEnabled();
   await server.focus();
   await server.press('Space');
-  await saved(page);
   await expect(server).toBeChecked();
-  expect(state.config.voice_changer_input_mode).toBe('server');
+  expect(state.config.voice_changer_input_mode).toBe('client');
 });
 
 test('selects a model and native devices, starts, adjusts volume, and stops using existing APIs', async ({ page }) => {
@@ -100,13 +95,11 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   await openControlSections(page);
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
-  await saved(page);
-  expect(state.config.current_slot_index).toBe(2);
+  expect(state.config.current_slot_index).toBe(7);
   await expect(page.getByRole('heading', { name: '3. Test model A' })).toBeVisible();
   const dialog = page;
   await dialog.getByText('サーバーモード', { exact: true }).click();
   await expect(dialog.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
-  await saved(page);
   await dialog.getByRole('checkbox', { name: 'レガシーデバイスを表示' }).check();
   for (const [label, id, key] of [
     ['入力デバイス（マイク）', '11', 'audio_input_device_index'],
@@ -114,13 +107,16 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
     ['モニター用出力デバイス（スピーカー）', '11', 'audio_monitor_device_index'],
   ]) {
     await dialog.getByRole('combobox', { name: label, exact: true }).selectOption(id);
-    await expect(dialog.locator('.configuration-status')).toHaveAttribute('data-state', 'saved');
-    expect(state.config[key]).toBe(Number(id));
+    expect(state.config[key]).not.toBe(Number(id));
   }
-  expect(state.config.audio_input_device_sample_rate).toBe(-1);
-  expect(state.config.audio_output_device_sample_rate).toBe(-1);
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  expect(state.config.current_slot_index).toBe(2);
+  expect(state.config.audio_input_device_index).toBe(11);
+  expect(state.config.audio_output_device_index).toBe(25);
+  expect(state.config.audio_monitor_device_index).toBe(11);
+  expect(state.config.audio_input_device_sample_rate).toBe(-1);
+  expect(state.config.audio_output_device_sample_rate).toBe(-1);
   await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeDisabled();
@@ -316,16 +312,15 @@ test('save errors stay visible while scrolling and disappear after a successful 
   await expect(notice).toBeHidden();
 });
 
-test('detects silent model rollback and discard reloads the actual model', async ({ page }) => {
+test('detects silent model rollback on start and retains the staged model', async ({ page }) => {
   const state = await mockSession(page);
   state.rollback = true;
   await page.goto('/');
   await openControlSections(page);
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
+  await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
-  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: '変更を破棄して再読み込み' }).click();
-  await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '3. Test model A' })).toBeVisible();
   expect(state.operations).toEqual([]);
 });
 

@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
+import { confirmPitchEstimator, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
 import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
 import { importModel, uploadFile } from './model-upload';
@@ -12,12 +12,15 @@ type PendingWrite =
   | { kind: 'configuration'; edits: ConfigurationEdits }
   | { kind: 'model'; id: number; edits: ModelEdits };
 type DeviceKey = 'inputDevice' | 'outputDevice' | 'monitorDevice';
+const stagedKeys: (keyof ConfigurationEdits)[] = ['currentModelId', 'inputMode', 'inputDevice', 'outputDevice', 'monitorDevice', 'inputDeviceRate', 'outputDeviceRate', 'monitorDeviceRate', 'gpuDevice', 'extraSeconds'];
 
 export class NativeSession {
   readonly clientAudio = new ClientAudio();
   private clientActive = false;
   draft = $state<ConfigurationEdits>({});
   modelDraft = $state<{ id: number; edits: ModelEdits } | null>(null);
+  stagedConfiguration = $state<ConfigurationEdits>({});
+  stagedModels = $state<Record<number, ModelEdits>>({});
   isSaving = $state(false);
   saved = $state(false);
   error = $state<ApiError | null>(null);
@@ -31,6 +34,7 @@ export class NativeSession {
   uploadBytes = $state(0);
   uploadTotal = $state(0);
   operation = $state<'start' | 'stop' | null>(null);
+  warmingUp = $state(false);
   organizing = $state(false);
   modelInfoSaving = $state(false);
   modelInfoError = $state<ApiError | null>(null);
@@ -52,13 +56,13 @@ export class NativeSession {
 
   constructor(readonly catalog: ModelCatalogState) {}
 
-  get settings() { return this.catalog.settings ? { ...this.catalog.settings, ...this.draft } : null; }
-  get currentModelId() { return this.draft.currentModelId ?? this.catalog.currentModelId; }
+  get settings() { return this.catalog.settings ? { ...this.catalog.settings, ...this.stagedConfiguration, ...this.draft } : null; }
+  get currentModelId() { return this.stagedConfiguration.currentModelId ?? this.draft.currentModelId ?? this.catalog.currentModelId; }
   get currentModel() { return this.catalog.models.find(model => model.id === this.currentModelId) ?? null; }
   get modelSettings() {
     const model = this.currentModel;
     if (!model?.settings) return null;
-    return this.modelDraft?.id === model.id ? { ...model.settings, ...this.modelDraft.edits } : model.settings;
+    return { ...model.settings, ...this.stagedModels[model.id], ...(this.modelDraft?.id === model.id ? this.modelDraft.edits : {}) };
   }
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
@@ -66,6 +70,7 @@ export class NativeSession {
   get canConfigure() {
     return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
+  get canOrganizeModels() { return this.canConfigure && this.stagedConfiguration.currentModelId === undefined && Object.keys(this.stagedModels).length === 0; }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
@@ -112,7 +117,7 @@ export class NativeSession {
   }
 
   async organizeModels(order: number[], deleteSelected = false): Promise<boolean> {
-    if (!this.canConfigure) return false;
+    if (!this.canOrganizeModels) return false;
     this.organizing = true;
     this.modelOperationError = null;
     try {
@@ -289,10 +294,8 @@ export class NativeSession {
   setPitchEstimator(value: 'rmvpe' | 'fcpe') {
     const model = this.currentModel;
     if (!this.canConfigure || !this.settings?.inputMode || model?.status !== 'ready'
-      || !model.settings?.supportsPitch || !model.settings.pitchEstimator || model.settings.pitchEstimator === value) return;
-    this.modelDraft = { id: model.id, edits: { pitchEstimator: value } };
-    this.saved = false;
-    this.schedule(true);
+      || !model.settings?.supportsPitch || !this.modelSettings?.pitchEstimator || this.modelSettings.pitchEstimator === value) return;
+    this.stageModel(model.id, { pitchEstimator: value });
   }
 
   selectModel(id: number) {
@@ -359,6 +362,7 @@ export class NativeSession {
     if (id === this.settings[key] && !this.devicesNeedingSelection.includes(key)) return;
     // A different device may not support the previous device's fixed sample rate.
     const rateKey = `${key}Rate` as 'inputDeviceRate' | 'outputDeviceRate' | 'monitorDeviceRate';
+    this.devicesNeedingSelection = this.devicesNeedingSelection.filter(device => device !== key);
     this.edit({ [key]: id, [rateKey]: -1 }, true);
   }
 
@@ -385,14 +389,36 @@ export class NativeSession {
     const model = this.currentModel;
     if (!this.canConfigure || !this.settings?.inputMode || model?.status !== 'ready'
       || model.settings?.chunkSeconds == null || !Number.isFinite(value) || value < 0.05 || value > 5
-      || value === model.settings.chunkSeconds) return;
-    this.modelDraft = { id: model.id, edits: { chunkSeconds: value } };
-    this.saved = false;
-    this.schedule(true);
+      || value === this.modelSettings?.chunkSeconds) return;
+    this.stageModel(model.id, { chunkSeconds: value });
+  }
+
+  private stageModel(id: number, edits: ModelEdits) {
+    const model = this.catalog.models.find(item => item.id === id);
+    if (!model?.settings) return;
+    const merged = { ...this.stagedModels[id], ...edits };
+    for (const key of Object.keys(merged) as (keyof ModelEdits)[]) {
+      if (merged[key] === model.settings[key]) delete merged[key];
+    }
+    const all = { ...this.stagedModels };
+    if (Object.keys(merged).length) all[id] = merged;
+    else delete all[id];
+    this.stagedModels = all;
   }
 
   private edit(edits: ConfigurationEdits, immediate = false) {
-    this.draft = { ...this.draft, ...edits };
+    const staged: ConfigurationEdits = {};
+    const live: ConfigurationEdits = {};
+    for (const [key, value] of Object.entries(edits)) {
+      Object.assign(stagedKeys.includes(key as keyof ConfigurationEdits) ? staged : live, { [key]: value });
+    }
+    this.stagedConfiguration = { ...this.stagedConfiguration, ...staged };
+    for (const key of Object.keys(this.stagedConfiguration) as (keyof ConfigurationEdits)[]) {
+      const original = key === 'currentModelId' ? this.catalog.currentModelId : this.catalog.settings?.[key as keyof NonNullable<typeof this.catalog.settings>];
+      if (this.stagedConfiguration[key] === original) delete this.stagedConfiguration[key];
+    }
+    if (!Object.keys(live).length) return;
+    this.draft = { ...this.draft, ...live };
     this.saved = false;
     this.schedule(immediate);
   }
@@ -471,6 +497,44 @@ export class NativeSession {
     }
   }
 
+  private async applyStagedSettings() {
+    const modelId = this.currentModelId;
+    const originalModelId = this.catalog.currentModelId;
+    const switchingModel = modelId !== originalModelId;
+    const selectedEdits = modelId === null ? undefined : this.stagedModels[modelId];
+    const saveModel = async (id: number, confirmPipeline: boolean) => {
+      const edits = this.stagedModels[id];
+      if (!edits || !Object.keys(edits).length) return;
+      const confirmed = await this.request(signal => updateModelSettings(id, edits, signal, confirmPipeline), 180_000);
+      this.catalog.applyModel(confirmed);
+      if (id !== modelId || !switchingModel) {
+        const remaining = { ...this.stagedModels };
+        delete remaining[id];
+        this.stagedModels = remaining;
+      }
+    };
+    for (const id of Object.keys(this.stagedModels).map(Number)) {
+      if (id !== originalModelId) await saveModel(id, false);
+    }
+    if (!switchingModel && originalModelId !== null) await saveModel(originalModelId, true);
+    if (Object.keys(this.stagedConfiguration).length) {
+      const confirmed = await this.request(signal => updateConfiguration(this.stagedConfiguration, signal), 180_000);
+      this.catalog.applyConfiguration(confirmed);
+      this.stagedConfiguration = {};
+    }
+    if (switchingModel && modelId !== null && selectedEdits?.pitchEstimator) {
+      await this.request(signal => confirmPitchEstimator(modelId, selectedEdits.pitchEstimator!, signal));
+    }
+    if (switchingModel && modelId !== null && selectedEdits) {
+      const remaining = { ...this.stagedModels };
+      delete remaining[modelId];
+      this.stagedModels = remaining;
+    }
+    if (switchingModel && originalModelId !== null && this.stagedModels[originalModelId]) {
+      await saveModel(originalModelId, false);
+    }
+  }
+
   async operate(operation: 'start' | 'stop') {
     if (this.disposed || (operation === 'start' ? !this.canStart : !this.canStop)) return;
     this.operation = operation;
@@ -481,11 +545,17 @@ export class NativeSession {
       // Stop also waits for the current PUT, but is not blocked by a failed save.
       await this.flight;
       if (this.disposed) return;
+      if (operation === 'start') {
+        this.warmingUp = true;
+        await this.applyStagedSettings();
+        if (this.disposed) return;
+      }
       if (this.settings?.inputMode === 'client') {
         if (operation === 'start') {
           await this.request(signal => operateNative('stop', signal));
           const confirmed = await this.request(signal => updateConfiguration({ currentModelId: this.currentModelId! }, signal));
           this.catalog.applyConfiguration(confirmed);
+          this.warmingUp = false;
           if (confirmed.settings.inputMode !== 'client') throw new ApiError('not_applied');
           const rates = await this.request(readAudioSampleRates);
           if (!rates.input || !rates.output) throw new ApiError('invalid_response');
@@ -553,6 +623,7 @@ export class NativeSession {
           // This also initializes a pipeline when a previous startup load failed.
           const confirmed = await updateConfiguration({ currentModelId: this.currentModelId!, wasapiExclusive: false }, signal);
           if (!this.disposed) this.catalog.applyConfiguration(confirmed);
+          this.warmingUp = false;
           if (confirmed.settings.inputMode !== 'server') throw new ApiError('not_applied');
           const active = await operateNative('start', signal);
           if (this.recordingArmed) {
@@ -585,6 +656,7 @@ export class NativeSession {
         this.active = null;
       }
     } finally {
+      this.warmingUp = false;
       this.operation = null;
       if (!this.disposed) {
         await this.refreshActive();

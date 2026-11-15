@@ -64,7 +64,7 @@
   const outputBuffer = $derived(settings?.inputMode === 'client' ? clientOutputBuffer : meters.outputBuffer);
   const modelSettings = $derived(session.modelSettings);
   const showStop = $derived(session.active === true || (session.active === null && session.statusError));
-  const startMessage = $derived(session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
+  const startMessage = $derived(session.warmingUp ? ui.t('forge.audio_warmup') : session.startBlockReason ? ui.t(`forge.start_block_${session.startBlockReason}`) : undefined);
   const showStartMessage = $derived(!showStop && !session.canStart && !!startMessage);
   $effect(() => {
     meters.setEnabled(session.active === true, settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === true,
@@ -146,7 +146,7 @@
           {#if settings?.recording}<Square size={14} fill="currentColor" />{:else}<Circle class="record-icon" size={14} fill="currentColor" />{/if}{ui.t(settings?.recording ? 'forge.recording_active' : session.recordingArmed ? 'forge.recording_armed' : 'common.controls.record')}
         </button>
       </div>
-      {#if session.operation}<p class="operation-status" role="status">{ui.t(`forge.audio_${session.operation}`)}</p>{/if}
+      {#if session.operation}<p class="operation-status" role="status">{ui.t(session.warmingUp ? 'forge.audio_warmup' : `forge.audio_${session.operation}`)}</p>{/if}
       {#if session.statusError}<p class="catalog-message" role="status">{ui.t('forge.audio_status_error')}</p>{/if}
     </div>
     <section class="performance" aria-label={ui.t('common.advanced_settings_dialog.realtime_analysis_settings')}>
