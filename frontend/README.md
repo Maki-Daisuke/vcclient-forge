@@ -89,19 +89,20 @@ device's index no longer has the same name and host after the rescan, the UI ask
 for a new selection before starting; names and host APIs cannot distinguish devices
 with identical metadata. A failed rescan likewise requires selection confirmation.
 The preferred inference device uses the backend compute-device list and can be changed
-while audio is stopped in either mode. The full configuration is read and preserved when
-saving. The UI reads the configuration back and, when a model is selected, checks
-the reported pipeline device ID. This does not verify the actual execution providers. Device
-list failures do not prevent other controls from loading; Reload retries the list.
+while audio is stopped in either mode. When applied on Start, the full configuration is read
+and preserved when saving, and when a model is selected, the UI checks the reported pipeline
+device ID (this does not verify the actual execution providers). Device list failures do not
+prevent other controls from loading; Reload retries the list.
 The user confirmed device switching with the live backend; conversion after switching
 has not yet been confirmed.
 Chunk and extra frame durations use logarithmic sliders with
-display ranges of 0.05–5 and 0.01–10 seconds respectively. Values
+display ranges of 0.05–1 and 0.01–2 seconds respectively. Values
 outside these display ranges remain visible and are indicated separately; these
 ranges do not enforce backend limits.
 Both can be adjusted while audio is stopped in either mode. The client shows a preview
-while dragging and saves on release; chunk belongs to the selected model, while
-extra frame is a configuration setting. The backend determines the crossfade duration automatically.
+while dragging and stages edits locally on release until Start; chunk belongs to the
+selected model, while extra frame is a configuration setting. The backend determines the
+crossfade duration automatically.
 Each filter's cutoff slider is available only when that filter is enabled.
 Sections start closed, and their open/closed state is stored in the browser's
 local storage. It is separate for each browser or webview and origin; if storage
@@ -238,9 +239,12 @@ status polling every two seconds. Each update fetches the full current configura
 merges only edited fields, PUTs the full payload, then reads back to confirm. A silent
 model rollback is treated as failure. The UI never constructs backend DTOs.
 Gain and noise-gate drags send at most once per 100 ms while requests are available; pointer release,
-key release, and focus loss flush the latest value. A slow request retains only the
+key release, and focus loss flush the latest value. Input/output gain sliders use a `log1p` scale over `0`–`10` (0.01 keyboard steps) that keeps `0` reachable and places `1` near the center. A slow request retains only the
 latest pending edits. Failed saves retain drafts and require explicit retry or discard.
-Reload/start are blocked while edits are pending; Stop waits for an in-flight write.
+Reload/start are blocked while live drafts are pending; Stop waits for an in-flight write.
+Stopped-only settings (selected model, input mode, audio device/rate selections,
+preferred compute device, Extra frame, chunk length, and pitch estimator) are staged
+locally while audio is stopped and applied on Start while displaying a warmup status.
 
 The Passthrough button asks for confirmation before enabling passthrough by default;
 this confirmation can be disabled in Advanced Settings and is saved in browser local storage.
@@ -273,10 +277,11 @@ GET and displayed values were checked using a browser-only simulated model selec
 live model-setting PUTs and audible changes were not part of that check.
 
 For an f0 model, RMVPE/FCPE can be changed in Server or Client Mode while audio is stopped.
-The client checks the stopped state before the slot update, then confirms both the
-saved slot and the active pipeline estimator. A failed update can still have saved
-the slot before pipeline initialization failed. Retrying may not repair that state;
-reselecting the model or restarting the backend may be needed.
+The change is staged locally and applied on Start; when applied, the client checks the
+stopped state before the slot update, then confirms both the saved slot and the active
+pipeline estimator. A failed update can still have saved the slot before pipeline
+initialization failed. Retrying may not repair that state; reselecting the model or
+restarting the backend may be needed.
 The stopped-state check is not atomic with changes from other clients. Browser tests
 use mocked APIs; real-backend switching and audible behavior have not been verified.
 
@@ -312,21 +317,23 @@ APIs are unchanged.
 
 To try native audio, start the backend, select a model card, open Audio Devices, switch
 to Server Mode if necessary, and choose input/output devices (monitor is optional).
-Device changes reset that device's sample rate to Auto. Wait for settings to be
-confirmed, then press Start and adjust input/output volume while speaking. A disabled
-Start button shows the specific missing prerequisite below it, such as selecting
-a model card or replacing an unavailable device. Stop
-before changing devices or models. Monitor volume currently follows output gain
-in the backend; the independent monitor gain setting is not applied by its native
-callback, so output and monitor share the single output-volume control.
+Device changes reset that device's sample rate to Auto. Press Start to apply any staged
+model, mode, device, or inference changes and begin audio, then adjust input/output volume
+while speaking. A disabled Start button shows the specific missing prerequisite below it,
+such as selecting a model card or replacing an unavailable device. Stop before changing
+devices or models. Monitor volume currently follows output gain in the backend; the
+independent monitor gain setting is not applied by its native callback, so output and
+monitor share the single output-volume control.
 
-The backend is unchanged. Full GET/PUT updates have no revision/atomic-merge
-guarantee against another client; use one controlling UI. Requests time out after
-30 seconds for writes/operations, with no automatic retry: a lost response does
-not prove the server did not apply a change. Runtime GET reports the native enable
-flag, not stream health or audible output. Live meters remain unavailable.
-Automated tests use mocked APIs. The user confirmed
-native audio playback from the new UI on 2026-11-06; subjective gain-adjustment
-latency and longer sessions still need validation. Each configuration PUT still
-writes the backend settings file. This does not complete the production cutover
-or future WebSocket migration described in `okf/`.
+The backend REST/Socket.IO contracts remain compatible with existing clients. Full GET/PUT
+updates have no revision/atomic-merge guarantee against another client; use one controlling
+UI. Writes and audio operations normally time out after 30 seconds (180 seconds for
+staged model/configuration saves on Start), with no automatic retry: a lost response does
+not prove the server did not apply a change. Runtime GET reports the native enable flag,
+not stream health or audible output. Socket.IO meters in Server Mode and Web Audio
+analyser meters in Client Mode provide live input/output and buffer feedback while audio
+is running. Automated browser tests use mocked APIs and simulated Socket.IO events.
+The user confirmed native audio playback from the new UI on 2026-11-06; subjective
+gain-adjustment latency and longer sessions still need validation. Each configuration PUT
+still writes the backend settings file, and future WebSocket protocol refinements remain
+tracked in `okf/`.

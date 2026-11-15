@@ -134,9 +134,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 - **WASAPI exclusive mode**: The Svelte UI hides the WASAPI exclusive toggle (`frontend/tests/wasapi.spec.ts`) and disables any saved exclusive-mode setting before starting native audio; `test_wasapi_exclusive.py` covers backend propagation.
 
-- **Inference timing controls**: The Svelte UI can adjust chunk and Extra frame
-  with logarithmic sliders while audio is stopped. Chunk is model-specific;
-  Extra frame is shared. The backend determines crossfade duration automatically.
+- **Inference timing controls and deferred stopped settings**: The Svelte UI adjusts chunk (`0.05–1` s) and Extra frame (`0.01–2` s) with logarithmic sliders while audio is stopped. Chunk is model-specific; Extra frame is shared. The backend determines crossfade duration automatically. Stopped-only settings (model selection, input mode, audio devices/rates, preferred compute device, Extra frame, chunk, and pitch estimator) are staged locally in the frontend until Start and saved with warmup status before starting audio.
 
 - **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
   optional index to a vacant slot through existing APIs while audio is stopped.
