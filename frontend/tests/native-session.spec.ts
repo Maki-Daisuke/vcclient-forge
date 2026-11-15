@@ -155,6 +155,25 @@ test('reads fresh full configuration before each write and preserves unrelated f
   expect(state.config.future_setting).toEqual({ keep: 'changed by another client' });
 });
 
+test('uses the same logarithmic gain scale for input and output', async ({ page }) => {
+  await mockSession(page);
+  await page.goto('/');
+  await openControlSections(page);
+  for (const label of ['入力音量', '出力音量']) {
+    const slider = page.getByRole('slider', { name: label, exact: true });
+    const track = page.locator('.range-field').filter({ hasText: label }).locator('.slider');
+    await track.scrollIntoViewIfNeeded();
+    const box = (await track.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect.poll(async () => Number(await slider.getAttribute('aria-valuenow'))).toBeGreaterThan(0.9);
+    expect(Number(await slider.getAttribute('aria-valuenow'))).toBeLessThan(1.2);
+    await slider.press('Home');
+    await expect(slider).toHaveAttribute('aria-valuenow', '0');
+    await slider.press('End');
+    await expect(slider).toHaveAttribute('aria-valuenow', '10');
+  }
+});
+
 test('sends during dragging at bounded intervals and flushes the final pointer value', async ({ page }) => {
   const state = await mockSession(page);
   await page.clock.install({ time: 0 });

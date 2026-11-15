@@ -3,7 +3,7 @@
   import { Dialog } from 'bits-ui';
   import AudioSettings from './AudioSettings.svelte';
   import NoiseSettings from './NoiseSettings.svelte';
-  import RangeField from './RangeField.svelte';
+  import GainSlider from './GainSlider.svelte';
   import CheckField from './CheckField.svelte';
   import LogSlider from './LogSlider.svelte';
   import ComputeDeviceField from './ComputeDeviceField.svelte';
@@ -172,7 +172,7 @@
       <div class="control-group-body">
         <InferenceSetting label={ui.t('forge.preferred_device')}><ComputeDeviceField /></InferenceSetting>
         <div class="field-grid">
-          <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={5}
+          <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={1}
             disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} pending={!session.error && session.modelDraft?.id === session.currentModelId && session.modelDraft?.edits.chunkSeconds !== undefined} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
           <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
             disabled={!session.canConfigure || !settings?.inputMode} pending={!session.error && session.draft.extraSeconds !== undefined} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
@@ -192,9 +192,9 @@
             tooltip={session.active === true ? ui.t('forge.client_processing_stopped') : undefined}
             onchange={value => session.clientAudio.setOption('autoGainControl', value)} />
         {/if}
-        <RangeField label={ui.t('common.controls.input_volume')} value={settings?.inputMode === 'client' ? session.clientAudio.inputGain : settings?.inputGain ?? null} step={0.01}
+        <GainSlider label={ui.t('common.controls.input_volume')} value={settings?.inputMode === 'client' ? session.clientAudio.inputGain : settings?.inputGain ?? null}
           disabled={!session.canAdjustGain || (settings?.inputMode === 'client' && session.clientAudio.autoGainControl)} onchange={value => session.setGain('inputGain', value)} oncommit={() => session.flush()} />
-        <RangeField label={ui.t('common.controls.output_volume')} value={settings?.inputMode === 'client' ? session.clientAudio.outputGain : settings?.outputGain ?? null} step={0.01}
+        <GainSlider label={ui.t('common.controls.output_volume')} value={settings?.inputMode === 'client' ? session.clientAudio.outputGain : settings?.outputGain ?? null}
           disabled={!session.canAdjustGain} onchange={value => session.setGain('outputGain', value)} oncommit={() => session.flush()} />
       </div>
     </details>
