@@ -174,7 +174,7 @@
         <div class="field-grid">
           <InferenceSetting label={ui.t('forge.chunk_frames')}><LogSlider label={ui.t('forge.chunk_frames')} value={modelSettings?.chunkSeconds ?? null} min={0.05} max={1}
             disabled={!session.canConfigure || !settings?.inputMode || session.currentModel?.status !== 'ready'} pending={!session.error && session.modelDraft?.id === session.currentModelId && session.modelDraft?.edits.chunkSeconds !== undefined} oncommit={value => session.setChunkSeconds(value)} /></InferenceSetting>
-          <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={10}
+          <InferenceSetting label={ui.t('forge.extra_frames')}><LogSlider label={ui.t('forge.extra_frames')} value={settings?.extraSeconds ?? null} min={0.01} max={2}
             disabled={!session.canConfigure || !settings?.inputMode} pending={!session.error && session.draft.extraSeconds !== undefined} oncommit={value => session.setExtraSeconds(value)} /></InferenceSetting>
         </div>
       </div>

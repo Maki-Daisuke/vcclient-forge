@@ -57,11 +57,11 @@ test('saves inference settings while client audio is stopped', async ({ page }) 
   const chunkSlider = page.getByRole('slider', { name: chunk });
   await expect(chunkSlider).toBeEnabled();
   await chunkSlider.press('End');
-  await expect.poll(() => state.models[0].chunk_sec).toBe(5);
+  await expect.poll(() => state.models[0].chunk_sec).toBe(1);
   await expect(chunkSlider).toBeEnabled();
   const extra = page.getByRole('slider', { name: 'Extraフレーム（秒）' });
   await extra.press('End');
-  await expect.poll(() => state.config.extra_frame_sec).toBe(10);
+  await expect.poll(() => state.config.extra_frame_sec).toBe(2);
   await expect(extra).toBeEnabled();
 });
 
@@ -74,7 +74,7 @@ test('saves chunk in the selected model and retains other slot fields', async ({
   await slider.press('End');
   await expect(page.locator(saved)).toHaveAttribute('data-state', 'saved');
   expect(state.modelWrites).toHaveLength(1);
-  expect(state.modelWrites[0]).toMatchObject({ id: 7, data: { slot_index: 7, chunk_sec: 5, pitch_shift: -5 } });
+  expect(state.modelWrites[0]).toMatchObject({ id: 7, data: { slot_index: 7, chunk_sec: 1, pitch_shift: -5 } });
   expect(state.models[2]).toEqual(other);
   expect(state.writes).toHaveLength(0);
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
@@ -82,9 +82,9 @@ test('saves chunk in the selected model and retains other slot fields', async ({
   await expect(slider).toHaveAttribute('aria-valuetext', '0.5 s');
   await page.getByRole('button', { name: 'Test model B', exact: true }).click();
   await expect(page.locator(saved)).toHaveAttribute('data-state', 'saved');
-  await expect(slider).toHaveAttribute('aria-valuetext', '5 s');
+  await expect(slider).toHaveAttribute('aria-valuetext', '1 s');
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
-  await expect(slider).toHaveAttribute('aria-valuetext', '5 s');
+  await expect(slider).toHaveAttribute('aria-valuetext', '1 s');
 });
 
 for (const [label, kind] of [[chunk, 'model'], [extra, 'configuration']] as const) {
@@ -119,5 +119,5 @@ test('chunk save failure retains the pending model change for retry', async ({ p
   state.modelStatus = 200;
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await expect(page.locator(saved)).toHaveAttribute('data-state', 'saved');
-  expect(state.models[0].chunk_sec).toBe(5);
+  expect(state.models[0].chunk_sec).toBe(1);
 });

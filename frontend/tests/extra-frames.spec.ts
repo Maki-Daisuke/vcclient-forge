@@ -17,7 +17,7 @@ test('saves a logarithmic value once after dragging while stopped', async ({ pag
   await page.mouse.up();
   await expect(page.locator('main > .configuration-status')).toHaveAttribute('data-state', 'saved');
   expect(state.writes).toHaveLength(1);
-  expect(state.config.extra_frame_sec as number).toBeCloseTo(Math.sqrt(0.01 * 10), 1);
+  expect(state.config.extra_frame_sec as number).toBeCloseTo(Math.sqrt(0.01 * 2), 1);
   expect(state.writes[0]).toMatchObject({ future_setting: { keep: [1, 2] } });
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   await expect(slider).toHaveAttribute('aria-valuetext', `${state.config.extra_frame_sec} s`);
@@ -33,7 +33,7 @@ test('allows precise adjustment from 0.010 to 0.100 seconds', async ({ page }) =
   expect(state.config.extra_frame_sec).toBe(0.01);
   const track = page.locator('.log-slider').filter({ has: slider }).locator('.slider-track');
   const box = (await track.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 3, box.y + box.height / 2);
+  await page.mouse.click(box.x + box.width * Math.log(0.1 / 0.01) / Math.log(2 / 0.01), box.y + box.height / 2);
   await expect(page.locator('main > .configuration-status')).toHaveAttribute('data-state', 'saved');
   expect(state.config.extra_frame_sec as number).toBeCloseTo(0.1, 2);
 });
@@ -60,5 +60,20 @@ test('retains failed changes for retry', async ({ page }) => {
   state.putStatus = 200;
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await expect(page.locator('main > .configuration-status')).toHaveAttribute('data-state', 'saved');
-  expect(state.config.extra_frame_sec).toBe(10);
+  expect(state.config.extra_frame_sec).toBe(2);
+});
+
+test('preserves and displays a saved value above the slider range', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.extra_frame_sec = 5;
+  await page.goto('/');
+  await openControlSections(page);
+  const slider = page.getByRole('slider', { name: 'Extraフレーム（秒）', exact: true });
+  const field = page.locator('.log-slider').filter({ has: slider });
+  await expect(slider).toHaveAttribute('aria-valuetext', '5 s');
+  await expect(slider).toHaveAttribute('aria-valuemax', '2');
+  await expect(field).toContainText('表示範囲外');
+  expect(state.writes).toHaveLength(0);
+  await slider.press('Home');
+  await expect.poll(() => state.config.extra_frame_sec).toBe(0.01);
 });

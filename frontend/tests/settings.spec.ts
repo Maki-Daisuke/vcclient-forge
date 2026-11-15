@@ -8,8 +8,8 @@ async function openSettings(page: Page) {
 
 for (const { value, fraction } of [
   { value: 0.05, fraction: 0 },
-  { value: 0.5, fraction: 0.5 },
-  { value: 5, fraction: 1 },
+  { value: Math.sqrt(0.05), fraction: 0.5 },
+  { value: 1, fraction: 1 },
   { value: 7, fraction: 1 },
 ]) {
   test(`displays chunk duration ${value} s on the logarithmic slider`, async ({ page }) => {
@@ -27,12 +27,12 @@ for (const { value, fraction } of [
     expect(thumb).not.toBeNull();
     const position = (thumb!.x + thumb!.width / 2 - track!.x) / track!.width;
     expect(Math.abs(position - fraction)).toBeLessThan(0.04);
-    if (value > 5) await expect(field).toContainText('表示範囲外');
+    if (value > 1) await expect(field).toContainText('表示範囲外');
   });
 }
 
 for (const testCase of [
-  { label: 'Extraフレーム（秒）', key: 'extra_frame_sec', value: Math.sqrt(0.01 * 10), fraction: 0.5 },
+  { label: 'Extraフレーム（秒）', key: 'extra_frame_sec', value: Math.sqrt(0.01 * 2), fraction: 0.5 },
 ]) {
   test(`displays ${testCase.label} ${testCase.value} s on the logarithmic slider`, async ({ page }) => {
     await mockCatalog(page);
