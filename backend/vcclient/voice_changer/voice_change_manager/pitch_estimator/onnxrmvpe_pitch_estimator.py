@@ -64,11 +64,25 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
 
             pitch_length = audio.shape[0] // window_length
 
-            # RMVPE requires at least 2560 samples for /rmvpe/Pad reflect padding (safe threshold: 3200 samples = 0.2s)
-            min_samples = 3200
-            if audio.shape[0] < min_samples:
-                pad_size = min_samples - audio.shape[0]
-                audio = np.pad(audio, (pad_size, 0), mode="constant")
+            # Centered STFT produces floor(samples / 160) + 1 mel frames.
+            # The RMVPE checkpoint trainer recommends a multiple of 32 mel
+            # frames to avoid degradation from padding inside the model:
+            # https://github.com/w-okada/voice-changer/issues/930
+            # Trim only Extra context to a multiple of 32 mel frames. If that
+            # would remove current audio, pad instead to preserve the chunk.
+            hop_samples = 160
+            block_samples = 32 * hop_samples
+            aligned_samples = ((audio.shape[0] + hop_samples) // block_samples) * block_samples - hop_samples
+            minimum_samples = block_samples - hop_samples
+            extra_samples = max(0, int(silence_front_sec * sample_rate))
+            required_samples = max(0, audio.shape[0] - extra_samples)
+            if aligned_samples >= max(minimum_samples, required_samples):
+                audio = audio[-aligned_samples:]
+            else:
+                padded_samples = (
+                    (audio.shape[0] + hop_samples + block_samples - 1) // block_samples
+                ) * block_samples - hop_samples
+                audio = np.pad(audio, (padded_samples - audio.shape[0], 0), mode="constant")
 
             audio = np.expand_dims(audio, axis=0)
 
