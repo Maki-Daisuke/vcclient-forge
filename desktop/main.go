@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -20,6 +22,9 @@ const (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// Use a new entry URL on each launch to bypass UI pages cached by older versions.
+var backendPageURL = BACKEND_URL + "/?startup=" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 func main() {
 	var (
@@ -155,7 +160,7 @@ func main() {
 		}
 		app.Window.NewWithOptions(application.WebviewWindowOptions{
 			Name: "log-viewer", Title: "VCClient Forge - Log", Width: 900, Height: 600,
-			MinWidth: 360, MinHeight: 300, URL: BACKEND_URL + "/?view=log",
+			MinWidth: 360, MinHeight: 300, URL: backendPageURL + "&view=log",
 		})
 	})
 

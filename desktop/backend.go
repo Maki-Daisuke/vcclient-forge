@@ -70,7 +70,7 @@ func startLocalBackend(
 				if bytes.Contains(slideBuf[:slideLen], []byte(READY_SENTINEL)) {
 					app.Event.Emit("backend-log", "\r\n\x1b[32m>>> Backend is ready! Navigating...\x1b[0m\r\n")
 					app.Event.Emit("backend-ready", true)
-					window.SetURL(BACKEND_URL)
+					window.SetURL(backendPageURL)
 					return
 				}
 				if slideLen > STDIO_BUF_LEN {

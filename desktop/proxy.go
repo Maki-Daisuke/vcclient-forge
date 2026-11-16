@@ -114,7 +114,7 @@ func startRemoteProxy(
 			_ = conn.Close()
 			app.Event.Emit("backend-log", fmt.Sprintf("\r\n\x1b[32m>>> Connected to remote backend at %s! Navigating...\x1b[0m\r\n", remoteAddr))
 			app.Event.Emit("backend-ready", true)
-			window.SetURL(BACKEND_URL)
+			window.SetURL(backendPageURL)
 			return
 		}
 

@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import socketio
+from starlette.datastructures import MutableHeaders
 
 from vcclient.const import (
     LOG_FILE,
@@ -117,6 +118,19 @@ def create_socketio_server(allowed_origins: list[str] | None = None) -> SocketIO
     return sio
 
 
+class NoCacheASGIApp(socketio.ASGIApp):
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await super().__call__(scope, receive, send)
+
+        async def send_no_cache(message):
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+            await send(message)
+
+        return await super().__call__(scope, receive, send_no_cache)
+
+
 def create_socketio_app(
     sio: SocketIOServer,
     app_fastapi: Any = None,
@@ -128,7 +142,7 @@ def create_socketio_app(
         "/monitor.wav": {"filename": f"{SERVER_IO_RECORDING_FILE_MONITOR}", "content_type": "audio/wav"},
     }
 
-    return socketio.ASGIApp(
+    return NoCacheASGIApp(
         sio,
         other_asgi_app=app_fastapi,
         static_files=static_files,
