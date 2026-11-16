@@ -2,6 +2,8 @@
 
 > **A modernized, high-performance RVC fork of w-okada/voice-changer optimized for pure ONNX Runtime and modern CUDA environments.**
 
+<img width="741" height="640" alt="image" src="https://github.com/user-attachments/assets/50d1d022-25ed-4b03-ac0f-b4439f33cdc6" />
+
 This project is a modernized **spiritual successor** to [`w-okada/voice-changer`](https://github.com/w-okada/voice-changer) (a.k.a. W-Okada VC), originally created by **[w-okada](https://x.com/DannadoriYellow)**. We deeply respect and honor w-okada's pioneering contributions to the real-time AI voice conversion community.
 
 > [!NOTE]
