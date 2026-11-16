@@ -24,6 +24,10 @@ VCClient Forge moves beyond the original distribution's Python 3.10 stack and us
 - **Current CPython**: Use the project's pinned Python release and validate compatibility/performance as that pin advances.
 - **CPU Inference**: ONNX Runtime CPUExecutionProvider is available as a backend; its throughput and scheduling impact depend on model, thread settings, and hardware.
 
+### Why Keep the Backend in Python Instead of Another Language
+
+Forge inherits Python from upstream `w-okada/voice-changer`, and keeps the audio/inference backend in Python rather than rewriting it in a systems language such as Rust or C++. In an RVC pipeline, performance depends primarily on running ONNX models efficiently inside native ONNX Runtime and accelerator Execution Providers rather than on host-language execution speed. Tracking the newest ONNX Runtime and provider optimizations without maintaining custom per-platform binaries requires official prebuilt upstream distribution; C++ and Python are ONNX Runtime's primary ecosystems for this, whereas rewriting the Python orchestration layer in C++ raises multi-platform portability and maintenance costs with limited gain once the heavy math executes inside ONNX Runtime. Using Python with official PyPI binaries and Execution Provider wheels lets Forge adopt upstream runtime and hardware optimizations directly while keeping cross-platform packaging manageable.
+
 ## 3. Pure-ONNX Architecture and CUDA 13 Support
 
 VCClient Forge prioritizes high-performance, lightweight pure-ONNX inference:

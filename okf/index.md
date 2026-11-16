@@ -4,6 +4,7 @@ version: "0.1.0"
 okf_version: "0.2"
 description: "Open Knowledge Format bundle capturing architectural insights, reverse-engineering findings, and modernization decisions for VCClient Forge."
 entries:
+  - rationales.md
   - implementation-roadmap.md
   - origin-and-reverse-engineering.md
   - architectural-evolution.md
@@ -28,9 +29,12 @@ entries:
 
 This knowledge bundle documents the reverse-engineering discoveries, historical architecture, bug fixes, and engineering decisions established during the development of **VCClient Forge** (a community-driven modernization and fork of `w-okada/voice-changer` v2.0.78-beta).
 
-For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. The articles below retain the detailed rationale and acceptance criteria.
+For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. For a quick overview of key design choices before reading individual articles, start at **#0** below.
 
 ## Knowledge Map
+
+0. **[Architectural & Design Rationales](./rationales.md)**
+   Consolidated index of Forge's core engineering and product decisions ("why Forge is designed this way"), focusing on high-level reasoning and tradeoffs with links to the detailed documents below.
 
 1. **[Origin and Reverse Engineering](./origin-and-reverse-engineering.md)**
    Why Forge reconstructed the unavailable 2.x source from the v2.0.78-beta binary distribution, and how bytecode extraction, decompilation, and disassembly made that possible. Explains the choice of an RVC-capable baseline and the model ecosystem behind Forge's dedicated RVC focus.

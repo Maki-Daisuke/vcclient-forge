@@ -151,6 +151,21 @@ to save independently. On Start, the UI saves pending model and configuration
 settings using the existing APIs and displays a warmup status. Each API write can
 rebuild the pipeline, so applying both types of changes may rebuild more than once.
 Pending settings have not been persisted and may be lost on page reload or exit.
+
+Restricting GPU/compute-device and chunk-size changes to stopped audio marks a deliberate
+departure from upstream `w-okada/voice-changer`, which allowed modifying them mid-conversion
+with immediate application. From an accelerator standpoint, switching devices or changing
+chunk size reconstructs the pipeline and alters tensor shapes. Because GPUs and NPUs pack
+fixed workloads across large parallel arrays of small compute units, changing chunk size
+forces device runtimes to recompile execution programs—which can introduce multi-second
+(and sometimes tens of seconds under compilers such as OpenVINO) stalls while recalculating
+schedules—whereas a compiled fixed shape runs quickly once initialized. In addition, allowing
+live variable-length chunks restricts future static-shape optimizations and breaks or
+fragments execution on accelerators that require static shapes (such as OpenVINO NPU and
+CoreML `MLProgram`). Forge trades upstream's mid-stream structural switching convenience
+for responsive live controls, uninterrupted conversion once running, and static-shape
+hardware acceleration.
+
 For a new configuration, the model chunk defaults to 0.5 seconds and Extra to 0.5 seconds;
 the noise gate defaults to −35 dB, and the high-pass (100 Hz) and low-pass (12000 Hz) filters
 are enabled. The default input mode is Client Mode. Browser automatic gain control, noise
