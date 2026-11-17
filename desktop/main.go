@@ -26,6 +26,31 @@ var assets embed.FS
 // Use a new entry URL on each launch to bypass UI pages cached by older versions.
 var backendPageURL = BACKEND_URL + "/?startup=" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
+var zoomKeyBindingsJS = fmt.Sprintf(`
+	if (!window.__vcclientZoomKeys) {
+	window.__vcclientZoomKeys = true;
+	window.addEventListener('keydown', function(event) {
+		if (%t ? (!event.metaKey || event.ctrlKey) : (!event.ctrlKey || event.metaKey)) return;
+		if (event.altKey) return;
+		let action;
+		if (event.key === '+' || event.key === '=') action = 'zoom-in';
+		else if (event.key === '-' && !event.shiftKey) action = 'zoom-out';
+		else if (event.key === '0' && !event.shiftKey) action = 'zoom-reset';
+		if (!action || !window._wails || typeof window._wails.invoke !== 'function') return;
+		event.preventDefault();
+		window._wails.invoke('wails:event:emit:' + action);
+	}, true);
+	}
+`, runtime.GOOS == "darwin")
+
+func enableZoomKeys(window *application.WebviewWindow) {
+	if runtime.GOOS == "windows" {
+		window.OnWindowEvent(events.Windows.WebViewNavigationCompleted, func(*application.WindowEvent) {
+			window.ExecJS(zoomKeyBindingsJS)
+		})
+	}
+}
+
 func main() {
 	var (
 		cleanupMu sync.Mutex
@@ -145,9 +170,30 @@ func main() {
 		MinWidth:             360,
 		MinHeight:            480,
 		URL:                  "/",
-		JS:                   initJS,
+		JS:                   initJS + zoomKeyBindingsJS,
 		AllowSimpleEventEmit: true,
+		ZoomControlEnabled:   true,
 	})
+	enableZoomKeys(window)
+
+	for _, action := range []string{"zoom-in", "zoom-out", "zoom-reset"} {
+		app.Event.On(action, func(event *application.CustomEvent) {
+			window, ok := app.Window.GetByName(event.Sender)
+			if !ok {
+				return
+			}
+			switch action {
+			case "zoom-in":
+				window.ZoomIn()
+			case "zoom-out":
+				if zoom := window.GetZoom(); zoom > 0 {
+					window.SetZoom(max(0.25, zoom-0.05))
+				}
+			case "zoom-reset":
+				window.ZoomReset()
+			}
+		})
+	}
 
 	app.Event.On("open-log-window", func(event *application.CustomEvent) {
 		if event.Sender != "main" {
@@ -158,10 +204,12 @@ func main() {
 			logWindow.Focus()
 			return
 		}
-		app.Window.NewWithOptions(application.WebviewWindowOptions{
+		logWindow := app.Window.NewWithOptions(application.WebviewWindowOptions{
 			Name: "log-viewer", Title: "VCClient Forge - Log", Width: 900, Height: 600,
 			MinWidth: 360, MinHeight: 300, URL: backendPageURL + "&view=log",
+			JS: zoomKeyBindingsJS, AllowSimpleEventEmit: true, ZoomControlEnabled: true,
 		})
+		enableZoomKeys(logWindow)
 	})
 
 	showFatalError := func(msg string) {
