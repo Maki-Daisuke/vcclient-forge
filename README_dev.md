@@ -237,7 +237,7 @@ uv run --project backend pytest backend/tests
 Test coverage includes:
 * Import verification across server modules and inferencers.
 * Graceful shutdown and Socket.IO connection/disconnection lifecycle.
-* REST API endpoints (`/api/hello`, chunk conversion).
+* REST API endpoints and unsupported-route handling.
 * Web frontend static file delivery (`/`).
 * In-place ONNX export and pitch estimation pipelines (RMVPE, FCPE).
 * Desktop bootstrap IPC, retry lifecycle, and navigation security.

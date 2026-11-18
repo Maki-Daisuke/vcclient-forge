@@ -1,4 +1,3 @@
-import os
 import sys
 from pathlib import Path
 
@@ -26,9 +25,6 @@ def get_frontend_path() -> Path:
 
     return frontend_dist
 
-
-TMP_DIR = "tmp_dir"
-os.makedirs(TMP_DIR, exist_ok=True)
 
 UPLOAD_DIR_STR = "upload_dir"
 UPLOAD_DIR = Path(UPLOAD_DIR_STR)

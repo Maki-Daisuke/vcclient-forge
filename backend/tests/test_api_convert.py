@@ -11,35 +11,26 @@ def client():
     return TestClient(app)
 
 
-def test_hello_endpoint(client):
-    response = client.get("/api/hello")
-    assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, dict)
-
-
-def test_convert_chunk_endpoint(client):
+def test_convert_chunk_passthrough(monkeypatch):
     from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+    from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 
-    conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-    conf.pass_through = True
-    conf.input_sample_rate = 48000
-    conf.output_sample_rate = 48000
-    ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
+    manager = ConfigurationManager.get_instance()
+    conf = manager.get_voice_changer_configuration()
+    monkeypatch.setattr(conf, "pass_through", True)
+    monkeypatch.setattr(conf, "input_sample_rate", 48000)
+    monkeypatch.setattr(conf, "output_sample_rate", 48000)
+    monkeypatch.setattr(manager, "save_voice_changer_configuration", lambda: None)
+    manager.set_voice_changer_configuration(conf)
 
     sample_rate = 48000
     duration_sec = 0.5
     num_samples = int(sample_rate * duration_sec)
     t = np.linspace(0, duration_sec, num_samples, endpoint=False, dtype=np.float32)
     audio = 0.5 * np.sin(2 * np.pi * 440 * t)
-    raw_bytes = audio.tobytes()
 
-    files = {"waveform": ("chunk.bin", raw_bytes, "application/octet-stream")}
-    headers = {"x-timestamp": "12345"}
-
-    response = client.post("/api/voice-changer/convert_chunk", files=files, headers=headers)
-    assert response.status_code == 200
-    res_audio = np.frombuffer(response.content, dtype=np.float32)
+    res_audio, _, _ = VoiceChanger.get_instance().convert_chunk(audio)
+    assert res_audio is not None
     assert len(res_audio) > 0
     assert not np.isnan(res_audio).any()
 
@@ -57,15 +48,18 @@ def test_frontend_root():
 def test_unsupported_api_returns_safe_json_404(client):
     import json
 
-    # 削除された merge_models へのアクセス
-    response = client.post(
-        "/api/slot-manager/slots/operation/merge_models",
-        json={"files": [{"slot_index": 0, "strength": 0.5}]},
-    )
-    assert response.status_code == 404
-    data = response.json()
-    detail = json.loads(data["detail"])
-    assert detail["code"] == "NOT_SUPPORTED"
+    # 削除されたエンドポイントへのアクセスでも安全な JSON が返ること（UIクラッシュ防止）
+    for method, path in [
+        ("GET", "/api/hello"),
+        ("POST", "/api/voice-changer/convert_chunk"),
+        ("DELETE", "/api/slot-manager/slots/0"),
+        ("GET", "/api/task-manager/tasks/1"),
+        ("POST", "/api/slot-manager/slots/operation/merge_models"),
+    ]:
+        response = client.request(method, path)
+        assert response.status_code == 404
+        detail = json.loads(response.json()["detail"])
+        assert detail["code"] == "NOT_SUPPORTED"
 
     # 存在しないエンドポイントへのアクセスでも安全な JSON が返ること（UIクラッシュ防止）
     response_unknown = client.get("/api/unknown_route")
@@ -110,10 +104,13 @@ def test_slot_index_out_of_range_api_validation(client):
     res_neg = client.get("/api/slot-manager/slots/-1")
     assert res_neg.status_code == 400
 
-    # 範囲外スロットの削除
-    res_del = client.delete("/api/slot-manager/slots/999999")
-    assert res_del.status_code == 400
+    # 範囲外スロットのアイコン設定
+    res_icon = client.post(
+        "/api/slot-manager/slots/operation/set_icon_file",
+        json={"slot_index": 4000000000, "icon_file": "icon.png"},
+    )
+    assert res_icon.status_code == 400
 
-    # 範囲外スロットへの移動
-    res_move = client.post("/api/slot-manager/slots/operation/move_model", json={"src": 0, "dst": 4000000000})
-    assert res_move.status_code == 400
+    # 範囲外スロット（上限境界超過）の取得
+    res_overflow = client.get("/api/slot-manager/slots/999999")
+    assert res_overflow.status_code == 400

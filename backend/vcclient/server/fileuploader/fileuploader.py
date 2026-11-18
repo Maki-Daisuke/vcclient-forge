@@ -7,15 +7,6 @@ from pydantic import BaseModel
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 
 
-class UploadableFile(BaseModel):
-    title: str
-    filename: str
-
-
-class FileuploaderInfo(BaseModel):
-    uploadable_files: list[UploadableFile] = []
-
-
 class FileuploaderUploadfileChunkResult(BaseModel):
     uploaded_filename: str
 
@@ -28,22 +19,12 @@ class EasyFileUploader:
     def __init__(self, upload_dir=None):
         self.upload_dir = upload_dir
         self.upload_dir.mkdir(exist_ok=True)
-        self.info = FileuploaderInfo(
-            uploadable_files=[
-                UploadableFile(title="model file", filename="model_file"),
-                UploadableFile(title="index file", filename="index_file"),
-            ]
-        )
         self.router = APIRouter()
         self.router.route_class = ValidationErrorLoggingRoute
-        self.router.add_api_route("/api/uploader/info", self.get_info, methods=["GET"])
         self.router.add_api_route("/api/uploader/upload_file_chunk", self.post_upload_file_chunk, methods=["POST"])
         self.router.add_api_route(
             "/api/uploader/concat_uploaded_file_chunk", self.post_concat_uploaded_file_chunk, methods=["POST"]
         )
-
-    def get_info(self):
-        return self.info
 
     def _sanitize_filename(self, filename: str) -> str:
         path = Path(filename)

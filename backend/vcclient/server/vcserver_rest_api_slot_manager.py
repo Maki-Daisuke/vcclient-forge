@@ -8,7 +8,6 @@ from vcclient.voice_changer.configuration_manager.configuration_manager import C
 from vcclient.voice_changer.data_types.slot_manager_data_types import (
     ModelImportParam,
     ModelImportParamMember,
-    MoveModelParam,
     RVCModelImportParam,
     RVCSlotInfo,
     SetIconParam,
@@ -66,10 +65,6 @@ class RestAPISlotManager:
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.get_slot, methods=["GET"])
         self.router.add_api_route("/api/slot-manager/slots", self.post_slot, methods=["POST"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.put_slot_info, methods=["PUT"])
-        self.router.add_api_route("/api/slot-manager/slots/{index}", self.delete_slot_info, methods=["DELETE"])
-        self.router.add_api_route(
-            "/api/slot-manager/slots/operation/move_model", self.post_move_model, methods=["POST"]
-        )
         self.router.add_api_route(
             "/api/slot-manager/slots/operation/set_icon_file", self.post_set_icon_file, methods=["POST"]
         )
@@ -157,14 +152,3 @@ class RestAPISlotManager:
         slot_manager = SlotManager.get_instance()
         slot_manager.update_slot_info(slot_info)
         VoiceChanger.get_instance().check_and_update_pipeline()
-
-    def delete_slot_info(self, index: int):
-        validate_slot_index(index)
-        slot_manager = SlotManager.get_instance()
-        slot_manager.delete_slot(index)
-
-    def post_move_model(self, param: MoveModelParam):
-        validate_slot_index(param.src, "src")
-        validate_slot_index(param.dst, "dst")
-        slot_manager = SlotManager.get_instance()
-        slot_manager.move_model_slot(param)

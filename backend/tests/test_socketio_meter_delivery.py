@@ -2,21 +2,59 @@ import asyncio
 import json
 import threading
 import time
+from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
 import pytest
 import socketio
 import uvicorn
 import websockets
 
-from vcclient.server import event_emitter, vcserver_socketio
+from vcclient.server import vcserver_socketio
 from vcclient.voice_changer.event_emitter import EventEmitter
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bulk_flag", [True, False])
+async def test_audio_request_returns_bulk_conversion_to_sender(monkeypatch, bulk_flag):
+    voice = MagicMock()
+    voice.is_convert_chunk_bulk_started.return_value = False
+    expected_audio = np.array([0.25, -0.5], dtype=np.float32)
+    voice.convert_chunk_bulk.return_value = (expected_audio, None, None)
+    monkeypatch.setattr(vcserver_socketio.VoiceChanger, "get_instance", lambda: voice)
+    monkeypatch.setattr(vcserver_socketio.LocalVoiceChangerInterface, "get_instance", EventEmitter)
+    namespace = vcserver_socketio.SocketIONamespace("/test")
+    namespace.emit = AsyncMock()
+
+    input_audio = np.array([0.5, -0.25], dtype=np.float32)
+    await namespace.on_request_message("client-id", [123, bulk_flag, input_audio.tobytes()])
+
+    voice.start_convert_chunk_bulk.assert_called_once_with()
+    np.testing.assert_array_equal(voice.convert_chunk_bulk.call_args.args[0], input_audio)
+    namespace.emit.assert_awaited_once_with("response", [123, expected_audio.tobytes()], to="client-id")
+
+
+@pytest.mark.asyncio
+async def test_audio_request_without_converted_output_sends_no_response(monkeypatch):
+    voice = MagicMock()
+    voice.is_convert_chunk_bulk_started.return_value = True
+    voice.convert_chunk_bulk.return_value = (None, None, None)
+    monkeypatch.setattr(vcserver_socketio.VoiceChanger, "get_instance", lambda: voice)
+    monkeypatch.setattr(vcserver_socketio.LocalVoiceChangerInterface, "get_instance", EventEmitter)
+    namespace = vcserver_socketio.SocketIONamespace("/test")
+    namespace.emit = AsyncMock()
+
+    await namespace.on_request_message("client-id", [123, True, np.zeros(2, dtype=np.float32).tobytes()])
+
+    voice.start_convert_chunk_bulk.assert_not_called()
+    voice.convert_chunk_bulk.assert_called_once()
+    namespace.emit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_meter_event_from_audio_thread_reaches_socketio_client(monkeypatch):
     voice = EventEmitter()
     audio = EventEmitter()
-    previous_emitter = event_emitter._emitter
     monkeypatch.setattr(vcserver_socketio.VoiceChanger, "get_instance", lambda: voice)
     monkeypatch.setattr(vcserver_socketio.LocalVoiceChangerInterface, "get_instance", lambda: audio)
     sio = socketio.AsyncServer(async_mode="asgi")
@@ -38,6 +76,7 @@ async def test_meter_event_from_audio_thread_reaches_socketio_client(monkeypatch
             await ws.send("40/test,")
             assert (await asyncio.wait_for(ws.recv(), 3)).startswith("40/test,")
             data = ["realtime_output_status", json.dumps({"inputRms": 0.25, "outputRms": 0.5})]
+            await asyncio.to_thread(audio.emit, "perf", "{}")
             await asyncio.to_thread(audio.emit, "data", data)
             message = await asyncio.wait_for(ws.recv(), 3)
             assert message.startswith("42/test,")
@@ -46,4 +85,3 @@ async def test_meter_event_from_audio_thread_reaches_socketio_client(monkeypatch
         server.should_exit = True
         await asyncio.to_thread(thread.join, 5)
         assert not thread.is_alive()
-        vcserver_socketio.set_event_emitter(previous_emitter)

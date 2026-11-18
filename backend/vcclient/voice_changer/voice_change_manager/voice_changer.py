@@ -1,32 +1,12 @@
 import threading
 import time
 from collections.abc import Callable
-from pathlib import Path
 from queue import Empty, Queue
-from typing import Any
 
 import numpy as np
 import samplerate as sr
 from scipy import signal
 from scipy.io import wavfile
-
-try:
-    from simple_performance_timer.Timer import Timer
-except ImportError:
-
-    class Timer:  # type: ignore[no-redef]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        def __enter__(self) -> Timer:
-            return self
-
-        def __exit__(self, *args: Any) -> None:
-            pass
-
-        def record(self, *args: Any) -> None:
-            pass
-
 
 from vcclient.logger import logger
 
@@ -708,34 +688,6 @@ class VoiceChanger(EventEmitter):
                 self.monitor_record.append(resampled_waveform_monitor)
 
         return (resampled_waveform_out, resampled_waveform_monitor)
-
-    def convert_file(self, input_file: str, output_file: str) -> None:
-        logger.info("file convert starts: %s -> %s", input_file, output_file)
-        input_path = Path(input_file)
-        if input_path.exists() is False:
-            raise FileNotFoundError(f"Input file not found:{input_file}")
-        src_sample_rate, waveform = wavfile.read(input_path)
-        if waveform.dtype == np.float32 or waveform.dtype == np.float64:
-            waveform = (waveform * 32768).astype(np.int16)
-        logger.info("srcSampleRate:%s, waveform:%s", src_sample_rate, waveform.shape)
-        configuration = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        configuration.input_sample_rate = src_sample_rate
-        configuration.output_sample_rate = src_sample_rate
-        self.vc_chunk_sec = self._require_pipeline().get_chunk_sec()
-        self.chunk_size = int(round(src_sample_rate * self.vc_chunk_sec))
-        splitted_waveforms = [waveform[i : i + self.chunk_size] for i in range(0, len(waveform), self.chunk_size)]
-        chunk_num = len(splitted_waveforms)
-        logger.info("chunk_size:%s, chunk_num:%s", self.chunk_size, chunk_num)
-        convertd_datas = []
-        with Timer("converting", enable=False) as t:
-            for i, splitted_waveform in enumerate(splitted_waveforms):
-                resampled_converted, _, _ = self.convert_chunk(splitted_waveform)
-                convertd_datas.append(resampled_converted)
-                print(f"converting... {i * 100 // chunk_num}%")
-                t.record(f"chunk-{i}")
-        output_data = np.concatenate(convertd_datas)
-        wavfile.write(output_file, src_sample_rate, output_data)
-        logger.info("file convert done: %s -> %s", input_file, output_file)
 
     def __del__(self) -> None:
         logger.info("VoiceChanger is deleting.")

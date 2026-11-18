@@ -12,24 +12,16 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from vcclient.const import (
-    SERVER_IO_RECORDING_FILE_IN,
-    SERVER_IO_RECORDING_FILE_MONITOR,
-    SERVER_IO_RECORDING_FILE_OUT,
-)
+from vcclient.const import SERVER_IO_RECORDING_FILE_OUT
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
-from vcclient.server.server_const import TMP_DIR, UPLOAD_DIR, get_frontend_path
+from vcclient.server.server_const import UPLOAD_DIR, get_frontend_path
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioDeviceManager
 from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
 from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
-from vcclient.server.vcserver_rest_api_hello import RestHello
 from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
-from vcclient.server.vcserver_rest_api_module_manager import RestAPIModuleManager
-from vcclient.server.vcserver_rest_api_sample_manager import RestAPISampleManager
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
-from vcclient.server.vcserver_rest_api_task_manager import RestAPITaskManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.voice_changer.voice_changer_const import ModelDir
 
@@ -109,30 +101,12 @@ def _create_rest_api() -> FastAPI:
         )
 
     @app_fastapi.get("/output.wav", include_in_schema=False)
-    @app_fastapi.get("/ui/2.1.4/output.wav", include_in_schema=False)
-    @app_fastapi.get("/ui/2.0.78/output.wav", include_in_schema=False)
     def serve_output_wav():
         return _serve_audio_file(SERVER_IO_RECORDING_FILE_OUT)
 
-    @app_fastapi.get("/input.wav", include_in_schema=False)
-    @app_fastapi.get("/ui/2.1.4/input.wav", include_in_schema=False)
-    @app_fastapi.get("/ui/2.0.78/input.wav", include_in_schema=False)
-    def serve_input_wav():
-        return _serve_audio_file(SERVER_IO_RECORDING_FILE_IN)
-
-    @app_fastapi.get("/monitor.wav", include_in_schema=False)
-    @app_fastapi.get("/ui/2.1.4/monitor.wav", include_in_schema=False)
-    @app_fastapi.get("/ui/2.0.78/monitor.wav", include_in_schema=False)
-    def serve_monitor_wav():
-        return _serve_audio_file(SERVER_IO_RECORDING_FILE_MONITOR)
-
     app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
-    app_fastapi.mount("/tmp", StaticFiles(directory=f"""{TMP_DIR}"""), name="static")
-    app_fastapi.mount("/upload_dir", StaticFiles(directory=f"""{UPLOAD_DIR}"""), name="static")
     app_fastapi.mount(f"""/{ModelDir}""", StaticFiles(directory=ModelDir), name="static")
 
-    rest_hello = RestHello()
-    app_fastapi.include_router(rest_hello.router)
     rest_slot_manager = RestAPISlotManager()
     app_fastapi.include_router(rest_slot_manager.router)
     rest_configuration_manager = RestAPIConfigurationManager()
@@ -141,18 +115,12 @@ def _create_rest_api() -> FastAPI:
     app_fastapi.include_router(rest_audio_device_manager.router)
     rest_gpu_device_manager = RestAPIGPUDeviceManager()
     app_fastapi.include_router(rest_gpu_device_manager.router)
-    rest_module_manager = RestAPIModuleManager()
-    app_fastapi.include_router(rest_module_manager.router)
-    rest_sample_manager = RestAPISampleManager()
-    app_fastapi.include_router(rest_sample_manager.router)
     fileuploader = EasyFileUploader(UPLOAD_DIR)
     app_fastapi.include_router(fileuploader.router)
     voice_changer = RestAPIVoiceChanger()
     app_fastapi.include_router(voice_changer.router)
     local_voice_changer_interface = RestAPILocalVoiceChangerInterface()
     app_fastapi.include_router(local_voice_changer_interface.router)
-    task_manager = RestAPITaskManager()
-    app_fastapi.include_router(task_manager.router)
 
     async def unknown_api(scope, receive, send):
         raise StarletteHTTPException(status_code=404, detail="Not Found")

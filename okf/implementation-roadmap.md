@@ -178,9 +178,9 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   notifications; both values and graph lines were also observed in the UI against
   a live backend during conversion.
 - Connect remaining performance and state notifications. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
-- Review notification dispatch and callback overhead separately while preserving existing event names and payload contracts. Keep the existing Socket.IO API compatible for existing clients; the legacy `web_front/` UI has been retired after migrating to `frontend/`.
+- Review notification dispatch and callback overhead separately. Keep Socket.IO as the transport while allowing legacy API contracts to change; `web_front/` has been retired after migrating to `frontend/`.
 - **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.
-- **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI while existing API clients remain compatible.
+- **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI.
 - **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-socketio-notifications).
 
 ### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2) [Completed]
@@ -197,7 +197,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Client Mode implemented**: The Svelte 5 UI (`frontend/`) implements Socket.IO Client Mode browser capture and playback using Web Audio / AudioWorklet, supporting browser input/output device selection, recording (confirmed with real audio per `frontend/README.md`), filters, noise gate, and browser audio constraints (echo cancellation, noise suppression, auto-gain control).
 - Remaining validation covers long-duration overload/disconnect recovery, buffering bounds across varied browsers, and remote HTTPS/WSS access via user-managed Tailscale Serve (or Wails WebView2 permissions where applicable).
 - **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
-- **Exit**: Browser audio works reliably through Socket.IO, with validated buffering and recovery while preserving existing API compatibility.
+- **Exit**: Browser audio works reliably through Socket.IO, with validated buffering and recovery.
 - **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
 ### 8. Evaluate Mixed Native/Browser Routing

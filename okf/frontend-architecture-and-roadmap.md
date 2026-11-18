@@ -263,7 +263,7 @@ Historical inspection of the retired legacy `web_front/index.js` bundle identifi
 
 Backend/API changes alone do not deliver usable features: users need a UI that can operate them. The minified legacy frontend (`web_front/index.js`) was coupled to existing endpoints and slot-array conventions, and the original `web_front` source for v2.0.78-beta was not released. Keeping it as the only UI would have left new backend capabilities inaccessible or required preserving legacy bundle quirks.
 
-Forge replaced `web_front/` with the Svelte 5 UI (`frontend/`), supporting both Server Mode over REST and Client Mode over the existing Socket.IO API while preserving REST/Socket.IO API compatibility.
+Forge replaced `web_front/` with the Svelte 5 UI (`frontend/`), supporting Server Mode over REST and Client Mode over Socket.IO. Subsequent API cleanup intentionally removes unused endpoints and changes the Socket.IO audio response contract; old client compatibility is not retained.
 
 ---
 
@@ -327,7 +327,7 @@ These results include each client library's scheduling and encoding, not just
 protocol framing. They do not measure a browser/Wails client, real audio or
 the current Socket.IO conversion handler, and do not establish end-to-end audio
 latency or behavior under inference load. WebSocket was faster in these tests;
-the project has decided to retain Socket.IO rather than introduce an API compatibility break.
+the project decided at the time to retain Socket.IO rather than replace the audio transport with raw WebSocket. Subsequent API cleanup intentionally changes application-level contracts while retaining Socket.IO.
 
 ### Tailscale Binary Echo Experiment (2026-11-09)
 
@@ -359,12 +359,16 @@ processing; they are not measurements of actual browser audio or inference.
 ### 3.3 Retain the Socket.IO API
 
 The raw WebSocket replacement proposal and removal of Socket.IO are canceled.
-Existing REST and Socket.IO APIs, including event names and payload contracts,
-remain the integration baseline. Socket.IO may itself use WebSocket as its
-underlying transport; that does not make its application protocol raw WebSocket.
+Socket.IO remains the audio and notification transport, while unused REST APIs
+and legacy Socket.IO behaviors may be removed without preserving old clients.
+Socket.IO may itself use WebSocket as its underlying transport; that does not
+make its application protocol raw WebSocket.
 
-The new UI can consume existing `data`, `perf`, and `command` notifications.
-The new UI streams Client Mode audio through the existing Socket.IO audio API.
+The UI consumes `data` notifications for meters. Client Mode audio requests use
+`request_message` with a timestamp and binary samples; the backend uses bulk
+conversion and emits `response` with `[timestamp, audio]` when output is ready.
+Legacy `perf` and `command` notifications and the response performance payload
+are no longer emitted.
 Device permissions, sample rates, buffering and disconnect behavior need
 real-device validation. A partial input chunk remains in the backend across
 worker restarts. The UI stops on disconnect rather than reconnecting automatically.
@@ -485,16 +489,16 @@ flowchart TD
   the latest sampled chunk duration and clears on stale data or stop. A live
   backend notification was observed in the UI.
 - Connect the new UI's remaining performance metrics and state handling to existing Socket.IO notifications.
-- Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately without changing the existing API contract.
-- Keep the existing Socket.IO API compatible for existing clients; the legacy `web_front/` UI has been retired after completing the migration into `frontend/`.
-- **Acceptance**: The Svelte 5 UI displays native-audio notifications correctly using Socket.IO; existing Socket.IO API contracts remain compatible.
+- Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately.
+- Retain Socket.IO as the transport; API contracts may change as unused legacy functionality is removed. The legacy `web_front/` UI has been retired.
+- **Acceptance**: The Svelte 5 UI displays native-audio notifications correctly using the current Socket.IO events.
 
 ### Step 3: Incremental Socket.IO Client Mode
 
 - Add Web Audio capture/playback to the new UI using the existing Socket.IO audio API and a common inference path.
 - Validate sample-rate/channel handling, buffering, overload/disconnect recovery, and exclusive selection between native Server Mode and Client Mode while preserving the API contract.
 - Verify Wails WebView2 audio permissions and optional browser access through Tailscale Serve. Desktop packaging is already established with Wails v3.
-- **Acceptance**: The new UI supports Client Mode through Socket.IO with validated buffering and recovery; the existing API remains compatible.
+- **Acceptance**: The new UI supports Client Mode through Socket.IO with validated buffering and recovery.
 
 ### Desktop Packaging: Transitioning from Tauri v2 to Wails v3 [Completed]
 

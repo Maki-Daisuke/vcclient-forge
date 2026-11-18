@@ -63,7 +63,6 @@ class LocalVoiceChangerInterface(EventEmitter):
         self.local_voice_changer_enabled = False
         self.lifecycle_lock = RLock()
         self.stream_running = False
-        self.dummy_input_queue: Queue[np.ndarray] = Queue()
         self.out_queue = Queue()
         self.monitor_queue = Queue()
         self.waveform_rest_output = np.array([], dtype=np.float32)
@@ -139,36 +138,6 @@ class LocalVoiceChangerInterface(EventEmitter):
                 break
         self.output_preroll_needed = True
         self.monitor_preroll_needed = True
-
-    def set_dummy_input(self, url: str) -> None:
-        if not hasattr(self, "audio_input_device_sample_rate") or not self.audio_input_device_sample_rate:
-            logger.error("audio_input_device_sample_rate is not set")
-            return
-        try:
-            import io
-
-            import requests
-            import soundfile as sf
-            import soxr
-
-            response = requests.get(url)
-            response.raise_for_status()
-            waveform, sample_rate = sf.read(io.BytesIO(response.content), dtype="float32")
-            if waveform.ndim > 1:
-                waveform = waveform[:, 0]
-            if sample_rate != int(self.audio_input_device_sample_rate):
-                waveform = soxr.resample(waveform, sample_rate, int(self.audio_input_device_sample_rate))
-
-            block_size = (
-                self.input_block_size if hasattr(self, "input_block_size") and self.input_block_size > 0 else 1024
-            )
-            for i in range(0, len(waveform), block_size):
-                chunk = waveform[i : i + block_size]
-                if len(chunk) < block_size:
-                    chunk = np.pad(chunk, (0, block_size - len(chunk)))
-                self.dummy_input_queue.put(chunk)
-        except Exception as e:
-            logger.error("Failed to set dummy input from url %s: %s", url, e, exc_info=True)
 
     def calc_vol(self, data: np.ndarray, prev_vol: float) -> float:
         if len(data) == 0:
@@ -402,16 +371,11 @@ class LocalVoiceChangerInterface(EventEmitter):
     def audio_input_callback(self, indata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
-            if not self.dummy_input_queue.empty():
-                indata = self.dummy_input_queue.get()
-            else:
-                indata = indata[:, 0].copy()
+            indata = indata[:, 0].copy()
             indata = indata * conf.audio_input_device_gain
             if conf.realtime_output_status_enabled:
                 self.input_volume_calculation_buffer.append(indata)
-            converted, converted_for_monitor, performance_data = self.vc.convert_chunk_bulk(indata)
-            if performance_data is not None:
-                self.emit("perf", performance_data.model_dump_json())
+            converted, converted_for_monitor, _ = self.vc.convert_chunk_bulk(indata)
 
             if converted is not None:
                 self._enqueue_stream_blocks(

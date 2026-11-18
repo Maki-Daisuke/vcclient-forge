@@ -1,16 +1,11 @@
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json
 
 import pytest
 from starlette.testclient import TestClient
 
-from vcclient.const import (
-    SERVER_IO_RECORDING_FILE_IN,
-    SERVER_IO_RECORDING_FILE_MONITOR,
-    SERVER_IO_RECORDING_FILE_OUT,
-)
+from vcclient.server import vcserver_rest_api
 from vcclient.server.vcserver_rest_api import get_rest_api
-from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+from vcclient.server.vcserver_socketio import create_socketio_app, create_socketio_server
 
 
 @pytest.fixture(scope="module")
@@ -19,75 +14,43 @@ def client():
     return TestClient(app)
 
 
-def test_recording_endpoints_return_404_when_files_missing(client):
-    # Ensure test files do not exist
-    for filename in [SERVER_IO_RECORDING_FILE_OUT, SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_MONITOR]:
-        Path(filename).unlink(missing_ok=True)
-
+def test_output_wav_returns_404_when_file_missing(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(vcserver_rest_api, "SERVER_IO_RECORDING_FILE_OUT", str(tmp_path / "output.wav"))
     res_out = client.get("/output.wav")
     assert res_out.status_code == 404
 
-    res_in = client.get("/input.wav")
-    assert res_in.status_code == 404
 
-    res_mon = client.get("/monitor.wav")
-    assert res_mon.status_code == 404
-
-
-def test_recording_endpoints_serve_wav_files_when_present(client):
+def test_output_wav_serves_file_and_removed_recording_routes_return_404(client, tmp_path, monkeypatch):
     dummy_wav = b"RIFF....WAVEfmt ...."
+    output_path = tmp_path / "output.wav"
+    output_path.write_bytes(dummy_wav)
+    monkeypatch.setattr(vcserver_rest_api, "SERVER_IO_RECORDING_FILE_OUT", str(output_path))
 
-    try:
-        Path(SERVER_IO_RECORDING_FILE_OUT).write_bytes(dummy_wav)
-        Path(SERVER_IO_RECORDING_FILE_IN).write_bytes(dummy_wav)
-        Path(SERVER_IO_RECORDING_FILE_MONITOR).write_bytes(dummy_wav)
+    res_out = client.get("/output.wav")
+    assert res_out.status_code == 200
+    assert res_out.headers.get("content-type") == "audio/wav"
+    assert res_out.content == dummy_wav
 
-        # Test root paths
-        res_out = client.get("/output.wav")
-        assert res_out.status_code == 200
-        assert res_out.headers.get("content-type") == "audio/wav"
-        assert res_out.content == dummy_wav
+    asgi_app = create_socketio_app(create_socketio_server(), get_rest_api())
+    asgi_res = TestClient(asgi_app).get("/output.wav")
+    assert asgi_res.status_code == 200
+    assert asgi_res.headers.get("cache-control") == "no-store"
+    assert asgi_res.content == dummy_wav
 
-        res_in = client.get("/input.wav")
-        assert res_in.status_code == 200
-        assert res_in.headers.get("content-type") == "audio/wav"
-        assert res_in.content == dummy_wav
-
-        res_mon = client.get("/monitor.wav")
-        assert res_mon.status_code == 200
-        assert res_mon.headers.get("content-type") == "audio/wav"
-        assert res_mon.content == dummy_wav
-
-        # Test UI relative fallback paths
-        res_ui214 = client.get("/ui/2.1.4/output.wav")
-        assert res_ui214.status_code == 200
-        assert res_ui214.headers.get("content-type") == "audio/wav"
-        assert res_ui214.content == dummy_wav
-
-        res_ui2078 = client.get("/ui/2.0.78/output.wav")
-        assert res_ui2078.status_code == 200
-        assert res_ui2078.headers.get("content-type") == "audio/wav"
-        assert res_ui2078.content == dummy_wav
-
-    finally:
-        Path(SERVER_IO_RECORDING_FILE_OUT).unlink(missing_ok=True)
-        Path(SERVER_IO_RECORDING_FILE_IN).unlink(missing_ok=True)
-        Path(SERVER_IO_RECORDING_FILE_MONITOR).unlink(missing_ok=True)
+    for removed_path in [
+        "/input.wav",
+        "/monitor.wav",
+        "/ui/2.1.4/output.wav",
+        "/ui/2.0.78/output.wav",
+    ]:
+        assert client.get(removed_path).status_code == 404
 
 
-def test_operation_start_and_stop_recording_endpoints(client):
-    cm = ConfigurationManager.get_instance()
-
-    with patch("vcclient.voice_changer.voice_change_manager.voice_changer.VoiceChanger.get_instance") as mock_vc_get:
-        mock_vc = MagicMock()
-        mock_vc_get.return_value = mock_vc
-
-        res_start = client.post("/api/voice-changer/operation/start_recording")
-        assert res_start.status_code == 200
-        mock_vc.start_recording.assert_called_once()
-        assert cm.voice_changer_configuration.recording_started is True
-
-        res_stop = client.post("/api/voice-changer/operation/stop_recording")
-        assert res_stop.status_code == 200
-        mock_vc.stop_recording.assert_called_once()
-        assert cm.voice_changer_configuration.recording_started is False
+def test_removed_recording_operation_endpoints_return_404(client):
+    for endpoint in [
+        "/api/voice-changer/operation/start_recording",
+        "/api/voice-changer/operation/stop_recording",
+    ]:
+        res = client.post(endpoint)
+        assert res.status_code == 404
+        assert json.loads(res.json()["detail"])["code"] == "NOT_SUPPORTED"

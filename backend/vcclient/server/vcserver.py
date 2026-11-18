@@ -11,7 +11,6 @@ import uvicorn
 from vcclient.logger import logger
 from vcclient.server.vcserver_rest_api import get_rest_api
 from vcclient.server.vcserver_socketio import (
-    SocketIOServer,
     create_socketio_app,
     create_socketio_server,
 )
@@ -25,7 +24,7 @@ class VCServer:
     server_thread: threading.Thread | None = None
     server: uvicorn.Server
     loop: asyncio.AbstractEventLoop
-    sio: SocketIOServer
+    sio: socketio.AsyncServer
     app: socketio.ASGIApp
 
     def __init__(

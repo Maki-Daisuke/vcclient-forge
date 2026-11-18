@@ -134,7 +134,7 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
       }
       if (message instanceof Buffer) {
         packets++;
-        socket.send('451-/test,["response",0,{"_placeholder":true,"num":0},"{}"]');
+        socket.send('451-/test,["response",[0,{"_placeholder":true,"num":0}]]');
         socket.send(Buffer.from(new Float32Array(2048).fill(0.25).buffer));
       }
     });

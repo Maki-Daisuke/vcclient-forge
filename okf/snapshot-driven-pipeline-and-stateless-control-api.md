@@ -17,7 +17,7 @@ tags:
 
 > **Implementation Status Notice (as of `v2.0.78-forge.0.3.0`)**:
 > This document defines a **planned target architecture** and is **not yet implemented**.
-> Currently (`v2.0.78-forge.0.3.0`), backend runtime state remains coupled to `ConfigurationManager` (`settings/vc_conf.json`) and `SlotManager` (`model_dir/<slot>/params.json`), `PUT` configuration/slot updates trigger implicit `VoiceChanger.check_and_update_pipeline()` calls without full synchronization against conversion threads, and compute-device auto-selection (`initializer._select_initial_compute_device()`) runs only when `vc_conf.json` is absent on startup.
+> The current backend runtime state remains coupled to `ConfigurationManager` (`settings/vc_conf.json`) and `SlotManager` (`model_dir/<slot>/params.json`), `PUT` configuration/slot updates trigger implicit `VoiceChanger.check_and_update_pipeline()` calls without full synchronization against conversion threads, and compute-device auto-selection (`initializer._select_initial_compute_device()`) runs only when `vc_conf.json` is absent on startup.
 
 ---
 
@@ -33,7 +33,7 @@ To prepare VCClient Forge for **concurrent hybrid pipelining** (overlapping prep
 
 ## 2. Diagnosis of the Current Architecture
 
-Inspection of the `v2.0.78-forge.0.3.0` codebase reveals five structural couplings that hinder thread safety, API clarity, and parallel pipelining:
+Inspection of the current codebase reveals five structural couplings that hinder thread safety, API clarity, and parallel pipelining:
 
 ### 2.1 Mixed Responsibilities in Single DTOs
 
@@ -41,7 +41,7 @@ Inspection of the `v2.0.78-forge.0.3.0` codebase reveals five structural couplin
   - **Topology / lifecycle parameters**: `current_slot_index`, `gpu_device_id_int`, `extra_frame_sec`, `sola_search_frame_sec`, `voice_changer_input_mode`, native audio device indices/sample rates, `wasapi_exclude_emabled`
   - **Live DSP scalars**: gains, `noise_gate`, `volume_tuning_type`, HPF/LPF toggles & cutoffs, `pass_through`
   - **Imperative commands**: `recording_started` (excluded from disk persistence in [`configuration_manager.py`](../backend/vcclient/voice_changer/configuration_manager/configuration_manager.py))
-  - **Monitoring & UI telemetry config**: `enable_performance_monitor`, `realtime_*_status_*`, `sio_broadcast`, `server_device_trancate_buffer_ratio`
+  - **Monitoring & UI telemetry config**: `enable_performance_monitor`, `realtime_*_status_*`, `server_device_trancate_buffer_ratio` (the retained `sio_broadcast` field is no longer used by the Socket.IO handler)
   - **Read-only runtime state**: `input_sample_rate`, `output_sample_rate`, `monitor_sample_rate` (preserved across `PUT` overwrites)
 - **`RVCSlotInfo`** ([`slot_manager_data_types.py`](../backend/vcclient/voice_changer/data_types/slot_manager_data_types.py)) mixes immutable model metadata (`model_file`, `sample_rate`, `is_f0`, `embedder`) with structural parameters (`chunk_sec`, `pitch_estimator`) and live tuning scalars (`pitch_shift`, `index_ratio`, `protect_ratio`).
 
@@ -55,7 +55,7 @@ Inspection of the `v2.0.78-forge.0.3.0` codebase reveals five structural couplin
 
 - `ConfigurationManager.set_voice_changer_configuration()` checks `LocalVoiceChangerInterface` activity for `voice_changer_input_mode`, implicitly restarts native audio (`stop()` -> `sleep()` -> `setup()` -> `start()`) for audio device changes, and performs **no** backend active check for `current_slot_index`, `gpu_device_id_int`, or `extra_frame_sec`.
 - `PUT /api/slot-manager/slots/{index}` similarly lacks active-pipeline guards (unlike `POST /api/slot-manager/operation/organize` in [`vcserver_rest_api_slot_manager.py`](../backend/vcclient/server/vcserver_rest_api_slot_manager.py), which enforces `lifecycle_lock` and returns HTTP `409`).
-- Client Mode lacks an explicit server-side start/stop lifecycle (`post_convert_chunk_bulk` lazily calls `vc.start_convert_chunk_bulk()`), so the backend cannot reject Client Mode topology mutations consistently (`frontend/src/lib/api.ts` relies on client-side `readNativeActive()` guards).
+- Client Mode lacks an explicit server-side start/stop lifecycle (the Socket.IO `request_message` handler lazily calls `vc.start_convert_chunk_bulk()`), so the backend cannot reject Client Mode topology mutations consistently (`frontend/src/lib/api.ts` relies on client-side `readNativeActive()` guards).
 
 ### 2.4 Non-Thread-Safe Runtime Mutation
 
@@ -104,7 +104,7 @@ flowchart TD
      - The interactive client serializes session updates. On stop, it stops issuing new session updates and waits for any in-flight update to complete before sending `DELETE .../session`; unsent edits remain local or are saved through the storage API. External API clients must also wait for updates to finish before stopping.
    - Recording is controlled by a non-persistent boolean in the session snapshot. Starting with recording enabled starts recording with conversion; while running, changing the value from false to true starts recording and true to false finalizes it. Repeating an unchanged snapshot does not restart or finalize recording again.
    - `DELETE .../session` stops audio and finalizes any active recording before the session is torn down. The completed recording remains retrievable for download independently of the session after the session ends. The UI retains its recording-armed state and can enable recording in the next session. Empty recordings do not trigger a download in the UI. If client audio fails to start after a session has begun, the client stops the session so recording and other resources are finalized or released.
-   - The separate `POST /api/voice-changer/operation/start_recording` and `POST /api/voice-changer/operation/stop_recording` endpoints are to be removed as part of the migration. Existing callers must switch to the session snapshot.
+   - The separate `POST /api/voice-changer/operation/start_recording` and `POST /api/voice-changer/operation/stop_recording` endpoints have been removed. Until the session API is implemented, the UI controls recording through `recording_started` in the configuration API; it will migrate to the session snapshot.
 2. **Self-Contained Runtime Snapshot**:
    - The client passes a complete snapshot containing everything needed to configure and run conversion: selected `slot_index`, model parameters (`pitch_shift`, `index_ratio`, `protect_ratio`, `chunk_sec`, `pitch_estimator`), inference/timing parameters (`gpu_device_id`, `extra_frame_sec`, `sola_search_frame_sec`), DSP parameters (gains, filters, noise gate, `volume_tuning_type`, `pass_through`), recording state, audio routing (mode, device IDs, rates, monitor enablement), and telemetry flags. Recording and passthrough state are excluded from persisted configuration and default to off after application startup.
    - `RVCPipeline` and worker threads read **only** from the engine-owned active snapshot—never querying `ConfigurationManager` or `SlotManager.get_slot_info()` during inference. Model catalog metadata (`model_file`, `sample_rate`, `is_f0`, `embedder`, `.index` path) is resolved cleanly from the catalog when constructing a session on stopped `PUT .../session`.
