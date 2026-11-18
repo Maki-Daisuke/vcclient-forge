@@ -125,20 +125,6 @@ class LocalVoiceChangerInterface(EventEmitter):
         elif not np.any(waveform):
             setattr(self, preroll_attr, True)
 
-    def truncate_output_buffer(self) -> None:
-        for _ in range(self.out_queue.qsize()):
-            try:
-                _ = self.out_queue.get_nowait()
-            except Empty:
-                break
-        for _ in range(self.monitor_queue.qsize()):
-            try:
-                _ = self.monitor_queue.get_nowait()
-            except Empty:
-                break
-        self.output_preroll_needed = True
-        self.monitor_preroll_needed = True
-
     def calc_vol(self, data: np.ndarray, prev_vol: float) -> float:
         if len(data) == 0:
             return prev_vol

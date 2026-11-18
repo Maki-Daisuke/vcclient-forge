@@ -8,7 +8,6 @@ from vcclient.device.device_manager import (
     get_device,
     get_device_catalog,
     reload_device_catalog,
-    resolve_legacy_device_id,
 )
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
@@ -77,38 +76,6 @@ def test_get_device_bounds_and_fallbacks() -> None:
 
     # Extremely high out-of-bounds index -> CPU
     assert get_device(99999) == cpu
-
-    # Legacy ID resolver
-    assert resolve_legacy_device_id(-1) == cpu
-    assert resolve_legacy_device_id(99999) == cpu
-
-
-def test_resolve_legacy_device_id_openvino_sentinel() -> None:
-    """Verify that legacy OPENVINO_GPU_DEVICE_ID (1000) maps to first OpenVINO device if present."""
-    mock_catalog = [
-        DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU"),
-        DeviceConfig(
-            id=1,
-            canonical_id="openvino:gpu:0",
-            provider="openvino",
-            device_type="GPU",
-            name="[OpenVINO] Intel Arc",
-            metadata={"ov_device": "GPU.0"},
-        ),
-    ]
-    with patch("vcclient.device.device_manager._device_catalog", mock_catalog):
-        dev = resolve_legacy_device_id(1000)
-        assert dev.id == 1
-        assert dev.provider == "openvino"
-
-    # If no OpenVINO device exists, fallback to CPU
-    mock_catalog_no_ov = [
-        DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU"),
-    ]
-    with patch("vcclient.device.device_manager._device_catalog", mock_catalog_no_ov):
-        dev_no_ov = resolve_legacy_device_id(1000)
-        assert dev_no_ov.id == 0
-        assert dev_no_ov.is_cpu()
 
 
 def test_catalog_enumeration_with_mock_hardware() -> None:

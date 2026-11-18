@@ -1,7 +1,4 @@
-from vcclient.device.providers.directml import (
-    _filter_directml_devices,
-    resolve_directml_provider,
-)
+from vcclient.device.providers.directml import _filter_directml_devices
 from vcclient.device.providers.util import parse_vram_string
 
 
@@ -88,16 +85,3 @@ def test_filter_directml_devices_deduplication():
     filtered_igpu = _filter_directml_devices(igpu_setup)
     assert len(filtered_igpu) == 1
     assert filtered_igpu[0]["DxgiAdapterNumber"] == "1"
-
-
-def test_resolve_directml_provider():
-    # DirectML available
-    res = resolve_directml_provider(0, ["DmlExecutionProvider", "CPUExecutionProvider"])
-    assert res is not None
-    providers, opts = res
-    assert providers == ["DmlExecutionProvider"]
-    assert opts == [{"device_id": 0}]
-
-    # DirectML not available
-    res_none = resolve_directml_provider(0, ["CPUExecutionProvider"])
-    assert res_none is None

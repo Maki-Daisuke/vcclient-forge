@@ -27,7 +27,6 @@ def _create_mock_pipeline() -> RVCPipeline:
     pipeline.pitchf_buffer = None
     pipeline.feature_buffer = None
     pipeline.index_data = None
-    pipeline.prev_vol = 0
     pipeline.is_gate_open = True
     pipeline.noise_gate_below_threshold_samples = 0
 

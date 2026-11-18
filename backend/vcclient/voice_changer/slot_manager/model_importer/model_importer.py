@@ -12,8 +12,6 @@ from ....exception import (
 )
 from ...data_types.slot_manager_data_types import (
     ModelImportParamMember,
-    ReservedForSampleModelImportParam,
-    ReservedForSampleSlotInfo,
     RVCModelImportParam,
     RVCSlotInfo,
     SlotInfo,
@@ -26,10 +24,6 @@ from .rvc_model_estimator.rvc_model_estimator import estimate_rvc_model
 def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, remove_src: bool = False) -> None:
     if model_importer_param.slot_index is None:
         raise VCClientError(ERROR_CODE_IMPORT_MODEL_FAILED, "slot_index is required for model import.")
-    if model_importer_param.voice_changer_type == "RESERVED_FOR_SAMPLE" and not isinstance(
-        model_importer_param, ReservedForSampleModelImportParam
-    ):
-        raise VCClientError(ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE, "Invalid reserved sample import parameters.")
     if model_importer_param.voice_changer_type == "RVC" and not isinstance(model_importer_param, RVCModelImportParam):
         raise VCClientError(ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE, "Invalid RVC import parameters.")
 
@@ -37,14 +31,7 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
     slot_dir.mkdir(parents=True, exist_ok=True)
     try:
         slot_info: SlotInfo
-        if model_importer_param.voice_changer_type == "RESERVED_FOR_SAMPLE":
-            if not isinstance(model_importer_param, ReservedForSampleModelImportParam):
-                raise VCClientError(ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE, "Invalid reserved sample import parameters.")
-            slot_info = ReservedForSampleSlotInfo(
-                slot_index=model_importer_param.slot_index,
-                progress=model_importer_param.progress,
-            )
-        elif model_importer_param.voice_changer_type == "RVC":
+        if model_importer_param.voice_changer_type == "RVC":
             if not isinstance(model_importer_param, RVCModelImportParam):
                 raise VCClientError(ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE, "Invalid RVC import parameters.")
             for src in cast(

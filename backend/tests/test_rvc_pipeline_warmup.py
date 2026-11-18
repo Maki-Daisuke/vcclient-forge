@@ -40,7 +40,6 @@ def test_warmup_invokes_run_with_synthetic_audio(mock_rvc_pipeline: RVCPipeline)
         executed_audio.append(audio.copy())
         # Simulate dirty buffers during inference
         mock_rvc_pipeline.audio_buffer = np.ones(16384, dtype=float) * 999.0
-        mock_rvc_pipeline.prev_vol = 123.0
         mock_rvc_pipeline.is_gate_open = False
         return np.zeros(100, dtype=float)
 
@@ -58,7 +57,6 @@ def test_warmup_invokes_run_with_synthetic_audio(mock_rvc_pipeline: RVCPipeline)
 
     # Verify that buffers were fully reset after warmup
     assert np.all(mock_rvc_pipeline.audio_buffer == 0.0)
-    assert mock_rvc_pipeline.prev_vol == 0
     assert mock_rvc_pipeline.is_gate_open is True
     assert mock_rvc_pipeline.noise_gate_below_threshold_samples == 0
 

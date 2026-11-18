@@ -148,15 +148,6 @@ def detect_windows_gpus() -> list[GPUInfo]:
     return gpu_list
 
 
-def resolve_directml_provider(
-    device_id: int, available_providers: list[str]
-) -> tuple[list[str], list[dict[str, Any]]] | None:
-    """Resolve DmlExecutionProvider if applicable, or None if not supported."""
-    if device_id >= 0 and "DmlExecutionProvider" in available_providers:
-        return (["DmlExecutionProvider"], [{"device_id": device_id}])
-    return None
-
-
 def resolve_dml_device_provider(
     device: DeviceConfig,
 ) -> tuple[list[str], list[dict[str, Any]]]:

@@ -9,8 +9,6 @@ from .pitch_estimator import PitchEstimator
 
 
 class PitchEstimatorManager:
-    current_pitch_estimator: PitchEstimator | None = None
-
     @classmethod
     def get_pitch_estimator(
         cls,
@@ -21,8 +19,7 @@ class PitchEstimatorManager:
     ) -> PitchEstimator:
         target = device if device is not None else (device_id if device_id is not None else 0)
         try:
-            cls.current_pitch_estimator = cls.load_pitch_estimator(pitch_estimator_type, target)
-            return cls.current_pitch_estimator
+            return cls.load_pitch_estimator(pitch_estimator_type, target)
         except Exception as e:
             raise RuntimeError(e)
 

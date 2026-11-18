@@ -18,62 +18,6 @@ class PerformanceData(BaseModel):
     output_volume_db: float = 0
     data_num: int = Field(default=0, alias="dataNum")
 
-    @property
-    def inputBufferSize(self) -> float:
-        return self.input_buffer_size
-
-    @inputBufferSize.setter
-    def inputBufferSize(self, val: float) -> None:
-        self.input_buffer_size = val
-
-    @property
-    def inputSize(self) -> float:
-        return self.input_size
-
-    @inputSize.setter
-    def inputSize(self, val: float) -> None:
-        self.input_size = val
-
-    @property
-    def inputSec(self) -> float:
-        return self.input_sec
-
-    @inputSec.setter
-    def inputSec(self, val: float) -> None:
-        self.input_sec = val
-
-    @property
-    def outputSize(self) -> float:
-        return self.output_size
-
-    @outputSize.setter
-    def outputSize(self, val: float) -> None:
-        self.output_size = val
-
-    @property
-    def outputSec(self) -> float:
-        return self.output_sec
-
-    @outputSec.setter
-    def outputSec(self, val: float) -> None:
-        self.output_sec = val
-
-    @property
-    def elapsedTime(self) -> float:
-        return self.elapsed_time
-
-    @elapsedTime.setter
-    def elapsedTime(self, val: float) -> None:
-        self.elapsed_time = val
-
-    @property
-    def dataNum(self) -> int:
-        return self.data_num
-
-    @dataNum.setter
-    def dataNum(self, val: int) -> None:
-        self.data_num = val
-
 
 class AudioDevice(BaseModel):
     kind: AudioDeviceType = "audioinput"

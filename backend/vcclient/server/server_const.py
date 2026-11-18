@@ -1,12 +1,6 @@
 import sys
 from pathlib import Path
 
-from pydantic import BaseModel
-
-
-class VoiceChangerParams(BaseModel):
-    vc_model_dir: str
-
 
 def get_frontend_path() -> Path:
     if getattr(sys, "frozen", False):

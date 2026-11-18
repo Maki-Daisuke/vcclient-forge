@@ -33,7 +33,7 @@ import sounddevice as sd
 
 from vcclient.app_status import is_app_stopping, stop_app, wait_for_stop
 from vcclient.const import VERSION
-from vcclient.device import reload_gpu_devices
+from vcclient.device import reload_device_catalog
 from vcclient.initializer import (
     _check_and_convert_legacy_pth_models,
     _check_and_download_initial_samples,
@@ -79,7 +79,7 @@ def start_server(
     if is_app_stopping():
         return
 
-    reload_gpu_devices()
+    reload_device_catalog()
     reload_audio_devices()
     if first_start and _select_initial_compute_device():
         ConfigurationManager.get_instance().save_voice_changer_configuration()

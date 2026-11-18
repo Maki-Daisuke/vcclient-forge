@@ -1,5 +1,4 @@
 import math
-from typing import Any, cast
 
 import numpy as np
 import torch
@@ -7,7 +6,6 @@ from torch import nn
 from torch.nn import Conv1d, ConvTranspose1d
 from torch.nn import functional as F
 from torch.nn.utils.parametrizations import weight_norm
-from torch.nn.utils.parametrize import remove_parametrizations
 
 from .attentions import Encoder
 from .commons import init_weights, sequence_mask
@@ -58,18 +56,6 @@ class TextEncoder(nn.Module):
         return m, logs, x_mask
 
 
-def TextEncoder256(*args: Any, **kwargs: Any) -> TextEncoder:
-    kw = dict(kwargs)
-    kw["emb_channels"] = 256
-    return TextEncoder(*args, **kw)
-
-
-def TextEncoder768(*args: Any, **kwargs: Any) -> TextEncoder:
-    kw = dict(kwargs)
-    kw["emb_channels"] = 768
-    return TextEncoder(*args, **kw)
-
-
 class ResidualCouplingBlock(nn.Module):
     def __init__(
         self,
@@ -114,10 +100,6 @@ class ResidualCouplingBlock(nn.Module):
                 x = flow(x, x_mask, g=g, reverse=reverse)
         return x
 
-    def remove_weight_norm(self):
-        for i in range(self.n_flows):
-            cast(Any, self.flows[i * 2]).remove_weight_norm()
-
 
 class PosteriorEncoder(nn.Module):
     def __init__(
@@ -157,9 +139,6 @@ class PosteriorEncoder(nn.Module):
         m, logs = torch.split(stats, self.out_channels, dim=1)
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
-
-    def remove_weight_norm(self):
-        self.enc.remove_weight_norm()
 
 
 class Generator(torch.nn.Module):
@@ -207,27 +186,6 @@ class Generator(torch.nn.Module):
         if gin_channels != 0:
             self.cond = nn.Conv1d(gin_channels, upsample_initial_channel, 1)
 
-        # Compute the minimum size required for estimating real-time speech conversion.
-        self.realtime = False
-        if resblock != "1":
-            self.realtime = True
-            self.ups_size = [0 for _ in range(len(self.ups))]
-            # conv_post
-            self.ups_size[-1] += 3
-
-            for i in range(len(self.ups) - 1, -1, -1):
-                for k, d in zip(resblock_kernel_sizes[::-1], resblock_dilation_sizes[::-1]):
-                    # conv2
-                    self.ups_size[i] += (k - 1) // 2
-                    # conv1
-                    self.ups_size[i] += d[-1] * (k - 1) // 2
-                # upsampling
-                self.ups_size[i] = (
-                    -(-self.ups_size[i] // upsample_rates[i]) + (upsample_kernel_sizes[i] - upsample_rates[i]) // 2
-                )
-                if i:
-                    self.ups_size[i - 1] = self.ups_size[i] + 0
-
     def forward(self, x, g=None):
         x = self.conv_pre(x)
         if g is not None:
@@ -249,42 +207,6 @@ class Generator(torch.nn.Module):
         x = torch.tanh(x)
 
         return x
-
-    def infer_realtime(self, x, g=None, convert_length=None):
-        out_length = x.shape[2] * np.prod(self.upsample_rates)
-        if convert_length is None:
-            convert_length = x.shape[2] * np.prod(self.upsample_rates)
-
-        x = self.conv_pre(x)
-        if g is not None:
-            x = x + self.cond(g)
-
-        for i in range(self.num_upsamples):
-            if self.realtime:
-                x = x[:, :, -self.ups_size[i] + (-convert_length // np.prod(self.upsample_rates[i:])) :]
-            x = F.leaky_relu(x, LRELU_SLOPE)
-            x = self.ups[i](x)
-
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
-                else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
-            assert xs is not None
-            x = xs / self.num_kernels
-        x = F.leaky_relu(x)
-        x = self.conv_post(x)
-        x = torch.tanh(x)
-        out = torch.zeros([x.shape[0], 1, out_length], device=x.device, dtype=x.dtype)
-        out[:, :, -x.shape[2] :] = x[:, :, -out.shape[2] :]
-        return out
-
-    def remove_weight_norm(self):
-        for layer in self.ups:
-            remove_parametrizations(layer, "weight")
-        for rb in self.resblocks:
-            cast(Any, rb).remove_weight_norm()
 
 
 class SineGen(torch.nn.Module):
@@ -483,31 +405,6 @@ class GeneratorNSF(torch.nn.Module):
 
         self.upp = np.prod(upsample_rates)
 
-        # Compute the minimum size required for estimating real-time speech conversion.
-        self.realtime = False
-        if resblock != "1":
-            self.realtime = True
-            self.ups_size = [0 for _ in range(len(self.ups))]
-            self.noise_conv_size = [0 for _ in range(len(self.ups))]
-            # conv_post
-            self.ups_size[-1] += 3
-
-            for i in range(len(self.ups) - 1, -1, -1):
-                for k, d in zip(resblock_kernel_sizes[::-1], resblock_dilation_sizes[::-1]):
-                    # conv2
-                    self.ups_size[i] += (k - 1) // 2
-                    # conv1
-                    self.ups_size[i] += d[-1] * (k - 1) // 2
-                # noise_conv
-                self.noise_conv_size[i] = self.ups_size[i] * np.prod(upsample_rates[i:])
-                # upsampling
-
-                self.ups_size[i] = (
-                    -(-self.ups_size[i] // upsample_rates[i]) + (upsample_kernel_sizes[i] - upsample_rates[i]) // 2
-                )
-                if i:
-                    self.ups_size[i - 1] = self.ups_size[i] + 0
-
     def forward(self, x, f0, g=None):
         har_source, noi_source, uv = self.m_source(f0, self.upp)
         har_source = har_source.transpose(1, 2)
@@ -533,58 +430,6 @@ class GeneratorNSF(torch.nn.Module):
         x = self.conv_post(x)
         x = torch.tanh(x)
         return x
-
-    def infer_realtime(self, x, f0, g=None, convert_length=None):
-        out_length = x.shape[2] * np.prod(self.upsample_rates)
-        if convert_length is None:
-            convert_length = x.shape[2] * np.prod(self.upsample_rates)
-
-        har_source, noi_source, uv = self.m_source(f0, self.upp)
-        har_source = har_source.transpose(1, 2)
-        x = self.conv_pre(x)
-        if g is not None:
-            x = x + self.cond(g)
-
-        for i in range(self.num_upsamples):
-            if self.realtime:
-                x = x[:, :, -self.ups_size[i] + (-convert_length // np.prod(self.upsample_rates[i:])) :]
-            x = F.leaky_relu(x, LRELU_SLOPE)
-            x_ = self.ups[i](x)
-            x_source = self.noise_convs[i](har_source[:, :, -convert_length - self.noise_conv_size[i] :])
-            x = torch.zeros(
-                [x_.shape[0], x_.shape[1], max(x_.shape[2], x_source.shape[2])], device=x.device, dtype=x.dtype
-            )
-            x[:, :, -x_.shape[2] :] += x_
-            x[:, :, -x_source.shape[2] :] += x_source
-
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i * self.num_kernels + j](x)
-                else:
-                    xs += self.resblocks[i * self.num_kernels + j](x)
-            assert xs is not None
-            x = xs / self.num_kernels
-        x = F.leaky_relu(x)
-        x = self.conv_post(x)
-        x = torch.tanh(x)
-        out = torch.zeros([x.shape[0], 1, out_length], device=x.device, dtype=x.dtype)
-        out[:, :, -x.shape[2] :] = x[:, :, -out.shape[2] :]
-
-        return x  # out
-
-    def remove_weight_norm(self):
-        for layer in self.ups:
-            remove_parametrizations(layer, "weight")
-        for rb in self.resblocks:
-            cast(Any, rb).remove_weight_norm()
-
-
-sr2sr = {
-    "32k": 32000,
-    "40k": 40000,
-    "48k": 48000,
-}
 
 
 class SynthesizerTrnF0(nn.Module):

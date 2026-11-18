@@ -1,10 +1,6 @@
 import os
 import shutil
-import stat
-import time
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from vcclient.logger import logger
 
@@ -16,8 +12,6 @@ from ...exception import (
 )
 from ..data_types.slot_manager_data_types import (
     ModelImportParamMember,
-    MoveModelParam,
-    ReservedForSampleModelImportParam,
     ReservedForSampleSlotInfo,
     RVCSlotInfo,
     SetIconParam,
@@ -86,48 +80,6 @@ def reload_slot_infos(model_dir: Path) -> list[SlotInfoMember]:
     return slot_infos
 
 
-def safe_rmtree(target_dir: Path | str, retries: int = 3, delay: float = 0.1) -> None:
-    """Windows の ReadOnly 属性や一時的なファイルロック、POSIX 権限に対応した安全なディレクトリ削除関数。"""
-    p = Path(target_dir)
-    if not p.exists():
-        return
-
-    def _ensure_writable(path: Path | str) -> None:
-        try:
-            p_item = Path(path)
-            if p_item.is_dir():
-                os.chmod(p_item, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
-            else:
-                os.chmod(p_item, stat.S_IWRITE | stat.S_IREAD)
-        except OSError:
-            pass
-
-    def _make_writable_recursively(root: Path) -> None:
-        _ensure_writable(root)
-        try:
-            for item in root.rglob("*"):
-                _ensure_writable(item)
-        except OSError:
-            pass
-
-    def _on_exc(func: Callable[..., Any], exc_path: str, _exc: BaseException) -> None:
-        _ensure_writable(exc_path)
-
-    for attempt in range(retries):
-        try:
-            _make_writable_recursively(p)
-            shutil.rmtree(p, onexc=_on_exc)
-            if not p.exists():
-                return
-        except OSError:
-            pass
-        if attempt < retries - 1:
-            time.sleep(delay)
-
-    if p.exists():
-        shutil.rmtree(p)
-
-
 def validate_slot_index(index: int, param_name: str = "slot_index") -> int:
     """Raise unless index is a valid slot ID; return the validated index."""
     if index < 0 or index >= MAX_SLOT_INDEX:
@@ -187,51 +139,6 @@ class SlotManager:
             )
         logger.info("set new slot: %s", model_import_param)
         import_model(ModelDir, model_import_param, remove_src)
-        self.reload()
-
-    def reserve_slot_for_sample(self, slot_index: int, progress: float = 0) -> None:
-        """
-        サンプル用にスロットを確保する。
-        サンプルのインポートは次の流れを想定している。
-        (1)リザーブ -> (2)ダウンロード -> (3)解放 -> (4)インポートの流れで処理を行う
-        厳密には(3)から(4)にかけてをアトミックにする必要があるが、厳密にはやらない。
-        隙間に入り込まれたら処理が壊れるが、その場合はスロットをデリートすることで対応してもらう。
-
-        ※別の観点で、同じファイル名のサンプルが同時にダウンロードされると、uploadフォルダ内で上書きされてしまうが、それもまずは見てみなふりをする。
-        """
-        validate_slot_index(slot_index)
-        if self.get_slot_info(slot_index).voice_changer_type is not None:
-            raise VCClientError(ERROR_CODE_SLOT_STATE_CONFLICT, f"slot_index:{slot_index} is already occupied.")
-        import_param = ReservedForSampleModelImportParam(
-            voice_changer_type="RESERVED_FOR_SAMPLE",
-            name="RESERVED_FOR_SAMPLE",
-            slot_index=slot_index,
-            progress=progress,
-        )
-        import_model(ModelDir, import_param)
-        self.reload()
-
-    def update_slot_for_sample(self, slot_index: int, progress: float) -> None:
-        slot_info = self.get_slot_info(slot_index)
-        if not isinstance(slot_info, ReservedForSampleSlotInfo):
-            raise VCClientError(
-                ERROR_CODE_SLOT_STATE_CONFLICT,
-                f"slot_index:{slot_index} is not reserved for sample.",
-            )
-        slot_info.progress = progress
-
-    def release_slot_from_reseved_for_sample(self, slot_index: int) -> None:
-        """
-        サンプル用に確保していたスロットを解放する。
-        reserve_new_slot_as_sampleを参照。
-        """
-        self.delete_slot(slot_index)
-
-    def delete_slot(self, slot_index: int) -> None:
-        validate_slot_index(slot_index)
-        slot_dir = ModelDir / str(slot_index)
-        if os.path.exists(slot_dir):
-            safe_rmtree(slot_dir)
         self.reload()
 
     def save_slot_info(self, slot_info: SlotInfoMember) -> None:
@@ -343,25 +250,6 @@ class SlotManager:
                 new_slot_info.icon_file = Path(icons[0].name)
 
         self.save_slot_info(new_slot_info)
-
-    def move_model_slot(self, param: MoveModelParam) -> None:
-        validate_slot_index(param.src, "src")
-        validate_slot_index(param.dst, "dst")
-        if self.get_slot_info(param.dst).voice_changer_type is not None:
-            raise VCClientError(ERROR_CODE_SLOT_STATE_CONFLICT, f"dst:{param.dst} is already occupied.")
-        if self.get_slot_info(param.src).voice_changer_type is None:
-            raise VCClientError(ERROR_CODE_SLOT_STATE_CONFLICT, f"src:{param.src} does not exist.")
-        slot_info = self.get_slot_info(param.src)
-        slot_info.slot_index = param.dst
-        src_path = ModelDir / str(param.src)
-        dst_path = ModelDir / str(param.dst)
-        if os.path.exists(src_path):
-            shutil.move(src_path, dst_path)
-        slot_dir = ModelDir / f"{param.dst}"
-        config_file = slot_dir / SLOT_PARAM_FILE
-        with open(config_file, "w", encoding="utf-8") as f:
-            f.write(slot_info.model_dump_json(indent=4))
-        self.reload()
 
     def set_icon_file(self, param: SetIconParam) -> None:
         validate_slot_index(param.slot_index)

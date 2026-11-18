@@ -11,8 +11,6 @@ from .rvc_inferencer_onnx_nof0 import RVCInferencerOnnxNoF0
 
 
 class InferencerManager:
-    current_inferencer: Inferencer | None = None
-
     @classmethod
     def get_inferencer(
         cls,
@@ -27,7 +25,7 @@ class InferencerManager:
     ) -> Inferencer:
         target = device if device is not None else (device_id if device_id is not None else 0)
         try:
-            cls.current_inferencer = cls.load_inferencer(
+            return cls.load_inferencer(
                 inferencer_type,
                 model_path,
                 target,
@@ -35,7 +33,6 @@ class InferencerManager:
                 target_frames=target_frames,
                 sample_rate=sample_rate,
             )
-            return cls.current_inferencer
         except Exception as e:
             raise RuntimeError(e)
 

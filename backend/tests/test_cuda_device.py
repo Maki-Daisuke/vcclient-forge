@@ -5,7 +5,6 @@ from vcclient.device.providers import cuda as cuda_module
 from vcclient.device.providers.cuda import (
     detect_nvidia_gpus,
     is_cuda_available,
-    resolve_cuda_provider,
 )
 
 
@@ -30,19 +29,6 @@ def test_detect_nvidia_gpus_respects_cuda_availability(monkeypatch: pytest.Monke
     # Mocking ort.get_ep_devices or letting it run
     gpus = detect_nvidia_gpus()
     assert isinstance(gpus, list)
-
-
-def test_resolve_cuda_provider():
-    # CUDA available
-    res = resolve_cuda_provider(0, gpu_num=1, available_providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-    assert res is not None
-    providers, opts = res
-    assert providers == ["CUDAExecutionProvider"]
-    assert opts == [{"device_id": 0}]
-
-    # CUDA unavailable
-    res_none = resolve_cuda_provider(0, gpu_num=1, available_providers=["CPUExecutionProvider"])
-    assert res_none is None
 
 
 def test_detect_nvidia_gpus_handles_na_vram(monkeypatch: pytest.MonkeyPatch):

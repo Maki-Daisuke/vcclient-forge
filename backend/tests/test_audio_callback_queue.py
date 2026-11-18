@@ -298,9 +298,3 @@ def test_audio_input_callback_tops_up_partial_preroll_shortfall_only(
     assert all(np.all(block == 0) for block in monitor_blocks[:expected_total_silent_blocks])
     np.testing.assert_array_equal(main_blocks[-1], resumed_chunk)
     np.testing.assert_array_equal(monitor_blocks[-1], resumed_chunk)
-
-    interface.output_preroll_needed = False
-    interface.monitor_preroll_needed = False
-    interface.truncate_output_buffer()
-    assert interface.output_preroll_needed is True
-    assert interface.monitor_preroll_needed is True

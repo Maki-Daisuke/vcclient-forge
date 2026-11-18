@@ -9,7 +9,6 @@ class CrossfadeProcessor:
     crossfade_end: float = 1.0
     np_prev_strength: np.ndarray = np.array([0], dtype=np.float32)
     np_cur_strength: np.ndarray = np.array([0], dtype=np.float32)
-    np_prev_audio: np.ndarray = np.array([0], dtype=np.float32)
     prev_rest_buffer: np.ndarray = np.array([0], dtype=np.float32)
 
     def _generate_strength(self, crossfade_size: int, crossfade_offset: float, crossfade_end: float) -> None:

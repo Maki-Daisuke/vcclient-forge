@@ -17,7 +17,6 @@ class ContentvecOnnx(Embedder):
     model_file: Path
     deviceId: int = 0
     layer: int = 12
-    useFinalProj: bool = True
     candidate_onnx_providers: list[str] = []
     candidate_onnx_provider_options: Any = None
     onnx_session: onnxruntime.InferenceSession
@@ -29,7 +28,6 @@ class ContentvecOnnx(Embedder):
         model_file: Path,
         device: DeviceConfig | int = 0,
         layer: int = 12,
-        use_final_proj: bool = True,
         *,
         device_id: DeviceConfig | int | None = None,
     ) -> Embedder:
@@ -38,7 +36,6 @@ class ContentvecOnnx(Embedder):
         self.model_file = model_file
         self.deviceId = self.device.id
         self.layer = layer
-        self.useFinalProj = use_final_proj
 
         self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
             self.device.create_session(model_file)

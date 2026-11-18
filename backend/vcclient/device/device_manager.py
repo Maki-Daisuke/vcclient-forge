@@ -4,21 +4,13 @@ import platform
 from typing import Any
 
 from vcclient.logger import logger
-from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 from . import providers
 from .data_types import DeviceConfig, DeviceType
 
 # --- Hardware Detection & GPU Device Management ---
 
-_gpu_info: list[GPUInfo] = []
-_cuda_info: list[GPUInfo] = []
-_cuda_available: bool = False
 _device_catalog: list[DeviceConfig] = []
-
-
-def get_driver_and_cuda_version() -> tuple[str | None, str | None]:
-    return providers.cuda.get_driver_and_cuda_version()
 
 
 def reload_device_catalog() -> list[DeviceConfig]:
@@ -134,76 +126,6 @@ def get_device(device_id: int) -> DeviceConfig:
         return catalog[device_id]
     # Negative values (e.g. legacy default -1) or out-of-bounds indices fall back to CPU (Index 0)
     return catalog[0]
-
-
-def resolve_legacy_device_id(legacy_id: int) -> DeviceConfig:
-    """Resolve legacy integer sentinels (-1, 1000) or direct catalog indices to DeviceConfig."""
-    catalog = get_device_catalog()
-    if legacy_id == -1:
-        return catalog[0]
-    if legacy_id == 1000:
-        for dev in catalog:
-            if dev.provider == "openvino":
-                return dev
-        return catalog[0]
-    if 0 <= legacy_id < len(catalog):
-        return catalog[legacy_id]
-    return catalog[0]
-
-
-def reload_gpu_devices() -> list[GPUInfo]:
-    global _gpu_info, _cuda_info, _cuda_available
-    logger.info("Reloading GPU info")
-
-    catalog = reload_device_catalog()
-    _gpu_info = [
-        GPUInfo(
-            name=d.name,
-            device_id=d.canonical_id,
-            adapter_ram=d.adapter_ram,
-            device_id_int=d.id,
-        )
-        for d in catalog
-    ]
-    _cuda_info = [
-        GPUInfo(
-            name=d.name,
-            device_id=d.canonical_id,
-            adapter_ram=d.adapter_ram,
-            device_id_int=d.id,
-        )
-        for d in catalog
-        if d.is_cpu() or d.provider == "cuda"
-    ]
-
-    _cuda_available = is_cuda_available()
-    cuda_driver_version, _ = get_driver_and_cuda_version()
-
-    logger.info("GPU[sys]: %s", _gpu_info)
-    logger.info(
-        "GPU[cuda]: available:%s, num:%s, driver_version:%s",
-        _cuda_available,
-        len(_cuda_info) - 1,
-        cuda_driver_version,
-    )
-    logger.info("GPU[cuda_info]: %s", _cuda_info)
-    return _gpu_info
-
-
-# Alias for backward-compatibility if needed
-reload = reload_gpu_devices
-
-
-def get_gpu_info() -> list[GPUInfo]:
-    if not _gpu_info:
-        reload_gpu_devices()
-    return _gpu_info
-
-
-def get_cuda_info() -> list[GPUInfo]:
-    if not _cuda_info:
-        reload_gpu_devices()
-    return _cuda_info
 
 
 def is_cuda_available() -> bool:

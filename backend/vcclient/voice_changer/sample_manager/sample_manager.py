@@ -7,18 +7,14 @@ import requests
 
 from vcclient.logger import logger
 
-from ...exception import ERROR_CODE_SAMPLE_NOT_FOUND, VCClientError
 from ...server.server_const import UPLOAD_DIR
 from ..data_types.data_types import RVCSampleInfo
-from ..data_types.sample_manager_data_types import SampleDownloadParam, SampleDownloadStatus
+from ..data_types.sample_manager_data_types import SampleDownloadStatus
 from ..data_types.slot_manager_data_types import RVCModelImportParam
 from ..slot_manager.slot_manager import SlotManager
 
 __all__ = [
-    "SampleDownloadParam",
     "download_initial_samples",
-    "download_sample",
-    "get_samples",
 ]
 
 _SAMPLES: list[RVCSampleInfo] = [
@@ -105,10 +101,6 @@ _SAMPLES: list[RVCSampleInfo] = [
 ]
 
 
-def get_samples() -> list[RVCSampleInfo]:
-    return list(_SAMPLES)
-
-
 def _download(
     upload_dir: Path,
     target_sample: RVCSampleInfo,
@@ -142,32 +134,6 @@ def _download(
                 callback(SampleDownloadStatus(id=target_sample.id, status="processing", progress=progress))
 
     callback(SampleDownloadStatus(id=target_sample.id, status="done", progress=1.0))
-
-
-def download_sample(upload_dir: Path, param: SampleDownloadParam) -> None:
-    slot_manager = SlotManager.get_instance()
-    slot_manager.reserve_slot_for_sample(param.slot_index)
-    samples = [x for x in _SAMPLES if x.id == param.sample_id]
-    if len(samples) != 1:
-        raise VCClientError(ERROR_CODE_SAMPLE_NOT_FOUND, f"Sample {param.sample_id} not found.")
-    sample = samples[0]
-
-    def callback(status: SampleDownloadStatus) -> None:
-        logger.debug("Download status: %s", status)
-        slot_manager.update_slot_for_sample(param.slot_index, status.progress)
-
-    _download(upload_dir, sample, callback)
-
-    import_params = RVCModelImportParam(
-        slot_index=param.slot_index,
-        name=sample.name,
-        terms_of_use_url=sample.terms_of_use_url,
-        model_file=upload_dir / sample.model_url.split("/")[-1],
-        index_file=upload_dir / sample.index_url.split("/")[-1] if sample.index_url is not None else None,
-        icon_file=upload_dir / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
-    )
-    slot_manager.release_slot_from_reseved_for_sample(param.slot_index)
-    slot_manager.set_new_slot(import_params)
 
 
 def download_initial_samples(callback: Callable[[list[SampleDownloadStatus]], None] | None = None) -> None:

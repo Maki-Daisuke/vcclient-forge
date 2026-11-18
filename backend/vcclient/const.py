@@ -2,7 +2,6 @@ import json
 import sys
 from pathlib import Path
 
-TERMINATE_FLAG = False
 HERE = Path(__file__).parent.absolute()
 
 
@@ -29,4 +28,3 @@ LOG_FILE = Path("vcclient.log")
 SERVER_IO_RECORDING_FILE_IN = "input.wav"
 SERVER_IO_RECORDING_FILE_OUT = "output.wav"
 SERVER_IO_RECORDING_FILE_MONITOR = "monitor.wav"
-TOAST_TIMEOUT = 0.7

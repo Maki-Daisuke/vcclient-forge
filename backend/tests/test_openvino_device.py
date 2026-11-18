@@ -12,7 +12,7 @@ from onnx import TensorProto, helper, numpy_helper
 from vcclient.device import (
     DeviceConfig,
     find_openvino_ep_device,
-    reload_gpu_devices,
+    reload_device_catalog,
 )
 from vcclient.device import device_manager as dm_module
 from vcclient.device.openvino_patch import (
@@ -228,7 +228,7 @@ def test_device_config_configure_session_options():
     assert so2.graph_optimization_level != ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 
 
-def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
+def test_device_catalog_openvino_device(monkeypatch: pytest.MonkeyPatch):
     # When OpenVINO is available
     mock_ov = [
         DeviceConfig(
@@ -244,17 +244,17 @@ def test_gpu_device_manager_openvino_device(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: True)
     monkeypatch.setattr(dm_module.providers.openvino, "is_openvino_available", lambda: True)
     monkeypatch.setattr(dm_module.providers.openvino, "detect_openvino_devices", lambda: mock_ov)
-    info_list = reload_gpu_devices()
-    canonical_ids = [info.device_id for info in info_list]
+    catalog = reload_device_catalog()
+    canonical_ids = [d.canonical_id for d in catalog]
     assert "openvino:gpu:0" in canonical_ids
-    openvino_info = next(info for info in info_list if info.device_id == "openvino:gpu:0")
-    assert openvino_info.name.startswith("[OpenVINO]")
+    openvino_dev = next(d for d in catalog if d.canonical_id == "openvino:gpu:0")
+    assert openvino_dev.name.startswith("[OpenVINO]")
 
     # When OpenVINO is unavailable
     monkeypatch.setattr(dm_module, "is_openvino_available", lambda: False)
     monkeypatch.setattr(dm_module.providers.openvino, "is_openvino_available", lambda: False)
-    info_list_no_ov = reload_gpu_devices()
-    canonical_ids_no_ov = [info.device_id for info in info_list_no_ov]
+    catalog_no_ov = reload_device_catalog()
+    canonical_ids_no_ov = [d.canonical_id for d in catalog_no_ov]
     assert "openvino:gpu:0" not in canonical_ids_no_ov
 
 

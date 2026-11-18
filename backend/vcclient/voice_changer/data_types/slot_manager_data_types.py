@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -21,11 +20,6 @@ class ModelImportParam(BaseModel):
     icon_file: Path | None = None
 
 
-class ReservedForSampleModelImportParam(ModelImportParam):
-    voice_changer_type: VoiceChangerType = "RESERVED_FOR_SAMPLE"
-    progress: float
-
-
 class RVCModelImportParam(ModelImportParam):
     voice_changer_type: VoiceChangerType = "RVC"
     model_file: Path
@@ -33,7 +27,7 @@ class RVCModelImportParam(ModelImportParam):
     embedder: EmbedderType | None = None
 
 
-ModelImportParamMember = ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam
+ModelImportParamMember = ModelImportParam | RVCModelImportParam
 
 
 class SlotInfo(BaseModel):
@@ -47,11 +41,6 @@ class SlotInfo(BaseModel):
     terms_of_use_url: str = ""
     icon_file: Path | None = None
     speakers: dict = {}
-
-    def update(self, **kwargs: Any) -> None:
-        for key, value in kwargs.items():
-            if key in type(self).model_fields:
-                setattr(self, key, value)
 
 
 class RVCSlotInfo(SlotInfo):
@@ -95,11 +84,6 @@ class ReservedForSampleSlotInfo(SlotInfo):
 
 
 SlotInfoMember = SlotInfo | ReservedForSampleSlotInfo | RVCSlotInfo
-
-
-class MoveModelParam(BaseModel):
-    src: int
-    dst: int
 
 
 class SetIconParam(BaseModel):

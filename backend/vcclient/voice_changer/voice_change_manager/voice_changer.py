@@ -1,6 +1,5 @@
 import threading
 import time
-from collections.abc import Callable
 from queue import Empty, Queue
 
 import numpy as np
@@ -33,7 +32,6 @@ from .vc_pipelines.pipeline_manager import PipelineManager
 from .vc_pipelines.rvc_pipeline import RVCPipeline
 from .vc_pipelines.vc_pipeline import VCPipeline
 
-PerformanceListener = Callable[[PerformanceData], None]
 SILENCE_SKIP_DELAY_SEC = 0.2
 
 
@@ -44,7 +42,6 @@ class VoiceChanger(EventEmitter):
     crossfade_processor: CrossfadeProcessor
     bulk_process: threading.Thread | None
     vc_pipeline: VCPipeline | None
-    performance_listener: PerformanceListener | None
     input_record: list[np.ndarray]
     output_record: list[np.ndarray]
     monitor_record: list[np.ndarray]
@@ -81,18 +78,7 @@ class VoiceChanger(EventEmitter):
     def __init__(self) -> None:
         super().__init__()
         self.initialize()
-        self.performance_listener = None
-        self.currentCrossFadeOffsetRate = 0
-        self.currentCrossFadeEndRate = 0
-        self.currentCrossFadeOverlapSize = 0
-        self.crossfadeSize = 0
         self.realtime_process_status_send_counter = 0
-
-    def set_performance_listener(self, performance_listener: PerformanceListener | None = None) -> None:
-        self.performance_listener = performance_listener
-
-    def remove_performance_listener(self) -> None:
-        self.performance_listener = None
 
     def initialize(self) -> None:
         self.vc_info = VoiceChangerInformation()
@@ -442,13 +428,13 @@ class VoiceChanger(EventEmitter):
                     if converted_waveform is not None:
                         converted_waveforms.append(converted_waveform)
                     if performance_data is not None:
-                        performance_dict = performance_data.model_dump()
+                        performance_dict = performance_data.model_dump(by_alias=False)
                         for k, v in performance_dict.items():
                             setattr(accumulated_performance_data, k, getattr(accumulated_performance_data, k) + v)
                         accumulated_performance_data_num += 1
                 output = np.concatenate(converted_waveforms) if converted_waveforms else None
                 if accumulated_performance_data_num > 0:
-                    for k, v in accumulated_performance_data.model_dump().items():
+                    for k, v in accumulated_performance_data.model_dump(by_alias=False).items():
                         setattr(accumulated_performance_data, k, v / accumulated_performance_data_num)
                     accumulated_performance_data.data_num = accumulated_performance_data_num
                 else:
@@ -564,9 +550,6 @@ class VoiceChanger(EventEmitter):
                     elapsedTime=elapsed_time,
                     dataNum=1,
                 )
-
-                if self.performance_listener is not None:
-                    self.performance_listener(performance_data)
 
                 self.emit("data", ["realtime_process_status", performance_data.model_dump_json()])
 

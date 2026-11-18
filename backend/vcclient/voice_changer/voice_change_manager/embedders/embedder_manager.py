@@ -10,8 +10,6 @@ from .embedder import Embedder
 
 
 class EmbedderManager:
-    current_embedder: Embedder | None = None
-
     @classmethod
     def get_embedder(
         cls,
@@ -22,8 +20,7 @@ class EmbedderManager:
     ) -> Embedder:
         target = device if device is not None else (device_id if device_id is not None else 0)
         try:
-            cls.current_embedder = cls.load_embedder(embedder_type, target)
-            return cls.current_embedder
+            return cls.load_embedder(embedder_type, target)
         except Exception as e:
             logger.error("load embedder failed. %s", e)
             raise RuntimeError(f"{e}")
@@ -42,16 +39,16 @@ class EmbedderManager:
         """
         if embedder_type == "hubert_base_l9fp":
             file = get_module_filepath("contentvec-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 9, True)
+            return ContentvecOnnx().load_model(file, target, 9)
         elif embedder_type == "hubert_base_l12":
             file = get_module_filepath("contentvec-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 12, False)
+            return ContentvecOnnx().load_model(file, target, 12)
         elif embedder_type == "hubert_base_japanese_l9fp":
             file = get_module_filepath("rinna_hubert_base-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 9, True)
+            return ContentvecOnnx().load_model(file, target, 9)
         elif embedder_type == "hubert_base_japanese_l12":
             file = get_module_filepath("rinna_hubert_base-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 12, False)
+            return ContentvecOnnx().load_model(file, target, 12)
         elif embedder_type in (
             "applio_japanese_hubert_base_l12",
             "applio_chinese_hubert_base_l12",

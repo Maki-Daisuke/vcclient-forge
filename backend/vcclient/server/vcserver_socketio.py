@@ -21,11 +21,8 @@ __all__ = [
 
 
 class SocketIONamespace(socketio.AsyncNamespace):
-    sid: int = 0
-
     def __init__(self, namespace: str = "/test") -> None:
         super().__init__(namespace)
-        self.namespace = namespace
         self._subscribe_core_events()
 
     def _subscribe_core_events(self) -> None:
@@ -42,12 +39,10 @@ class SocketIONamespace(socketio.AsyncNamespace):
         asyncio.run(self.emit_to(event, data, to=to))
 
     def on_connect(self, sid: str, environ: dict[str, Any]) -> None:
-        self.sid = int(sid) if isinstance(sid, int) else 0
         logger.info("connect sid: %s", sid)
 
     async def on_request_message(self, sid: str, msg: list[Any]) -> None:
         try:
-            self.sid = int(sid) if isinstance(sid, int) else 0
             timestamp = int(msg[0])
             data = msg[2]
             data_size = len(data) // struct.calcsize("<f")
@@ -65,9 +60,6 @@ class SocketIONamespace(socketio.AsyncNamespace):
         except Exception as e:
             logger.error("Error processing request message: %s", e)
             return None
-
-    def on_disconnect(self, sid: str) -> None:
-        pass
 
 
 def create_socketio_server(allowed_origins: list[str] | None = None) -> socketio.AsyncServer:

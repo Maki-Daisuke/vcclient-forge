@@ -97,7 +97,6 @@ class RVCPipeline(VCPipeline):
             self.feature_buffer = np.zeros((1, 1, 768), dtype=np.float64)
         else:
             self.feature_buffer = np.zeros((1, 1, 256), dtype=np.float64)
-        self.prev_vol = 0
         self.is_gate_open = True
         self.noise_gate_below_threshold_samples = 0
 

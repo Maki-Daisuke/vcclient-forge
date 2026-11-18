@@ -117,10 +117,6 @@ def reload_audio_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
     return (_audio_input_devices, _audio_output_devices)
 
 
-# Alias for backward-compatibility if needed
-reload_device = reload_audio_devices
-
-
 def get_audio_input_devices() -> list[AudioDevice]:
     if not _audio_input_devices and not _audio_output_devices:
         reload_audio_devices()

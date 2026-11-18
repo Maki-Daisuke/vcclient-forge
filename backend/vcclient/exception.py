@@ -8,7 +8,6 @@ ERROR_CODE_LOCAL_MONITOR_DEVICE_SAMPLE_RATE_CHECK_FAILED = 203
 ERROR_CODE_LOCAL_INPUT_DEVICE_CANNOT_BE_NONE = 204
 ERROR_CODE_LOCAL_OUTPUT_DEVICE_CANNOT_BE_NONE = 205
 ERROR_CODE_MODULE_NOT_FOUND = 300
-ERROR_CODE_SAMPLE_NOT_FOUND = 400
 ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED = 500
 ERROR_CODE_RVC_INVALID_CONFIG_LENGTH = 501
 ERROR_CODE_RVC_INVALID_F0_VALUE = 502
@@ -18,17 +17,7 @@ ERROR_CODE_RVC_INVALID_TORCH_MODEL = 505
 ERROR_CODE_RVC_INVALID_ONNX_MODEL = 506
 ERROR_CODE_RVC_INVALID_ONNX_MODEL_VERSION_VALUE = 507
 ERROR_CODE_UNKNOWN_VOICE_CHANGER_TYPE = 508
-ERROR_CODE_RVC_MERGE_FAILED_FIRST_MODEL_NOT_FOUND = 509
-ERROR_CODE_RVC_MERGE_FAILED_MODEL_NOT_FOUND = 510
-ERROR_CODE_RVC_MERGE_FAILED_ALL_MODELS_NOT_SAME = 511
-ERROR_CODE_RVC_MERGE_FAILED_INVALID_PARAM = 512
-ERROR_CODE_RVC_MERGE_FAILED_UNSUPPORTED_MODEL_TYPE = 513
-ERROR_CODE_RVC_MERGE_FAILED_WEIGHT_KEY_IS_NOT_MATCH = 514
-ERROR_CODE_RVC_EXPORT_FAILED_UNSUPPORTED_MODEL_TYPE = 515
-ERROR_CODE_RVC_EXPORT_FAILED_UNSUPPORTED_EMBEDDER_TYPE = 516
-ERROR_CODE_UPDATE_SLOT_INFO_FAILED = 517
 ERROR_CODE_SLOT_INDEX_NOT_FOUND = 518
-ERROR_CODE_NO_BLANK_SLOT = 519
 ERROR_CODE_IMPORT_MODEL_FAILED = 520
 ERROR_CODE_FILENAME_TOO_LONG = 523
 ERROR_CODE_SLOT_STATE_CONFLICT = 524
@@ -67,10 +56,6 @@ ERROR_MESSAGES = {
         "reason": "Module is not found in registered modules.",
         "action": "Please check module status. Or initialize application maybe solve this problem.",
     },
-    ERROR_CODE_SAMPLE_NOT_FOUND: {
-        "reason": "Sample is not found in registered samples.",
-        "action": "Please check sample status. Or initialize application maybe solve this problem.",
-    },
     ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED: {
         "reason": "Failed to estimate RVC model.",
         "action": "Please check model file extension. Model file must be a .pth or .onnx file",
@@ -98,43 +83,10 @@ ERROR_MESSAGES = {
         "reason": "Unknown voice changer type.",
         "action": "Please check the model file.",
     },
-    ERROR_CODE_RVC_MERGE_FAILED_FIRST_MODEL_NOT_FOUND: {
-        "reason": "Failed to merge models. First model is not found.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_RVC_MERGE_FAILED_MODEL_NOT_FOUND: {
-        "reason": "Failed to merge models. Model is not found.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_RVC_MERGE_FAILED_ALL_MODELS_NOT_SAME: {
-        "reason": "Failed to merge models. All models are not same type.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_RVC_MERGE_FAILED_INVALID_PARAM: {
-        "reason": "Failed to merge models. Invalid parameter.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_RVC_MERGE_FAILED_UNSUPPORTED_MODEL_TYPE: {
-        "reason": "Failed to merge models. Unsupported model type.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_RVC_MERGE_FAILED_WEIGHT_KEY_IS_NOT_MATCH: {
-        "reason": "Failed to merge models. Weight key is not match.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_RVC_EXPORT_FAILED_UNSUPPORTED_MODEL_TYPE: {
-        "reason": "Failed to export model. Unsupported model type.",
-        "action": "Please check the selected model files.",
-    },
-    ERROR_CODE_UPDATE_SLOT_INFO_FAILED: {
-        "reason": "Failed to update slot info.",
-        "action": "Internal error. Please contact to support team.",
-    },
     ERROR_CODE_SLOT_INDEX_NOT_FOUND: {
         "reason": "Slot index is not found in registered slots.",
         "action": "Please check slot status. Or initialize application maybe solve this problem.",
     },
-    ERROR_CODE_NO_BLANK_SLOT: {"reason": "No blank slot.", "action": "Please delete some slots."},
     ERROR_CODE_IMPORT_MODEL_FAILED: {"reason": "Failed to import model.", "action": "Please check logs."},
     ERROR_CODE_FILENAME_TOO_LONG: {
         "reason": "Failed to import model because filename is too long.",
