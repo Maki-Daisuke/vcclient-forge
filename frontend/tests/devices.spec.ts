@@ -43,7 +43,9 @@ test('does not reinitialize audio while it is running', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;
   const requests: string[] = [];
-  page.on('request', request => { if (request.url().includes('reload=true')) requests.push(request.url()); });
+  page.on('request', request => {
+    if (request.url().includes('/api/audio-device-manager/') && request.url().includes('reload=true')) requests.push(request.url());
+  });
   await page.goto('/');
   await openControlSections(page);
   await expect(page.getByRole('button', { name: 'デバイス再検出' })).toBeDisabled();
@@ -175,11 +177,12 @@ test('offers legacy devices when Windows has no WASAPI devices', async ({ page }
 });
 
 test('matches sparse IDs and uses output devices for the monitor without requesting a rescan', async ({ page }) => {
-  const requests: string[] = [];
+  const requests: { path: string; search: string }[] = [];
   page.on('request', request => {
     if (request.url().includes('/api/')) {
       expect(request.method()).toBe('GET');
-      requests.push(new URL(request.url()).search);
+      const url = new URL(request.url());
+      requests.push({ path: url.pathname, search: url.search });
     }
   });
   await page.route('**/api/configuration-manager/configuration', route => route.fulfill({
@@ -197,7 +200,7 @@ test('matches sparse IDs and uses output devices for the monitor without request
     else await expect(field).toBeEnabled();
   }
   expect(requests.length).toBeGreaterThanOrEqual(5);
-  expect(requests.every(query => query === '')).toBe(true);
+  expect(requests.filter(({ path }) => path !== '/api/slot-manager/slots').every(({ search }) => search === '')).toBe(true);
 });
 
 test('missing and empty device lists retain configured IDs instead of selecting another device', async ({ page }) => {

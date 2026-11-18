@@ -14,7 +14,7 @@ for (const { value, fraction } of [
 ]) {
   test(`displays chunk duration ${value} s on the logarithmic slider`, async ({ page }) => {
     await mockCatalog(page);
-    await page.route('**/api/slot-manager/slots', route => fulfillCatalog(route, slots.map(slot => slot.slot_index === 7 ? { ...slot, chunk_sec: value } : slot)));
+    await page.route(/\/api\/slot-manager\/slots(?:\?|$)/, route => fulfillCatalog(route, slots.map(slot => slot.slot_index === 7 ? { ...slot, chunk_sec: value } : slot)));
     await page.goto('/');
     await openControlSections(page);
     const slider = page.getByRole('slider', { name: 'チャンクフレーム（秒）', exact: true });

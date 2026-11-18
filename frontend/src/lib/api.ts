@@ -151,7 +151,7 @@ async function getJson(path: string, signal: AbortSignal): Promise<unknown> {
 
 export async function loadModelCatalog(signal: AbortSignal): Promise<ModelCatalog> {
   const [slots, configuration] = await Promise.all([
-    getJson('/api/slot-manager/slots', signal),
+    getJson('/api/slot-manager/slots?reload=true', signal),
     getJson(configurationUrl, signal),
   ]);
   return parseCatalog(slots, configuration);

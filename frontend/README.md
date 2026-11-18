@@ -200,7 +200,7 @@ For example, in PowerShell: `$env:PLAYWRIGHT_CHANNEL = 'msedge'`.
 `src/lib/api.ts` owns REST requests, validates the fields used by the UI, and maps
 backend responses and icon paths to display types in `src/lib/catalog.ts` and
 `src/lib/settings.ts`.
-It reads `/api/slot-manager/slots`, `/api/configuration-manager/configuration`,
+It reads `/api/slot-manager/slots?reload=true`, `/api/configuration-manager/configuration`,
 and `/api/audio-device-manager/{input_devices,output_devices}`. Runtime state and
 start/stop use `/api/local-voice-changer-interface/information` (GET) and
 `/api/local-voice-changer-interface/operation/{start,stop}` (POST).
@@ -225,7 +225,7 @@ browser devices are not enumerated.
 Unavailable fields display `—`; unknown checkbox values use an indeterminate
 state. Browser-only preferences are not provided by these GETs and
 are not populated with guessed defaults. Unconnected controls remain disabled. Reload
-refreshes both the catalog and settings, and failed loads clear previous values.
+refreshes both the catalog (via `reload=true` on the slot list) and settings, and failed loads clear previous values.
 
 `src/lib/ui.svelte.ts` owns per-app language/theme state through Svelte context
 and an i18next instance. It imports the original community dictionaries with

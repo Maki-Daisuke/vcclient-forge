@@ -77,6 +77,26 @@ test('network failure clears old models and reload recovers the current selectio
   await expect(page.locator('.models-panel').getByRole('alert')).toHaveCount(0);
 });
 
+test('requests reload=true when loading and reloading models', async ({ page }) => {
+  const queries: string[] = [];
+  let currentSlots: Record<string, unknown>[] = slots;
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/slot-manager/slots') {
+      queries.push(url.search);
+      return route.fulfill({ json: currentSlots });
+    }
+    return fulfillCatalog(route);
+  });
+  await page.goto('/');
+  await expect(page.locator('.model-card')).toHaveCount(2);
+  expect(queries).toEqual(['?reload=true']);
+  currentSlots = [...slots, { ...slots[2], slot_index: 9, name: 'Test model C' }];
+  await page.getByRole('button', { name: '再読み込み', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Test model C', exact: true })).toBeVisible();
+  expect(queries).toEqual(['?reload=true', '?reload=true']);
+});
+
 for (const invalid of [
   { name: 'HTML in place of JSON', response: { contentType: 'text/html', body: '<html>wrong server</html>' } },
   { name: 'an unexpected list envelope', response: { json: { slots } } },
@@ -84,7 +104,7 @@ for (const invalid of [
   { name: 'duplicate IDs', response: { json: [slots[0], slots[0]] } },
 ]) {
   test(`rejects ${invalid.name}`, async ({ page }) => {
-    await page.route('**/api/**', route => route.request().url().endsWith('/slots')
+    await page.route('**/api/**', route => new URL(route.request().url()).pathname === '/api/slot-manager/slots'
       ? route.fulfill(invalid.response) : fulfillCatalog(route));
     await page.goto('/');
     await expect(page.locator('.models-panel').getByRole('alert')).toContainText('応答形式が想定と異なる');
