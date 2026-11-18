@@ -23,6 +23,7 @@ entries:
   - npu-cpu-hardware-acceleration-and-universal-distribution.md
   - device-config-and-unified-hardware-descriptor.md
   - automatic-crossfade-and-boundary-stitching.md
+  - snapshot-driven-pipeline-and-stateless-control-api.md
 ---
 
 # VCClient Forge Knowledge Base
@@ -86,4 +87,7 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 17. **[Automatic Crossfade & Buffer-Boundary Stitching](./automatic-crossfade-and-boundary-stitching.md)**
     Analyzes why manual crossfade duration configuration (`crossfade_sec`) is eliminated in favor of a fixed pipeline target (`DEFAULT_CROSSFADE_SEC = 0.05`). Explains the acoustic mechanics of SOLA phase alignment, why 50 ms is the sweet spot between sub-50ms artifacts and >50ms non-stationary drift, and how adaptive clamping prevents array broadcast exceptions on short output chunks while maintaining API backward compatibility.
+
+18. **[Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs](./snapshot-driven-pipeline-and-stateless-control-api.md)** *(Planned)*
+    Diagnoses the mixed responsibilities, implicit pipeline rebuilds, thread-safety gaps, and startup-only device probing in the current `ConfigurationManager` and `SlotManager` control flow. Defines the target architecture separating a RESTful snapshot-driven session resource (`GET` / `PUT` / `DELETE .../session`, engine `run(snapshot)` / `stop()` with backend-owned `409 Conflict` policies), pure side-effect-free persistence endpoints retaining compatibility with earlier versions' configuration files (`settings/vc_conf.json`, `model_dir/<slot>/params.json`), and an explicit compute-device auto-selection API ready for concurrent hybrid pipelining.
 

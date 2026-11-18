@@ -40,19 +40,16 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Exit**: A documented end-to-end baseline under continuous streaming and confirmation of remaining legacy cleanup.
 - **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-status-completed).
 
-### 2. Separate Configuration Acceptance, Notification, and Application
+### 2. Separate Conversion Execution, Pure Storage, and Device Selection (Planned Direction)
 
-- Current behavior: when the RVC feature-frame length implied by chunk, extra,
-  automatic crossfade, or SOLA settings changes, the existing configuration check rebuilds
-  the inference pipeline. This prevents reuse of an inference session configured
-  for the previous length; it does not yet provide serialized in-flight updates
-  or a complete stop/restart state-reset contract.
-- Keep `ConfigurationManager` responsible for configuration storage/persistence. Introduce serialized request coordination, validation, coherent snapshots/change classification, and revision-aware requested/applied state.
-- Deliver commands to the owning thread. Apply scalar inference changes at chunk boundaries; coordinate structural changes explicitly and report completion/failure instead of waiting a fixed sleep. Treat recording start/stop as commands.
-- Define input/inference/output lifecycle and audio-format contracts, plus ownership of input context (`extra_chunk`), resampler/filter state, model histories, and crossfade state. Initially allow stop, finish in-flight work, reset affected state, rebuild, and restart.
-- Preserve current serialized settings and workflows until an explicit migration; do not require RxPY, uninterrupted in-flight replacement, or cross-component state transfer for this separation.
-- **Exit**: Settings changes no longer perform device/inference lifecycle work in the storage manager, and ordered application/failure handling has focused tests.
-- **Source**: [Configuration and modularization plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- Current behavior (`v2.0.78-forge.0.3.0`): `PUT` updates to `ConfigurationManager` and `SlotManager` (`PUT /api/slot-manager/slots/{index}`), as well as `GET /api/voice-changer-manager/information`, implicitly call `VoiceChanger.check_and_update_pipeline()` without locking against active conversion threads, while `RVCPipeline.slot_info` reads mutable `SlotManager` state mid-chunk. The Svelte 5 UI guards stopped settings client-side and stages edits until Start, and stages slot edits before `current_slot_index` switches to avoid double pipeline builds.
+- Target architecture (see **[Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs](./snapshot-driven-pipeline-and-stateless-control-api.md)**):
+  - Make conversion execution explicitly **snapshot-driven** across both Server Mode and Client Mode via a RESTful session resource (`GET` / `PUT` / `DELETE .../session`, backed by engine `run(snapshot)` / `stop()`), where `PUT .../session` while active applies live changes or returns `409 Conflict` if rebuilding is required (intentionally omitting a separate `update` endpoint under the single-interactive-client model), with workers consuming immutable active snapshots only.
+  - Keep rebuild-required vs. live-mutable classification strictly on the backend (`409 Conflict` when active topology changes are requested) rather than splitting API schemas along current hardware constraints.
+  - Isolate file persistence (`settings/vc_conf.json` and per-slot `params.json`) as a pure, side-effect-free storage API so clients can preserve configuration-file compatibility with earlier versions and portable upgrades without coupling storage to the conversion engine.
+  - Expose compute-device auto-selection (`_select_initial_compute_device()`) as an explicit stopped-only API to support re-probing and future per-stage accelerator assignment.
+- **Exit**: Settings storage no longer invokes audio/pipeline lifecycle work, active conversion rejects rebuild-requiring diffs with `409 Conflict`, scalar live updates apply via chunk-scoped immutable snapshots, and the session control flow has focused unit/API coverage.
+- **Sources**: [Snapshot-Driven Control Architecture](./snapshot-driven-pipeline-and-stateless-control-api.md), [Audio adapter and routing contracts](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
 ### 3. Complete the Native One-Way, Fixed-Chunk Audio Path
 
@@ -201,7 +198,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - Remaining validation covers long-duration overload/disconnect recovery, buffering bounds across varied browsers, and remote HTTPS/WSS access via user-managed Tailscale Serve (or Wails WebView2 permissions where applicable).
 - **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
 - **Exit**: Browser audio works reliably through Socket.IO, with validated buffering and recovery while preserving existing API compatibility.
-- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
 ### 8. Evaluate Mixed Native/Browser Routing
 
@@ -209,7 +206,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - Define and test independent clock drift, network jitter, conversion, output isolation, and failure/reconnect policies before supporting each combination. Do not infer compatibility from modular interfaces alone.
 - **Depends on**: Proven native and browser adapter paths from items 3 and 7.
 - **Exit**: Explicitly supported combinations pass routing, rate, main/monitor isolation, and discontinuity tests. This is an extension, not a gate for the native release.
-- **Source**: [Routing and monitor contract](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- **Source**: [Routing and monitor contract](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
 ### 9. Optimize Inference: Evaluate Hybrid Pipelining and Boost Mode
 
@@ -273,7 +270,7 @@ CUDA Graph capture is a conditional investigation for the isolated GPU vocoder o
 - **Alternative buffers and stage splitting**: Evaluate rings, custom synchronization, or separate postprocessing only if the bounded-queue baseline exposes a measured bottleneck. No new C++ toolchain solely for a ring wrapper.
 - **Further package reduction**: Measure against the self-contained CUDA archive baseline (1.228 GiB), not against the former environment-dependent package. Wails v3 is the established desktop shell, not a reason to restart completed packaging work.
 
-Sources: [Control and state plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap), [Hardware Acceleration and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
+Sources: [Snapshot-Driven Control Architecture](./snapshot-driven-pipeline-and-stateless-control-api.md), [Audio adapter and routing contracts](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap), [Hardware Acceleration and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
 
 ## 4. Existing Foundations, Not New Roadmap Tasks
 
