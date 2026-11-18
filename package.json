@@ -20,7 +20,7 @@
     "typecheck:backend": "uv run --project backend mypy --config-file backend/pyproject.toml",
     "test:backend": "uv run --project backend mypy --config-file backend/pyproject.toml && uv run --project backend pytest backend/tests",
     "test:desktop": "npm --prefix desktop/frontend run build && cd desktop && go test .",
-    "test": "npm run test:backend && npm run test:desktop",
+    "test": "node scripts/test.js",
     "lint": "uv run --project backend ruff check backend",
     "lint:fix": "uv run --project backend ruff check --fix backend",
     "prepare": "git config core.hooksPath .githooks",

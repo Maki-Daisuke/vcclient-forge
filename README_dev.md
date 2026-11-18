@@ -136,8 +136,9 @@ npm run test:frontend
 
 These tests use mocked APIs and start a preview server on port 5174, which must be
 free. Alternatively, set `PLAYWRIGHT_CHANNEL` to `msedge` or `chrome` to use an
-installed browser. `npm test` does not include frontend tests. See
-[frontend/README.md](frontend/README.md) for the UI's current behavior and implementation details.
+installed browser. `npm test` runs frontend type checks and Playwright tests as well
+(skipping Playwright locally if neither Playwright's Chromium nor `PLAYWRIGHT_CHANNEL` is
+available). See [frontend/README.md](frontend/README.md) for the UI's current behavior and implementation details.
 
 ### Desktop Host (Wails v3)
 
@@ -212,11 +213,16 @@ For an import/startup check without starting a server or downloading models, use
 
 ### Running Tests
 
-Automated tests are divided into backend (type checking + pytest) and desktop suites, with a unified `npm test` runner:
+Automated tests cover frontend (type checking + Playwright browser tests), backend (type checking + pytest), and desktop suites, with a unified `npm test` runner:
 
 ```bash
-# Run all tests (backend typecheck, pytest, and desktop bootstrap):
+# Run all tests (frontend typecheck/Playwright, backend typecheck/pytest, desktop Go):
+# Locally skips Playwright if Chromium is absent and PLAYWRIGHT_CHANNEL is unset.
 npm test
+
+# Run frontend checks or Playwright tests explicitly:
+npm run check:frontend
+npm run test:frontend
 
 # Run backend tests only (mypy type checking + pytest):
 npm run test:backend
@@ -272,7 +278,7 @@ npm run format:check
 
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
-* **`ci.yml`**: Runs frontend checks and Chromium browser tests (on Windows and Ubuntu), Ruff linting, formatting checks, backend tests, desktop tests, Go formatting checks, and the desktop build on pushes and pull requests. The main matrix covers Ubuntu, Windows, and macOS; the CUDA job runs on a self-hosted Linux ARM64 runner.
+* **`ci.yml`**: Runs Ruff linting, Ruff/Go formatting checks, the unified `npm test` suite (frontend checks, Playwright Chromium browser tests, backend `mypy`/`pytest`, and desktop Go tests), and the desktop build on pushes and pull requests. The main matrix covers Ubuntu, Windows, and macOS; the CUDA job runs `npm run test:backend` on a self-hosted Linux ARM64 runner.
 * **`release.yml`**: Builds portable packages for all matrix editions when a version tag (`v*`) is pushed, attaching the archives to GitHub Releases. It can also be started manually from the GitHub Actions **Release Builds** page by selecting a branch, or with `gh workflow run release.yml --ref forge`. A branch run uploads the packages as workflow artifacts without publishing a release; artifacts are retained for seven days.
 
 ---
@@ -307,7 +313,8 @@ vcclient-forge/
 │   ├── build.js                # Invokes component npm tasks without duplicating their commands
 │   ├── build_backend.py        # Builds backend artifacts with PyInstaller
 │   ├── build_package.py        # Validates and packages existing artifacts (sub-2GB target)
-│   └── clean.js                # Workspace cleaning script
+│   ├── clean.js                # Workspace cleaning script
+│   └── test.js                 # Runs frontend, backend, and desktop test suites for npm test
 ├── package.json                # Root task runner (npm start, npm test, etc.)
 └── start.bat / start.sh        # Portable-package executable launchers
 ```

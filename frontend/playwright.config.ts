@@ -6,6 +6,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
+  ...(process.env.CI ? { workers: 2 } : {}),
   use: {
     baseURL,
     ...devices['Desktop Chrome'],

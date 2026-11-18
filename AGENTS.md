@@ -25,7 +25,9 @@ Always run commands from the repository root. Backend Python dependencies and to
 
 | Task                     | Command                                                                    |
 | ------------------------ | -------------------------------------------------------------------------- |
-| Run full test suite      | `npm test`                                                                 |
+| Run full test suite      | `npm test` (skips Playwright locally if Chromium is not installed)         |
+| Run frontend typecheck   | `npm run check:frontend`                                                   |
+| Run frontend browser tests | `npm run test:frontend` (explicit; requires Chromium or `PLAYWRIGHT_CHANNEL`) |
 | Run backend pytest suite | `npm run test:backend`                                                     |
 | Run single test file     | `uv run --project backend pytest backend/tests/test_pipeline_slot_sync.py` |
 | Run desktop tests        | `npm run test:desktop` (or `cd desktop && go test .`)                      |

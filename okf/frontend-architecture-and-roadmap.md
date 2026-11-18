@@ -227,9 +227,9 @@ are stored separately. See the bundled quick-start guide for recovery instructio
 `npm run build:frontend` builds the Svelte 5 UI directly into `frontend/dist` for
 the FastAPI backend, Wails desktop startup, and portable packaging (`npm run package`).
 Legacy `web_front/` and `client/` directories have been removed.
-Type checks (`npm --prefix frontend run check`) and frontend builds run in CI on Windows,
-Linux, and macOS. Playwright browser tests (`npm run test:frontend`, isolated from the live
-backend via `frontend/tests/test-fixtures.ts`) run on Windows and Linux (see `frontend/README.md`).
+Type checks (`npm run check:frontend`), frontend builds, and Playwright browser tests
+(`npm run test:frontend`, isolated from the live backend via `frontend/tests/test-fixtures.ts`)
+run in CI on Windows, Linux, and macOS via `npm test` (see `frontend/README.md`).
 
 The log viewer fetches `/vcclient.log` on request with 2-second auto-refresh without
 mounting another audio session, and the Wails desktop host (`window.vcclientForge.openLogWindow`)

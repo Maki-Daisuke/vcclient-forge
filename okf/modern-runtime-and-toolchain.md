@@ -43,7 +43,7 @@ To bridge developer experience between the Node.js/Web frontend ecosystem and Py
 | Command                  | Action                                                 | Implementation                                                      |
 | ------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------- |
 | `npm start`              | Launch VCClient from source                            | `uv run --project backend python backend/main.py`                   |
-| `npm test`               | Run backend type checks and tests, and desktop tests   | `npm run test:backend && npm run test:desktop`                      |
+| `npm test`               | Run frontend, backend, and desktop tests (skips Playwright locally if Chromium is absent) | `node scripts/test.js`                                              |
 | `npm run lint`           | Lint with Ruff                                         | `uv run --project backend ruff check backend`                       |
 | `npm run lint:fix`       | Auto-fix lints                                         | `uv run --project backend ruff check --fix backend`                 |
 | `npm run format`         | Format backend Python and desktop Go                   | `uv run --project backend ruff format backend && gofmt -w desktop`  |
