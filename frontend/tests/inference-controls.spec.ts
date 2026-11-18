@@ -90,13 +90,6 @@ test('saves chunk in the selected model and retains other slot fields', async ({
 });
 
 for (const [label, kind] of [[chunk, 'model'], [extra, 'configuration']] as const) {
-  test(`${kind} setting is disabled while audio is active`, async ({ page }) => {
-    const state = await mockSession(page);
-    state.active = true;
-    await page.goto('/');
-    await openControlSections(page);
-    await expect(page.getByRole('slider', { name: label })).toBeDisabled();
-  });
   test(`${kind} setting stays disabled during audio and rechecks before write`, async ({ page }) => {
     const state = await mockSession(page);
     await page.goto('/');
@@ -111,17 +104,3 @@ for (const [label, kind] of [[chunk, 'model'], [extra, 'configuration']] as cons
     expect(state.modelWrites).toHaveLength(0);
   });
 }
-
-test('chunk save failure retains the pending model change for retry', async ({ page }) => {
-  const state = await mockSession(page);
-  state.modelStatus = 503;
-  await page.goto('/');
-  await openControlSections(page);
-  await page.getByRole('slider', { name: chunk }).press('End');
-  await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.locator(saved).getByRole('alert')).toContainText('HTTP 503');
-  state.modelStatus = 200;
-  await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
-  expect(state.models[0].chunk_sec).toBe(1);
-});

@@ -50,7 +50,7 @@ class SocketIONamespace(socketio.AsyncNamespace):
             vc = VoiceChanger.get_instance()
             if not vc.is_convert_chunk_bulk_started():
                 vc.start_convert_chunk_bulk()
-            converted_np, _, _ = vc.convert_chunk_bulk(unpacked_data)
+            converted_np, _ = vc.convert_chunk_bulk(unpacked_data)
             if converted_np is None:
                 return None
             data_size = len(converted_np)

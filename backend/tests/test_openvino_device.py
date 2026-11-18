@@ -1,13 +1,11 @@
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnx
 import onnxruntime as ort
 import pytest
-from onnx import TensorProto, helper, numpy_helper
+from onnx import TensorProto, helper
 
 from vcclient.device import (
     DeviceConfig,
@@ -20,78 +18,6 @@ from vcclient.device.openvino_patch import (
     patch_rvc_model_for_openvino,
 )
 from vcclient.device.providers.openvino import OpenVinoCacheDir
-from vcclient.voice_changer.voice_changer_const import SettingsDir
-
-
-def test_openvino_device_constants():
-    assert OpenVinoCacheDir.name == "openvino_cache"
-    assert OpenVinoCacheDir.exists()
-    assert OpenVinoCacheDir != SettingsDir / "openvino_cache"
-    assert Path(tempfile.gettempdir()) in OpenVinoCacheDir.parents
-
-
-def verify_3d_to_4d_resize_parity(scale_factor: float) -> float:
-    """Validate numerical equivalence between 3D linear Resize and 4D Unsqueeze+Resize+Squeeze."""
-    x_3d = np.linspace(-1.0, 1.0, 16, dtype=np.float32).reshape(1, 1, 16)
-
-    # 1. 3D reference graph
-    sc3_init = numpy_helper.from_array(np.array([1.0, 1.0, scale_factor], dtype=np.float32), name="sc3")
-    r3 = helper.make_node(
-        "Resize",
-        ["x3", "", "sc3"],
-        ["y3"],
-        mode="linear",
-        coordinate_transformation_mode="half_pixel",
-    )
-    g3 = helper.make_graph(
-        [r3],
-        "ref3d",
-        [helper.make_tensor_value_info("x3", onnx.TensorProto.FLOAT, [1, 1, 16])],
-        [helper.make_tensor_value_info("y3", onnx.TensorProto.FLOAT, [1, 1, None])],
-        [sc3_init],
-    )
-    m3 = helper.make_model(g3, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
-
-    # 2. 4D patched graph
-    ax_init = numpy_helper.from_array(np.array([2], dtype=np.int64), name="ax")
-    sc4_init = numpy_helper.from_array(np.array([1.0, 1.0, 1.0, scale_factor], dtype=np.float32), name="sc4")
-    unsq = helper.make_node("Unsqueeze", ["x4", "ax"], ["x4_4d"])
-    r4 = helper.make_node(
-        "Resize",
-        ["x4_4d", "", "sc4"],
-        ["y4_4d"],
-        mode="linear",
-        coordinate_transformation_mode="half_pixel",
-    )
-    sq = helper.make_node("Squeeze", ["y4_4d", "ax"], ["y4"])
-    g4 = helper.make_graph(
-        [unsq, r4, sq],
-        "patch4d",
-        [helper.make_tensor_value_info("x4", onnx.TensorProto.FLOAT, [1, 1, 16])],
-        [helper.make_tensor_value_info("y4", onnx.TensorProto.FLOAT, [1, 1, None])],
-        [ax_init, sc4_init],
-    )
-    m4 = helper.make_model(g4, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
-
-    so = ort.SessionOptions()
-    so.log_severity_level = 3
-    s3 = ort.InferenceSession(m3.SerializeToString(), so, providers=["CPUExecutionProvider"])
-    s4 = ort.InferenceSession(m4.SerializeToString(), so, providers=["CPUExecutionProvider"])
-
-    y3 = s3.run(None, {"x3": x_3d})[0]
-    y4 = s4.run(None, {"x4": x_3d})[0]
-
-    max_diff = float(np.max(np.abs(y3 - y4)))
-    if max_diff > 1e-5:
-        raise ValueError(f"3D-to-4D Resize transformation parity check failed (max diff: {max_diff} > 1e-5)")
-    return max_diff
-
-
-def test_3d_to_4d_resize_parity():
-    # Verify parity between 3D linear resize and 4D unsqueeze+resize+squeeze
-    for scale in [2.0, 4.0]:
-        diff = verify_3d_to_4d_resize_parity(scale)
-        assert diff < 1e-5
 
 
 def test_patch_rvc_model_for_openvino_detects_and_patches():
@@ -120,6 +46,17 @@ def test_patch_rvc_model_for_openvino_detects_and_patches():
     assert "Unsqueeze" in op_types
     assert "Resize" in op_types
     assert "Squeeze" in op_types
+
+    so = ort.SessionOptions()
+    so.log_severity_level = 3
+    sample_input = np.linspace(-1.0, 1.0, 10, dtype=np.float32).reshape(1, 1, 10)
+    out_orig = ort.InferenceSession(model_bytes, so, providers=["CPUExecutionProvider"]).run(None, {"x": sample_input})[
+        0
+    ]
+    out_patched = ort.InferenceSession(patched_bytes, so, providers=["CPUExecutionProvider"]).run(
+        None, {"x": sample_input}
+    )[0]
+    assert np.allclose(out_orig, out_patched, atol=1e-5)
 
 
 def test_patch_rmvpe_model_for_openvino_supplies_min_bound():

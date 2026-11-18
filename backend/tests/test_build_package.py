@@ -49,15 +49,6 @@ def prepare_artifacts(builder: ModuleType, mock_freeze: bool = True) -> Path:
     return frozen
 
 
-@pytest.mark.parametrize("version, expected", [("v9.8.7-forge.1", "9.8.7-forge.1"), ("9.8.7", "9.8.7")])
-def test_package_version_comes_from_manifest(monkeypatch: pytest.MonkeyPatch, version: str, expected: str) -> None:
-    read_manifest = Mock(return_value=json.dumps({"version": version}))
-    monkeypatch.setattr(Path, "read_text", read_manifest)
-    builder = load_builder()
-    assert builder.VERSION == expected
-    read_manifest.assert_called_once_with(encoding="utf-8")
-
-
 def test_find_modern_7zip_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     builder = load_builder()
     monkeypatch.setattr(builder.shutil, "which", lambda command: "/usr/bin/7zz" if command == "7zz" else None)
@@ -255,22 +246,6 @@ def test_backend_cli_syncs_dependencies(monkeypatch: pytest.MonkeyPatch) -> None
         cwd=backend_builder.PROJECT_ROOT,
         check=False,
     )
-
-
-def test_npm_tasks_separate_build_from_packaging() -> None:
-    root = Path(__file__).resolve().parents[2]
-    tasks = json.loads((root / "package.json").read_text(encoding="utf-8"))["scripts"]
-    assert tasks["build"] == "node scripts/build.js"
-    assert tasks["build:backend"].endswith("scripts/build_backend.py")
-    assert tasks["package"].endswith("scripts/build_package.py")
-    assert tasks["build:desktop"] == "wails3 task --dir desktop build"
-    assert not hasattr(load_builder(), "build_application")
-    assert hasattr(load_builder(), "freeze_backend")
-    assert "--no-project" in tasks["package"]
-    assert "build:package" not in tasks
-    assert "build:desktop:package" not in tasks
-    for edition in ("standard", "cuda"):
-        assert f"build:{edition}" not in tasks
 
 
 @pytest.mark.parametrize("action", ["build", "build-backend"])

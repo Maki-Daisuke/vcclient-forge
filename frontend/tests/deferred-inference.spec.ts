@@ -50,6 +50,33 @@ test('keeps staged edits when saving at start fails', async ({ page }) => {
   expect(state.models[0].chunk_sec).toBe(1);
 });
 
+test('retains staged configuration after a failed start and applies it on retry', async ({ page }) => {
+  const state = await mockSession(page);
+  state.putStatus = 503;
+  await page.goto('/');
+  await openControlSections(page);
+  const device = page.getByLabel('優先デバイス');
+  const extra = page.getByRole('slider', { name: 'Extraフレーム（秒）' });
+  await device.selectOption('1');
+  await extra.press('End');
+  expect(state.writes).toHaveLength(0);
+
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('HTTP 503');
+  expect(state.active).toBe(false);
+  expect(state.operations).not.toContain('start');
+  expect(state.config.gpu_device_id_int).toBe(2);
+  expect(state.config.extra_frame_sec).toBe(0.68);
+  await expect(device).toHaveValue('1');
+  await expect(extra).toHaveAttribute('aria-valuetext', '2 s');
+
+  state.putStatus = 200;
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  expect(state.config.gpu_device_id_int).toBe(1);
+  expect(state.config.extra_frame_sec).toBe(2);
+});
+
 test('applies staged settings for multiple models without losing the selected model', async ({ page }) => {
   const state = await mockSession(page);
   await page.goto('/');

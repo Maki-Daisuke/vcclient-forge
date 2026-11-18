@@ -13,48 +13,28 @@ from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface i
 )
 
 
-def test_audio_output_callback_zero_fills_when_queue_empty(monkeypatch):
-    """Verify that audio_output_callback fills outdata with zeros and returns immediately
-
-    when the output queue is empty.
-    """
+@pytest.mark.parametrize(
+    ("queue_attr", "callback_name"),
+    [("out_queue", "audio_output_callback"), ("monitor_queue", "audio_monitor_callback")],
+)
+def test_audio_playback_callback_zero_fills_when_queue_empty(monkeypatch, queue_attr: str, callback_name: str):
+    """Verify that playback callbacks fill outdata with zeros and return immediately when the queue is empty."""
     ConfigurationManager.get_instance()
     interface = LocalVoiceChangerInterface.get_instance()
     empty_queue = Queue()
-    monkeypatch.setattr(interface, "out_queue", empty_queue)
+    monkeypatch.setattr(interface, queue_attr, empty_queue)
     monkeypatch.setattr(interface, "split_length", 1)
 
     # Initialize outdata with non-zero garbage values
     outdata = np.full((480, 2), 999.0, dtype=np.float32)
 
     start = time.perf_counter()
-    interface.audio_output_callback(outdata, 480, None, None)
+    getattr(interface, callback_name)(outdata, 480, None, None)
     elapsed = time.perf_counter() - start
 
     # Must be non-blocking (much less than the old 100ms timeout)
     assert elapsed < 0.05
     # Must be filled with zeros (silence)
-    assert np.all(outdata == 0)
-
-
-def test_audio_monitor_callback_zero_fills_when_queue_empty(monkeypatch):
-    """Verify that audio_monitor_callback fills outdata with zeros and returns immediately
-
-    when the monitor queue is empty.
-    """
-    ConfigurationManager.get_instance()
-    interface = LocalVoiceChangerInterface.get_instance()
-    empty_queue = Queue()
-    monkeypatch.setattr(interface, "monitor_queue", empty_queue)
-    monkeypatch.setattr(interface, "split_length", 1)
-
-    outdata = np.full((480, 2), 999.0, dtype=np.float32)
-
-    start = time.perf_counter()
-    interface.audio_monitor_callback(outdata, 480, None, None)
-    elapsed = time.perf_counter() - start
-
-    assert elapsed < 0.05
     assert np.all(outdata == 0)
 
 
@@ -79,8 +59,12 @@ def test_audio_output_callback_copies_data_when_available(monkeypatch):
     assert np.allclose(outdata[:, 1], 0.5)
 
 
-def test_audio_output_callback_truncation_is_bounded(monkeypatch):
-    """Verify that truncation loop is bounded by initial qsize and does not run infinitely
+@pytest.mark.parametrize(
+    ("queue_attr", "callback_name"),
+    [("out_queue", "audio_output_callback"), ("monitor_queue", "audio_monitor_callback")],
+)
+def test_audio_playback_callback_truncation_is_bounded(monkeypatch, queue_attr: str, callback_name: str):
+    """Verify that playback truncation loop is bounded by initial qsize and does not run infinitely
 
     even if items are continuously pushed during reading.
     """
@@ -92,7 +76,7 @@ def test_audio_output_callback_truncation_is_bounded(monkeypatch):
     for _ in range(8):
         q.put(dummy_wav)
 
-    monkeypatch.setattr(interface, "out_queue", q)
+    monkeypatch.setattr(interface, queue_attr, q)
     monkeypatch.setattr(interface, "split_length", 1)
 
     # Wrap get_nowait to inject new items during truncation
@@ -108,38 +92,9 @@ def test_audio_output_callback_truncation_is_bounded(monkeypatch):
     monkeypatch.setattr(q, "get_nowait", injecting_get_nowait)
 
     outdata = np.zeros((480, 2), dtype=np.float32)
-    interface.audio_output_callback(outdata, 480, None, None)
+    getattr(interface, callback_name)(outdata, 480, None, None)
 
     # Must process exactly the initial 8 items, NOT loop forever or process injected items
-    assert get_count == 8
-
-
-def test_audio_monitor_callback_truncation_is_bounded(monkeypatch):
-    """Verify that monitor truncation loop is bounded by initial qsize."""
-    interface = LocalVoiceChangerInterface.get_instance()
-    q = Queue()
-    dummy_wav = np.full(480, 0.5, dtype=np.float32)
-
-    for _ in range(8):
-        q.put(dummy_wav)
-
-    monkeypatch.setattr(interface, "monitor_queue", q)
-    monkeypatch.setattr(interface, "split_length", 1)
-
-    original_get_nowait = q.get_nowait
-    get_count = 0
-
-    def injecting_get_nowait():
-        nonlocal get_count
-        get_count += 1
-        q.put(dummy_wav)
-        return original_get_nowait()
-
-    monkeypatch.setattr(q, "get_nowait", injecting_get_nowait)
-
-    outdata = np.zeros((480, 2), dtype=np.float32)
-    interface.audio_monitor_callback(outdata, 480, None, None)
-
     assert get_count == 8
 
 
@@ -183,10 +138,10 @@ def test_audio_input_callback_inserts_relative_preroll_on_start_and_silence_resu
     resumed_chunk = np.full(block_size, 0.5, dtype=np.float32)
     responses = iter(
         [
-            (speech_chunk, speech_chunk, None),
-            (silent_chunk, silent_chunk, None),
-            (None, None, None),
-            (resumed_chunk, resumed_chunk, None),
+            (speech_chunk, speech_chunk),
+            (silent_chunk, silent_chunk),
+            (None, None),
+            (resumed_chunk, resumed_chunk),
         ]
     )
     interface.vc.convert_chunk_bulk = lambda _indata: next(responses)
@@ -227,10 +182,10 @@ def test_audio_input_callback_skips_preroll_during_mid_speech_underrun(monkeypat
     chunk_c = np.full(block_size, 0.6, dtype=np.float32)
     responses = iter(
         [
-            (chunk_a, chunk_a, None),
-            (None, None, None),
-            (chunk_b, chunk_b, None),
-            (chunk_c, chunk_c, None),
+            (chunk_a, chunk_a),
+            (None, None),
+            (chunk_b, chunk_b),
+            (chunk_c, chunk_c),
         ]
     )
     interface.vc.convert_chunk_bulk = lambda _indata: next(responses)
@@ -272,9 +227,9 @@ def test_audio_input_callback_tops_up_partial_preroll_shortfall_only(
     resumed_chunk = np.full(block_size, 0.75, dtype=np.float32)
     responses = iter(
         [
-            (speech_chunk, speech_chunk, None),
-            (silent_chunk, silent_chunk, None),
-            (resumed_chunk, resumed_chunk, None),
+            (speech_chunk, speech_chunk),
+            (silent_chunk, silent_chunk),
+            (resumed_chunk, resumed_chunk),
         ]
     )
     interface.vc.convert_chunk_bulk = lambda _indata: next(responses)

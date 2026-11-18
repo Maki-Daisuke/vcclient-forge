@@ -6,7 +6,7 @@ export type { Page, Route, WebSocketRoute } from '@playwright/test';
 export const test = base.extend({
   context: async ({ context }, use) => {
     const unmocked: string[] = [];
-    const backendPath = /^\/(?:api|model_dir|tmp|upload_dir|socket\.io)(?:\/|$)|^\/(?:input|output|monitor)\.wav$|^\/vcclient\.log$/;
+    const backendPath = /^\/(?:api|model_dir|socket\.io)(?:\/|$)|^\/output\.wav$|^\/vcclient\.log$/;
     await context.route(url => backendPath.test(url.pathname), async route => {
       unmocked.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
       await route.abort('blockedbyclient');

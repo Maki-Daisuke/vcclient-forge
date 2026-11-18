@@ -119,22 +119,3 @@ def test_pipeline_run_zero_crossfade_returns_finite_audio_4000_samples():
     finally:
         conf.volume_tuning_type = original_tuning
         conf.sola_search_frame_sec = original_sola
-
-
-def test_python_slice_zero_trap_demonstration():
-    """Document and demonstrate why crop_end must be None instead of 0 for negative offsets.
-
-    In Python, arr[-4000:0] means slicing from index -4000 up to index 0 (the start of the array),
-    which produces an empty slice arr[0:0] with length 0.
-    np.mean([]) evaluates to np.nan with a RuntimeWarning, which corrupts sqrt(input_volume) to NaN.
-    Using arr[-4000:None] correctly slices from -4000 to the end of the array.
-    """
-    arr = np.ones(10000, dtype=np.float32)
-    # The buggy slicing:
-    buggy_slice = arr[-4000:0]
-    assert buggy_slice.size == 0
-
-    # The fixed slicing:
-    fixed_slice = arr[-4000:None]
-    assert fixed_slice.size == 4000
-    assert np.all(fixed_slice == 1.0)

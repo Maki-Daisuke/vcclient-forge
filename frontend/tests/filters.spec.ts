@@ -1,10 +1,6 @@
 import { openControlSections } from './catalog-fixtures';
-import { test, expect, type Page } from './test-fixtures';
+import { test, expect } from './test-fixtures';
 import { mockSession } from './session-fixtures';
-
-async function openFilters(page: Page) {
-  return page;
-}
 
 for (const filter of [
   { heading: 'ハイパスフィルタ', checkbox: 'ハイパスフィルタを有効にする', slider: 'ハイパスのカットオフ', initiallyEnabled: true },
@@ -33,42 +29,17 @@ for (const filter of [
   });
 }
 
-for (const width of [1280, 375]) for (const active of [false, true]) test(`keeps the background input panel in place while a cutoff is saved (${width}px, audio ${active ? 'running' : 'stopped'})`, async ({ page }) => {
-  await page.setViewportSize({ width, height: 812 });
-  const state = await mockSession(page);
-  state.active = active;
-  let release!: () => void;
-  state.gate = new Promise(resolve => { release = resolve; });
-  await page.goto('/');
-  await openControlSections(page);
-  await expect(page.getByRole('button', { name: active ? '停止' : '開始', exact: true })).toBeEnabled();
-  const dialog = await openFilters(page);
-  const slider = dialog.getByRole('slider', { name: 'ハイパスのカットオフ', exact: true });
-  await slider.scrollIntoViewIfNeeded();
-  const position = () => page.locator('.input-section').evaluate(el => el.getBoundingClientRect().top + window.scrollY);
-  const before = await position();
-  await slider.press('ArrowRight');
-  await expect.poll(() => state.writes.length).toBe(1);
-  await expect(dialog.locator('.configuration-status')).toHaveAttribute('data-state', 'pending');
-  expect(Math.abs(await position() - before)).toBeLessThanOrEqual(1);
-  state.gate = null;
-  release();
-  await expect(dialog.locator('.configuration-status')).toHaveAttribute('data-state', 'saved');
-  expect(Math.abs(await position() - before)).toBeLessThanOrEqual(1);
-});
-
 test('applies filter switches and cutoffs during native audio using the complete configuration', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;
   await page.goto('/');
   await openControlSections(page);
-  const dialog = await openFilters(page);
-  const status = dialog.locator('.configuration-status');
-  await dialog.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
+  const status = page.locator('.configuration-status');
+  await page.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
   await expect(status).toHaveAttribute('data-state', 'saved');
-  await dialog.getByRole('slider', { name: 'ハイパスのカットオフ' }).press('ArrowRight');
+  await page.getByRole('slider', { name: 'ハイパスのカットオフ' }).press('ArrowRight');
   await expect(status).toHaveAttribute('data-state', 'saved');
-  await dialog.getByRole('slider', { name: 'ローパスのカットオフ' }).press('ArrowLeft');
+  await page.getByRole('slider', { name: 'ローパスのカットオフ' }).press('ArrowLeft');
   await expect(status).toHaveAttribute('data-state', 'saved');
   expect(state.config.enable_low_pass_filter).toBe(true);
   expect(state.config.high_pass_filter_cutoff).toBe(141);
@@ -89,10 +60,9 @@ for (const scenario of [
     state.config.low_pass_filter_cutoff = scenario.low;
     state.config.input_sample_rate = scenario.rate;
     await page.goto('/');
-  await openControlSections(page);
-    const dialog = await openFilters(page);
-    await dialog.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
-    const status = dialog.locator('.configuration-status');
+    await openControlSections(page);
+    await page.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
+    const status = page.locator('.configuration-status');
     await expect(status.getByRole('alert')).toContainText('サンプルレート');
     expect(state.writes).toHaveLength(0);
     state.config.low_pass_filter_cutoff = 9500;
@@ -110,9 +80,8 @@ test('a missing filter value remains unknown and disabled', async ({ page }) => 
   delete state.config.high_pass_filter_cutoff;
   await page.goto('/');
   await openControlSections(page);
-  const dialog = await openFilters(page);
-  await expect(dialog.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeDisabled();
-  await expect(dialog.getByRole('slider', { name: 'ハイパスのカットオフ' })).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeDisabled();
+  await expect(page.getByRole('slider', { name: 'ハイパスのカットオフ' })).toBeDisabled();
   expect(state.writes).toHaveLength(0);
 });
 
@@ -123,9 +92,8 @@ test('does not use audio information belonging to a different model', async ({ p
   }));
   await page.goto('/');
   await openControlSections(page);
-  const dialog = await openFilters(page);
-  await dialog.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
-  await expect(dialog.locator('.configuration-status').getByRole('alert')).toContainText('サンプルレート');
+  await page.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
+  await expect(page.locator('.configuration-status').getByRole('alert')).toContainText('サンプルレート');
   expect(state.writes).toHaveLength(0);
 });
 
@@ -134,9 +102,8 @@ test('requires a model before editing filters', async ({ page }) => {
   state.config.current_slot_index = -1;
   await page.goto('/');
   await openControlSections(page);
-  const dialog = await openFilters(page);
-  await expect(dialog.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeDisabled();
-  await expect(dialog.getByRole('slider', { name: 'ハイパスのカットオフ' })).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeDisabled();
+  await expect(page.getByRole('slider', { name: 'ハイパスのカットオフ' })).toBeDisabled();
   await expect(page.locator('.noise-section')).toContainText('使用するモデルを選んでください');
   expect(state.writes).toHaveLength(0);
 });

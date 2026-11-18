@@ -26,7 +26,7 @@ def recorder(tmp_path, monkeypatch):
     vc.output_sample_rate = 48000
     vc.monitor_sample_rate = 44100
     pipeline = MagicMock()
-    pipeline.get_chunk_sec.return_value = 0.1
+    pipeline.get_chunk_sec.return_value = 16 / 48000
     pipeline.get_input_bitdepth.return_value = np.float32
     pipeline.get_output_bitdepth.return_value = np.float32
     pipeline.needs_crossfade.return_value = False
@@ -52,7 +52,7 @@ def test_recording_preserves_input_and_output_across_passthrough_changes(recorde
     for index, passthrough in enumerate(modes, start=1):
         monkeypatch.setattr(conf, "pass_through", passthrough)
         chunk = np.full(16, index / 10, dtype=np.float32)
-        vc._convert_chunk(chunk, direct_from_server=True)
+        vc._convert_chunk(chunk)
         expected_input.append(chunk)
         expected_output.append(chunk if passthrough else chunk * 0.5)
     vc.stop_recording()
@@ -71,7 +71,7 @@ def test_int16_input_preserves_audio_level_across_passthrough_changes(recorder, 
     vc.start_recording()
     for passthrough in (True, False, True):
         monkeypatch.setattr(conf, "pass_through", passthrough)
-        vc._convert_chunk(chunk, direct_from_server=True)
+        vc._convert_chunk(chunk)
     vc.stop_recording()
     _, output = wavfile.read(path / "OUT.wav")
     np.testing.assert_allclose(output, np.concatenate([np.full(16, level) for level in (0.5, 0.25, 0.5)]))
@@ -79,6 +79,7 @@ def test_int16_input_preserves_audio_level_across_passthrough_changes(recorder, 
 
 def test_recording_armed_before_worker_starts_records_passthrough(recorder, monkeypatch):
     vc, conf, path = recorder
+    vc.vc_pipeline.get_chunk_sec.return_value = 0.1
     monkeypatch.setattr(conf, "pass_through", True)
     monkeypatch.setattr(conf, "realtime_process_status_enabled", False)
     monkeypatch.setattr(vc, "check_and_update_pipeline", lambda: None)
@@ -91,13 +92,32 @@ def test_recording_armed_before_worker_starts_records_passthrough(recorder, monk
     try:
         chunk = np.full(4800, 0.25, dtype=np.float32)
         vc.convert_chunk_bulk(chunk)
-        output, _ = vc.convert_chunk_bulk_queue_out.get(timeout=5)
+        output = vc.convert_chunk_bulk_queue_out.get(timeout=5)
         np.testing.assert_array_equal(output, chunk)
     finally:
         vc.stop_convert_chunk_bulk()
     vc.stop_recording()
     _, saved = wavfile.read(path / "OUT.wav")
     np.testing.assert_array_equal(saved, chunk)
+
+
+@pytest.mark.parametrize("passthrough", [True, False])
+def test_records_accumulate_only_while_recording_is_active(recorder, monkeypatch, passthrough):
+    vc, conf, _ = recorder
+    monkeypatch.setattr(conf, "pass_through", passthrough)
+    vc.vc_info.monitor_enabled = True
+    vc.vc_info.recording_start_flag = False
+    vc.input_record, vc.output_record, vc.monitor_record = [], [], []
+    chunk = np.zeros(16, dtype=np.float32)
+
+    for _ in range(3):
+        vc._convert_chunk(chunk)
+    assert (len(vc.input_record), len(vc.output_record), len(vc.monitor_record)) == (0, 0, 0)
+
+    vc.start_recording()
+    for _ in range(3):
+        vc._convert_chunk(chunk)
+    assert (len(vc.input_record), len(vc.output_record), len(vc.monitor_record)) == (3, 3, 3)
 
 
 @pytest.mark.parametrize("monitor_enabled", [False, True])

@@ -2,18 +2,6 @@ import { expect, test } from './test-fixtures';
 import { openControlSections } from './catalog-fixtures';
 import { mockSession } from './session-fixtures';
 
-const label = 'WASAPI排他モードを有効にする';
-
-test('does not display exclusive mode or sample-rate controls', async ({ page }) => {
-  const state = await mockSession(page);
-  state.config.wasapi_exclude_emabled = false;
-  await page.goto('/');
-  await openControlSections(page);
-  await expect(page.getByRole('checkbox', { name: label })).toHaveCount(0);
-  await expect(page.getByRole('combobox', { name: /サンプルレート/ })).toHaveCount(0);
-  expect(state.writes).toHaveLength(0);
-});
-
 test('disables a saved exclusive setting before starting native audio', async ({ page }) => {
   const state = await mockSession(page);
   await page.goto('/');

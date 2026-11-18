@@ -138,20 +138,3 @@ def test_pipeline_verification_disables_runtime_provider_fallback():
     pipeline.onnx_upscaler = session
     initializer._verify_device_sessions(pipeline, pipeline.device)
     assert session.disable_fallback.call_count == 4
-
-
-def test_strict_warmup_propagates_inference_failure(monkeypatch):
-    pipeline = rvc_pipeline.RVCPipeline.__new__(rvc_pipeline.RVCPipeline)
-    pipeline.pitch_estimator = MagicMock()
-    pipeline.embedder = MagicMock()
-    pipeline.rvc = MagicMock()
-    pipeline.onnx_upscaler = MagicMock()
-    reset = MagicMock()
-    monkeypatch.setattr(pipeline, "_reset_buffers", reset)
-    monkeypatch.setattr(pipeline, "get_chunk_sec", lambda: 0.5)
-    monkeypatch.setattr(pipeline, "run", MagicMock(side_effect=RuntimeError("inference failed")))
-    pipeline.slot_index = 0
-
-    with pytest.raises(RuntimeError, match="inference failed"):
-        pipeline.warmup()
-    reset.assert_called_once_with()

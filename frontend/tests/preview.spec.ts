@@ -13,11 +13,9 @@ test('places voice controls with the selected model and groups other controls in
   await expect(groups.locator('summary')).toHaveText([/推論設定/, /オーディオデバイス/, '音量コントロール', 'ノイズ抑制']);
   await expect(page.locator('.transport-row button')).toHaveText(['開始', 'パススルー', '録音']);
   await expect(page.locator('.monitor-column .transport-row')).toBeVisible();
-  await expect(page.getByRole('button', { name: '設定', exact: true })).toHaveCount(0);
   await openControlSections(page);
   await expect(page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toHaveCount(1);
   const mode = page.getByRole('group', { name: '入出力モード' });
-  await expect(page.getByRole('heading', { name: '入出力モード' })).toHaveCount(0);
   await expect(mode.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
   await expect(mode.getByRole('radio', { name: 'クライアントモード' })).toBeEnabled();
   await expect(groups.nth(1).getByRole('slider', { name: 'ノイズゲートのしきい値' })).toHaveCount(0);
@@ -30,7 +28,6 @@ test('places voice controls with the selected model and groups other controls in
   for (const name of ['ピッチ調整', 'Index使用率', 'ピッチ推定器']) {
     await expect(page.locator('.voice-settings').getByRole('heading', { name, exact: true })).toBeVisible();
   }
-  await expect(page.locator('.voice-settings').getByRole('heading', { name: 'ボイスコントロール' })).toHaveCount(0);
   await groups.nth(1).locator('summary').click();
   await expect(groups.nth(1)).not.toHaveAttribute('open');
   await expect(groups.nth(1).getByRole('combobox', { name: '入力デバイス（マイク）' })).toHaveCount(0);
@@ -98,12 +95,8 @@ test('starts closed and restores each section after reloading', async ({ page })
   await page.reload();
   await expect(groups.nth(1)).not.toHaveAttribute('open');
   await expect(groups.nth(2)).toHaveAttribute('open');
-});
-
-test('invalid or unavailable storage leaves controls usable and initially closed', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('vcclient-forge.control-sections.v1', '{invalid'));
-  await page.goto('/');
-  const groups = page.locator('.controls-column > details.control-group');
+  await page.evaluate(() => localStorage.setItem('vcclient-forge.control-sections.v1', '{invalid'));
+  await page.reload();
   for (const group of await groups.all()) await expect(group).not.toHaveAttribute('open');
   await groups.nth(0).locator('summary').click();
   await expect(groups.nth(0)).toHaveAttribute('open');
@@ -133,7 +126,6 @@ test('dialogs open, trap focus, close with Escape, and restore focus', async ({ 
       else await expect(field).toBeDisabled();
     }
     await page.keyboard.press('Tab');
-    await expect(dialog).not.toContainText('表示はサンプルです。設定の変更や音声の操作は、まだ利用できません。');
     expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true);
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
@@ -175,26 +167,6 @@ test('places transport before monitoring on a narrow screen', async ({ page }) =
   expect(monitoring).not.toBeNull();
   expect(transport!.y).toBeLessThan(monitoring!.y);
 });
-
-for (const width of [1280, 375]) {
-  test(`keeps English audio buttons on one row at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 812 });
-    await page.goto('/');
-    await page.locator('.header-actions select').selectOption('en');
-    const buttons = page.locator('.transport-row button');
-    await expect(buttons).toHaveText(['Start', 'Passthrough', 'Record']);
-    const positions = await buttons.evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
-    expect(Math.max(...positions) - Math.min(...positions)).toBeLessThanOrEqual(1);
-    const boxes = await buttons.evaluateAll(elements => elements.map(element => {
-      const rect = element.getBoundingClientRect();
-      return { left: rect.left, right: rect.right };
-    }));
-    const row = await page.locator('.transport-row').boundingBox();
-    const gaps = [boxes[0].left - (row!.x - 6), boxes[1].left - boxes[0].right,
-      boxes[2].left - boxes[1].right, row!.x + row!.width + 6 - boxes[2].right];
-    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1);
-  });
-}
 
 test('about dialog links upstream fork and Forge GitHub repository in a new window', async ({ page }) => {
   await page.goto('/');

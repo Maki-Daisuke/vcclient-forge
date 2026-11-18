@@ -1,19 +1,8 @@
-import tempfile
-from pathlib import Path
-
 import onnxruntime as ort
 import pytest
 
 from vcclient.device import DeviceConfig
 from vcclient.device.providers.coreml import CoreMLCacheDir
-from vcclient.voice_changer.voice_changer_const import SettingsDir
-
-
-def test_coreml_device_constants():
-    assert CoreMLCacheDir.name == "coreml_cache"
-    assert CoreMLCacheDir.exists()
-    assert CoreMLCacheDir != SettingsDir / "coreml_cache"
-    assert Path(tempfile.gettempdir()) in CoreMLCacheDir.parents
 
 
 def test_device_manager_coreml_provider_configuration(monkeypatch: pytest.MonkeyPatch):

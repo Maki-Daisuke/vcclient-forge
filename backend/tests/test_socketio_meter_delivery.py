@@ -15,19 +15,18 @@ from vcclient.voice_changer.event_emitter import EventEmitter
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("bulk_flag", [True, False])
-async def test_audio_request_returns_bulk_conversion_to_sender(monkeypatch, bulk_flag):
+async def test_audio_request_returns_bulk_conversion_to_sender(monkeypatch):
     voice = MagicMock()
     voice.is_convert_chunk_bulk_started.return_value = False
     expected_audio = np.array([0.25, -0.5], dtype=np.float32)
-    voice.convert_chunk_bulk.return_value = (expected_audio, None, None)
+    voice.convert_chunk_bulk.return_value = (expected_audio, None)
     monkeypatch.setattr(vcserver_socketio.VoiceChanger, "get_instance", lambda: voice)
     monkeypatch.setattr(vcserver_socketio.LocalVoiceChangerInterface, "get_instance", EventEmitter)
     namespace = vcserver_socketio.SocketIONamespace("/test")
     namespace.emit = AsyncMock()
 
     input_audio = np.array([0.5, -0.25], dtype=np.float32)
-    await namespace.on_request_message("client-id", [123, bulk_flag, input_audio.tobytes()])
+    await namespace.on_request_message("client-id", [123, True, input_audio.tobytes()])
 
     voice.start_convert_chunk_bulk.assert_called_once_with()
     np.testing.assert_array_equal(voice.convert_chunk_bulk.call_args.args[0], input_audio)
@@ -38,7 +37,7 @@ async def test_audio_request_returns_bulk_conversion_to_sender(monkeypatch, bulk
 async def test_audio_request_without_converted_output_sends_no_response(monkeypatch):
     voice = MagicMock()
     voice.is_convert_chunk_bulk_started.return_value = True
-    voice.convert_chunk_bulk.return_value = (None, None, None)
+    voice.convert_chunk_bulk.return_value = (None, None)
     monkeypatch.setattr(vcserver_socketio.VoiceChanger, "get_instance", lambda: voice)
     monkeypatch.setattr(vcserver_socketio.LocalVoiceChangerInterface, "get_instance", EventEmitter)
     namespace = vcserver_socketio.SocketIONamespace("/test")
@@ -76,7 +75,6 @@ async def test_meter_event_from_audio_thread_reaches_socketio_client(monkeypatch
             await ws.send("40/test,")
             assert (await asyncio.wait_for(ws.recv(), 3)).startswith("40/test,")
             data = ["realtime_output_status", json.dumps({"inputRms": 0.25, "outputRms": 0.5})]
-            await asyncio.to_thread(audio.emit, "perf", "{}")
             await asyncio.to_thread(audio.emit, "data", data)
             message = await asyncio.wait_for(ws.recv(), 3)
             assert message.startswith("42/test,")

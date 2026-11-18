@@ -369,8 +369,8 @@ class VoiceChanger(EventEmitter):
 
     waveform_rest: np.ndarray = np.array([])
     convert_chunk_bulk_queue_in: Queue[np.ndarray] = Queue()
-    convert_chunk_bulk_queue_out: Queue[tuple[np.ndarray | None, PerformanceData | None]] = Queue()
-    convert_chunk_bulk_queue_monitor: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
+    convert_chunk_bulk_queue_out: Queue[np.ndarray] = Queue()
+    convert_chunk_bulk_queue_monitor: Queue[np.ndarray] = Queue()
 
     def is_convert_chunk_bulk_started(self) -> bool:
         return self.vc_info.bulk_process_start_flag
@@ -394,13 +394,11 @@ class VoiceChanger(EventEmitter):
             self.bulk_process.join()
             return None
 
-    def convert_chunk_bulk(
-        self, waveform: np.ndarray
-    ) -> tuple[np.ndarray | None, np.ndarray | None, PerformanceData | None]:
+    def convert_chunk_bulk(self, waveform: np.ndarray) -> tuple[np.ndarray | None, np.ndarray | None]:
         try:
             if self.vc_info.bulk_process_start_flag is False:
                 logger.debug("bulk conversion process is not started.")
-                return (None, None, None)
+                return (None, None)
             if self.waveform_rest.dtype != waveform.dtype:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)
             self.waveform_rest = np.concatenate([self.waveform_rest, waveform])
@@ -418,44 +416,25 @@ class VoiceChanger(EventEmitter):
             out_ready_size = self.convert_chunk_bulk_queue_out.qsize()
             if out_ready_size == 0:
                 output = None
-                accumulated_performance_data = None
             else:
-                converted_waveforms = []
-                accumulated_performance_data = PerformanceData()
-                accumulated_performance_data_num = 0
-                for _i in range(out_ready_size):
-                    converted_waveform, performance_data = self.convert_chunk_bulk_queue_out.get()
-                    if converted_waveform is not None:
-                        converted_waveforms.append(converted_waveform)
-                    if performance_data is not None:
-                        performance_dict = performance_data.model_dump(by_alias=False)
-                        for k, v in performance_dict.items():
-                            setattr(accumulated_performance_data, k, getattr(accumulated_performance_data, k) + v)
-                        accumulated_performance_data_num += 1
-                output = np.concatenate(converted_waveforms) if converted_waveforms else None
-                if accumulated_performance_data_num > 0:
-                    for k, v in accumulated_performance_data.model_dump(by_alias=False).items():
-                        setattr(accumulated_performance_data, k, v / accumulated_performance_data_num)
-                    accumulated_performance_data.data_num = accumulated_performance_data_num
-                else:
-                    accumulated_performance_data = None
+                converted_waveforms = [self.convert_chunk_bulk_queue_out.get() for _i in range(out_ready_size)]
+                output = np.concatenate(converted_waveforms)
 
             if self.vc_info.monitor_enabled is True:
                 monitor_ready_size = self.convert_chunk_bulk_queue_monitor.qsize()
                 if monitor_ready_size == 0:
                     monitor = None
                 else:
-                    monitor_waveforms = []
-                    for _i in range(monitor_ready_size):
-                        converted_waveform, _ = self.convert_chunk_bulk_queue_monitor.get()
-                        monitor_waveforms.append(converted_waveform)
+                    monitor_waveforms = [
+                        self.convert_chunk_bulk_queue_monitor.get() for _i in range(monitor_ready_size)
+                    ]
                     monitor = np.concatenate(monitor_waveforms)
             else:
                 monitor = None
 
             if self.vc_info.monitor_enabled is False:
-                return (output, None, accumulated_performance_data)
-            return (output, monitor, accumulated_performance_data)
+                return (output, None)
+            return (output, monitor)
         except Exception as e:
             logger.warning("Failed to convert_chunk_bulk: %s", e, exc_info=True)
             raise e
@@ -472,36 +451,31 @@ class VoiceChanger(EventEmitter):
                     self.convert_chunk_bulk_queue_monitor = Queue()
                     return None
                 w = self.convert_chunk_bulk_queue_in.get(timeout=0.5)
-                converted, converted_for_monitor, performance_data = self.convert_chunk(w)
+                converted, converted_for_monitor = self.convert_chunk(w)
                 silence_delay_samples = round(self.input_sample_rate * SILENCE_SKIP_DELAY_SEC)
                 if np.any(converted):
                     silent_input_samples = 0
-                    self.convert_chunk_bulk_queue_out.put((converted, performance_data))
+                    self.convert_chunk_bulk_queue_out.put(converted)
                 else:
                     if silent_input_samples < silence_delay_samples:
-                        self.convert_chunk_bulk_queue_out.put((converted, performance_data))
-                    elif performance_data is not None:
-                        # Keep performance notifications without queueing silent audio.
-                        self.convert_chunk_bulk_queue_out.put((None, performance_data))
+                        self.convert_chunk_bulk_queue_out.put(converted)
                     silent_input_samples += len(w)
 
                 if converted_for_monitor is None:
                     monitor_silent_input_samples = 0
                 elif np.any(converted_for_monitor):
                     monitor_silent_input_samples = 0
-                    self.convert_chunk_bulk_queue_monitor.put((converted_for_monitor, performance_data))
+                    self.convert_chunk_bulk_queue_monitor.put(converted_for_monitor)
                 else:
                     if monitor_silent_input_samples < silence_delay_samples:
-                        self.convert_chunk_bulk_queue_monitor.put((converted_for_monitor, performance_data))
+                        self.convert_chunk_bulk_queue_monitor.put(converted_for_monitor)
                     monitor_silent_input_samples += len(w)
             except Empty:
                 pass
             except Exception as e:
                 logger.warning("Failed to convert_chunk_bulk_internal: %s", e, exc_info=True)
 
-    def convert_chunk(
-        self, waveform: np.ndarray, direct_from_server: bool | None = None
-    ) -> tuple[np.ndarray, np.ndarray | None, PerformanceData | None]:
+    def convert_chunk(self, waveform: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         """Convert waveform.
 
         Args:
@@ -519,7 +493,7 @@ class VoiceChanger(EventEmitter):
             if self.realtime_process_status_send_counter >= conf.realtime_process_status_send_interval_sec / chunk_sec:
                 self.realtime_process_status_send_counter = 0
                 start_time = time.time()
-                (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
+                (output, monitor) = self._convert_chunk(waveform)
                 end_time = time.time()
                 elapsed_time = round(end_time - start_time, 3)
                 input_size = len(waveform)
@@ -553,17 +527,15 @@ class VoiceChanger(EventEmitter):
 
                 self.emit("data", ["realtime_process_status", performance_data.model_dump_json()])
 
-                return (output, monitor, performance_data)
+                return (output, monitor)
 
-            (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
-            return (output, monitor, None)
+            (output, monitor) = self._convert_chunk(waveform)
+            return (output, monitor)
 
-        (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
-        return (output, monitor, None)
+        (output, monitor) = self._convert_chunk(waveform)
+        return (output, monitor)
 
-    def _convert_chunk(
-        self, waveform: np.ndarray, direct_from_server: bool | None = None
-    ) -> tuple[np.ndarray, np.ndarray | None]:
+    def _convert_chunk(self, waveform: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         """Convert waveform.
 
         Args:
@@ -597,12 +569,8 @@ class VoiceChanger(EventEmitter):
         vc_output_bitdepth = pipeline.get_output_bitdepth()
         vc_needs_crossfade = pipeline.needs_crossfade()
 
-        if direct_from_server is True:
-            input_size = int(self.vc_info.resample_ratio_in * waveform.shape[0])
-            output_size = int((input_size / self.vc_info.vc_input_sample_rate) * self.vc_info.vc_output_sample_rate)
-        else:
-            input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
-            output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
+        input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
+        output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
 
         input_data_type = waveform.dtype
         if vc_input_bitdepth == np.int16 and waveform.dtype != np.int16:

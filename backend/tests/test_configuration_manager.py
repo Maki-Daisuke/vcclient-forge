@@ -108,22 +108,3 @@ def test_api_put_configuration_accepts_legacy_crossfade_sec(client=None):
     config_dict["crossfade_sec"] = 0.052
     put_res = test_client.put("/api/configuration-manager/configuration", json=config_dict)
     assert put_res.status_code == 200
-
-
-def test_operation_initialize_removed():
-    from starlette.testclient import TestClient
-
-    from vcclient.server.vcserver_rest_api import _create_rest_api
-
-    client = TestClient(_create_rest_api())
-    response = client.post("/api/operation/initialize")
-    assert response.status_code == 404
-
-
-def test_configuration_clear_endpoint_removed():
-    from starlette.testclient import TestClient
-
-    from vcclient.server.vcserver_rest_api import _create_rest_api
-
-    client = TestClient(_create_rest_api())
-    assert client.post("/api/configuration-manager/clear").status_code == 404

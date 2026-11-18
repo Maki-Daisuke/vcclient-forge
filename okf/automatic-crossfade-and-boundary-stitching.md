@@ -13,7 +13,7 @@ Exposing this parameter as an unconstrained user setting created three operation
    - Although the overlap region is included in each chunk's inference window (`RVCPipeline._generate_inputs`), on parallel hardware (GPUs, NPUs, and SIMD CPUs) the sequence length difference of $\le 50\text{ ms}$ ($\le 800$ samples at 16 kHz) has a negligible effect on per-chunk inference execution time.
 
 2. **Buffer Overrun and Shape Mismatches on Short Output Chunks**:
-   In `VoiceChanger._convert_chunk`, when `direct_from_server=True`, `output_size` is derived from the incoming `waveform.shape[0]` rather than the slot's nominal `vc_chunk_sec`. Earlier Socket.IO and REST streaming paths used this direct mode; the current Socket.IO handler uses bulk conversion and the REST streaming endpoints have been removed. Previously, `real_crossfade_sec` was clamped only against `vc_chunk_sec` (`min(vc_chunk_sec, conf.crossfade_sec)`), and integer truncation vs. rounding could also allow `crossfade_frame` to exceed `output_size`. When `crossfade_size > output_audio_size`, array slicing in `CrossfadeProcessor.apply` attempted to broadcast buffers of incompatible shapes, raising unhandled exceptions (`ValueError: operands could not be broadcast together with shapes`).
+   In legacy `VoiceChanger._convert_chunk` direct-streaming mode (`direct_from_server=True`, since removed along with the legacy REST streaming endpoints), `output_size` was derived from the incoming `waveform.shape[0]` rather than the slot's nominal `vc_chunk_sec`. Previously, `real_crossfade_sec` was clamped only against `vc_chunk_sec` (`min(vc_chunk_sec, conf.crossfade_sec)`), and integer truncation vs. rounding could also allow `crossfade_frame` to exceed `output_size`. When `crossfade_size > output_audio_size`, array slicing in `CrossfadeProcessor.apply` attempted to broadcast buffers of incompatible shapes, raising unhandled exceptions (`ValueError: operands could not be broadcast together with shapes`).
 
 3. **UI Consolidation**:
    In the Svelte 5 UI (`frontend/`), the user control for `crossfade_sec` is omitted from the control panels, and the legacy Classic (`v2.0.78`) and Modern (`v2.1.4`) `web_front/` bundles have been removed.
@@ -89,7 +89,7 @@ Forge removes `crossfade_sec` from user-facing configuration and fixes the pipel
    `RVCPipeline.warmup` and `RVCPipeline._calculate_target_feats_length` in `backend/vcclient/voice_changer/voice_change_manager/vc_pipelines/rvc_pipeline.py` reference `DEFAULT_CROSSFADE_SEC` directly (`min(chunk_sec, DEFAULT_CROSSFADE_SEC)`), removing runtime configuration coupling during ONNX session initialization and static/bounded shape calculation.
 
 4. **Dynamic Clamping in `VoiceChanger._convert_chunk`**:
-   In `backend/vcclient/voice_changer/voice_change_manager/voice_changer.py`, the runtime calculates the effective chunk duration from the actual output sample count (`output_size`), covering both bulk queue chunks (`vc_chunk_sec`) and arbitrary-length `direct_from_server=True` buffers:
+   In `backend/vcclient/voice_changer/voice_change_manager/voice_changer.py`, the runtime calculates the effective chunk duration from the actual output sample count (`output_size`), deriving the duration from `output_size` (or falling back to `vc_chunk_sec`):
    ```python
    if hasattr(self, "vc_info") and self.vc_info.vc_output_sample_rate > 0 and output_size > 0:
        actual_chunk_sec = output_size / self.vc_info.vc_output_sample_rate

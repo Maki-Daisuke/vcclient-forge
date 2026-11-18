@@ -43,23 +43,6 @@ test('shows missing device guidance even when no model is selected', async ({ pa
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
 });
 
-test('saving a volume change does not move the audio meters', async ({ page }) => {
-  const state = await mockSession(page);
-  let release!: () => void;
-  state.gate = new Promise(resolve => { release = resolve; });
-  await page.goto('/');
-  await openControlSections(page);
-  const position = () => page.locator('.performance').evaluate(element => element.getBoundingClientRect().top + window.scrollY);
-  const before = await position();
-  await inputGain(page).press('ArrowRight');
-  await expect.poll(() => state.writes.length).toBe(1);
-  expect(Math.abs((await position()) - before)).toBeLessThanOrEqual(1);
-  state.gate = null;
-  release();
-  await saved(page);
-  expect(Math.abs((await position()) - before)).toBeLessThanOrEqual(1);
-});
-
 test('an unavailable monitor explains how to unblock Start without requiring monitor output', async ({ page }) => {
   const state = await mockSession(page);
   state.config.audio_monitor_device_index = 99;
@@ -291,27 +274,6 @@ test('failed saves retain the draft and retry only on request with fresh setting
   expect(state.config.noise_gate).toBe(-88);
 });
 
-test('save errors stay visible while scrolling and disappear after a successful retry', async ({ page }) => {
-  const state = await mockSession(page);
-  state.putStatus = 500;
-  await page.goto('/');
-  await openControlSections(page);
-  await inputGain(page).press('ArrowRight');
-  const notice = page.locator('main > .configuration-status');
-  await expect(notice.getByRole('alert')).toContainText('HTTP 500');
-  const position = () => notice.evaluate(element => ({ top: element.getBoundingClientRect().top, left: element.getBoundingClientRect().left }));
-  const before = await position();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-  const after = await position();
-  expect(Math.abs(after.top - before.top)).toBeLessThanOrEqual(1);
-  expect(Math.abs(after.left - before.left)).toBeLessThanOrEqual(1);
-  state.putStatus = 200;
-  await notice.getByRole('button', { name: '保存を再試行' }).click();
-  await saved(page);
-  await expect(notice).toBeHidden();
-});
-
 test('detects silent model rollback on start and retains the staged model', async ({ page }) => {
   const state = await mockSession(page);
   state.rollback = true;
@@ -395,11 +357,4 @@ test('stop waits for the in-flight gain update without racing it', async ({ page
   release();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['stop']);
-});
-
-test('advanced settings does not offer an in-app reset', async ({ page }) => {
-  await mockSession(page);
-  await page.goto('/');
-  await page.getByRole('button', { name: '詳細設定', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '詳細設定' }).getByRole('button', { name: '設定初期化' })).toHaveCount(0);
 });

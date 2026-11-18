@@ -361,7 +361,7 @@ class LocalVoiceChangerInterface(EventEmitter):
             indata = indata * conf.audio_input_device_gain
             if conf.realtime_output_status_enabled:
                 self.input_volume_calculation_buffer.append(indata)
-            converted, converted_for_monitor, _ = self.vc.convert_chunk_bulk(indata)
+            converted, converted_for_monitor = self.vc.convert_chunk_bulk(indata)
 
             if converted is not None:
                 self._enqueue_stream_blocks(
