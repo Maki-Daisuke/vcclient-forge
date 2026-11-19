@@ -71,8 +71,8 @@ def test_gpu_device_id_normalization(tmp_path, monkeypatch):
     assert cm.voice_changer_configuration.gpu_device_id_int == 0
 
 
-def test_configuration_ignores_legacy_crossfade_sec(tmp_path, monkeypatch):
-    """Verify crossfade_sec is removed from model and legacy config with crossfade_sec is parsed without error."""
+def test_configuration_ignores_legacy_removed_fields(tmp_path, monkeypatch):
+    """Verify removed fields are absent from model and legacy configs with them are parsed without error."""
     test_conf_path = tmp_path / "vc_conf.json"
     monkeypatch.setattr(
         "vcclient.voice_changer.configuration_manager.configuration_manager.ConfigFile",
@@ -81,17 +81,20 @@ def test_configuration_ignores_legacy_crossfade_sec(tmp_path, monkeypatch):
 
     data = VoiceChangerConfiguration().model_dump()
     assert "crossfade_sec" not in data
+    assert "sio_broadcast" not in data
 
-    # Add legacy crossfade_sec and verify deserialization ignores it safely
+    # Add legacy removed fields and verify deserialization ignores them safely
     data["crossfade_sec"] = 0.052
+    data["sio_broadcast"] = True
     test_conf_path.write_text(json.dumps(data), encoding="utf-8")
 
     cm = ConfigurationManager()
     assert not hasattr(cm.voice_changer_configuration, "crossfade_sec")
+    assert not hasattr(cm.voice_changer_configuration, "sio_broadcast")
 
 
-def test_api_put_configuration_accepts_legacy_crossfade_sec(client=None):
-    """Verify FastAPI PUT /api/configuration-manager/configuration accepts payloads containing crossfade_sec."""
+def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
+    """Verify FastAPI PUT /api/configuration-manager/configuration accepts payloads containing removed fields."""
     from starlette.testclient import TestClient
 
     from vcclient.server.vcserver_rest_api import get_rest_api
@@ -103,8 +106,10 @@ def test_api_put_configuration_accepts_legacy_crossfade_sec(client=None):
     assert get_res.status_code == 200
     config_dict = get_res.json()
     assert "crossfade_sec" not in config_dict
+    assert "sio_broadcast" not in config_dict
 
-    # Simulate legacy client sending crossfade_sec in PUT
+    # Simulate legacy client sending removed fields in PUT
     config_dict["crossfade_sec"] = 0.052
+    config_dict["sio_broadcast"] = True
     put_res = test_client.put("/api/configuration-manager/configuration", json=config_dict)
     assert put_res.status_code == 200

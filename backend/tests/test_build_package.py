@@ -86,7 +86,8 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert freeze[freeze.index("--optimize") + 1] == "1"
     assert not Path(freeze[0]).is_relative_to(package)
     assert str(tmp_path / "package.json") + ":vcclient" in freeze
-    assert "vcclient.server.vcserver_socketio" in freeze
+    assert "vcclient.server.vcserver_websocket" in freeze
+    assert "engineio.async_drivers.asgi" not in freeze
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
     assert ("nvidia.cu13" in freeze) == (edition == "cuda")
 

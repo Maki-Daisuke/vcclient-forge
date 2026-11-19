@@ -8,11 +8,10 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VCCLIENT_');
   const target = env.VCCLIENT_BACKEND_URL || 'http://127.0.0.1:18888';
   const proxy = {
-    '/api': { target, changeOrigin: true },
+    '/api': { target, changeOrigin: true, ws: true },
     '/model_dir': { target, changeOrigin: true },
     '/output.wav': { target, changeOrigin: true },
     '/vcclient.log': { target, changeOrigin: true },
-    '/socket.io': { target, changeOrigin: true, ws: true },
   };
   return {
     plugins: [svelte()],

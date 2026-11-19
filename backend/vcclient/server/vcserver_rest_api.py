@@ -10,9 +10,11 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from vcclient.const import SERVER_IO_RECORDING_FILE_OUT
+from vcclient.const import LOG_FILE, SERVER_IO_RECORDING_FILE_OUT
 from vcclient.logger import logger
 from vcclient.server.fileuploader.fileuploader import EasyFileUploader
 from vcclient.server.server_const import UPLOAD_DIR, get_frontend_path
@@ -23,7 +25,27 @@ from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDevic
 from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
+from vcclient.server.vcserver_websocket import WebSocketHub
 from vcclient.voice_changer.voice_changer_const import ModelDir
+
+
+class NoCacheMiddleware:
+    """ASGI middleware setting Cache-Control: no-store on all HTTP responses."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_no_cache(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+            await send(message)
+
+        await self.app(scope, receive, send_no_cache)
 
 
 def get_custom_swagger_ui_html(
@@ -70,6 +92,7 @@ def get_rest_api() -> FastAPI:
 
 def _create_rest_api() -> FastAPI:
     app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
+    app_fastapi.add_middleware(NoCacheMiddleware)
     app_fastapi.router.route_class = ValidationErrorLoggingRoute
 
     @app_fastapi.exception_handler(StarletteHTTPException)
@@ -104,6 +127,16 @@ def _create_rest_api() -> FastAPI:
     def serve_output_wav():
         return _serve_audio_file(SERVER_IO_RECORDING_FILE_OUT)
 
+    @app_fastapi.get("/vcclient.log", include_in_schema=False)
+    def serve_log_file():
+        file_path = Path(LOG_FILE)
+        if not file_path.exists():
+            return JSONResponse(status_code=404, content={"detail": f"Log file {LOG_FILE} not found"})
+        return FileResponse(
+            path=str(file_path),
+            media_type="text/plain",
+        )
+
     app_fastapi.get("/docs", include_in_schema=False)(custom_swagger_ui_html)
     app_fastapi.mount(f"""/{ModelDir}""", StaticFiles(directory=ModelDir), name="static")
 
@@ -122,7 +155,15 @@ def _create_rest_api() -> FastAPI:
     local_voice_changer_interface = RestAPILocalVoiceChangerInterface()
     app_fastapi.include_router(local_voice_changer_interface.router)
 
+    ws_hub = WebSocketHub()
+    ws_hub.subscribe_core_events()
+    app_fastapi.state.ws_hub = ws_hub
+    app_fastapi.include_router(ws_hub.router)
+
     async def unknown_api(scope, receive, send):
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
         raise StarletteHTTPException(status_code=404, detail="Not Found")
 
     app_fastapi.mount("/api", unknown_api)

@@ -3,26 +3,21 @@ import { mockSession } from './session-fixtures';
 
 async function mockSocket(page: Page) {
   let socket: WebSocketRoute | undefined;
-  await page.routeWebSocket(/\/socket\.io\//, ws => {
+  await page.routeWebSocket(/\/api\/ws\/status$/, ws => {
     socket = ws;
-    ws.onMessage(message => {
-      if (message === '40/test,') ws.send('40/test,{"sid":"test"}');
-      if (message === '2') ws.send('3');
-    });
-    ws.send('0{"sid":"test","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
   });
   return () => socket;
 }
 
 function sendLevels(socket: WebSocketRoute, input: unknown, output: unknown) {
-  socket.send(`42/test,${JSON.stringify(['data', ['realtime_output_status', JSON.stringify({ inputRms: input, outputRms: output, realtimeOutputStatusSendIntervalSec: 0.2 })]])}`);
+  sendEvent(socket, 'realtime_output_status', { inputRms: input, outputRms: output, realtimeOutputStatusSendIntervalSec: 0.2 });
 }
 
 function sendEvent(socket: WebSocketRoute, type: string, data: object) {
-  socket.send(`42/test,${JSON.stringify(['data', [type, JSON.stringify(data)]])}`);
+  socket.send(JSON.stringify({ type, data }));
 }
 
-test('displays valid Socket.IO levels, clears stale data, and resumes', async ({ page }) => {
+test('displays valid WebSocket levels, clears stale data, and resumes', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;
   const socket = await mockSocket(page);

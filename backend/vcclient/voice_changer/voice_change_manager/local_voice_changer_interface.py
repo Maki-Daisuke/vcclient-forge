@@ -142,8 +142,6 @@ class LocalVoiceChangerInterface(EventEmitter):
         self.input_volume = self.calc_vol(input_combined_data, self.input_volume)
         self.output_volume = self.calc_vol(output_combined_data, self.output_volume)
 
-        import json
-
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         realtime_output_status_data = {
             "realtimeOutputStatusSendIntervalSec": conf.realtime_output_status_send_interval_sec,
@@ -153,7 +151,7 @@ class LocalVoiceChangerInterface(EventEmitter):
             "inputRms": float(self.input_volume),
             "outputRms": float(self.output_volume),
         }
-        self.emit("data", ["realtime_output_status", json.dumps(realtime_output_status_data)])
+        self.emit("status", "realtime_output_status", realtime_output_status_data)
 
         self.input_volume_calculation_buffer = []
         self.output_volume_calculation_buffer = []

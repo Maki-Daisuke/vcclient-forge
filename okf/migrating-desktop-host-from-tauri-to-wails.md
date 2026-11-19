@@ -52,7 +52,7 @@ flowchart TD
     end
 
     subgraph Backend [Local Python Backend: uv / PyInstaller]
-        FastAPI[FastAPI / Socket.IO Server :18888]
+        FastAPI[FastAPI HTTP / WebSocket Server :18888]
         Inference[Pure-ONNX Inference Pipeline]
         Audio[Native WASAPI / PortAudio Engine]
         FastAPI --> Inference

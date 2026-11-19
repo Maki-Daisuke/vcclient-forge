@@ -6,6 +6,12 @@ import type { AudioDevice, AudioDevices } from './audio-devices';
 const configurationUrl = '/api/configuration-manager/configuration';
 const nativeUrl = '/api/local-voice-changer-interface';
 
+export function websocketUrl(path: string): string {
+  const url = new URL(path, window.location.href);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.toString();
+}
+
 function invalidResponse(): never {
   throw new ApiError('invalid_response');
 }

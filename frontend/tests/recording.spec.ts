@@ -15,12 +15,7 @@ async function mockRecording(page: Page, dataSize = 4) {
 }
 
 async function mockClientAudio(page: Page) {
-  await page.routeWebSocket(/\/socket\.io\//, socket => {
-    socket.send('0{"sid":"test","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
-    socket.onMessage(message => {
-      if (typeof message === 'string' && message.startsWith('40/test,')) socket.send('40/test,{"sid":"test"}');
-    });
-  });
+  await page.routeWebSocket(/\/api\/ws\/audio$/, () => {});
   await page.addInitScript(() => {
     const audio = new AudioContext();
     Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => audio.createMediaStreamDestination().stream });

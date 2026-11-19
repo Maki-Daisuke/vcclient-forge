@@ -50,7 +50,7 @@ For recommended implementation order, dependencies, and conditional experiments,
    How Forge makes development and distribution reproducible with pinned Python environments, `uv` dependency locking, and unified npm tasks. Covers the ONNX Runtime hardware backends, automatic CUDA library discovery, and automated standalone packaging.
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
-   Why the legacy UI needed a redesign and why Forge selects Svelte 5 + Vite and Wails v3. The Svelte 5 UI (`frontend/`) now serves both Server Mode and Socket.IO Client Mode in production, replacing `web_front/` while preserving all 13 community translation dictionaries.
+   Why the legacy UI needed a redesign and why Forge selects Svelte 5 + Vite and Wails v3. The Svelte 5 UI (`frontend/`) now serves both Server Mode and native WebSocket Client Mode (`/api/ws/audio`, `/api/ws/status`) in production, replacing `web_front/` while preserving all 13 community translation dictionaries.
 
 6. **[Pitch Estimation: RMVPE Default and FCPE Alternative](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
    Why Forge chooses the RVC ecosystem's widely used RMVPE as its default and retains FCPE as an alternative. Consolidating pitch estimation reduces maintenance and user decision friction, with both estimators running through ONNX Runtime and NumPy.
@@ -68,7 +68,7 @@ For recommended implementation order, dependencies, and conditional experiments,
     A roadmap toward local round-trip latency of 100 ms or less, built around native Server Mode, fixed-length inference, direct output delivery, and bounded buffering. Details the architectural pivot from monolithic graph fusion to concurrent hybrid pipelining (CPU preparation overlapped with GPU vocoder synthesis via bounded double-buffering) and lightweight vocoder exploration.
 
 11. **[Inversion of Control: Client-Driven Architecture and Process Lifecycle](./inversion-of-control-and-process-lifecycle.md)**
-    How Forge inverts the legacy Python-centric master/slave model by isolating the Python backend to a pure HTTP/Socket.IO server, shifting UI and browser launching to client launchers (Wails, shell scripts), and standardizing process lifecycle management via standard OS signals.
+    How Forge inverts the legacy Python-centric master/slave model by isolating the Python backend to a pure HTTP/WebSocket server, shifting UI and browser launching to client launchers (Wails, shell scripts), and standardizing process lifecycle management via standard OS signals.
 
 12. **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**
     Why Forge migrates its desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go). In a system where heavy lifting is handled by Python/ONNX and UI is rendered by WebView2, Rust's runtime advantages are negligible compared to the high cost of build times, permission ceremony, and boilerplate. Wails v3 provides fast builds, concise process control, pure Go Windows builds without CGO, and declarative script injection (`WebviewWindowOptions.JS`) that eliminates native event hooking while reusing all existing bootstrap assets.

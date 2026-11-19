@@ -1,5 +1,4 @@
-import { io, type Socket } from 'socket.io-client';
-import { readAudioSampleRates } from './api';
+import { readAudioSampleRates, websocketUrl } from './api';
 
 type Levels = { input: number; output: number };
 export type BufferPoint = { time: number; seconds: number };
@@ -29,7 +28,9 @@ export class AudioMeters {
   conversionTimeSeconds = $state<number | null>(null);
   inputHistory = $state<BufferPoint[]>([]);
   outputHistory = $state<BufferPoint[]>([]);
-  private socket: Socket | null = null;
+  private socket: WebSocket | null = null;
+  private shouldConnect = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private levelTimer: ReturnType<typeof setTimeout> | undefined;
   private inputTimer: ReturnType<typeof setTimeout> | undefined;
   private outputTimer: ReturnType<typeof setTimeout> | undefined;
@@ -54,24 +55,41 @@ export class AudioMeters {
     if (!active || (!outputEnabled && !processEnabled)) { this.dispose(); return; }
     if (!outputEnabled) { this.clearLevels(); this.clearOutput(); }
     if (!processEnabled) { this.clearInput(); this.clearConversionTime(); }
-    if (this.socket) return;
+    this.shouldConnect = true;
+    if (!this.socket && !this.reconnectTimer) this.connect();
+  }
+
+  private connect() {
     this.status = 'connecting';
-    const socket = io('/test', { transports: ['websocket'] });
+    const socket = new WebSocket(websocketUrl('/api/ws/status'));
     this.socket = socket;
-    socket.on('connect', () => {
+    socket.onopen = () => {
+      if (this.socket !== socket) return;
       this.status = 'connected';
       if (this.outputEnabled) this.watchLevels(this.outputInterval);
-    });
-    socket.on('disconnect', () => this.clear('unavailable'));
-    socket.on('connect_error', () => this.clear('unavailable'));
-    socket.on('data', (message: unknown) => {
-      if (this.socket !== socket || !Array.isArray(message) || typeof message[1] !== 'string' || message[1].length > 4096) return;
-      if (message[0] !== 'realtime_output_status' && message[0] !== 'realtime_process_status') return;
-      let value: unknown;
-      try { value = JSON.parse(message[1]); } catch { return; }
+    };
+    socket.onerror = () => {
+      if (this.socket !== socket) return;
+      this.clear('unavailable');
+    };
+    socket.onclose = () => {
+      if (this.socket !== socket) return;
+      this.socket = null;
+      this.clear('unavailable');
+      if (this.shouldConnect) this.scheduleReconnect();
+    };
+    socket.onmessage = event => {
+      if (this.socket !== socket || typeof event.data !== 'string' || event.data.length > 4096) return;
+      let parsed: unknown;
+      try { parsed = JSON.parse(event.data); } catch { return; }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+      const message = parsed as Record<string, unknown>;
+      const type = message.type;
+      if (type !== 'realtime_output_status' && type !== 'realtime_process_status') return;
+      const value = message.data;
       if (!value || typeof value !== 'object' || Array.isArray(value)) return;
       const data = value as Record<string, unknown>;
-      if (message[0] === 'realtime_output_status' && this.outputEnabled) {
+      if (type === 'realtime_output_status' && this.outputEnabled) {
         const interval = validNumber(data.realtimeOutputStatusSendIntervalSec) && data.realtimeOutputStatusSendIntervalSec > 0
           ? data.realtimeOutputStatusSendIntervalSec : this.outputInterval;
         if (validNumber(data.inputRms) && validNumber(data.outputRms)) {
@@ -86,7 +104,7 @@ export class AudioMeters {
           clearTimeout(this.outputTimer);
           this.outputTimer = setTimeout(() => this.clearOutput(), this.timeout(interval));
         }
-      } else if (message[0] === 'realtime_process_status' && this.processEnabled) {
+      } else if (type === 'realtime_process_status' && this.processEnabled) {
         if (validNumber(data.inputBufferSize)) {
           this.pendingInput = { samples: data.inputBufferSize, time: Date.now() };
           this.publishInput();
@@ -100,10 +118,18 @@ export class AudioMeters {
           this.conversionTimer = setTimeout(() => this.clearConversionTime(), this.timeout(this.processInterval));
         }
       }
-    });
+    };
   }
 
-  private ensureRates(socket: Socket) {
+  private scheduleReconnect() {
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      if (this.shouldConnect && !this.socket) this.connect();
+    }, 1000);
+  }
+
+  private ensureRates(socket: WebSocket) {
     if (((!this.processEnabled || this.rates.input !== null) && (!this.outputEnabled || this.rates.output !== null))
       || this.rateController || Date.now() - this.lastRateAttempt < 2000) return;
     this.lastRateAttempt = Date.now();
@@ -167,10 +193,18 @@ export class AudioMeters {
   }
 
   dispose() {
+    this.shouldConnect = false;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
     const socket = this.socket;
     this.socket = null;
-    socket?.removeAllListeners();
-    socket?.disconnect();
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      socket.close();
+    }
     this.clear('idle');
   }
 }

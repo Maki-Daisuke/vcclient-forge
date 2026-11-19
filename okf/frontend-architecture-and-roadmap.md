@@ -1,20 +1,15 @@
 ---
 type: architecture
-title: "Next-Gen Frontend Architecture: Svelte 5, Socket.IO, and Native Desktop Packaging"
-description: "Server-Mode-first Svelte 5 UI replacement, Socket.IO notifications and incremental Client Mode support."
+title: "Next-Gen Frontend Architecture: Svelte 5, Native WebSocket, and Native Desktop Packaging"
+description: "Server-Mode-first Svelte 5 UI replacement, native WebSocket notifications (/api/ws/status), and Client Mode audio streaming (/api/ws/audio)."
 tags:
-  [frontend, svelte, socketio, wails, i18n, performance, architecture, desktop]
+  [frontend, svelte, websocket, wails, i18n, performance, architecture, desktop]
 timestamp: 2026-10-18T06:30:00Z
 ---
 
-# Next-Gen Frontend Architecture: Svelte 5, Socket.IO, and Native Desktop Packaging
+# Next-Gen Frontend Architecture: Svelte 5, Native WebSocket, and Native Desktop Packaging
 
-**Transport decision (2026-11-09):** Retain Socket.IO as the API for notifications
-and browser audio; cancel the planned migration to raw WebSocket and removal of
-Socket.IO. The echo measurements below show a small difference in the tested
-environments, which does not justify a compatibility break. They do not establish
-actual browser audio latency or inference-load behavior. Retaining the existing
-API does not rule out compatible implementation improvements.
+**Transport decision (2026-11-19):** Replace Socket.IO (`python-socketio` and `socket.io-client`) with two purpose-specific native FastAPI WebSocket endpoints (`/api/ws/status` for realtime telemetry JSON frames and `/api/ws/audio` for raw `<f4` binary PCM audio streaming). This reverses the earlier 2026-11-09 decision to retain Socket.IO once old `web_front/` client compatibility was formally dropped, removing unneeded framing/tuple-packing overhead, `asyncio.run()` per-thread emissions, and third-party socket dependencies. The historical 2026-11-09 echo benchmark measurements below are preserved for reference.
 
 ## Deployment Assumptions
 
@@ -36,7 +31,7 @@ community dictionaries are imported from their tracked upstream location with
 English fallback and Arabic RTL. Added preview messages are translated into
 Japanese and English. The initial scaffold used sample model data; the read-only
 model integration below replaced it. Later milestones connected Server Mode
-controls and settings writes. Socket.IO notifications and browser microphone access were implemented in subsequent milestones.
+controls, settings writes, and browser microphone access, followed by migration to native WebSocket endpoints (`/api/ws/status` and `/api/ws/audio`).
 
 ### Read-Only Model Integration (2026-11-06)
 
@@ -181,7 +176,7 @@ the selected ID through the existing configuration API while audio is stopped in
 The UI checks the saved configuration and the reported pipeline device ID when a model is selected.
 This does not verify the actual execution providers. The user confirmed switching
 with the live backend; conversion after switching has not yet been confirmed.
-Client audio uses Socket.IO; sample-rate edits remain unavailable.
+Client audio uses `/api/ws/audio`; sample-rate edits remain unavailable.
 Advanced Settings provides one Realtime Display switch for both backend analysis
 notifications and Client Mode meter sampling. It enables the performance monitor
 when switched on, retains existing notification intervals, and shows mixed legacy
@@ -263,7 +258,7 @@ Historical inspection of the retired legacy `web_front/index.js` bundle identifi
 
 Backend/API changes alone do not deliver usable features: users need a UI that can operate them. The minified legacy frontend (`web_front/index.js`) was coupled to existing endpoints and slot-array conventions, and the original `web_front` source for v2.0.78-beta was not released. Keeping it as the only UI would have left new backend capabilities inaccessible or required preserving legacy bundle quirks.
 
-Forge replaced `web_front/` with the Svelte 5 UI (`frontend/`), supporting Server Mode over REST and Client Mode over Socket.IO. Subsequent API cleanup intentionally removes unused endpoints and changes the Socket.IO audio response contract; old client compatibility is not retained.
+Forge replaced `web_front/` with the Svelte 5 UI (`frontend/`) and deprecated legacy client compatibility, migrating real-time telemetry and Client Mode audio streaming from Socket.IO to native FastAPI WebSockets (`/api/ws/status` and `/api/ws/audio`).
 
 ---
 
@@ -278,13 +273,13 @@ While Forge prioritizes **Server Mode** (native OS audio devices) for low latenc
 
 Client Mode is developed incrementally and is not a prerequisite for replacing the old UI.
 
-### 3.2 Existing Audio Transport
+### 3.2 Historical Socket.IO Transport (Replaced 2026-11-19)
 
-The current audio transport relies on `python-socketio` and `python-engineio`. Inspection of [`vcserver_socketio.py`](../backend/vcclient/server/vcserver_socketio.py) shows the following implementation details:
+Previously, the audio and telemetry transport relied on `python-socketio` and `python-engineio` (`vcserver_socketio.py`). In that implementation:
 
-- Incoming binary samples pass through `struct.unpack` into Python values and are copied into NumPy; output uses `struct.pack` with expanded sample arguments.
-- Socket.IO/Engine.IO add event metadata, framing, and dependencies beyond the PCM payload. Binary payloads are already supported; the issue is not that every sample is JSON-encoded.
-- Benchmark sample conversion and transport overhead separately before attributing a particular latency improvement to replacing the protocol.
+- Incoming binary samples passed through `struct.unpack` into Python values and were copied into NumPy; output used `struct.pack` with expanded sample arguments.
+- Socket.IO/Engine.IO added event metadata, placeholder framing, unused `[timestamp, true, ...]` wrappers, and third-party dependencies beyond the PCM payload.
+- Event emission created ephemeral loops via `asyncio.run()` on audio/worker threads.
 
 ### Local Binary Echo Experiment (2026-11-09)
 
@@ -326,8 +321,7 @@ uv run --project backend --with aiohttp python misc/benchmark_audio_echo.py --co
 These results include each client library's scheduling and encoding, not just
 protocol framing. They do not measure a browser/Wails client, real audio or
 the current Socket.IO conversion handler, and do not establish end-to-end audio
-latency or behavior under inference load. WebSocket was faster in these tests;
-the project decided at the time to retain Socket.IO rather than replace the audio transport with raw WebSocket. Subsequent API cleanup intentionally changes application-level contracts while retaining Socket.IO.
+latency or behavior under inference load. While Socket.IO was briefly retained in 2026-11-09, the project finalized the transition to direct FastAPI WebSockets on 2026-11-19 once legacy UI/client compatibility was dropped.
 
 ### Tailscale Binary Echo Experiment (2026-11-09)
 
@@ -356,22 +350,13 @@ The script accepts `--url http://HOST:PORT` to use an existing benchmark server
 instead of starting a local one. Results include the network and both machines'
 processing; they are not measurements of actual browser audio or inference.
 
-### 3.3 Retain the Socket.IO API
+### 3.3 Current Direct WebSocket Transport (`/api/ws/status` and `/api/ws/audio`)
 
-The raw WebSocket replacement proposal and removal of Socket.IO are canceled.
-Socket.IO remains the audio and notification transport, while unused REST APIs
-and legacy Socket.IO behaviors may be removed without preserving old clients.
-Socket.IO may itself use WebSocket as its underlying transport; that does not
-make its application protocol raw WebSocket.
+In [`vcserver_websocket.py`](../backend/vcclient/server/vcserver_websocket.py), Socket.IO and `python-engineio` have been removed in favor of two purpose-separated native FastAPI WebSocket endpoints mounted under `/api/`:
 
-The UI consumes `data` notifications for meters. Client Mode audio requests use
-`request_message` with a timestamp and binary samples; the backend uses bulk
-conversion and emits `response` with `[timestamp, audio]` when output is ready.
-Legacy `perf` and `command` notifications and the response performance payload
-are no longer emitted.
-Device permissions, sample rates, buffering and disconnect behavior need
-real-device validation. A partial input chunk remains in the backend across
-worker restarts. The UI stops on disconnect rather than reconnecting automatically.
+- **`/api/ws/status`** (Server -> Client JSON text frames): `AudioMeters` subscribes to `{"type": "realtime_output_status" | "realtime_process_status", "data": {...}}` single-encoded JSON messages, avoiding double `JSON.parse` overhead. Events from worker/audio threads are scheduled cleanly onto the FastAPI/Uvicorn asyncio loop via `call_soon_threadsafe` into a bounded drop-oldest queue, and `AudioMeters` uses a 1-second reconnect timer on unexpected disconnect while active.
+- **`/api/ws/audio`** (Client <-> Server raw `<f4` float32 binary PCM): `ClientAudio` streams `Float32Array` chunks directly via `WebSocket.send()` without timestamp/bulk wrapper metadata or `struct.pack`/`struct.unpack` tuple expansion. The backend uses `np.frombuffer(..., dtype="<f4")`, bulk conversion (`VoiceChanger.convert_chunk_bulk`), and returns raw converted `<f4` bytes when output is ready (`on_failure` triggers if disconnected unexpectedly).
+- Both endpoints share Vite's `/api` dev/preview proxy (`ws: true`), Playwright's `/api/` mocking guards, and `VCServer.stop()`'s `WebSocketHub.close_all()` shutdown sweep. Device permissions, sample rates, buffering, and real-device behavior retain their existing constraints (a partial input chunk remains in the backend across worker restarts).
 
 ---
 

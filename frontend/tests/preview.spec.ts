@@ -46,7 +46,7 @@ test('initialization only reads backend data and keeps browser audio and device 
   const backendRequests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => {
-    if (/\/api\/|socket\.io|\/ws\//.test(request.url())) backendRequests.push(request.url());
+    if (/\/api\//.test(request.url())) backendRequests.push(request.url());
   });
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => { throw new Error('Unexpected microphone access'); };

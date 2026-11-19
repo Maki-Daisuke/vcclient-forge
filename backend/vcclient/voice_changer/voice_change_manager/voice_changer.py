@@ -525,7 +525,7 @@ class VoiceChanger(EventEmitter):
                     dataNum=1,
                 )
 
-                self.emit("data", ["realtime_process_status", performance_data.model_dump_json()])
+                self.emit("status", "realtime_process_status", performance_data.model_dump(by_alias=True))
 
                 return (output, monitor)
 

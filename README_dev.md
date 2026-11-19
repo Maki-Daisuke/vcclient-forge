@@ -103,7 +103,7 @@ uv sync --project backend --extra standard  # Or cuda
 npm start
 ```
 
-Vite proxies `/api`, `/model_dir`, `/output.wav`, and Socket.IO to
+Vite proxies `/api` (including WebSocket connections), `/model_dir`, `/output.wav`, and `/vcclient.log` to
 `http://127.0.0.1:18888`. To use another backend, set `VCCLIENT_BACKEND_URL`
 before starting Vite. For example, in PowerShell:
 
@@ -236,7 +236,7 @@ uv run --project backend pytest backend/tests
 
 Test coverage includes:
 * Import verification across server modules and inferencers.
-* Graceful shutdown and Socket.IO connection/disconnection lifecycle.
+* Graceful shutdown and WebSocket connection/disconnection lifecycle.
 * REST API endpoints and unsupported-route handling.
 * Web frontend static file delivery (`/`).
 * In-place ONNX export and pitch estimation pipelines (RMVPE, FCPE).
@@ -288,14 +288,14 @@ Continuous integration and automated release workflows are configured in `.githu
 ```text
 vcclient-forge/
 ├── backend/                    # Python / uv workspace
-│   ├── main.py                 # Backend application entry point (FastAPI + Socket.IO)
+│   ├── main.py                 # Backend application entry point (FastAPI REST + WebSocket)
 │   ├── pyproject.toml          # Python package metadata, dependencies, extras, and tool configs
 │   ├── uv.lock                 # Deterministic dependency lockfile (Python 3.14)
 │   ├── .python-version         # Pinned Python version (3.14)
 │   ├── tests/                  # Pytest test suite
 │   └── vcclient/               # Core application package
 │       ├── device/             # Unified hardware discovery, execution providers, and runtime initialization
-│       ├── server/             # FastAPI REST and Socket.IO servers (graceful shutdown)
+│       ├── server/             # FastAPI REST and WebSocket servers (graceful shutdown)
 │       └── voice_changer/      # Audio pipeline, inferencers, and model management
 ├── desktop/                    # Wails v3 (Go) cross-platform desktop host
 │   ├── main.go                 # Application window, asset server, and backend supervisor

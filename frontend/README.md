@@ -29,8 +29,7 @@ overwriting prior recordings. Audio is held in memory until recording stops.
 Passthrough may be toggled while recording. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
 retry is not guaranteed to recover audio. Client Mode recording has been verified with real audio.
-Client Mode captures a browser microphone and streams float32 audio through the
-existing Socket.IO API. Its output is played by Web Audio. The browser requests
+Client Mode captures a browser microphone and streams raw little-endian float32 audio over WebSocket (`/api/ws/audio`). Its output is played by Web Audio. The browser requests
 microphone permission on Start or when loading the device list; output selection
 requires browser support for AudioContext.setSinkId. The browser's audio context
 uses the backend input sample rate, and Web Audio resamples the returned output as
@@ -54,7 +53,7 @@ The output buffer graph shows scheduled audio remaining on the AudioContext time
 not the buffers in the OS or audio device. The UI samples these values every 100 ms
 and clears them when client audio stops.
 While Server Mode audio is active and backend input/output analysis is enabled,
-the UI subscribes to the existing Socket.IO `/test` namespace and displays the
+the UI subscribes to WebSocket (`/api/ws/status`) and displays the
 input/output RMS levels. The meter bars use a logarithmic -60 to 0 dBFS scale;
 fixed dBFS ticks indicate the scale. The subscription closes on stop and clears stale or
 disconnected values. The buffer graph and labels consume the existing output and
@@ -153,7 +152,7 @@ npm run build:frontend:preview
 
 Run `npm start` in a separate terminal to start the Python backend for real model
 information (normal backend startup may download required model assets).
-Vite forwards `/api`, `/model_dir`, and `/output.wav` to `http://127.0.0.1:18888` in both dev and
+Vite forwards `/api` (REST and WebSockets), `/model_dir`, `/output.wav`, and `/vcclient.log` to `http://127.0.0.1:18888` in both dev and
 preview. To use another backend, set `VCCLIENT_BACKEND_URL` before starting Vite:
 
 ```powershell
@@ -185,7 +184,7 @@ timeout, portrait fallback, native selection/start/stop, gain/model coalescing, 
 configuration/slot preservation, failed writes and retries, no browser device access, dialog
 focus/nesting, themes, and all 13 languages at a narrow viewport:
 
-The shared test fixture blocks unmocked backend HTTP requests and Socket.IO
+The shared test fixture blocks unmocked backend HTTP requests and WebSocket
 connections, including those made from popups. Unexpected backend HTTP requests
 fail the test; tests that need backend responses provide explicit mocks.
 
@@ -325,15 +324,15 @@ devices or models. Monitor volume currently follows output gain in the backend; 
 independent monitor gain setting is not applied by its native callback, so output and
 monitor share the single output-volume control.
 
-The backend REST/Socket.IO contracts remain compatible with existing clients. Full GET/PUT
+The backend REST/WebSocket contracts are maintained for internal UI consumption. Full GET/PUT
 updates have no revision/atomic-merge guarantee against another client; use one controlling
 UI. Writes and audio operations normally time out after 30 seconds (180 seconds for
 staged model/configuration saves on Start), with no automatic retry: a lost response does
 not prove the server did not apply a change. Runtime GET reports the native enable flag,
-not stream health or audible output. Socket.IO meters in Server Mode and Web Audio
+not stream health or audible output. WebSocket meters (`/api/ws/status`) in Server Mode and Web Audio
 analyser meters in Client Mode provide live input/output and buffer feedback while audio
-is running. Automated browser tests use mocked APIs and simulated Socket.IO events.
+is running. Automated browser tests use mocked APIs and simulated WebSocket messages.
 The user confirmed native audio playback from the new UI on 2026-11-06; subjective
 gain-adjustment latency and longer sessions still need validation. Each configuration PUT
-still writes the backend settings file, and future WebSocket protocol refinements remain
+still writes the backend settings file, and future architecture plans remain
 tracked in `okf/`.

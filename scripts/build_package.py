@@ -167,9 +167,7 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         "--collect-submodules",
         "uvicorn",
         "--hidden-import",
-        "engineio.async_drivers.asgi",
-        "--hidden-import",
-        "vcclient.server.vcserver_socketio",
+        "vcclient.server.vcserver_websocket",
     ]
     if requires_nvidia_wheel_binaries(edition):
         for package in ("nvidia.cu13", "nvidia.cudnn"):

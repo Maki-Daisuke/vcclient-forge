@@ -102,7 +102,7 @@ flowchart LR
 
     subgraph RemoteHost ["Remote Host: High-Power GPU Rig / Server"]
         direction TB
-        Backend["Python Backend (HTTP / Socket.IO) :18888"]
+        Backend["Python Backend (HTTP / WebSocket) :18888"]
         ONNXEngine["Pure-ONNX Inference Pipeline"]
         Backend --> ONNXEngine
     end
@@ -122,7 +122,7 @@ flowchart LR
 3. **TCP Proxy Initialized**: A pure-Go TCP listener binds to `127.0.0.1:18888`.
 4. **Readiness Probe**: The desktop host pings the remote server via a lightweight TCP dialer while displaying connection status in the terminal log.
 5. **Navigation**: Once the remote server responds, the bootstrap page navigates to `http://127.0.0.1:18888`.
-6. **Bi-Directional Streaming**: Incoming browser connections (HTTP requests, asset loads, WebSocket upgrades, Socket.IO handshakes) are forwarded byte-for-byte to the remote machine via `io.Copy`.
+6. **Bi-Directional Streaming**: Incoming browser connections (HTTP requests, asset loads, WebSocket upgrades) are forwarded byte-for-byte to the remote machine via `io.Copy`.
 
 ---
 

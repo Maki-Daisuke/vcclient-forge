@@ -4,7 +4,7 @@
 > *(Core Philosophy: If the outcome and capabilities are identical, less code and concise documentation is the ultimate virtue.)*
 
 VCClient Forge is a Windows-first, local real-time RVC (Retrieval-based Voice Conversion) application.
-It features a pure-ONNX inference engine, a native PortAudio/WASAPI audio pipeline, a FastAPI + Socket.IO backend, and a Wails v3 (Go) desktop interface.
+It features a pure-ONNX inference engine, a native PortAudio/WASAPI audio pipeline, a FastAPI (REST + WebSocket) backend, and a Wails v3 (Go) desktop interface.
 
 ---
 

@@ -1,4 +1,4 @@
-import { io, type Socket } from 'socket.io-client';
+import { websocketUrl } from './api';
 import captureUrl from './audio-capture.worklet.js?url';
 
 type SinkAudioContext = AudioContext & { setSinkId?: (id: string) => Promise<void> };
@@ -42,7 +42,7 @@ export class ClientAudio {
   private outputGainNode: GainNode | null = null;
   private context: AudioContext | null = null;
   private stream: MediaStream | null = null;
-  private socket: Socket | null = null;
+  private socket: WebSocket | null = null;
   private capture: AudioWorkletNode | null = null;
   private inputAnalyser: AnalyserNode | null = null;
   private outputAnalyser: AnalyserNode | null = null;
@@ -158,19 +158,36 @@ export class ClientAudio {
       this.outputAnalyser = outputAnalyser;
       outputGainNode.connect(outputAnalyser);
       outputAnalyser.connect(context.destination);
-      const socket = io('/test', { transports: ['websocket'], reconnection: false, autoConnect: false });
+      const socket = new WebSocket(websocketUrl('/api/ws/audio'));
+      socket.binaryType = 'arraybuffer';
       this.socket = socket;
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Audio connection timed out.')), 10000);
-        socket.once('connect', () => { clearTimeout(timeout); resolve(); });
-        socket.once('connect_error', error => { clearTimeout(timeout); reject(error); });
-        socket.connect();
+        const cleanup = () => {
+          clearTimeout(timeout);
+          socket.onopen = null;
+          socket.onerror = null;
+          socket.onclose = null;
+        };
+        const timeout = setTimeout(() => {
+          cleanup();
+          socket.close();
+          reject(new Error('Audio connection timed out.'));
+        }, 10000);
+        socket.onopen = () => { cleanup(); resolve(); };
+        socket.onerror = () => { cleanup(); reject(new Error('Audio connection failed.')); };
+        socket.onclose = () => { cleanup(); reject(new Error('Audio connection closed.')); };
       });
       if (generation !== this.generation) return;
-      socket.on('disconnect', () => { if (generation === this.generation) onFailure(new Error('Audio connection disconnected.')); });
+      const notifyDisconnect = () => {
+        socket.onerror = null;
+        socket.onclose = null;
+        if (generation === this.generation) onFailure(new Error('Audio connection disconnected.'));
+      };
+      socket.onclose = notifyDisconnect;
+      socket.onerror = notifyDisconnect;
       stream.getAudioTracks()[0]?.addEventListener('ended', () => { if (generation === this.generation) onFailure(new Error('Microphone disconnected.')); });
-      socket.on('response', (message: unknown, audio: unknown) => {
-        const data = Array.isArray(message) ? message[1] : audio;
+      socket.onmessage = event => {
+        const data = event.data;
         if (generation !== this.generation || !(data instanceof ArrayBuffer) || data.byteLength % 4) return;
         const samples = new Float32Array(data);
         if (!samples.length) return;
@@ -205,12 +222,17 @@ export class ClientAudio {
         this.prerollNeeded = !tailHasSignal;
         source.start(this.nextPlayback);
         this.nextPlayback += buffer.duration;
-      });
+      };
       const capture = new AudioWorkletNode(context, 'audio-capture');
       this.capture = capture;
       capture.port.onmessage = event => {
-        if (generation === this.generation && socket.connected && event.data instanceof Float32Array) {
-          socket.emit('request_message', [Date.now(), true, event.data.buffer]);
+        if (
+          generation === this.generation
+          && socket.readyState === WebSocket.OPEN
+          && event.data instanceof Float32Array
+          && event.data.buffer instanceof ArrayBuffer
+        ) {
+          socket.send(new Float32Array(event.data.buffer, event.data.byteOffset, event.data.length));
         }
       };
       context.createMediaStreamSource(stream).connect(inputGainNode);
@@ -237,8 +259,15 @@ export class ClientAudio {
     this.outputAnalyser = null;
     this.stream?.getTracks().forEach(track => track.stop());
     this.stream = null;
-    this.socket?.disconnect();
+    const socket = this.socket;
     this.socket = null;
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      socket.close();
+    }
     for (const source of this.sources) source.stop();
     this.sources.clear();
     this.nextPlayback = 0;

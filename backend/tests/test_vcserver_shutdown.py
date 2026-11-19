@@ -3,14 +3,14 @@ import logging
 import math
 import socket
 import threading
+import time
 from collections.abc import AsyncGenerator
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import socketio
 import uvicorn
-from engineio.async_socket import AsyncSocket
+import websockets
 from starlette.applications import Starlette
 
 from vcclient.logger import logger
@@ -154,83 +154,32 @@ def test_stop_reports_failure_if_thread_survives_timeout(caplog: pytest.LogCaptu
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("namespace", ["/", "/test"])
-async def test_stop_all_sockets_disconnects_registered_clients(namespace: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    sio = socketio.AsyncServer(async_mode="asgi")
-    engineio_sid = "shutdown-test-engineio-id"
-    socketio_sid = await sio.manager.connect(engineio_sid, namespace)
-    engineio_socket = AsyncSocket(sio.eio, engineio_sid)
-    monkeypatch.setattr(engineio_socket.queue, "join", AsyncMock())
-    sio.eio.sockets[engineio_sid] = engineio_socket
+@pytest.mark.parametrize("ws_path", ["/api/ws/status", "/api/ws/audio"])
+async def test_stop_disconnects_active_websocket_clients(ws_path: str, caplog: pytest.LogCaptureFixture) -> None:
     server = VCServer(host="127.0.0.1", port=0)
-    server.sio = sio
-    try:
-        assert socketio_sid != engineio_sid
-        assert sio.manager.is_connected(socketio_sid, namespace)
-
-        await asyncio.wait_for(server.stop_all_sockets(), timeout=2)
-
-        assert not sio.manager.is_connected(socketio_sid, namespace), (
-            f"Client remained connected to {namespace} after stop_all_sockets()"
-        )
-    finally:
-        await sio.manager.disconnect(socketio_sid, namespace)
-        sio.eio.sockets.clear()
-
-
-def test_shutdown_finishes_with_unconsumed_polling_packets(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    sio = socketio.AsyncServer(async_mode="asgi")
-    engineio_sid = "shutdown-unconsumed-polling-id"
-    finished = threading.Event()
-    errors: list[BaseException] = []
-    sockets: list[AsyncSocket] = []
-    server = VCServer(host="127.0.0.1", port=0)
-
-    async def serve() -> None:
-        await sio.manager.connect(engineio_sid, "/test")
-        engineio_socket = AsyncSocket(sio.eio, engineio_sid)
-        sockets.append(engineio_socket)
-        sio.eio.sockets[engineio_sid] = engineio_socket
-        await sio.eio.send(engineio_sid, "packet without a polling receiver")
-        assert not engineio_socket.queue.empty()
-
-    def run_server() -> None:
-        try:
-            server.start_server()
-        except BaseException as error:
-            errors.append(error)
-        finally:
-            finished.set()
-
-    server.server = SimpleNamespace(serve=serve)
-    server.sio = sio
-    server.server_thread = threading.Thread(target=run_server, daemon=True)
     caplog.set_level(logging.ERROR, logger="asyncio")
-    server.server_thread.start()
+    server.start()
     try:
-        assert finished.wait(timeout=8), "Shutdown blocked waiting for undelivered polling packets"
-        server.server_thread.join(timeout=1)
-        assert not server.server_thread.is_alive()
-        assert not errors, f"Shutdown failed: {errors}"
-        assert sockets, "The polling connection was not initialized"
+        deadline = time.monotonic() + 10
+        while not server.server.started and server.server_thread is not None and server.server_thread.is_alive():
+            if time.monotonic() >= deadline:
+                break
+            await asyncio.sleep(0.01)
+        assert server.server.started
+        port = server.server.servers[0].sockets[0].getsockname()[1]
+
+        async with websockets.connect(f"ws://127.0.0.1:{port}{ws_path}", proxy=None) as ws:
+            stopped = await asyncio.to_thread(server.stop)
+            assert stopped is True
+            with pytest.raises(websockets.exceptions.ConnectionClosed):
+                await asyncio.wait_for(ws.recv(), timeout=2)
+
+        assert server.server_thread is not None
+        assert not server.server_thread.is_alive(), "Server thread survived stop()"
         assert server.loop.is_closed()
         assert "Task was destroyed but it is pending" not in caplog.text
     finally:
-        if hasattr(server, "loop") and server.loop.is_running():
-
-            def cancel_remaining_tasks() -> None:
-                for task in asyncio.all_tasks(server.loop):
-                    task.cancel()
-
-            server.loop.call_soon_threadsafe(cancel_remaining_tasks)
-        server.server_thread.join(timeout=2)
-        if not server.server_thread.is_alive() and hasattr(server, "loop") and not server.loop.is_closed():
-            pending = list(asyncio.all_tasks(server.loop))
-            for task in pending:
-                task.cancel()
-            if pending:
-                server.loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            server.loop.close()
-        sio.eio.sockets.clear()
+        if server.server_thread is not None and server.server_thread.is_alive():
+            server.server.should_exit = True
+            server.server.force_exit = True
+            await asyncio.to_thread(server.server_thread.join, 2)

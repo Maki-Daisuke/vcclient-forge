@@ -41,7 +41,7 @@ Inspection of the current codebase reveals five structural couplings that hinder
   - **Topology / lifecycle parameters**: `current_slot_index`, `gpu_device_id_int`, `extra_frame_sec`, `sola_search_frame_sec`, `voice_changer_input_mode`, native audio device indices/sample rates, `wasapi_exclude_emabled`
   - **Live DSP scalars**: gains, `noise_gate`, `volume_tuning_type`, HPF/LPF toggles & cutoffs, `pass_through`
   - **Imperative commands**: `recording_started` (excluded from disk persistence in [`configuration_manager.py`](../backend/vcclient/voice_changer/configuration_manager/configuration_manager.py))
-  - **Monitoring & UI telemetry config**: `enable_performance_monitor`, `realtime_*_status_*`, `server_device_trancate_buffer_ratio` (the retained `sio_broadcast` field is no longer used by the Socket.IO handler)
+  - **Monitoring & UI telemetry config**: `enable_performance_monitor`, `realtime_*_status_*`, `server_device_trancate_buffer_ratio`
   - **Read-only runtime state**: `input_sample_rate`, `output_sample_rate`, `monitor_sample_rate` (preserved across `PUT` overwrites)
 - **`RVCSlotInfo`** ([`slot_manager_data_types.py`](../backend/vcclient/voice_changer/data_types/slot_manager_data_types.py)) mixes immutable model metadata (`model_file`, `sample_rate`, `is_f0`, `embedder`) with structural parameters (`chunk_sec`, `pitch_estimator`) and live tuning scalars (`pitch_shift`, `index_ratio`, `protect_ratio`).
 
@@ -55,7 +55,7 @@ Inspection of the current codebase reveals five structural couplings that hinder
 
 - `ConfigurationManager.set_voice_changer_configuration()` checks `LocalVoiceChangerInterface` activity for `voice_changer_input_mode`, implicitly restarts native audio (`stop()` -> `sleep()` -> `setup()` -> `start()`) for audio device changes, and performs **no** backend active check for `current_slot_index`, `gpu_device_id_int`, or `extra_frame_sec`.
 - `PUT /api/slot-manager/slots/{index}` similarly lacks active-pipeline guards (unlike `POST /api/slot-manager/operation/organize` in [`vcserver_rest_api_slot_manager.py`](../backend/vcclient/server/vcserver_rest_api_slot_manager.py), which enforces `lifecycle_lock` and returns HTTP `409`).
-- Client Mode lacks an explicit server-side start/stop lifecycle (the Socket.IO `request_message` handler lazily calls `vc.start_convert_chunk_bulk()`), so the backend cannot reject Client Mode topology mutations consistently (`frontend/src/lib/api.ts` relies on client-side `readNativeActive()` guards).
+- Client Mode lacks an explicit server-side start/stop lifecycle (the WebSocket `/api/ws/audio` handler lazily calls `vc.start_convert_chunk_bulk()`), so the backend cannot reject Client Mode topology mutations consistently (`frontend/src/lib/api.ts` relies on client-side `readNativeActive()` guards).
 
 ### 2.4 Non-Thread-Safe Runtime Mutation
 

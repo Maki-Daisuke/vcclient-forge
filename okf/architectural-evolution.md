@@ -62,7 +62,7 @@ translations and the placeholder image are in `frontend/src/`.
 Upstream included an optional terminal-based user interface (CUI) powered by `textual` and file monitoring via `watchdog`.
 
 In Forge, this layer was removed based on core engineering rationale:
-1. **Redundant Functionality**: Full-featured real-time log monitoring and status inspection are already provided in the Web UI, and management is exposed via REST and Socket.IO APIs. The CUI merely mirrored server logs inside an artificial terminal widget.
+1. **Redundant Functionality**: Full-featured real-time log monitoring and status inspection are already provided in the Web UI, and management is exposed via REST and WebSocket APIs. The CUI merely mirrored server logs inside an artificial terminal widget.
 2. **Dead Dependency Elimination**: Removing the CUI eliminated four heavy third-party packages (`textual`, `watchdog`, `linkify-it-py`, `mdit-py-plugins`) and pruned over 500 lines of complex terminal UI logic.
 3. **Clean Shutdown & Process Lifecycle**: Dropping terminal event loops and file watcher threads substantially simplified graceful shutdown, preventing thread deadlocks and orphaned async tasks.
 4. **Guiding Philosophy**: *"If the outcome is identical, having less code and fewer dependencies is strictly superior."*

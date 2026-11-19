@@ -11,14 +11,12 @@ test('switches both backend analysis settings while audio is running and preserv
   state.active = true;
   state.config.realtime_process_status_enabled = true;
   let socket: WebSocketRoute | undefined;
-  await page.routeWebSocket(/\/socket\.io\//, ws => {
+  await page.routeWebSocket(/\/api\/ws\/status$/, ws => {
     socket = ws;
-    ws.onMessage(message => { if (message === '40/test,') ws.send('40/test,{"sid":"test"}'); });
-    ws.send('0{"sid":"test","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
   });
   await page.goto('/');
   await expect.poll(() => Boolean(socket)).toBe(true);
-  socket!.send(`42/test,${JSON.stringify(['data', ['realtime_output_status', JSON.stringify({ inputRms: 0.5, outputRms: 0.5, outputBufferSize: 4800 })]])}`);
+  socket!.send(JSON.stringify({ type: 'realtime_output_status', data: { inputRms: 0.5, outputRms: 0.5, outputBufferSize: 4800 } }));
   await expect.poll(async () => parseFloat(await page.locator('.meter > span').first().evaluate(element => element.style.getPropertyValue('--empty')))).toBeLessThan(100);
   const setting = await displaySetting(page);
   await expect(setting).toBeChecked();

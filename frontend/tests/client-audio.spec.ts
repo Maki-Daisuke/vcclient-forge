@@ -75,12 +75,7 @@ test('applies client gains before capture and playback and updates them while ru
   const state = await mockSession(page);
   state.config.voice_changer_input_mode = 'client';
   state.config.output_sample_rate = 48000;
-  await page.routeWebSocket(/\/socket\.io\//, socket => {
-    socket.send('0{"sid":"test","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
-    socket.onMessage(message => {
-      if (typeof message === 'string' && message.startsWith('40/test,')) socket.send('40/test,{"sid":"test"}');
-    });
-  });
+  await page.routeWebSocket(/\/api\/ws\/audio$/, () => {});
   await page.addInitScript(() => {
     const original = AudioContext.prototype.createGain;
     AudioContext.prototype.createGain = function () {
@@ -117,27 +112,24 @@ test('applies client gains before capture and playback and updates them while ru
   await expect.poll(async () => (await gains())[1]).toBeCloseTo(0.98);
 });
 
-test('streams microphone samples over Socket.IO and releases the microphone on stop', async ({ page }) => {
+test('streams microphone samples over WebSocket and releases the microphone on stop', async ({ page }) => {
   const state = await mockSession(page);
   state.config.output_sample_rate = 48000;
   state.config.voice_changer_input_mode = 'client';
   state.config.realtime_process_status_enabled = true;
   state.models[0].is_f0 = true;
   let packets = 0;
-  const sockets: WebSocketRoute[] = [];
-  await page.routeWebSocket(/\/socket\.io\//, socket => {
-    socket.send('0{"sid":"test","upgrades":[],"pingInterval":25000,"pingTimeout":20000,"maxPayload":1000000}');
+  let statusSocket: WebSocketRoute | undefined;
+  await page.routeWebSocket(/\/api\/ws\/audio$/, socket => {
     socket.onMessage(message => {
-      if (typeof message === 'string' && message.startsWith('40/test,')) {
-        socket.send('40/test,{"sid":"test"}');
-        sockets.push(socket);
-      }
       if (message instanceof Buffer) {
         packets++;
-        socket.send('451-/test,["response",[0,{"_placeholder":true,"num":0}]]');
         socket.send(Buffer.from(new Float32Array(2048).fill(0.25).buffer));
       }
     });
+  });
+  await page.routeWebSocket(/\/api\/ws\/status$/, socket => {
+    statusSocket = socket;
   });
   await page.addInitScript(() => {
     const originalCreateGain = AudioContext.prototype.createGain;
@@ -227,9 +219,8 @@ test('streams microphone samples over Socket.IO and releases the microphone on s
   await page.getByRole('dialog', { name: 'パススルーを有効にしますか？' }).getByRole('button', { name: '有効化' }).click();
   await expect.poll(() => state.config.pass_through).toBe(true);
   await expect(passthrough).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => sockets.length).toBeGreaterThanOrEqual(2);
-  const event = `42/test,${JSON.stringify(['data', ['realtime_process_status', JSON.stringify({ inputBufferSize: 4800, elapsedTime: 0.05 })]])}`;
-  for (const socket of sockets) socket.send(event);
+  await expect.poll(() => Boolean(statusSocket)).toBe(true);
+  statusSocket!.send(JSON.stringify({ type: 'realtime_process_status', data: { inputBufferSize: 4800, elapsedTime: 0.05 } }));
   const metrics = page.locator('.performance dl > div');
   await expect(metrics.nth(0)).toContainText('0.100 s');
   await expect(metrics.nth(1)).toContainText(/\d+\.\d{3} s/);

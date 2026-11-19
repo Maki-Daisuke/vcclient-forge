@@ -3,7 +3,6 @@ from starlette.testclient import TestClient
 
 from vcclient.server import vcserver_rest_api
 from vcclient.server.vcserver_rest_api import get_rest_api
-from vcclient.server.vcserver_socketio import create_socketio_app, create_socketio_server
 
 
 @pytest.fixture(scope="module")
@@ -27,10 +26,5 @@ def test_output_wav_serves_file_with_no_store_cache_header(client, tmp_path, mon
     res_out = client.get("/output.wav")
     assert res_out.status_code == 200
     assert res_out.headers.get("content-type") == "audio/wav"
+    assert res_out.headers.get("cache-control") == "no-store"
     assert res_out.content == dummy_wav
-
-    asgi_app = create_socketio_app(create_socketio_server(), get_rest_api())
-    asgi_res = TestClient(asgi_app).get("/output.wav")
-    assert asgi_res.status_code == 200
-    assert asgi_res.headers.get("cache-control") == "no-store"
-    assert asgi_res.content == dummy_wav

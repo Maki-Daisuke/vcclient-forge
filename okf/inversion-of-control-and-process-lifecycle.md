@@ -22,7 +22,7 @@ VCClient Forge fundamentally redesigns the relationship between the client UI an
 
 Forge **inverts this control hierarchy**:
 
-1. **Pure HTTP/Socket.IO Server**: The Python backend does one thing only—it serves voice-conversion endpoints and audio streaming. It never launches browsers, spawns UIs, or monitors `stdin`.
+1. **Pure HTTP/WebSocket Server**: The Python backend does one thing only—it serves voice-conversion endpoints and audio streaming. It never launches browsers, spawns UIs, or monitors `stdin`.
 2. **Client-Driven Lifecycle**: The user-facing launcher (the Wails desktop binary on Windows, or `start.bat` / `start.sh` for browser/headless environments) owns and manages the backend process.
 3. **Standard OS Signals and Two-Stage Shutdown**: Custom stdin polling loops are replaced by standard OS signals (`SIGINT`, `SIGTERM`, and Windows `SIGBREAK`), backed by a fail-safe two-stage Ctrl+C handler that guarantees instantaneous force-exit if cleanup ever hangs.
 
@@ -79,7 +79,7 @@ Forge establishes strict boundaries: **Python is strictly a server; launchers ar
   │                     Python Backend (main.py)                     │
   │       - Parses CLI with standard argparse (--host, --port)       │
   │       - Listens for OS termination signals (SIGINT/SIGTERM)      │
-  │       - Serves pure HTTP REST API and Socket.IO audio streams    │
+  │       - Serves pure HTTP REST API and WebSocket audio/status streams │
   └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -89,7 +89,7 @@ Forge establishes strict boundaries: **Python is strictly a server; launchers ar
 | :--- | :--- | :--- |
 | **Wails Desktop (`vcclient-forge.exe`)** | Supervise backend child process; display bootstrap loading screen with xterm.js terminal; navigate WebView to server URL upon readiness; kill child on window close. | Implement audio DSP or model inference directly. |
 | **Shell Launchers (`start.bat`, `start.sh`)** | Start backend binary; wait briefly; launch system default browser pointing to `http://127.0.0.1:18888/`. | Contain application logic or Python wrappers. |
-| **Python Backend (`main.py`)** | Initialize audio devices; load ONNX pipelines; bind HTTP/Socket.IO server; handle graceful OS signals. | Launch browsers; manage UI windows; poll stdin; generate SSL keys. |
+| **Python Backend (`main.py`)** | Initialize audio devices; load ONNX pipelines; bind HTTP/WebSocket server; handle graceful OS signals. | Launch browsers; manage UI windows; poll stdin; generate SSL keys. |
 
 ---
 
@@ -120,7 +120,7 @@ With control inverted, user interactions become intuitive and single-action:
 - **Action**: `python backend/main.py --host 0.0.0.0 --port 18888` (or executing the compiled `main` binary directly in a headless Linux/VM container).
 - **Zero Maintenance Overhead for Secondary Use Cases**:
   In legacy versions, running on a headless server required users to navigate unwanted browser-spawning logic, suppress client launchers with flags (`--launch_client=False`), and handle broken stdin monitoring loops.
-  With the backend stripped down to a dedicated HTTP/Socket.IO server, remote users simply run the process like any standard web daemon. While remote server workflows are not Forge's primary focus (Forge prioritizes ultra-low-latency local real-time conversion), enforcing strict separation of concerns naturally supports remote deployments **without the team expending ongoing maintenance effort or adding remote-specific glue code**.
+  With the backend stripped down to a dedicated HTTP/WebSocket server, remote users simply run the process like any standard web daemon. While remote server workflows are not Forge's primary focus (Forge prioritizes ultra-low-latency local real-time conversion), enforcing strict separation of concerns naturally supports remote deployments **without the team expending ongoing maintenance effort or adding remote-specific glue code**.
 
 ---
 

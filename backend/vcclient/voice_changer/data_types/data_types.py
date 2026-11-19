@@ -33,7 +33,6 @@ class AudioDevice(BaseModel):
 class VoiceChangerConfiguration(BaseModel):
     current_slot_index: int = 0
     voice_changer_input_mode: VoiceChangerInputMode = "client"
-    sio_broadcast: bool = False
     pass_through: bool = False
     recording_started: bool = False
     enable_performance_monitor: bool = True

@@ -10,13 +10,11 @@ import uvicorn
 
 from vcclient.logger import logger
 from vcclient.server.vcserver_rest_api import get_rest_api
-from vcclient.server.vcserver_socketio import (
-    create_socketio_app,
-    create_socketio_server,
-)
 
 if TYPE_CHECKING:
-    import socketio
+    from fastapi import FastAPI
+
+    from vcclient.server.vcserver_websocket import WebSocketHub
 
 
 class VCServer:
@@ -24,21 +22,19 @@ class VCServer:
     server_thread: threading.Thread | None = None
     server: uvicorn.Server
     loop: asyncio.AbstractEventLoop
-    sio: socketio.AsyncServer
-    app: socketio.ASGIApp
+    app: FastAPI
+    ws_hub: WebSocketHub
 
     def __init__(
         self,
         host: str = "127.0.0.1",
         port: int | None = None,
-        allow_origins: list[str] | None = None,
     ):
         super().__init__()
         self.host = host
-        self.allow_origins = allow_origins if allow_origins is not None else ["*"]
         self.port = port if port is not None else portpicker.pick_unused_port()
-        self.sio = create_socketio_server(allowed_origins=self.allow_origins)
-        self.app = create_socketio_app(sio=self.sio, app_fastapi=get_rest_api())
+        self.app = get_rest_api()
+        self.ws_hub = self.app.state.ws_hub
 
     def start(self):
         config = uvicorn.Config(
@@ -55,29 +51,8 @@ class VCServer:
         self.server_thread.start()
         return self.port
 
-    async def stop_all_sockets(self):
-        try:
-            sio = self.sio
-            if hasattr(sio, "manager"):
-                for ns in list(sio.manager.get_namespaces()):
-                    if ns in sio.manager.rooms and None in sio.manager.rooms[ns]:
-                        for sid in list(sio.manager.rooms[ns][None].keys()):
-                            try:
-                                await sio.disconnect(sid, namespace=ns)
-                            except Exception:
-                                pass
-            if hasattr(sio, "eio") and hasattr(sio.eio, "sockets"):
-                for eio_sid, sock in list(sio.eio.sockets.items()):
-                    try:
-                        if hasattr(sock, "close"):
-                            await sock.close(wait=False, abort=True)
-                        else:
-                            await sio.eio.disconnect(eio_sid)
-                    except Exception:
-                        pass
-                sio.eio.sockets.clear()
-        except Exception:
-            pass
+    async def stop_all_sockets(self) -> None:
+        await self.ws_hub.close_all()
 
     def start_server(self):
         logger.info("Starting VCServer on port %s", self.port)
@@ -108,6 +83,12 @@ class VCServer:
 
     def stop(self):
         logger.info("wait vcserver to stop...")
+        if hasattr(self, "loop") and self.loop and self.loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(self.ws_hub.close_all(), self.loop)
+            try:
+                future.result(timeout=2)
+            except Exception:
+                pass
         if hasattr(self, "server") and self.server:
             self.server.should_exit = True
         if hasattr(self, "server_thread") and self.server_thread and self.server_thread.is_alive():
