@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { confirmPitchEstimator, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, updateConfiguration, updateModelInfo, updateModelSettings } from './api';
+import { confirmPitchEstimator, deleteModel, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, updateConfiguration, updateModelInfo, updateModelSettings } from './api';
 import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
 import { importModel } from './model-upload';
@@ -71,6 +71,7 @@ export class NativeSession {
     return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
   }
   get canOrganizeModels() { return this.canConfigure && this.stagedConfiguration.currentModelId === undefined && Object.keys(this.stagedModels).length === 0; }
+  get canDeleteModel() { return this.canConfigure && this.currentModel?.status === 'ready'; }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
@@ -116,12 +117,12 @@ export class NativeSession {
     this.schedulePoll();
   }
 
-  async organizeModels(order: number[], deleteSelected = false): Promise<boolean> {
+  async organizeModels(order: number[]): Promise<boolean> {
     if (!this.canOrganizeModels) return false;
     this.organizing = true;
     this.modelOperationError = null;
     try {
-      await this.request(signal => organizeModels(order, deleteSelected, signal), 120_000);
+      await this.request(signal => organizeModels(order, signal), 120_000);
       await this.catalog.reload();
       if (this.catalog.state.status !== 'ready') throw new ApiError('invalid_response');
       return true;
@@ -129,6 +130,23 @@ export class NativeSession {
       this.modelOperationError = this.apiError(error);
       return false;
     } finally {
+      this.organizing = false;
+    }
+  }
+
+  async deleteModel(id: number): Promise<void> {
+    if (!this.canDeleteModel || this.currentModelId !== id) return;
+    this.organizing = true;
+    this.modelOperationError = null;
+    try {
+      await this.request(signal => deleteModel(id, signal), 120_000);
+    } catch (error) {
+      this.modelOperationError = this.apiError(error);
+    } finally {
+      const { currentModelId: _discarded, ...remaining } = this.stagedConfiguration;
+      this.stagedConfiguration = remaining;
+      this.stagedModels = {};
+      await this.catalog.reload();
       this.organizing = false;
     }
   }

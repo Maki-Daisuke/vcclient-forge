@@ -25,7 +25,6 @@ from vcclient.voice_changer.voice_changer_const import MAX_SLOT_INDEX, ConfigFil
 
 class OrganizeModelsParam(BaseModel):
     order: list[int]
-    delete_selected: bool = False
 
 
 _MODEL_SUFFIXES = {".pth", ".onnx"}
@@ -90,6 +89,7 @@ class RestAPISlotManager:
         self.router.add_api_route("/api/slot-manager/operation/organize", self.organize_models, methods=["POST"])
         self.router.add_api_route("/api/slot-manager/slots", self.get_slots, methods=["GET"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.get_slot, methods=["GET"])
+        self.router.add_api_route("/api/slot-manager/slots/{index}", self.delete_slot, methods=["DELETE"])
         self.router.add_api_route("/api/slot-manager/slots", self.post_slot, methods=["POST"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.put_slot_info, methods=["PUT"])
         self.router.add_api_route("/api/slot-manager/slots/{index}", self.patch_slot_info, methods=["PATCH"])
@@ -102,14 +102,21 @@ class RestAPISlotManager:
         return slots
 
     def organize_models(self, param: OrganizeModelsParam):
+        return self._organize_models(param.order)
+
+    def delete_slot(self, index: int):
+        validate_slot_index(index)
+        return self._organize_models(None, delete_index=index)
+
+    def _organize_models(self, order: list[int] | None, *, delete_index: int | None = None):
         local = LocalVoiceChangerInterface.get_instance()
         with local.lifecycle_lock:
             self._assert_local_audio_stopped_locked(local, "Audio must be stopped before organizing models")
             manager = SlotManager.get_instance()
             configuration = ConfigurationManager.get_instance().get_voice_changer_configuration()
-            voice = VoiceChanger.get_instance()
+            voice = VoiceChanger.peek_instance()
             self._assert_bulk_stopped(voice)
-            if voice.vc_pipeline is not None and not isinstance(voice.vc_pipeline, RVCPipeline):
+            if voice is not None and voice.vc_pipeline is not None and not isinstance(voice.vc_pipeline, RVCPipeline):
                 raise HTTPException(status_code=409, detail="Unsupported active model pipeline")
             slots = [slot for slot in manager.get_slot_infos() if slot.voice_changer_type is not None]
             if any(slot.voice_changer_type == "RESERVED_FOR_SAMPLE" for slot in slots):
@@ -117,27 +124,30 @@ class RestAPISlotManager:
             originals = [slot.slot_index for slot in slots]
             selected = configuration.current_slot_index
             expected = set(originals)
-            if param.delete_selected:
-                if selected not in expected:
-                    raise HTTPException(status_code=409, detail="No selected model to delete")
-                expected.remove(selected)
-            if len(param.order) != len(expected) or set(param.order) != expected:
+            if delete_index is not None:
+                if delete_index not in expected:
+                    raise HTTPException(status_code=404, detail="Model does not exist")
+                expected.remove(delete_index)
+            if order is None:
+                order = [index for index in originals if index in expected]
+            if len(order) != len(expected) or set(order) != expected:
                 raise HTTPException(status_code=409, detail="Model list changed; reload before trying again")
             try:
-                new_selected = ModelTransaction(ModelDir, ConfigFile).apply(originals, param.order, selected)
+                new_selected = ModelTransaction(ModelDir, ConfigFile).apply(originals, order, selected)
             except (ModelTransactionError, OSError, ValueError) as error:
                 logger.error("Could not organize models: %s", error, exc_info=True)
                 raise HTTPException(status_code=409, detail=str(error)) from error
             manager.reload()
             configuration.current_slot_index = new_selected
-            if new_selected == -1:
-                voice.vc_pipeline = None
-                voice.vc_info.voice_changer_type = None
-                voice.vc_info.pitch_estimator_type = None
-                voice.vc_info.pipeline_info = None
-            elif isinstance(voice.vc_pipeline, RVCPipeline):
-                voice.vc_pipeline.slot_index = new_selected
-            voice.vc_info.slot_index = new_selected
+            if voice is not None:
+                if new_selected == -1:
+                    voice.vc_pipeline = None
+                    voice.vc_info.voice_changer_type = None
+                    voice.vc_info.pitch_estimator_type = None
+                    voice.vc_info.pipeline_info = None
+                elif isinstance(voice.vc_pipeline, RVCPipeline):
+                    voice.vc_pipeline.slot_index = new_selected
+                voice.vc_info.slot_index = new_selected
             return {"current_slot_index": new_selected}
 
     def get_slot(self, index: int, reload: bool = False):

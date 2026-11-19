@@ -136,14 +136,28 @@ function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
   };
 }
 
-function extractErrorDetail(body: unknown): string | undefined {
-  if (!body || typeof body !== 'object') return undefined;
+function parseErrorDetail(body: unknown): { detail?: string; backendCode?: string } {
+  if (!body || typeof body !== 'object') return {};
   const detail = (body as Record<string, unknown>).detail;
-  if (typeof detail === 'string') return detail;
-  if (detail && typeof detail === 'object' && typeof (detail as Record<string, unknown>).message === 'string') {
-    return (detail as Record<string, unknown>).message as string;
+  if (typeof detail === 'string') {
+    const nested = parseJsonText(detail);
+    if (nested && typeof nested === 'object') {
+      const obj = nested as Record<string, unknown>;
+      return {
+        detail: typeof obj.message === 'string' ? obj.message : detail,
+        backendCode: typeof obj.code === 'string' ? obj.code : undefined,
+      };
+    }
+    return { detail };
   }
-  return undefined;
+  if (detail && typeof detail === 'object') {
+    const obj = detail as Record<string, unknown>;
+    return {
+      detail: typeof obj.message === 'string' ? obj.message : undefined,
+      backendCode: typeof obj.code === 'string' ? obj.code : undefined,
+    };
+  }
+  return {};
 }
 
 function parseJsonText(raw: string): unknown {
@@ -154,7 +168,8 @@ function parseJsonText(raw: string): unknown {
 async function responseJson(response: Response, signal: AbortSignal): Promise<unknown> {
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError('http', response.status, extractErrorDetail(body));
+    const { detail, backendCode } = parseErrorDetail(body);
+    throw new ApiError('http', response.status, detail, backendCode);
   }
   try {
     return await response.json();
@@ -201,7 +216,8 @@ export function sendMultipart({ method, url, body, signal, onProgress, onUploade
       finishUploaded();
       const parsed = parseJsonText(xhr.responseText);
       if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new ApiError('http', xhr.status, extractErrorDetail(parsed)));
+        const { detail, backendCode } = parseErrorDetail(parsed);
+        reject(new ApiError('http', xhr.status, detail, backendCode));
         return;
       }
       if (parsed === undefined) {
@@ -369,12 +385,17 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
   return active;
 }
 
-export async function organizeModels(order: number[], deleteSelected: boolean, signal: AbortSignal): Promise<void> {
+export async function organizeModels(order: number[], signal: AbortSignal): Promise<void> {
   const response = await fetch('/api/slot-manager/operation/organize', {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order, delete_selected: deleteSelected }),
+    body: JSON.stringify({ order }),
   });
   await responseJson(response, signal);
+}
+
+export async function deleteModel(id: number, signal: AbortSignal): Promise<void> {
+  if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
+  await responseJson(await fetch(`/api/slot-manager/slots/${id}`, { method: 'DELETE', signal }), signal);
 }
 
 export async function readModel(id: number, signal: AbortSignal): Promise<ModelSummary> {

@@ -89,11 +89,7 @@ def get_rest_api() -> FastAPI:
     return _rest_api_app
 
 
-def _create_rest_api() -> FastAPI:
-    app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
-    app_fastapi.add_middleware(NoCacheMiddleware)
-    app_fastapi.router.route_class = ValidationErrorLoggingRoute
-
+def register_api_exception_handlers(app_fastapi: FastAPI) -> None:
     @app_fastapi.exception_handler(StarletteHTTPException)
     async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
         if request.url.path.startswith("/api/"):
@@ -101,10 +97,21 @@ def _create_rest_api() -> FastAPI:
                 json.loads(exc.detail)
                 detail = exc.detail
             except Exception:
-                code = "NOT_SUPPORTED" if exc.status_code == 404 else "ERR_HTTP_EXCEPTION"
+                code = (
+                    "NOT_SUPPORTED"
+                    if exc.status_code == 404 and str(exc.detail) == "Not Found"
+                    else "ERR_HTTP_EXCEPTION"
+                )
                 detail = json.dumps({"code": code, "message": str(exc.detail)})
             return JSONResponse(status_code=exc.status_code, content={"detail": detail})
         return await http_exception_handler(request, exc)
+
+
+def _create_rest_api() -> FastAPI:
+    app_fastapi = FastAPI(title="VCClient REST API", docs_url=None, redoc_url=None)
+    app_fastapi.add_middleware(NoCacheMiddleware)
+    app_fastapi.router.route_class = ValidationErrorLoggingRoute
+    register_api_exception_handlers(app_fastapi)
 
     def custom_swagger_ui_html():
         logger.info("CUSTOM UI")

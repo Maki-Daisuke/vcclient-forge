@@ -11,6 +11,7 @@
   import { useUi } from '../lib/ui.svelte';
   import { useCatalog } from '../lib/catalog.svelte';
   import { useSession } from '../lib/session.svelte';
+  import type { ApiError } from '../lib/api-error';
   import type { ModelSummary } from '../lib/catalog';
   const ui = useUi();
   const catalog = useCatalog();
@@ -28,7 +29,7 @@
   const displayedModels = $derived(reordering
     ? order.map(id => catalog.models.find(model => model.id === id)).filter((model): model is ModelSummary => model !== undefined)
     : catalog.models);
-  const deleteReason = $derived(session.active === true ? ui.t('forge.delete_stop_first') : session.canConfigure && !session.canOrganizeModels ? ui.t('forge.apply_model_settings_first') : ui.t('forge.model_operation_wait'));
+  const deleteReason = $derived(session.active === true ? ui.t('forge.delete_stop_first') : ui.t('forge.model_operation_wait'));
   const validIcon = $derived(!editIcon || (editIcon.size > 0 && /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(editIcon.name)
     && (!editIcon.type || editIcon.type.startsWith('image/'))));
   const editChanged = $derived(editName !== (currentModel?.name ?? '') || editIcon !== null);
@@ -75,12 +76,16 @@
   }
 
   async function deleteModel() {
-    if (!currentModel || !session.canOrganizeModels) return;
-    const remaining = catalog.models.filter(model => model.id !== currentModel.id).map(model => model.id);
-    if (await session.organizeModels(remaining, true)) {
-      confirmOpen = false;
-      editOpen = false;
-    }
+    if (!currentModel || !session.canDeleteModel) return;
+    const id = currentModel.id;
+    confirmOpen = false;
+    editOpen = false;
+    await session.deleteModel(id);
+  }
+
+  function isUnsupportedOperation(error: ApiError): boolean {
+    if (error.status === 405) return true;
+    return error.status === 404 && (error.backendCode === 'NOT_SUPPORTED' || !error.detail || error.detail === 'Not Found');
   }
 
   function modelName(model: ModelSummary) {
@@ -107,7 +112,7 @@
   </div>
   <CatalogStatus />
   {#if session.modelOperationError}
-    <p role="alert">{session.modelOperationError.status === 404 ? ui.t('forge.model_operation_restart') : `${ui.t('forge.model_operation_failed')} ${session.modelOperationError.detail ?? ''}`}</p>
+    <p role="alert">{isUnsupportedOperation(session.modelOperationError) ? ui.t('forge.model_operation_restart') : `${ui.t('forge.model_operation_failed')} ${session.modelOperationError.detail ?? ''}`}</p>
   {/if}
   {#if catalog.models.length > 0}
     <Tooltip.Provider delayDuration={0}>
@@ -185,11 +190,11 @@
     {#snippet footer()}
     <Dialog.Root bind:open={confirmOpen}>
       <span class="start-button-wrapper delete-button-wrapper">
-        <Dialog.Trigger class="button danger" aria-disabled={!session.canOrganizeModels} aria-describedby={!session.canOrganizeModels ? 'delete-reason' : undefined}
-          onclick={(event: MouseEvent) => { if (!session.canOrganizeModels) event.preventDefault(); }}>
+        <Dialog.Trigger class="button danger" aria-disabled={!session.canDeleteModel} aria-describedby={!session.canDeleteModel ? 'delete-reason' : undefined}
+          onclick={(event: MouseEvent) => { if (!session.canDeleteModel) event.preventDefault(); }}>
           <Trash2 size={16} />{ui.t('forge.delete_model')}
         </Dialog.Trigger>
-        {#if !session.canOrganizeModels}<span id="delete-reason" class="start-tooltip" role="tooltip">{deleteReason}</span>{/if}
+        {#if !session.canDeleteModel}<span id="delete-reason" class="start-tooltip" role="tooltip">{deleteReason}</span>{/if}
       </span>
       <Dialog.Portal>
         <Dialog.Overlay class="dialog-overlay" />
@@ -197,10 +202,9 @@
           <header class="dialog-header"><Dialog.Title class="dialog-title">{ui.t('forge.delete_confirm')}</Dialog.Title></header>
           <div class="dialog-body">
             <Dialog.Description>{ui.t('forge.delete_confirm_description')}</Dialog.Description>
-            {#if session.modelOperationError}<p role="alert">{ui.t('forge.model_operation_failed')}</p>{/if}
           </div>
           <footer class="dialog-footer">
-            <button class="button danger" disabled={!session.canOrganizeModels} onclick={deleteModel}>{ui.t('forge.delete_action')}</button>
+            <button class="button danger" disabled={!session.canDeleteModel} onclick={deleteModel}>{ui.t('forge.delete_action')}</button>
             <Dialog.Close class="button" disabled={session.organizing}>{ui.t('forge.cancel')}</Dialog.Close>
           </footer>
         </Dialog.Content>

@@ -78,6 +78,8 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   directories, updates the selected slot and pipeline reference, and uses a
   journal to recover interrupted moves during startup. Operation assumes a
   single interactive client; concurrent multi-tab use is not supported.
+  Deletion uses `DELETE /api/slot-manager/slots/{index}` and refreshes the UI's
+  model list and configuration after either success or failure.
   Automated coverage uses temporary files and mocked browser APIs. The user has
   confirmed reordering and model deletion against the running backend.
 

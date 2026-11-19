@@ -86,6 +86,12 @@ def test_slot_index_out_of_range_api_validation(client):
     )
     assert res_post.status_code == 400
 
+    # 範囲外スロットの削除（DELETE）
+    res_delete_huge = client.delete("/api/slot-manager/slots/4000000000")
+    assert res_delete_huge.status_code == 400
+    res_delete_neg = client.delete("/api/slot-manager/slots/-1")
+    assert res_delete_neg.status_code == 400
+
     # 範囲外スロット（上限境界超過）の取得
     res_overflow = client.get("/api/slot-manager/slots/999999")
     assert res_overflow.status_code == 400
