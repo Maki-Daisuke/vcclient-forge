@@ -85,6 +85,14 @@ Bundling CUDA PyTorch pushed distributions beyond GitHub Releases' 2 GiB per-ass
   - [Core Packaging Breakthroughs](./sub-2gb-portable-distribution-and-packaging.md#2-core-architectural-breakthroughs-for-sub-2gb-packaging)
   - [ONNX Pitch Implementations](./streamlined-pitch-estimation-and-torch-free-pipeline.md#3-onnx-runtime-implementations)
 
+### Why Forge plans to decouple its control API from internal classes and client discipline *(Planned)*
+
+The inherited control surface in [`api-reference.md`](./api-reference.md) still mirrors internal Python classes (`/api/configuration-manager/*`, `/api/slot-manager/*`, `/api/voice-changer-manager/*`, `/api/local-voice-changer-interface/*`), mixes storage persistence with pipeline rebuilds, and leaves active-state checks, cutoff bounds validation, and write ordering largely to frontend code. In the target architecture, public APIs are designed strictly around voice-conversion domain concepts rather than backend internals or legacy disk formats, and all state transitions, validation, and request serialization are enforced on the server so alternative UIs or uncoordinated callers cannot corrupt the conversion core.
+
+- Details:
+  - [API Boundary Principles](./snapshot-driven-pipeline-and-stateless-control-api.md#3-api-boundary-principles)
+  - [HTTP & WebSocket API Reference](./api-reference.md)
+
 ---
 
 ## 3. Hardware Acceleration, Distribution & UX

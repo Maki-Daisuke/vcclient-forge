@@ -23,17 +23,19 @@ tags:
 
 ## 1. Executive Summary
 
-To prepare VCClient Forge for **concurrent hybrid pipelining** (overlapping preparation stages and synthesis across dedicated workers), the backend control layer should be decoupled into three independent concerns:
+To prepare VCClient Forge for **concurrent hybrid pipelining** and **alternative client UIs**, the backend control layer should be abstracted behind clean voice-conversion domain contracts and decoupled into three independent concerns:
 
 1. **Snapshot-Driven Conversion Engine**: The conversion backend exposes a declarative REST session resource—**`PUT .../session`** (engine `run(snapshot)`), **`DELETE .../session`** (engine `stop()`), and **`GET .../session`**—rather than reading persisted `settings/` or per-slot `params.json` files. When stopped, `PUT .../session` builds and runs the pipeline; while active, calling `PUT .../session` again either applies live-safe changes atomically or rejects rebuild-requiring changes with `409 Conflict`. The client simply does not call `PUT .../session` while conversion is intended to stay stopped (only persisting via storage).
 2. **Side-Effect-Free Storage API (Legacy Config Compatibility)**: Persisting `vc_conf.json` and per-slot `params.json` becomes purely a storage service—primarily to preserve configuration-file backward compatibility with earlier versions and portable upgrades—never touching `VoiceChanger`, pipelines, or audio streams.
 3. **Explicit Compute-Device Auto-Selection API**: Hardware probing and verification (`_select_initial_compute_device()`) is promoted from a first-launch-only startup hook into an explicit stopped-only API, laying the groundwork for future per-stage accelerator assignment (pitch estimation, feature extraction, vocoder synthesis).
 
+Across all three subsystems, two **API boundary principles** govern the contract: **(a) domain abstraction** (routes, DTOs, and identifiers hide Python manager classes, legacy disk schemas, and ONNX runtime internals) and **(b) server-enforced safety** (all validation, concurrency serialization, and state invariants live in the backend so the conversion core stays safe even under uncoordinated, out-of-order, or invalid UI requests).
+
 ---
 
 ## 2. Diagnosis of the Current Architecture
 
-Inspection of the current codebase reveals five structural couplings that hinder thread safety, API clarity, and parallel pipelining:
+Inspection of the current codebase reveals six structural couplings that hinder thread safety, API abstraction, alternative UIs, and parallel pipelining:
 
 ### 2.1 Mixed Responsibilities in Single DTOs
 
@@ -66,9 +68,35 @@ Inspection of the current codebase reveals five structural couplings that hinder
 
 - [`initializer.py`](../backend/vcclient/initializer.py) and [`main.py`](../backend/main.py) execute `_select_initial_compute_device()` only when `ConfigFile` (`settings/vc_conf.json`) does not yet exist. Users cannot re-run hardware probing through the API after changing GPUs, updating drivers, or migrating settings, nor does the boundary accommodate future per-stage device selection.
 
+### 2.6 Implementation-Exposed Contracts & Client-Enforced Safety
+
+- **Backend-class URLs and leaked internals**: Route namespaces mirror Python class names (`/api/slot-manager/*`, `/api/configuration-manager/configuration`, `/api/voice-changer-manager/information`, `/api/local-voice-changer-interface/*`, `/api/audio-device-manager/*`, `/api/gpu-device-manager/devices`; see [`api-reference.md`](./api-reference.md)). Schemas expose internal runtime flags (`local_voice_changer_interface_active`, `bulk_process_start_flag`), legacy spellings (`wasapi_exclude_emabled`, `server_device_trancate_buffer_ratio`), and ONNX execution structures (`candidate_onnx_providers`, `onnx_providers`).
+- **Directory-coupled model IDs**: Models are identified by mutable disk slot indices (`0..198` under `model_dir/<slot>`), so deletions and drag-and-drop compaction via [`ModelTransaction`](../backend/vcclient/voice_changer/slot_manager/reorder_transaction.py) shift caller-held references.
+- **Safety and ordering workarounds pushed to the UI**: Because `PUT` writes return `null`, omit server-side active guards or sample-rate cutoff validation on key paths, and silently roll back `conf.current_slot_index` on model-load failure ([`voice_changer.py`](../backend/vcclient/voice_changer/voice_change_manager/voice_changer.py)), [`api.ts`](../frontend/src/lib/api.ts) performs pre-checks (`readNativeActive()`, `filterKeys` bounds), preserves unknown fields across full-DTO `PUT` writes followed by readback confirmation, and [`session.svelte.ts`](../frontend/src/lib/session.svelte.ts) orders staged writes (`applyStagedSettings()`) client-side to avoid double rebuilds.
+
 ---
 
-## 3. Target Architecture: Three Orthogonal Subsystems
+## 3. API Boundary Principles
+
+Any control-plane redesign—and any new domain API routes replacing the legacy `*-manager` endpoints—should satisfy two core boundary contracts so alternative UIs (desktop shells, custom Web UIs, CLI scripts, or automated tests) can be built cleanly without replicating backend guard logic:
+
+### 3.1 Domain-Oriented Service Abstraction
+
+1. **Domain resources over internal Python topology**: Public routes, request/response schemas, and identifiers model voice-conversion domain concepts—conversion session, audio/compute devices, model catalog, and optional persisted settings—rather than mirroring internal Python classes (`ConfigurationManager`, `SlotManager`, `VoiceChanger`, `LocalVoiceChangerInterface`).
+2. **Isolate disk compatibility and execution details**: Legacy config file formats (`settings/vc_conf.json`, `model_dir/<slot>/params.json`), legacy field spellings, and inference-runtime internals (ONNX Execution Provider selection, buffer shapes, internal worker flags) stay behind storage and engine adapters rather than shaping wire DTOs.
+3. **Stable, opaque model identifiers**: Public APIs should reference models by stable IDs independent of directory slot ordering (`model_dir/<slot>`), treating display order as catalog metadata and translating to legacy folders inside the storage adapter as long as disk layout compatibility is needed.
+4. **Transport-agnostic session contract**: Local audio I/O (PortAudio/WASAPI) and browser/WebSocket client streaming share the same declarative session lifecycle rather than exposing separate control endpoints or `LocalVoiceChangerInterface`-specific flags.
+
+### 3.2 API-Enforced Safety & Caller-Independent Invariants
+
+1. **Zero reliance on caller discipline**: The conversion core remains safe even if a client sends concurrent, rapid-fire, out-of-order, or malformed requests. UI clients may still debounce gestures or track pending edits for smoother UX, but correctness never depends on frontend pre-checks or careful request sequencing.
+2. **Validate-before-mutate with atomic failure**: Every mutating operation validates schema types, domain invariants (such as HPF/LPF cutoffs against active or configured sample rates, device selection validity, and model availability), and session-state constraints *before* altering persisted files or runtime state. Violations return deterministic `4xx` or `409 Conflict` errors cleanly—never half-applying writes or silently rolling back fields behind `200 OK`.
+3. **Server-owned state serialization**: The backend coordinator lock and session state machine (`stopped` / `starting` / `running`) serialize or deterministically fence overlapping control requests (`PUT .../session`, `DELETE .../session`, model organization, device auto-selection), preventing audio-worker races or partial pipeline teardown regardless of client timing.
+4. **Side-effect isolation & self-contained responses**: `GET` reads never rebuild pipelines or alter device/audio state; persistence writes never mutate active conversion sessions; and mutating endpoints return the canonical updated resource representation (or explicit failure detail) rather than `null`, eliminating client-side readback verification loops.
+
+---
+
+## 4. Target Architecture: Three Orthogonal Subsystems
 
 ```mermaid
 flowchart TD
@@ -88,7 +116,7 @@ flowchart TD
     Client -->|"PUT / DELETE / GET .../session"| Engine
 ```
 
-### 3.1 Snapshot-Driven Conversion Engine
+### 4.1 Snapshot-Driven Conversion Engine
 
 1. **Unified REST Session Resource (`GET` / `PUT` / `DELETE .../session`)**:
    - Aligning with the RESTful resource convention already used by [`vcserver_rest_api_slot_manager.py`](../backend/vcclient/server/vcserver_rest_api_slot_manager.py), both Server Mode and Client Mode share an explicit conversion session resource backed by **`run(snapshot)`** and **`stop()`** inside the engine:
@@ -101,12 +129,12 @@ flowchart TD
      - Calling `PUT .../session` while **stopped** validates and accepts the snapshot, transitions to `starting`, and returns `202 Accepted`. The engine then builds the pipeline once, warms it up, and transitions to `running`. On failure, it releases partially created resources, returns to `stopped`, and exposes the failure through `GET .../session`.
      - While **starting**, `DELETE .../session`, conflicting session changes, and model organization are rejected with `409 Conflict`. The UI waits for startup to finish before offering stop or another start; if the start request times out, it checks `GET .../session` instead of assuming startup failed. A reloaded UI can similarly show startup progress or the failure.
      - Calling `PUT .../session` while **running** diffs the snapshot against the active configuration: live-safe changes apply immediately via an immutable snapshot swap, whereas rebuild-required changes return **`409 Conflict`** without disrupting the running pipeline.
-     - The interactive client serializes session updates. On stop, it stops issuing new session updates and waits for any in-flight update to complete before sending `DELETE .../session`; unsent edits remain local or are saved through the storage API. External API clients must also wait for updates to finish before stopping.
+     - Clients may still coalesce high-frequency UI gestures (such as slider drags) or defer stop calls for smoother UX, **but backend correctness does not rely on caller serialization**. The coordinator lock and session state machine serialize or reject concurrent calls deterministically: overlapping `PUT .../session` requests resolve cleanly in lock acquisition order without tearing down or mixing worker snapshots (and optional revision preconditions such as `If-Match` / snapshot tokens can prevent stale overwrites if multiple clients exist), while `DELETE .../session` waits on the coordinator lock if `running` or returns `409 Conflict` while `starting`.
    - Recording is controlled by a non-persistent boolean in the session snapshot. Starting with recording enabled starts recording with conversion; while running, changing the value from false to true starts recording and true to false finalizes it. Repeating an unchanged snapshot does not restart or finalize recording again.
    - `DELETE .../session` stops audio and finalizes any active recording before the session is torn down. The completed recording remains retrievable for download independently of the session after the session ends. The UI retains its recording-armed state and can enable recording in the next session. Empty recordings do not trigger a download in the UI. If client audio fails to start after a session has begun, the client stops the session so recording and other resources are finalized or released.
    - The separate `POST /api/voice-changer/operation/start_recording` and `POST /api/voice-changer/operation/stop_recording` endpoints have been removed. Until the session API is implemented, the UI controls recording through `recording_started` in the configuration API; it will migrate to the session snapshot.
 2. **Self-Contained Runtime Snapshot**:
-   - The client passes a complete snapshot containing everything needed to configure and run conversion: selected `slot_index`, model parameters (`pitch_shift`, `index_ratio`, `protect_ratio`, `chunk_sec`, `pitch_estimator`), inference/timing parameters (`gpu_device_id`, `extra_frame_sec`, `sola_search_frame_sec`), DSP parameters (gains, filters, noise gate, `volume_tuning_type`, `pass_through`), recording state, audio routing (mode, device IDs, rates, monitor enablement), and telemetry flags. Recording and passthrough state are excluded from persisted configuration and default to off after application startup.
+   - The client passes a complete snapshot containing everything needed to configure and run conversion: selected model identifier (an opaque model ID in clean domain APIs, mapped internally to storage layout while legacy compatibility applies), model parameters (`pitch_shift`, `index_ratio`, `protect_ratio`, `chunk_sec`, `pitch_estimator`), inference/timing parameters (`gpu_device_id`, `extra_frame_sec`, `sola_search_frame_sec`), DSP parameters (gains, filters, noise gate, `volume_tuning_type`, `pass_through`), recording state, audio routing (mode, device IDs, rates, monitor enablement), and telemetry flags. Recording and passthrough state are excluded from persisted configuration and default to off after application startup.
    - `RVCPipeline` and worker threads read **only** from the engine-owned active snapshot—never querying `ConfigurationManager` or `SlotManager.get_slot_info()` during inference. Model catalog metadata (`model_file`, `sample_rate`, `is_f0`, `embedder`, `.index` path) is resolved cleanly from the catalog when constructing a session on stopped `PUT .../session`.
 3. **Encapsulation & Policy-Based `409 Conflict`**:
    - **Backend-owned rebuild classification**: Only the backend knows which snapshot fields require stopping and rebuilding the pipeline under the active execution engine and hardware providers.
@@ -145,7 +173,7 @@ sequenceDiagram
     Coordinator-->>Client: 200 OK (stopped)
 ```
 
-### 3.2 Pure Persistence API (Legacy Config Compatibility & Client-Owned Storage)
+### 4.2 Pure Persistence API (Legacy Config Compatibility & Client-Owned Storage)
 
 - Saving user configuration is conceptually the **client's responsibility**: an external API caller, web client (`localStorage`), CLI script, or test suite may manage and store snapshots however it chooses—or pass ephemeral snapshots without touching backend storage.
 - The **primary reason** Forge retains backend persistence endpoints backed by `settings/vc_conf.json` and `model_dir/<slot>/params.json` is **backward compatibility with configuration files from earlier versions**:
@@ -156,7 +184,7 @@ sequenceDiagram
   5. **Cross-Origin Local Sharing**: Desktop WebView windows and regular browser tabs on the same host share stored presets regardless of port or browser origin.
 - Crucially, reading or writing these storage files is **pure persistence**: it **never** triggers pipeline rebuilds, device checks, or audio restarts, leaving the conversion engine coupled only to the active runtime snapshot schema.
 
-### 3.3 Explicit Compute-Device Auto-Selection API
+### 4.3 Explicit Compute-Device Auto-Selection API
 
 - Promote device probing (`_select_initial_compute_device()`) to an explicit API endpoint (e.g., triggering hardware/pipeline verification and returning recommended device assignments).
 - Enforces the same stopped-only `409 Conflict` guard if audio conversion is active.
@@ -165,26 +193,26 @@ sequenceDiagram
 
 ---
 
-## 4. Relationship to Concurrent Hybrid Pipelining & Optimization Priorities
+## 5. Relationship to Concurrent Hybrid Pipelining & Optimization Priorities
 
 1. **Prerequisite for Multi-Worker Pipelines**: Concurrent hybrid pipelining overlaps Stage 1 preparation (chunk $N+1$: ContentVec, RMVPE/FCPE, FAISS) with Stage 2 synthesis (chunk $N$: RVC vocoder). Guaranteeing via `409 Conflict` that tensor shapes, model weights, and device bindings remain invariant while running—and reading scalar parameters only from chunk-scoped immutable snapshots—prevents cross-stage shape mismatches and thread races.
 2. **Alignment with CUDA / Static-Shape Findings**: Separating session construction on stopped `PUT .../session` (`run(snapshot)`) from live execution establishes a single-shape, warmed-up execution boundary for static-shape runtimes (CoreML `MLProgram`, OpenVINO NPU) and future CUDA IOBinding / scoped CUDA Graph experiments. Concurrent pipelining may improve throughput; its effect on end-to-end audio latency and its comparison with other optimizations require measurement after implementation (see [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md)).
 
 ---
 
-## 5. Scope Boundary, Tradeoffs & Migration Considerations
+## 6. Scope Boundary, Tradeoffs & Migration Considerations
 
 | Concern | Consideration / Design Decision |
 | :--- | :--- |
-| **Single-interactive-client scope** | Like the rest of VCClient Forge (see [`implementation-roadmap.md`](./implementation-roadmap.md)), control assumes a **single interactive client**. That client serializes updates and waits for in-flight updates before stopping; external callers must do the same. Multi-tab concurrent control and server-side generation tokens are outside the initial scope. HTTP handlers and conversion workers still require synchronization. |
+| **Single-stream product scope vs. caller safety** | Like the rest of VCClient Forge (see [`implementation-roadmap.md`](./implementation-roadmap.md)), the application targets **single-user local audio** (one active input stream and conversion session at a time; multi-tenant hosting and collaborative multi-tab UI conflict resolution are out of scope). However, **core invariants never depend on caller obedience**: concurrent, rapid, or out-of-order requests from any UI or multiple clients are serialized or rejected (`4xx`/`409`) server-side without corrupting worker or storage state. |
 | **Page reloads & UI sync** | Because the engine holds no permanent config file dependency, it must still keep the *currently active runtime snapshot* in memory and expose it via `GET .../session` so reconnecting UIs accurately reflect running audio. |
-| **Model slot reordering** | Reordering and deleting models are rejected while a session is starting or running. While stopped, `ModelTransaction` moves per-model defaults with their files and returns the selected model's new index so the client can update its selection. External snapshots keyed by slot index must likewise be updated after reordering. |
+| **Model identification & reordering** | Reordering and deleting models are rejected (`409 Conflict`) while a session is starting or running. Domain APIs should identify models via **stable, opaque IDs** so snapshots and UI selections survive deletions and display-order changes, keeping [`ModelTransaction`](../backend/vcclient/voice_changer/slot_manager/reorder_transaction.py) directory compaction and legacy `slot_index` mapping encapsulated inside the storage adapter. (While legacy slot-indexed endpoints remain active during migration, reordering returns the updated `current_slot_index`.) |
 | **First-launch out-of-box UX** | Startup bootstrap (`main.py` or first UI connection) must still ensure a verified compute device recommendation is populated when no user preference exists yet. |
-| **Incremental migration path** | Existing tests, the Wails launcher, and REST callers depend on current `/api/configuration-manager/configuration` and `/api/slot-manager/slots/{index}` routes. Refactoring can introduce the unified `session` (`GET`/`PUT`/`DELETE`), storage, and device endpoints cleanly or migrate handlers behind strict invariants with a clear deprecation boundary. |
+| **Incremental migration path** | Existing tests, the Wails launcher, and current clients rely on `/api/configuration-manager/configuration`, `/api/slot-manager/slots/{index}`, and related `/api/*-manager/*` routes. Refactoring should introduce clean domain routes and DTOs (`/session`, `/models`, `/devices`, optional persistence) backed by explicit adapters for legacy `settings/vc_conf.json` / `params.json` files, enforcing server-side safety invariants on retained legacy handlers until deprecation. |
 
 ---
 
-## 6. Related Documents
+## 7. Related Documents
 
 - [Server-First Audio Architecture & Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md) (Section 3.7 audio adapter/routing contracts and Section 4 concurrent hybrid pipelining)
 - [Consolidated Implementation Roadmap](./implementation-roadmap.md) (Item 2 control refactoring and Item 9 inference optimization)
