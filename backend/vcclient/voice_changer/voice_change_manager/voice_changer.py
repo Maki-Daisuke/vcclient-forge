@@ -62,6 +62,10 @@ class VoiceChanger(EventEmitter):
     ab: np.ndarray
 
     @classmethod
+    def peek_instance(cls) -> VoiceChanger | None:
+        return cls._instance
+
+    @classmethod
     def get_instance(cls) -> VoiceChanger:
         if cls._instance is None:
             cls._instance = cls()

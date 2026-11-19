@@ -1,8 +1,8 @@
 import { getContext, setContext } from 'svelte';
-import { confirmPitchEstimator, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, setModelIcon, setModelName, updateConfiguration, updateModelSettings } from './api';
+import { confirmPitchEstimator, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, updateConfiguration, updateModelInfo, updateModelSettings } from './api';
 import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
-import { importModel, uploadFile } from './model-upload';
+import { importModel } from './model-upload';
 import type { ModelCatalogState } from './catalog.svelte';
 import type { ConfigurationEdits, ModelEdits } from './settings';
 
@@ -143,11 +143,11 @@ export class NativeSession {
     try {
       await this.request(async signal => {
         if (await readNativeActive(signal)) throw new ApiError('active');
-        if (icon && extension) {
-          const filename = await uploadFile(icon, extension, signal, () => {});
-          this.catalog.applyModel(await setModelIcon(id, filename, signal));
-        }
-        if (name !== model.name) this.catalog.applyModel(await setModelName(id, name, signal));
+        const updates: { name?: string; icon?: File } = {};
+        if (icon && extension) updates.icon = icon;
+        if (name !== model.name) updates.name = name;
+        if (!updates.icon && updates.name === undefined) return;
+        this.catalog.applyModel(await updateModelInfo(id, updates, signal));
       }, 120_000);
       return true;
     } catch (error) {
@@ -168,7 +168,7 @@ export class NativeSession {
     const phase = { registering: false };
     try {
       await this.request(signal => importModel(model, index, signal,
-        bytes => { this.uploadBytes += bytes; }, () => { phase.registering = true; this.uploadStatus = 'registering'; }), 30 * 60_000);
+        bytes => { this.uploadBytes = Math.min(bytes, this.uploadTotal); }, () => { phase.registering = true; this.uploadStatus = 'registering'; }), 30 * 60_000);
       if (this.disposed) return;
       await this.catalog.reload();
       if (!this.disposed) this.uploadStatus = this.catalog.state.status === 'ready' ? 'success' : 'refresh_failed';

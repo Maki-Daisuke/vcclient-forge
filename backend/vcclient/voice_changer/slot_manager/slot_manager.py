@@ -14,7 +14,6 @@ from ..data_types.slot_manager_data_types import (
     ModelImportParamMember,
     ReservedForSampleSlotInfo,
     RVCSlotInfo,
-    SetIconParam,
     SlotInfo,
     SlotInfoMember,
 )
@@ -128,7 +127,7 @@ class SlotManager:
             f"No blank slot available (max {MAX_SLOT_INDEX} slots reached)",
         )
 
-    def set_new_slot(self, model_import_param: ModelImportParamMember, remove_src: bool = False) -> None:
+    def set_new_slot(self, model_import_param: ModelImportParamMember, remove_src: bool = False) -> SlotInfoMember:
         if model_import_param.slot_index is None:
             model_import_param.slot_index = self.get_blank_slot_index()
         validate_slot_index(model_import_param.slot_index)
@@ -140,6 +139,7 @@ class SlotManager:
         logger.info("set new slot: %s", model_import_param)
         import_model(ModelDir, model_import_param, remove_src)
         self.reload()
+        return self.get_slot_info(model_import_param.slot_index)
 
     def save_slot_info(self, slot_info: SlotInfoMember) -> None:
         slot_dir = ModelDir / f"{slot_info.slot_index}"
@@ -251,15 +251,71 @@ class SlotManager:
 
         self.save_slot_info(new_slot_info)
 
-    def set_icon_file(self, param: SetIconParam) -> None:
-        validate_slot_index(param.slot_index)
-        slot_info = self.get_slot_info(param.slot_index)
-        if slot_info.voice_changer_type is None:
+    def update_slot_metadata(
+        self,
+        slot_index: int,
+        *,
+        name: str | None = None,
+        icon_file: Path | None = None,
+    ) -> SlotInfoMember:
+        validate_slot_index(slot_index)
+        if name is None and icon_file is None:
+            raise ValueError("At least one of name or icon_file must be specified.")
+
+        normalized_name: str | None = None
+        if name is not None:
+            normalized_name = name.strip()
+            if not normalized_name:
+                raise ValueError("Model name must not be empty.")
+
+        slot_info = self.get_slot_info(slot_index)
+        if not isinstance(slot_info, RVCSlotInfo):
             raise VCClientError(
                 ERROR_CODE_SLOT_STATE_CONFLICT,
-                f"slot_index:{param.slot_index} does not exist.",
+                f"slot_index:{slot_index} does not exist.",
             )
-        icon_dst_path = ModelDir / f"{param.slot_index}" / param.icon_file.name
-        shutil.move(param.icon_file, icon_dst_path)
-        slot_info.icon_file = Path(icon_dst_path.name)
-        self.update_slot_info(slot_info)
+
+        slot_dir = (ModelDir / f"{slot_index}").resolve()
+        old_icon_rel = slot_info.icon_file
+        new_icon_dst: Path | None = None
+        copied_icon = False
+
+        if icon_file is not None:
+            if not icon_file.is_file():
+                raise ValueError(f"icon_file does not exist: {icon_file}")
+            new_icon_dst = slot_dir / icon_file.name
+
+        orig_icon_file = slot_info.icon_file
+        orig_name = slot_info.name
+        try:
+            if new_icon_dst is not None:
+                assert icon_file is not None
+                if icon_file.resolve() != new_icon_dst.resolve():
+                    shutil.copy2(icon_file, new_icon_dst)
+                    copied_icon = True
+                slot_info.icon_file = Path(new_icon_dst.name)
+            if normalized_name is not None:
+                slot_info.name = normalized_name
+            self.save_slot_info(slot_info)
+        except Exception:
+            slot_info.icon_file = orig_icon_file
+            slot_info.name = orig_name
+            if (
+                copied_icon
+                and new_icon_dst is not None
+                and (old_icon_rel is None or new_icon_dst.name != old_icon_rel.name)
+            ):
+                new_icon_dst.unlink(missing_ok=True)
+            raise
+
+        if new_icon_dst is not None and old_icon_rel is not None:
+            old_icon_path = (slot_dir / old_icon_rel).resolve()
+            protected_names = {new_icon_dst.name}
+            for attr in ("model_file", "index_file"):
+                rel = getattr(slot_info, attr, None)
+                if rel is not None:
+                    protected_names.add(Path(rel).name)
+            if old_icon_path.parent == slot_dir and old_icon_path.name not in protected_names:
+                old_icon_path.unlink(missing_ok=True)
+
+        return slot_info

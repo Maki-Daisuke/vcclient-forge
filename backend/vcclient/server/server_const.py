@@ -18,8 +18,3 @@ def get_frontend_path() -> Path:
         return cwd_dist
 
     return frontend_dist
-
-
-UPLOAD_DIR_STR = "upload_dir"
-UPLOAD_DIR = Path(UPLOAD_DIR_STR)
-UPLOAD_DIR.mkdir(exist_ok=True)

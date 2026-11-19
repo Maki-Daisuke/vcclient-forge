@@ -72,12 +72,19 @@ def test_slot_index_out_of_range_api_validation(client):
     res_neg = client.get("/api/slot-manager/slots/-1")
     assert res_neg.status_code == 400
 
-    # 範囲外スロットのアイコン設定
-    res_icon = client.post(
-        "/api/slot-manager/slots/operation/set_icon_file",
-        json={"slot_index": 4000000000, "icon_file": "icon.png"},
+    # 範囲外スロットのメタデータ更新（PATCH）とアップロード（POST）
+    res_patch = client.patch(
+        "/api/slot-manager/slots/4000000000",
+        data={"name": "InvalidSlot"},
     )
-    assert res_icon.status_code == 400
+    assert res_patch.status_code == 400
+
+    res_post = client.post(
+        "/api/slot-manager/slots",
+        data={"name": "InvalidSlot", "slot_index": "4000000000"},
+        files={"model_file": ("model.onnx", b"dummy", "application/octet-stream")},
+    )
+    assert res_post.status_code == 400
 
     # 範囲外スロット（上限境界超過）の取得
     res_overflow = client.get("/api/slot-manager/slots/999999")

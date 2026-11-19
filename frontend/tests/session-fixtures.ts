@@ -1,5 +1,11 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type Request } from '@playwright/test';
 import { configuration, slots, fulfillCatalog, mockCatalog } from './catalog-fixtures';
+
+export async function readMultipart(request: Request): Promise<FormData> {
+  return new Response(new Uint8Array(request.postDataBuffer() ?? []), {
+    headers: { 'content-type': request.headers()['content-type'] ?? '' },
+  }).formData();
+}
 
 export async function mockSession(page: Page) {
   await mockCatalog(page);
@@ -22,6 +28,30 @@ export async function mockSession(page: Page) {
       const id = Number(slotMatch[1]);
       const model = state.models.find(model => model.slot_index === id);
       if (request.method() === 'GET') return route.fulfill({ json: model });
+      if (request.method() === 'PATCH') {
+        const form = await readMultipart(request);
+        const nextName = form.get('name');
+        const nextIcon = form.get('icon_file');
+        const iconName = nextIcon instanceof File ? `icon_${state.modelWrites.length + 1}_${nextIcon.name}` : undefined;
+        const patchData = {
+          ...(typeof nextName === 'string' ? { name: nextName } : {}),
+          ...(iconName ? { icon_file: iconName } : {}),
+        };
+        const updated = { ...model, ...patchData };
+        state.modelWrites.push({ id, data: patchData });
+        state.maxInFlight = Math.max(state.maxInFlight, ++state.inFlight);
+        if (state.modelGate) await state.modelGate;
+        if (state.modelStatus === 200 && !state.modelRollback && model) {
+          state.models = state.models.map(item => item.slot_index === id ? updated : item);
+        }
+        const current = state.models.find(item => item.slot_index === id) ?? model;
+        await route.fulfill({
+          status: state.modelStatus,
+          json: state.modelStatus === 200 ? (state.modelRollback ? current : updated) : { detail: 'Test model save failure' },
+        });
+        --state.inFlight;
+        return;
+      }
       expect(request.method()).toBe('PUT');
       const payload = request.postDataJSON();
       state.modelWrites.push({ id, data: payload });

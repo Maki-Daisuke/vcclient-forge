@@ -63,11 +63,14 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 4. Deliver the Minimal Svelte 5 Native-Audio UI
 
-- **Model information editing**: The selected model's name and icon can be saved
-  through existing uploader and slot APIs while audio is stopped. The UI keeps
-  drafts on failure and refreshes the model when possible because icon and name
-  are saved separately. Browser tests mock the APIs. The user confirmed that
-  the display changed after editing; fields and persistence were not specified.
+- **Model information editing**: The selected model's name and icon are saved
+  together via a single multipart `PATCH /api/slot-manager/slots/{index}`
+  request while audio is stopped, deleting replaced icon files after saving
+  `params.json` (`PUT /api/slot-manager/slots/{index}` remains JSON for
+  inference settings). The UI keeps drafts on failure and refreshes the model
+  when possible. Browser tests mock the APIs. The user confirmed that
+  the display changed after editing (prior to the atomic `PATCH` change); fields
+  and persistence were not specified.
 
 - **Model deletion and reordering**: The Svelte UI can delete the selected model
   after confirmation or reorder models using drag-and-drop.
@@ -134,8 +137,11 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Inference timing controls and deferred stopped settings**: The Svelte UI adjusts chunk (`0.05–1` s) and Extra frame (`0.01–2` s) with logarithmic sliders while audio is stopped. Chunk is model-specific; Extra frame is shared. The backend determines crossfade duration automatically. Stopped-only settings (model selection, input mode, audio devices/rates, preferred compute device, Extra frame, chunk, and pitch estimator) are staged locally in the frontend until Start and saved with warmup status before starting audio.
 
 - **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
-  optional index to a vacant slot through existing APIs while audio is stopped.
-  Browser tests mock the APIs. The user confirmed a real model upload; the tested
+  optional index to a vacant slot via a single multipart `POST /api/slot-manager/slots`
+  request (which also accepts an optional icon on the API and cleans up per-request
+  temporary files) while audio is stopped.
+  Browser tests mock the APIs. The user confirmed a real model upload (prior to
+  removing chunked uploads); the tested
   model format and index presence were not specified. ZIP drag and drop extracts
   files in the browser and is covered by mocked tests. The user confirmed a ZIP
   import and subsequent voice conversion.

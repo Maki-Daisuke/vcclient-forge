@@ -1,6 +1,6 @@
 import { expect, test, type Page } from './test-fixtures';
 import { ZipWriter, Uint8ArrayWriter, TextReader } from '@zip.js/zip.js';
-import { mockSession } from './session-fixtures';
+import { mockSession, readMultipart } from './session-fixtures';
 
 async function makeZip(files: Record<string, string>) {
   const writer = new ZipWriter(new Uint8ArrayWriter());
@@ -15,18 +15,22 @@ async function openUpload(page: Page) {
 
 test('drops a ZIP, extracts model and index, and imports their bytes', async ({ page }) => {
   const state = await mockSession(page);
-  const bodies: string[] = [];
-  const submissions: Record<string, unknown>[] = [];
-  await page.route('**/api/uploader/**', async route => {
-    if (route.request().url().includes('upload_file_chunk')) bodies.push(route.request().postDataBuffer()!.toString('latin1'));
-    await route.fulfill({ json: route.request().url().includes('concat_') ? { generated_filename: 'file' } : { uploaded_filename: 'chunk' } });
-  });
+  const submissions: { name: FormDataEntryValue | null; voiceChangerType: FormDataEntryValue | null; modelBytes: string; indexBytes: string | null }[] = [];
   await page.route('**/api/slot-manager/slots', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
-    const payload = route.request().postDataJSON();
-    submissions.push(payload);
-    state.models.push({ ...state.models[2], slot_index: 3, name: payload.name });
-    await route.fulfill({ json: null });
+    const form = await readMultipart(route.request());
+    const modelFile = form.get('model_file') as File;
+    const indexFile = form.get('index_file');
+    const name = String(form.get('name'));
+    submissions.push({
+      name: form.get('name'),
+      voiceChangerType: form.get('voice_changer_type'),
+      modelBytes: await modelFile.text(),
+      indexBytes: indexFile instanceof File ? await indexFile.text() : null,
+    });
+    const created = { ...state.models[2], slot_index: 3, name };
+    state.models.push(created);
+    await route.fulfill({ json: created });
   });
   const zip = await makeZip({ 'folder/voice.pth': 'model bytes', 'folder/voice.index': 'index bytes', 'README.txt': 'info' });
   await page.goto('/');
@@ -41,9 +45,12 @@ test('drops a ZIP, extracts model and index, and imports their bytes', async ({ 
   await expect(dialog.getByLabel('ZIP内のIndex')).toHaveValue('1');
   await dialog.getByRole('button', { name: 'アップロード', exact: true }).click();
   await expect(dialog.getByRole('status')).toHaveText('モデルを追加しました。');
-  expect(bodies.some(body => body.includes('model bytes'))).toBe(true);
-  expect(bodies.some(body => body.includes('index bytes'))).toBe(true);
-  expect(submissions[0]).toMatchObject({ name: 'voice', voice_changer_type: 'RVC' });
+  expect(submissions).toEqual([{
+    name: 'voice',
+    voiceChangerType: 'RVC',
+    modelBytes: 'model bytes',
+    indexBytes: 'index bytes',
+  }]);
 });
 
 test('asks for model selection when a ZIP contains multiple models', async ({ page }) => {

@@ -16,7 +16,8 @@ test('saves a changed name with the latest model fields', async ({ page }) => {
   await editor.getByRole('button', { name: '保存' }).click();
   await expect(editor).toHaveCount(0);
   expect(state.modelWrites).toHaveLength(1);
-  expect(state.modelWrites[0].data).toMatchObject({ name: '新しい名前', future_setting: { keep: true }, slot_index: 7 });
+  expect(state.modelWrites[0].data).toEqual({ name: '新しい名前' });
+  expect(state.models.find(model => model.slot_index === 7)).toMatchObject({ name: '新しい名前', future_setting: { keep: true }, slot_index: 7 });
   await expect(page.getByRole('heading', { name: '8. 新しい名前' })).toBeVisible();
 });
 
@@ -44,46 +45,31 @@ test('previews the selected icon and clears the preview on cancel', async ({ pag
   await expect(image).toHaveCount(0);
 });
 
-test('uploads an icon before saving the name without overwriting the new icon', async ({ page }) => {
+test('uploads icon and name together in one PATCH request', async ({ page }) => {
   const state = await mockSession(page);
-  let uploaded = '';
-  await page.route('**/api/uploader/**', async route => {
-    const form = route.request().postDataBuffer()!.toString('latin1');
-    const match = form.match(/[0-9a-f-]{36}\.png/i);
-    if (match) uploaded = match[0];
-    await route.fulfill({ json: route.request().url().includes('concat_') ? { generated_filename: uploaded } : { uploaded_filename: uploaded } });
-  });
-  await page.route('**/api/slot-manager/slots/operation/set_icon_file', async route => {
-    const body = route.request().postDataJSON();
-    expect(body).toEqual({ slot_index: 7, icon_file: uploaded });
-    state.models[0].icon_file = uploaded;
-    await route.fulfill({ json: null });
-  });
   const editor = await openEditor(page);
   await editor.getByLabel('名前', { exact: true }).fill('新しい名前');
   await editor.getByLabel('アイコンを選択').setInputFiles({ name: 'icon.png', mimeType: 'image/png', buffer: Buffer.from('image') });
   await editor.getByRole('button', { name: '保存' }).click();
   await expect(editor).toHaveCount(0);
-  expect(state.modelWrites[0].data).toMatchObject({ name: '新しい名前', icon_file: uploaded });
-  await expect(page.locator('.portrait img')).toHaveAttribute('src', `/model_dir/7/${uploaded}`);
+  expect(state.modelWrites).toHaveLength(1);
+  expect(state.modelWrites[0].data).toMatchObject({ name: '新しい名前' });
+  expect(state.modelWrites[0].data.icon_file).toMatch(/^icon_1_icon\.png$/);
+  await expect(page.locator('.portrait img')).toHaveAttribute('src', `/model_dir/7/${state.modelWrites[0].data.icon_file}`);
 });
 
-test('keeps the draft and reports a partial save when the name update fails', async ({ page }) => {
+test('keeps the draft and leaves saved model unchanged when atomic PATCH fails', async ({ page }) => {
   const state = await mockSession(page);
+  const beforeIcon = state.models[0].icon_file;
   state.modelStatus = 500;
-  await page.route('**/api/uploader/**', route => route.fulfill({ json: route.request().url().includes('concat_') ? { generated_filename: 'file' } : { uploaded_filename: 'chunk' } }));
-  await page.route('**/api/slot-manager/slots/operation/set_icon_file', async route => {
-    state.models[0].icon_file = route.request().postDataJSON().icon_file;
-    await route.fulfill({ json: null });
-  });
   const editor = await openEditor(page);
   await editor.getByLabel('名前', { exact: true }).fill('未保存の名前');
   await editor.getByLabel('アイコンを選択').setInputFiles({ name: 'icon.png', mimeType: 'image/png', buffer: Buffer.from('image') });
   await editor.getByRole('button', { name: '保存' }).click();
-  await expect(editor.getByRole('alert')).toContainText('一部は保存されている可能性');
+  await expect(editor.getByRole('alert')).toContainText('モデル情報を保存できませんでした');
   await expect(editor.getByLabel('名前', { exact: true })).toHaveValue('未保存の名前');
   expect(state.models[0].name).toBe('Test model B');
-  expect(state.models[0].icon_file).toMatch(/\.png$/);
+  expect(state.models[0].icon_file).toBe(beforeIcon);
 });
 
 test('does not allow editing while conversion is running', async ({ page }) => {

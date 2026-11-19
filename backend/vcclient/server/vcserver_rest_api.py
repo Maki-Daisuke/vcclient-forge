@@ -16,8 +16,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from vcclient.const import LOG_FILE, SERVER_IO_RECORDING_FILE_OUT
 from vcclient.logger import logger
-from vcclient.server.fileuploader.fileuploader import EasyFileUploader
-from vcclient.server.server_const import UPLOAD_DIR, get_frontend_path
+from vcclient.server.server_const import get_frontend_path
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioDeviceManager
 from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
@@ -148,8 +147,6 @@ def _create_rest_api() -> FastAPI:
     app_fastapi.include_router(rest_audio_device_manager.router)
     rest_gpu_device_manager = RestAPIGPUDeviceManager()
     app_fastapi.include_router(rest_gpu_device_manager.router)
-    fileuploader = EasyFileUploader(UPLOAD_DIR)
-    app_fastapi.include_router(fileuploader.router)
     voice_changer = RestAPIVoiceChanger()
     app_fastapi.include_router(voice_changer.router)
     local_voice_changer_interface = RestAPILocalVoiceChangerInterface()

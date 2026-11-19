@@ -181,9 +181,11 @@ Advanced Settings provides one Realtime Display switch for both backend analysis
 notifications and Client Mode meter sampling. It enables the performance monitor
 when switched on, retains existing notification intervals, and shows mixed legacy
 settings as indeterminate. Changes use the existing configuration API.
-Model upload uses the existing chunk uploader and slot import APIs for `.pth` and
-`.onnx` files with an optional index. Native audio must be stopped; import is
-serialized with UI settings and audio start. The user confirmed a real model upload;
+Model upload uses a single multipart `POST /api/slot-manager/slots` request
+(accepting `.pth` and `.onnx` model files plus optional index and optional icon)
+instead of chunked uploads; server-side temporary files are cleaned up per
+request, and native audio must be stopped (enforced by both the UI and backend
+`409` checks). The user confirmed a real model upload;
 the tested model format and index presence were not specified. ZIP selection and
 drag and drop extract chosen files in the browser; the user confirmed a ZIP import
 and subsequent voice conversion.

@@ -1,4 +1,5 @@
 import math
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from threading import Lock, Thread
@@ -7,7 +8,6 @@ import requests
 
 from vcclient.logger import logger
 
-from ...server.server_const import UPLOAD_DIR
 from ..data_types.data_types import RVCSampleInfo
 from ..data_types.sample_manager_data_types import SampleDownloadStatus
 from ..data_types.slot_manager_data_types import RVCModelImportParam
@@ -146,26 +146,28 @@ def download_initial_samples(callback: Callable[[list[SampleDownloadStatus]], No
             if callback is not None:
                 callback(list(status_dict.values()))
 
-    threads: dict[str, Thread] = {}
-    for sample in _SAMPLES:
-        t = Thread(target=_download, args=(UPLOAD_DIR, sample, download_callback, True))
-        t.start()
-        threads[sample.id] = t
+    with tempfile.TemporaryDirectory() as tmpdir:
+        download_dir = Path(tmpdir)
+        threads: dict[str, Thread] = {}
+        for sample in _SAMPLES:
+            t = Thread(target=_download, args=(download_dir, sample, download_callback, True))
+            t.start()
+            threads[sample.id] = t
 
-    for id, thread in threads.items():
-        thread.join()
-        logger.debug("Sample download status: %s done.", id)
+        for id, thread in threads.items():
+            thread.join()
+            logger.debug("Sample download status: %s done.", id)
 
-    logger.debug("Sample download done.")
+        logger.debug("Sample download done.")
 
-    for i, sample in enumerate(_SAMPLES):
-        import_params = RVCModelImportParam(
-            slot_index=i,
-            name=sample.name,
-            terms_of_use_url=sample.terms_of_use_url,
-            model_file=UPLOAD_DIR / sample.model_url.split("/")[-1],
-            index_file=None,
-            icon_file=UPLOAD_DIR / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
-        )
-        slot_manager = SlotManager.get_instance()
-        slot_manager.set_new_slot(import_params, remove_src=True)
+        for i, sample in enumerate(_SAMPLES):
+            import_params = RVCModelImportParam(
+                slot_index=i,
+                name=sample.name,
+                terms_of_use_url=sample.terms_of_use_url,
+                model_file=download_dir / sample.model_url.split("/")[-1],
+                index_file=None,
+                icon_file=download_dir / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
+            )
+            slot_manager = SlotManager.get_instance()
+            slot_manager.set_new_slot(import_params, remove_src=True)

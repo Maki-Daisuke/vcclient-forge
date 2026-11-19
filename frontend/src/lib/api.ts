@@ -136,12 +136,25 @@ function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
   };
 }
 
+function extractErrorDetail(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined;
+  const detail = (body as Record<string, unknown>).detail;
+  if (typeof detail === 'string') return detail;
+  if (detail && typeof detail === 'object' && typeof (detail as Record<string, unknown>).message === 'string') {
+    return (detail as Record<string, unknown>).message as string;
+  }
+  return undefined;
+}
+
+function parseJsonText(raw: string): unknown {
+  try { return JSON.parse(raw); }
+  catch { return undefined; }
+}
+
 async function responseJson(response: Response, signal: AbortSignal): Promise<unknown> {
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    const detail = body?.detail;
-    throw new ApiError('http', response.status,
-      typeof detail === 'string' ? detail : typeof detail?.message === 'string' ? detail.message : undefined);
+    throw new ApiError('http', response.status, extractErrorDetail(body));
   }
   try {
     return await response.json();
@@ -149,6 +162,65 @@ async function responseJson(response: Response, signal: AbortSignal): Promise<un
     if (signal.aborted) throw error;
     invalidResponse();
   }
+}
+
+export interface MultipartOptions {
+  method: 'POST' | 'PATCH';
+  url: string;
+  body: FormData;
+  signal: AbortSignal;
+  onProgress?: (loaded: number, total?: number) => void;
+  onUploaded?: () => void;
+}
+
+export function sendMultipart({ method, url, body, signal, onProgress, onUploaded }: MultipartOptions): Promise<unknown> {
+  if (signal.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let uploaded = false;
+    const finishUploaded = () => {
+      if (uploaded) return;
+      uploaded = true;
+      onUploaded?.();
+    };
+    const onAbort = () => xhr.abort();
+    const cleanup = () => signal.removeEventListener('abort', onAbort);
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    xhr.open(method, url);
+    xhr.responseType = 'text';
+
+    xhr.upload.onprogress = event => {
+      onProgress?.(event.loaded, event.lengthComputable ? event.total : undefined);
+      if (event.lengthComputable && event.loaded >= event.total) finishUploaded();
+    };
+    xhr.upload.onload = finishUploaded;
+
+    xhr.onload = () => {
+      cleanup();
+      finishUploaded();
+      const parsed = parseJsonText(xhr.responseText);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new ApiError('http', xhr.status, extractErrorDetail(parsed)));
+        return;
+      }
+      if (parsed === undefined) {
+        reject(new ApiError('invalid_response'));
+        return;
+      }
+      resolve(parsed);
+    };
+    xhr.onerror = () => {
+      cleanup();
+      reject(new ApiError('network'));
+    };
+    xhr.onabort = () => {
+      cleanup();
+      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+    };
+
+    xhr.send(body);
+  });
 }
 
 async function getJson(path: string, signal: AbortSignal): Promise<unknown> {
@@ -322,28 +394,25 @@ export async function confirmPitchEstimator(id: number, pitchEstimator: string, 
   }
 }
 
-export async function setModelIcon(id: number, filename: string, signal: AbortSignal): Promise<ModelSummary> {
-  await responseJson(await fetch('/api/slot-manager/slots/operation/set_icon_file', {
-    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ slot_index: id, icon_file: filename }),
-  }), signal);
-  const model = await readModel(id, signal);
-  if (model.imageUrl !== modelImage(id, filename)) throw new ApiError('not_applied');
+export async function updateModelInfo(
+  id: number,
+  updates: { name?: string; icon?: File | null },
+  signal: AbortSignal,
+): Promise<ModelSummary> {
+  const form = new FormData();
+  if (updates.name !== undefined) form.append('name', updates.name);
+  if (updates.icon) form.append('icon_file', updates.icon, updates.icon.name);
+  const result = await sendMultipart({
+    method: 'PATCH',
+    url: `/api/slot-manager/slots/${id}`,
+    body: form,
+    signal,
+  });
+  const model = parseModel(object(result));
+  if (model.id !== id) invalidResponse();
+  if (updates.name !== undefined && model.name !== updates.name.trim()) throw new ApiError('not_applied');
+  if (updates.icon && !model.imageUrl) throw new ApiError('not_applied');
   return model;
-}
-
-export async function setModelName(id: number, name: string, signal: AbortSignal): Promise<ModelSummary> {
-  const url = `/api/slot-manager/slots/${id}`;
-  const slot = object(await getJson(url, signal));
-  const before = parseModel(slot);
-  if (before.id !== id || before.status !== 'ready') invalidResponse();
-  await responseJson(await fetch(url, {
-    method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...slot, name }),
-  }), signal);
-  const result = await readModel(id, signal);
-  if (result.name !== name) throw new ApiError('not_applied');
-  return result;
 }
 
 export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal, confirmPipeline = true): Promise<ModelSummary> {

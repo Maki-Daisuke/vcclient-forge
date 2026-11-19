@@ -118,8 +118,10 @@ temporary names and registered in an automatically selected empty slot. The
 backend converts `.pth` to ONNX during import. The list is refreshed after success.
 Import may take time; other settings and audio start are disabled while it runs.
 If the registration response is lost, reload and inspect the list before retrying.
-An interrupted upload can leave temporary files because the existing API has no
-cleanup operation. Browser tests mock uploads; the user confirmed an upload to the
+Model uploads use a single multipart `POST /api/slot-manager/slots` request
+(optional index and optional icon on the API); server-side staging files are
+written inside a per-request temporary directory and removed on completion or
+failure. Browser tests mock uploads; the user confirmed an upload to the
 real backend, but did not specify the model format or whether an index was included.
 The user confirmed importing a model from a ZIP and using it for voice conversion;
 the ZIP's model format and index presence were not specified.
@@ -132,13 +134,14 @@ reordering, which is currently restricted to stopped audio. A backend journal re
 directory moves on the next startup. Browser tests use a mocked backend.
 Do not use multiple tabs to operate the application at the same time.
 
-While audio is stopped, the edit dialog can save the selected model's name and
-icon using the existing slot and uploader APIs. Supported icons are PNG, JPEG,
-WebP, GIF, AVIF, and BMP. Name and icon updates are separate operations: a
-failure can leave one change applied, so the UI retains the draft and refreshes
-the model when possible. Existing uploader APIs can leave temporary files after
-interrupted uploads, and replacing an icon does not remove the previous file.
-Browser tests mock the APIs. The user confirmed that the display changed after
+While audio is stopped, the edit dialog saves the selected model's name and
+icon in a single multipart `PATCH /api/slot-manager/slots/{index}` request (`PUT`
+remains JSON for inference parameter updates). Supported icons are PNG, JPEG,
+WebP, GIF, AVIF, and BMP. Validation runs before copying any icon file, temporary
+staging files are removed automatically, and replacing an icon deletes the
+previous icon file after saving `params.json`. If the request fails, the UI
+retains the draft and refreshes the model when possible. Browser tests mock the
+APIs. The user confirmed that the display changed after
 editing; the specific fields and persistence after restart were not specified.
 
 Run commands from the repository root:

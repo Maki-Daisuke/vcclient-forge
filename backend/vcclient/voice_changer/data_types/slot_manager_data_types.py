@@ -84,8 +84,3 @@ class ReservedForSampleSlotInfo(SlotInfo):
 
 
 SlotInfoMember = SlotInfo | ReservedForSampleSlotInfo | RVCSlotInfo
-
-
-class SetIconParam(BaseModel):
-    slot_index: int
-    icon_file: Path
