@@ -24,13 +24,14 @@ entries:
   - device-config-and-unified-hardware-descriptor.md
   - automatic-crossfade-and-boundary-stitching.md
   - snapshot-driven-pipeline-and-stateless-control-api.md
+  - api-reference.md
 ---
 
 # VCClient Forge Knowledge Base
 
 This knowledge bundle documents the reverse-engineering discoveries, historical architecture, bug fixes, and engineering decisions established during the development of **VCClient Forge** (a community-driven modernization and fork of `w-okada/voice-changer` v2.0.78-beta).
 
-For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. For a quick overview of key design choices before reading individual articles, start at **#0** below.
+For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. For the current backend HTTP and WebSocket specification, see the **[HTTP & WebSocket API Reference](./api-reference.md)**. For a quick overview of key design choices before reading individual articles, start at **#0** below.
 
 ## Knowledge Map
 
@@ -90,4 +91,7 @@ For recommended implementation order, dependencies, and conditional experiments,
 
 18. **[Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs](./snapshot-driven-pipeline-and-stateless-control-api.md)** *(Planned)*
     Diagnoses the mixed responsibilities, implicit pipeline rebuilds, thread-safety gaps, and startup-only device probing in the current `ConfigurationManager` and `SlotManager` control flow. Defines the target architecture separating a RESTful snapshot-driven session resource (`GET` / `PUT` / `DELETE .../session`, engine `run(snapshot)` / `stop()` with backend-owned `409 Conflict` policies), pure side-effect-free persistence endpoints retaining compatibility with earlier versions' configuration files (`settings/vc_conf.json`, `model_dir/<slot>/params.json`), and an explicit compute-device auto-selection API ready for concurrent hybrid pipelining.
+
+19. **[HTTP & WebSocket API Reference](./api-reference.md)**
+    Complete specification of the currently implemented backend HTTP REST, multipart upload/metadata, native WebSocket (`/api/ws/status`, `/api/ws/audio`), and static file endpoints, including request/response schemas, error envelopes, runtime side effects, and removed legacy endpoints.
 
