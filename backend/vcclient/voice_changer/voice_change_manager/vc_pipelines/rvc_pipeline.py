@@ -194,7 +194,6 @@ class RVCPipeline(VCPipeline):
         chunk_sec = self.get_chunk_sec()
         return calculate_target_feats_length(
             chunk_sec=chunk_sec,
-            crossfade_sec=DEFAULT_CROSSFADE_SEC,
             extra_frame_sec=conf.extra_frame_sec,
         )
 
