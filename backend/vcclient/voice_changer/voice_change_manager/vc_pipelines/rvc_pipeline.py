@@ -19,8 +19,8 @@ from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
 from ...voice_changer_const import (
-    DEFAULT_CROSSFADE_SEC,
-    DEFAULT_SOLA_SEARCH_FRAME_SEC,
+    CROSSFADE_SEC,
+    SOLA_SEARCH_FRAME_SEC,
     ModelDir,
     PitchEstimatorType,
     RVCInferencerOnnxVersion,
@@ -118,7 +118,7 @@ class RVCPipeline(VCPipeline):
             if sample_count <= 0:
                 sample_count = 8000
 
-            real_crossfade_sec = min(chunk_sec, DEFAULT_CROSSFADE_SEC)
+            real_crossfade_sec = min(chunk_sec, CROSSFADE_SEC)
 
             # Generate synthetic audio (440Hz sine wave) with sufficient amplitude to open noise gate
             t = np.arange(sample_count, dtype=np.float32) / input_sample_rate
@@ -220,7 +220,7 @@ class RVCPipeline(VCPipeline):
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray, int, float, int]:
         new_frame_size = audio.shape[0]
         crossfade_overlap_size = int(crossfade_overlap_sec * self.get_input_sample_rate())
-        sola_search_frame_size = int(DEFAULT_SOLA_SEARCH_FRAME_SEC * self.get_input_sample_rate())
+        sola_search_frame_size = int(SOLA_SEARCH_FRAME_SEC * self.get_input_sample_rate())
         extra_frame_size = int(extra_frame_sec * self.get_input_sample_rate())
 
         self.audio_buffer = np.concatenate([self.audio_buffer, audio], 0)

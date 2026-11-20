@@ -236,7 +236,7 @@ $$S_{\text{RMVPE}} = (\text{chunk\_sec} \times 16000) + 1120 \text{ samples}$$
 
 Forge resolves this trade-off via a two-part strategy for NPU execution:
 
-1. **Runtime Dimension Inference**: Rather than hardcoding 4,096 samples, the runtime calculates the exact static shape (or tightly bounded dynamic range) from the active configuration (`chunk_sec`, `extra_frame_sec`, and `DEFAULT_CROSSFADE_SEC`) at model initialization time.
+1. **Runtime Dimension Inference**: Rather than hardcoding 4,096 samples, the runtime calculates the exact static shape (or tightly bounded dynamic range) from the active configuration (`chunk_sec`, `extra_frame_sec`, and `CROSSFADE_SEC`) at model initialization time.
 2. **Persistent Compilation Caching (`cache_dir`)**: OpenVINO's `cache_dir` configuration persists the compiled hardware executable (`.blob`) to disk. While initial AOT compilation takes several seconds, subsequent model reloads with the same configuration load in under 50 ms directly from cache, avoiding UI blocking during routine startup and slot switching.
 
 #### 2.3.3 NPU Capacity Limits on Full Neural Vocoders
@@ -381,7 +381,7 @@ Detailed ORT diagnostic traces isolate the exact C++ barrier:
 
 #### 2.4.4 Two-Tier Static Shape Architecture
 
-Because VCClient determines conversion parameters (`chunk_sec`, `extra_frame_sec`, `sample_rate`, and fixed `DEFAULT_CROSSFADE_SEC`) before audio processing starts, the backend can dynamically determine the execution profile without manual user intervention:
+Because VCClient determines conversion parameters (`chunk_sec`, `extra_frame_sec`, `sample_rate`, and fixed `CROSSFADE_SEC`) before audio processing starts, the backend can dynamically determine the execution profile without manual user intervention:
 
 ```mermaid
 flowchart TD

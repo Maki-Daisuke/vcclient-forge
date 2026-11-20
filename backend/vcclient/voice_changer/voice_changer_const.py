@@ -52,5 +52,5 @@ PitchEstimatorType: TypeAlias = Literal[
     "fcpe",
 ]
 
-DEFAULT_CROSSFADE_SEC: float = 0.05
-DEFAULT_SOLA_SEARCH_FRAME_SEC: float = 0.012
+CROSSFADE_SEC: float = 0.05
+SOLA_SEARCH_FRAME_SEC: float = 0.012

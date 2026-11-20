@@ -28,7 +28,7 @@ VCClient Forge stitches consecutive audio chunks in `CrossfadeProcessor` (`backe
 
 When converting real-time streaming audio chunk-by-chunk, each chunk is synthesized independently by the acoustic pipeline (pitch estimation, ContentVec feature extraction, and RVC neural vocoder). Consequently, the boundary between chunk $k-1$ and chunk $k$ exhibits discontinuities in waveform phase.
 
-Rather than performing a crossfade at a fixed offset—which causes destructive interference when harmonics are out of phase—`CrossfadeProcessor.apply` searches for an alignment offset $\Delta \in [0, S_{\text{sola}}]$ (where $S_{\text{sola}}$ corresponds to `DEFAULT_SOLA_SEARCH_FRAME_SEC = 0.012` s = 12 ms).
+Rather than performing a crossfade at a fixed offset—which causes destructive interference when harmonics are out of phase—`CrossfadeProcessor.apply` searches for an alignment offset $\Delta \in [0, S_{\text{sola}}]$ (where $S_{\text{sola}}$ corresponds to `SOLA_SEARCH_FRAME_SEC = 0.012` s = 12 ms).
 
 At the end of chunk $k-1$, the processor extracts the trailing $L$ samples (`crossfade_size`) immediately following the emitted chunk and pre-multiplies them by a raised-cosine fade-out window to form `prev_rest_buffer`:
 
@@ -70,7 +70,7 @@ Because both reducing `crossfade_sec` below 50 ms and increasing it above 50 ms 
 
 ## 3. Architectural Decision: Fixed Crossfade (50 ms) and SOLA Search Window (12 ms)
 
-Forge removes `crossfade_sec` and `sola_search_frame_sec` from user-facing configuration, fixing the crossfade target to 50 ms (`DEFAULT_CROSSFADE_SEC = 0.05`)—automatically clamping to the actual chunk duration when a shorter buffer is processed—and fixing the SOLA phase search window to 12 ms (`DEFAULT_SOLA_SEARCH_FRAME_SEC = 0.012`).
+Forge removes `crossfade_sec` and `sola_search_frame_sec` from user-facing configuration, fixing the crossfade target to 50 ms (`CROSSFADE_SEC = 0.05`)—automatically clamping to the actual chunk duration when a shorter buffer is processed—and fixing the SOLA phase search window to 12 ms (`SOLA_SEARCH_FRAME_SEC = 0.012`).
 
 ### 3.1 Pipeline Changes
 
@@ -79,15 +79,15 @@ Forge removes `crossfade_sec` and `sola_search_frame_sec` from user-facing confi
    - Incoming legacy HTTP PUT payloads containing `crossfade_sec` or `sola_search_frame_sec` are ignored by Pydantic without validation errors.
    - Legacy configuration files (`vc_conf.json`) are parsed safely, dropping the removed fields upon deserialization.
 
-2. **Canonical Default Constants**:
+2. **Canonical Pipeline Constants**:
    Defined in `backend/vcclient/voice_changer/voice_changer_const.py`:
    ```python
-   DEFAULT_CROSSFADE_SEC: float = 0.05
-   DEFAULT_SOLA_SEARCH_FRAME_SEC: float = 0.012
+   CROSSFADE_SEC: float = 0.05
+   SOLA_SEARCH_FRAME_SEC: float = 0.012
    ```
 
 3. **Pipeline Warmup and Target Feature Length in `RVCPipeline`**:
-   `RVCPipeline.warmup` and `RVCPipeline._calculate_target_feats_length` in `backend/vcclient/voice_changer/voice_change_manager/vc_pipelines/rvc_pipeline.py` reference `DEFAULT_CROSSFADE_SEC` directly (`min(chunk_sec, DEFAULT_CROSSFADE_SEC)`), removing runtime configuration coupling during ONNX session initialization and static/bounded shape calculation.
+   `RVCPipeline.warmup` and `RVCPipeline._calculate_target_feats_length` in `backend/vcclient/voice_changer/voice_change_manager/vc_pipelines/rvc_pipeline.py` reference `CROSSFADE_SEC` directly (`min(chunk_sec, CROSSFADE_SEC)`), removing runtime configuration coupling during ONNX session initialization and static/bounded shape calculation.
 
 4. **Dynamic Clamping in `VoiceChanger._convert_chunk`**:
    In `backend/vcclient/voice_changer/voice_change_manager/voice_changer.py`, the runtime calculates the effective chunk duration from the actual output sample count (`output_size`), deriving the duration from `output_size` (or falling back to `vc_chunk_sec`):
@@ -97,7 +97,7 @@ Forge removes `crossfade_sec` and `sola_search_frame_sec` from user-facing confi
    else:
        actual_chunk_sec = vc_chunk_sec
 
-   real_crossfade_sec = min(DEFAULT_CROSSFADE_SEC, actual_chunk_sec)
+   real_crossfade_sec = min(CROSSFADE_SEC, actual_chunk_sec)
    ```
    For all standard chunk sizes ($\ge 0.05\text{ s}$), `real_crossfade_sec` remains 50 ms. When processing buffers shorter than 50 ms, the crossfade window scales down proportionally so it does not exceed the output chunk duration.
 
@@ -107,9 +107,9 @@ Forge removes `crossfade_sec` and `sola_search_frame_sec` from user-facing confi
    crossfade_size = min(crossfade_size, output_audio_size)
    ```
 
-### 3.2 Why 1:1 Clamping (`min(DEFAULT_CROSSFADE_SEC, actual_chunk_sec)`) Instead of Fractional Scaling
+### 3.2 Why 1:1 Clamping (`min(CROSSFADE_SEC, actual_chunk_sec)`) Instead of Fractional Scaling
 
-When `actual_chunk_sec <= 0.05` s (such as at the minimum standard `chunk_sec = 0.05` s), `min(DEFAULT_CROSSFADE_SEC, actual_chunk_sec)` sets `real_crossfade_sec = actual_chunk_sec` rather than scaling the crossfade down by a fractional factor (e.g., `actual_chunk_sec * 0.75`):
+When `actual_chunk_sec <= 0.05` s (such as at the minimum standard `chunk_sec = 0.05` s), `min(CROSSFADE_SEC, actual_chunk_sec)` sets `real_crossfade_sec = actual_chunk_sec` rather than scaling the crossfade down by a fractional factor (e.g., `actual_chunk_sec * 0.75`):
 
 1. **50% Overlap-Add Synthesis Geometry ($L = N$ within $2N$)**:
    In `RVCPipeline._generate_inputs`, the synthesized waveform length per step is:
@@ -120,4 +120,4 @@ When `actual_chunk_sec <= 0.05` s (such as at the minimum standard `chunk_sec = 
    Applying a fractional multiplier such as `0.75` would have no effect on chunks $\ge 0.08\text{ s}$ (`min(0.05, 0.08 * 0.75) = 0.05`), while reducing the crossfade at `chunk_sec = 0.05` s from **50 ms to 37.5 ms** (and reducing sub-50ms buffers even further). Shortening the window on the smallest chunks—where boundary transitions occur most frequently—reduces ContentVec overlap below 2 frames (37.5 ms = 1.875 frames) and reduces 80 Hz pitch coverage from 4 cycles to 3 cycles, increasing susceptibility to boundary roughness.
 
 3. **Exact Sample-Level Guard and Pipeline Consistency**:
-   Because `CrossfadeProcessor.apply` enforces `crossfade_size = min(crossfade_size, output_audio_size)` directly on sample counts, a fractional margin is unnecessary to guard against rounding mismatches. Keeping `min(DEFAULT_CROSSFADE_SEC, actual_chunk_sec)` also maintains consistent dimension derivation with `calculate_target_feats_length` in `backend/vcclient/device/coreml_patch.py`.
+   Because `CrossfadeProcessor.apply` enforces `crossfade_size = min(crossfade_size, output_audio_size)` directly on sample counts, a fractional margin is unnecessary to guard against rounding mismatches. Keeping `min(CROSSFADE_SEC, actual_chunk_sec)` also maintains consistent dimension derivation with `calculate_target_feats_length` in `backend/vcclient/device/coreml_patch.py`.
