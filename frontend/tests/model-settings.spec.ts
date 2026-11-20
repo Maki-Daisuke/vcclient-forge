@@ -10,7 +10,7 @@ async function mockEditableModel(page: Page) {
   const state = await mockSession(page);
   Object.assign(state.models[0], {
     is_f0: true, model_file: 'voice.onnx', index_file: 'voice.index',
-    protect_ratio: 0.5, speakers: { 0: 'Speaker' }, future_model_setting: { keep: true },
+    future_model_setting: { keep: true },
   });
   return state;
 }
@@ -115,7 +115,6 @@ test('updates pitch and index while running, preserving fresh full slot data and
   await page.goto('/');
   await openControlSections(page);
   await expect(pitch(page)).toBeEnabled();
-  state.models[0].protect_ratio = 0.42;
   state.models[0].future_model_setting = { keep: 'newer backend value' };
   await pitch(page).press('ArrowRight');
   await saved(page);
@@ -124,8 +123,8 @@ test('updates pitch and index while running, preserving fresh full slot data and
   expect(state.modelWrites.map(write => write.id)).toEqual([7, 7]);
   expect(state.modelWrites[1].data).toMatchObject({
     slot_index: 7, voice_changer_type: 'RVC', pitch_shift: -4, index_ratio: 0.64,
-    model_file: 'voice.onnx', index_file: 'voice.index', protect_ratio: 0.42,
-    speakers: { 0: 'Speaker' }, future_model_setting: { keep: 'newer backend value' },
+    model_file: 'voice.onnx', index_file: 'voice.index',
+    future_model_setting: { keep: 'newer backend value' },
   });
   expect(state.models[2]).toEqual(otherModel);
   expect(state.writes).toHaveLength(0);

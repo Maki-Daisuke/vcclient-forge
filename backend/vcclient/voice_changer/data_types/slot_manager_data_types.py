@@ -40,7 +40,6 @@ class SlotInfo(BaseModel):
     credit: str = ""
     terms_of_use_url: str = ""
     icon_file: Path | None = None
-    speakers: dict = {}
 
 
 class RVCSlotInfo(SlotInfo):
@@ -51,15 +50,12 @@ class RVCSlotInfo(SlotInfo):
     inferencer_type: InferencerType = "onnxRVC"
     sample_rate: int = -1
     is_f0: bool = True
-    deprecated: bool = False
     embedder: EmbedderType = "hubert_base_l12"
     pitch_estimator: PitchEstimatorType = "rmvpe"
-    sample_id: str | None = None
     version: str = ""
     chunk_sec: float = 0.5
     pitch_shift: int = 0
     index_ratio: float = 0
-    protect_ratio: float = 0.5
 
     @field_validator("pitch_estimator", mode="before")
     @classmethod

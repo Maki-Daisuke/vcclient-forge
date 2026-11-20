@@ -4,7 +4,6 @@ export interface ConfigurationSnapshot {
   recording: boolean | null;
   inputGain: number | null;
   outputGain: number | null;
-  monitorGain: number | null;
   inputDevice: number | null;
   outputDevice: number | null;
   monitorDevice: number | null;

@@ -48,7 +48,6 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
     recording: boolean(config.recording_started),
     inputGain: numeric(config.audio_input_device_gain),
     outputGain: numeric(config.audio_output_device_gain),
-    monitorGain: numeric(config.audio_monitor_device_gain),
     inputDevice: numeric(config.audio_input_device_index),
     outputDevice: numeric(config.audio_output_device_index),
     monitorDevice: numeric(config.audio_monitor_device_index),

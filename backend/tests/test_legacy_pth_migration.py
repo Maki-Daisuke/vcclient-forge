@@ -98,6 +98,9 @@ def test_migration_converts_legacy_pth_slot_with_params_json(dummy_rvc_pth: Path
         "pitch_shift": 12,
         "index_ratio": 0.8,
         "protect_ratio": 0.33,
+        "speakers": {"0": "Legacy"},
+        "deprecated": False,
+        "sample_id": "legacy-sample",
     }
     (slot_dir / SLOT_PARAM_FILE).write_text(json.dumps(legacy_params, indent=4), encoding="utf-8")
 
@@ -128,7 +131,15 @@ def test_migration_converts_legacy_pth_slot_with_params_json(dummy_rvc_pth: Path
     assert slot_info.description == "Imported from upstream v2.0.78"
     assert slot_info.pitch_shift == 12
     assert slot_info.index_ratio == 0.8
-    assert slot_info.protect_ratio == 0.33
+    assert not hasattr(slot_info, "protect_ratio")
+    assert not hasattr(slot_info, "speakers")
+    assert not hasattr(slot_info, "deprecated")
+    assert not hasattr(slot_info, "sample_id")
+    dumped = slot_info.model_dump()
+    assert "protect_ratio" not in dumped
+    assert "speakers" not in dumped
+    assert "deprecated" not in dumped
+    assert "sample_id" not in dumped
 
 
 def test_migration_converts_legacy_pth_slot_without_params_json(dummy_rvc_pth: Path, tmp_path: Path, monkeypatch):

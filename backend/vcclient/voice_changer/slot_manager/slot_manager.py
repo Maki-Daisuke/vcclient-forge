@@ -235,12 +235,9 @@ class SlotManager:
                 new_slot_info.icon_file = existing_info.icon_file
             if existing_info.index_file and (slot_dir / existing_info.index_file.name).exists():
                 new_slot_info.index_file = existing_info.index_file
-            if existing_info.speakers:
-                new_slot_info.speakers = existing_info.speakers
             new_slot_info.chunk_sec = existing_info.chunk_sec
             new_slot_info.pitch_shift = existing_info.pitch_shift
             new_slot_info.index_ratio = existing_info.index_ratio
-            new_slot_info.protect_ratio = existing_info.protect_ratio
         else:
             indexes = list(slot_dir.glob("*.index"))
             if indexes:

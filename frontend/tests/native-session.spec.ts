@@ -110,7 +110,6 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   expect(state.config.audio_input_device_gain).toBe(2.71);
   await page.getByRole('slider', { name: '出力音量', exact: true }).press('ArrowRight');
   await saved(page);
-  expect(state.config.audio_monitor_device_gain).toBe(0.35);
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();

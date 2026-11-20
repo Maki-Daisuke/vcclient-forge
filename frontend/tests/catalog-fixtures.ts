@@ -22,7 +22,6 @@ export const configuration = {
   voice_changer_input_mode: 'server',
   audio_input_device_gain: 2.7,
   audio_output_device_gain: 0.65,
-  audio_monitor_device_gain: 0.35,
   audio_input_device_index: 8,
   audio_output_device_index: 11,
   audio_monitor_device_index: -1,

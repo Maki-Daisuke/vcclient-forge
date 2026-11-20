@@ -27,7 +27,6 @@ class AudioDevice(BaseModel):
     max_input_channels: int = 0
     max_output_channels: int = 0
     default_samplerate: int = 0
-    available_samplerates: list[int] = []
 
 
 class VoiceChangerConfiguration(BaseModel):
@@ -50,7 +49,6 @@ class VoiceChangerConfiguration(BaseModel):
     audio_monitor_device_sample_rate: int = -1
     audio_input_device_gain: float = 2
     audio_output_device_gain: float = 1
-    audio_monitor_device_gain: float = 1
     server_device_trancate_buffer_ratio: float = 1
     realtime_process_status_enabled: bool = True
     realtime_process_status_send_interval_sec: float = 1.0

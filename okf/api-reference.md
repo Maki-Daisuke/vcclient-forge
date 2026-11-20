@@ -182,7 +182,7 @@ Both routes share `_organize_models()` (`lifecycle_lock`) and [`ModelTransaction
 
 Defined in [`slot_manager_data_types.py`](../backend/vcclient/voice_changer/data_types/slot_manager_data_types.py) and [`voice_changer_const.py`](../backend/vcclient/voice_changer/voice_changer_const.py):
 
-- **`SlotInfo` (base / empty / broken)**: `slot_index: int = -1`, `voice_changer_type: "RVC" | "RESERVED_FOR_SAMPLE" | "BROKEN" | null = null`, `name: str = ""`, `description: str = ""`, `credit: str = ""`, `terms_of_use_url: str = ""`, `icon_file: str | null = null`, `speakers: object = {}`.
+- **`SlotInfo` (base / empty / broken)**: `slot_index: int = -1`, `voice_changer_type: "RVC" | "RESERVED_FOR_SAMPLE" | "BROKEN" | null = null`, `name: str = ""`, `description: str = ""`, `credit: str = ""`, `terms_of_use_url: str = ""`, `icon_file: str | null = null`.
 - **`ReservedForSampleSlotInfo`** (extends `SlotInfo`): `voice_changer_type: "RESERVED_FOR_SAMPLE"`, `progress: float`.
 - **`RVCSlotInfo`** (extends `SlotInfo`):
 
@@ -195,15 +195,12 @@ Defined in [`slot_manager_data_types.py`](../backend/vcclient/voice_changer/data
 | `inferencer_type` | `"onnxRVC" \| "onnxRVCNono"` | `"onnxRVC"` | Validator normalizes strings containing `"Nono"` to `"onnxRVCNono"`, others to `"onnxRVC"` |
 | `sample_rate` | `integer` | `-1` | Model target sample rate (Hz) |
 | `is_f0` | `boolean` | `true` | Pitch-guided model flag |
-| `deprecated` | `boolean` | `false` | Legacy slot flag |
 | `embedder` | `EmbedderType` | `"hubert_base_l12"` | Feature extractor model |
 | `pitch_estimator` | `PitchEstimatorType` | `"rmvpe"` | Validator normalizes values other than `"rmvpe"` / `"fcpe"` to `"rmvpe"` |
-| `sample_id` | `string \| null` | `null` | Sample catalog ID if downloaded from samples |
 | `version` | `string` | `""` | Detected RVC version (`"v1"`, `"v2.1"`, etc.) |
 | `chunk_sec` | `number` | `0.5` | Inference chunk duration in seconds |
 | `pitch_shift` | `integer` | `0` | Semitone pitch shift |
 | `index_ratio` | `number` | `0` | FAISS index blend ratio (`0.0`–`1.0`) |
-| `protect_ratio` | `number` | `0.5` | Voiceless consonant protection ratio |
 
 - **Allowed Literal Types**:
   - `EmbedderType`: `"hubert_base_l9fp"`, `"hubert_base_l12"`, `"contentvec"`, `"hubert_base_japanese_l9fp"`, `"hubert_base_japanese_l12"`, `"whisper"`, `"applio_japanese_hubert_base_l12"`, `"applio_chinese_hubert_base_l12"`, `"applio_korean_hubert_base_l12"`.
@@ -258,7 +255,6 @@ Implemented in [`vcserver_rest_api_configuration_manager.py`](../backend/vcclien
 | `audio_monitor_device_sample_rate` | `integer` | `-1` | Monitor device sample rate (`-1` = device default) |
 | `audio_input_device_gain` | `number` | `2` | Server Mode input gain multiplier |
 | `audio_output_device_gain` | `number` | `1` | Server Mode output gain multiplier |
-| `audio_monitor_device_gain` | `number` | `1` | Server Mode monitor gain multiplier |
 | `server_device_trancate_buffer_ratio` | `number` | `1` | Server buffer truncate ratio (legacy spelling preserved) |
 | `realtime_process_status_enabled` | `boolean` | `true` | Controls `realtime_process_status` emission |
 | `realtime_process_status_send_interval_sec` | `number` | `1.0` | Configured interval for process telemetry |
@@ -312,7 +308,7 @@ Implemented in [`vcserver_rest_api_local_voice_changer_interface.py`](../backend
 Implemented in [`vcserver_rest_api_audio_device_manager.py`](../backend/vcclient/server/vcserver_rest_api_audio_device_manager.py).
 
 - **Query**: `reload: bool = False`. When `true` on **either** endpoint, resets PortAudio and refreshes both input and output device lists.
-- **Response (`200`, `list[AudioDevice]`)**: `kind` (`"audioinput" | "audiooutput"`), `index` (`int`), `name` (`str`), `host_api` (`str`), `max_input_channels` (`int`), `max_output_channels` (`int`), `default_samplerate` (`int`), `available_samplerates` (`list[int]`).
+- **Response (`200`, `list[AudioDevice]`)**: `kind` (`"audioinput" | "audiooutput"`), `index` (`int`), `name` (`str`), `host_api` (`str`), `max_input_channels` (`int`), `max_output_channels` (`int`), `default_samplerate` (`int`).
 
 ### 7.2 `GET /api/gpu-device-manager/devices`
 
