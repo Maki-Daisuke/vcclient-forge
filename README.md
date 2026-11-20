@@ -16,6 +16,7 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 ### 1. Download the Release Package
 
 Download the standalone package matching your operating system and hardware from **[GitHub Releases](https://github.com/Maki-Daisuke/vcclient-forge/releases)**:
+中国用户请从加速网站下载**[魔搭社区](https://www.modelscope.cn/models/HelloWorldCoder/VCC-Forged-RVC-Models/tree/master/Releases)**:
 
 | OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                           |
 | :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :---------------------------------------------- |
