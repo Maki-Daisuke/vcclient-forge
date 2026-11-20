@@ -56,7 +56,6 @@ class VoiceChangerConfiguration(BaseModel):
     realtime_output_status_send_interval_sec: float = 0.2
     noise_gate: float = -35
     extra_frame_sec: float = 0.5
-    sola_search_frame_sec: float = 0.012
     gpu_device_id_int: int = 0
     input_sample_rate: int = 48000
     output_sample_rate: int = 48000

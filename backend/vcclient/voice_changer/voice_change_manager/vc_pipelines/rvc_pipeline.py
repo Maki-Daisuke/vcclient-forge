@@ -20,6 +20,7 @@ from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
 from ...voice_changer_const import (
     DEFAULT_CROSSFADE_SEC,
+    DEFAULT_SOLA_SEARCH_FRAME_SEC,
     ModelDir,
     PitchEstimatorType,
     RVCInferencerOnnxVersion,
@@ -195,7 +196,6 @@ class RVCPipeline(VCPipeline):
             chunk_sec=chunk_sec,
             crossfade_sec=DEFAULT_CROSSFADE_SEC,
             extra_frame_sec=conf.extra_frame_sec,
-            sola_search_frame_sec=conf.sola_search_frame_sec,
         )
 
     def needs_crossfade(self) -> bool:
@@ -217,11 +217,11 @@ class RVCPipeline(VCPipeline):
         logger.info("pitch estimator is changed: done")
 
     def _generate_inputs(
-        self, audio: np.ndarray, crossfade_overlap_sec: float, sola_search_frame_sec: float, extra_frame_sec: float
+        self, audio: np.ndarray, crossfade_overlap_sec: float, extra_frame_sec: float
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray, int, float, int]:
         new_frame_size = audio.shape[0]
         crossfade_overlap_size = int(crossfade_overlap_sec * self.get_input_sample_rate())
-        sola_search_frame_size = int(sola_search_frame_sec * self.get_input_sample_rate())
+        sola_search_frame_size = int(DEFAULT_SOLA_SEARCH_FRAME_SEC * self.get_input_sample_rate())
         extra_frame_size = int(extra_frame_sec * self.get_input_sample_rate())
 
         self.audio_buffer = np.concatenate([self.audio_buffer, audio], 0)
@@ -283,11 +283,10 @@ class RVCPipeline(VCPipeline):
         slot_info = self.slot_info
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         crossfacde_overlap_sec = real_crossfade_sec
-        sola_search_frame_sec = conf.sola_search_frame_sec
         extra_frame_sec = conf.extra_frame_sec
         index_data = self.index_data
 
-        data = self._generate_inputs(audio, crossfacde_overlap_sec, sola_search_frame_sec, extra_frame_sec)
+        data = self._generate_inputs(audio, crossfacde_overlap_sec, extra_frame_sec)
         audio, prev_pitch, prev_feature, convert_size, vol, real_output_size = data
 
         reference_volume = 1

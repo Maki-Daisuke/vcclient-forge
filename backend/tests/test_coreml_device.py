@@ -90,9 +90,7 @@ def test_calculate_target_feats_length():
         (0.50, 60),
     ]
     for chunk_sec, expected_frames in cases:
-        frames = calculate_target_feats_length(
-            chunk_sec, crossfade_sec=0.05, extra_frame_sec=0.34, sola_search_frame_sec=0.012
-        )
+        frames = calculate_target_feats_length(chunk_sec, crossfade_sec=0.05, extra_frame_sec=0.34)
         assert frames == expected_frames, f"chunk_sec={chunk_sec} expected {expected_frames}, got {frames}"
 
 

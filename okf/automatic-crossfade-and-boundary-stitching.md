@@ -28,7 +28,7 @@ VCClient Forge stitches consecutive audio chunks in `CrossfadeProcessor` (`backe
 
 When converting real-time streaming audio chunk-by-chunk, each chunk is synthesized independently by the acoustic pipeline (pitch estimation, ContentVec feature extraction, and RVC neural vocoder). Consequently, the boundary between chunk $k-1$ and chunk $k$ exhibits discontinuities in waveform phase.
 
-Rather than performing a crossfade at a fixed offset—which causes destructive interference when harmonics are out of phase—`CrossfadeProcessor.apply` searches for an alignment offset $\Delta \in [0, S_{\text{sola}}]$ (where $S_{\text{sola}}$ corresponds to `sola_search_frame_sec = 0.012` s = 12 ms).
+Rather than performing a crossfade at a fixed offset—which causes destructive interference when harmonics are out of phase—`CrossfadeProcessor.apply` searches for an alignment offset $\Delta \in [0, S_{\text{sola}}]$ (where $S_{\text{sola}}$ corresponds to `DEFAULT_SOLA_SEARCH_FRAME_SEC = 0.012` s = 12 ms).
 
 At the end of chunk $k-1$, the processor extracts the trailing $L$ samples (`crossfade_size`) immediately following the emitted chunk and pre-multiplies them by a raised-cosine fade-out window to form `prev_rest_buffer`:
 
@@ -68,21 +68,22 @@ Because both reducing `crossfade_sec` below 50 ms and increasing it above 50 ms 
 
 ---
 
-## 3. Architectural Decision: Fixed 50 ms Pipeline Target with Adaptive Clamping
+## 3. Architectural Decision: Fixed Crossfade (50 ms) and SOLA Search Window (12 ms)
 
-Forge removes `crossfade_sec` from user-facing configuration and fixes the pipeline target to 50 ms (`DEFAULT_CROSSFADE_SEC = 0.05`), automatically clamping to the actual chunk duration when a shorter buffer is processed.
+Forge removes `crossfade_sec` and `sola_search_frame_sec` from user-facing configuration, fixing the crossfade target to 50 ms (`DEFAULT_CROSSFADE_SEC = 0.05`)—automatically clamping to the actual chunk duration when a shorter buffer is processed—and fixing the SOLA phase search window to 12 ms (`DEFAULT_SOLA_SEARCH_FRAME_SEC = 0.012`).
 
 ### 3.1 Pipeline Changes
 
 1. **Removal from `VoiceChangerConfiguration`**:
-   `crossfade_sec` is removed from the Pydantic model `VoiceChangerConfiguration` in `backend/vcclient/voice_changer/data_types/data_types.py`.
-   - Incoming legacy HTTP PUT payloads containing `crossfade_sec` are ignored by Pydantic without validation errors.
-   - Legacy configuration files (`vc_conf.json`) are parsed safely, dropping the removed field upon deserialization.
+   `crossfade_sec` and `sola_search_frame_sec` are removed from the Pydantic model `VoiceChangerConfiguration` in `backend/vcclient/voice_changer/data_types/data_types.py`.
+   - Incoming legacy HTTP PUT payloads containing `crossfade_sec` or `sola_search_frame_sec` are ignored by Pydantic without validation errors.
+   - Legacy configuration files (`vc_conf.json`) are parsed safely, dropping the removed fields upon deserialization.
 
-2. **Canonical Default Constant**:
+2. **Canonical Default Constants**:
    Defined in `backend/vcclient/voice_changer/voice_changer_const.py`:
    ```python
    DEFAULT_CROSSFADE_SEC: float = 0.05
+   DEFAULT_SOLA_SEARCH_FRAME_SEC: float = 0.012
    ```
 
 3. **Pipeline Warmup and Target Feature Length in `RVCPipeline`**:

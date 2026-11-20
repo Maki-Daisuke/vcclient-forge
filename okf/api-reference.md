@@ -262,7 +262,6 @@ Implemented in [`vcserver_rest_api_configuration_manager.py`](../backend/vcclien
 | `realtime_output_status_send_interval_sec` | `number` | `0.2` | Server Mode output meter interval (s) |
 | `noise_gate` | `number` | `-35` | Gate threshold in dB (`<= -100` bypasses gate) |
 | `extra_frame_sec` | `number` | `0.5` | Extra context window length (s) |
-| `sola_search_frame_sec` | `number` | `0.012` | SOLA crossfade phase search window (s) |
 | `gpu_device_id_int` | `integer` | `0` | Compute device catalog index (`0` = CPU) |
 | `input_sample_rate` | `integer` | `48000` | Runtime input sample rate (read-only across `PUT`) |
 | `output_sample_rate` | `integer` | `48000` | Runtime output sample rate (read-only across `PUT`) |

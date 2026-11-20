@@ -64,7 +64,6 @@ def test_generate_inputs_zero_crossfade_overlap_produces_finite_volume():
     audio_buf, pitchf, feat, convert_size, input_volume, real_convert_size = pipeline._generate_inputs(
         audio=audio,
         crossfade_overlap_sec=0.0,
-        sola_search_frame_sec=0.01,
         extra_frame_sec=0.02,
     )
 
@@ -84,9 +83,7 @@ def test_pipeline_run_zero_crossfade_returns_finite_audio_4000_samples():
     """
     conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
     original_tuning = conf.volume_tuning_type
-    original_sola = conf.sola_search_frame_sec
     conf.volume_tuning_type = "sqrt"
-    conf.sola_search_frame_sec = 0.0  # Output size matches input_sample_num exactly
     try:
         pipeline = _create_mock_pipeline(is_f0=False, sample_rate=16000)
         input_sample_num = 4000
@@ -109,7 +106,8 @@ def test_pipeline_run_zero_crossfade_returns_finite_audio_4000_samples():
         output = pipeline.run(audio, real_crossfade_sec=0.0)
 
         assert isinstance(output, np.ndarray)
-        assert output.shape[0] == 4000, f"Expected 4000 samples, got {output.shape[0]}"
+        expected_samples = input_sample_num + int(0.012 * 16000)
+        assert output.shape[0] == expected_samples, f"Expected {expected_samples} samples, got {output.shape[0]}"
         assert not np.isnan(output).any(), "Output audio must not contain any NaN values"
         assert np.isfinite(output).all(), "Output audio must be entirely finite"
         # Verify non-zero output
@@ -118,4 +116,3 @@ def test_pipeline_run_zero_crossfade_returns_finite_audio_4000_samples():
         assert np.allclose(output, expected_val, atol=1e-4)
     finally:
         conf.volume_tuning_type = original_tuning
-        conf.sola_search_frame_sec = original_sola

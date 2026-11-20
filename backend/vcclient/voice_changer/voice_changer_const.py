@@ -53,3 +53,4 @@ PitchEstimatorType: TypeAlias = Literal[
 ]
 
 DEFAULT_CROSSFADE_SEC: float = 0.05
+DEFAULT_SOLA_SEARCH_FRAME_SEC: float = 0.012

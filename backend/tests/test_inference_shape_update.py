@@ -13,7 +13,7 @@ from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChang
 @pytest.fixture
 def shape_update(monkeypatch):
     slot = RVCSlotInfo(slot_index=0, voice_changer_type="RVC", model_file="model.onnx", chunk_sec=0.5)
-    conf = SimpleNamespace(current_slot_index=0, gpu_device_id_int=0, extra_frame_sec=5.0, sola_search_frame_sec=0.012)
+    conf = SimpleNamespace(current_slot_index=0, gpu_device_id_int=0, extra_frame_sec=5.0)
     manager = SimpleNamespace(get_voice_changer_configuration=lambda: conf, set_voice_changer_configuration=Mock())
     monkeypatch.setattr(ConfigurationManager, "get_instance", lambda: manager)
     monkeypatch.setattr(SlotManager, "get_instance", lambda: SimpleNamespace(get_slot_info=lambda _: slot))
@@ -56,13 +56,8 @@ def test_rebuilds_when_inference_frame_count_changes(shape_update):
     assert vc.vc_pipeline.target_frames == 60
     assert vc._update_model.call_count == 3
 
-    conf.sola_search_frame_sec = 0.052
     vc._check_reload_model_is_required_and_update()
-    assert vc.vc_pipeline.target_frames != 60
-    assert vc._update_model.call_count == 4
-
-    vc._check_reload_model_is_required_and_update()
-    assert vc._update_model.call_count == 4
+    assert vc._update_model.call_count == 3
 
 
 def test_failed_shape_rebuild_does_not_silently_use_old_pipeline(shape_update):

@@ -24,6 +24,7 @@ from ..event_emitter import EventEmitter
 from ..slot_manager.slot_manager import SlotManager
 from ..voice_changer_const import (
     DEFAULT_CROSSFADE_SEC,
+    DEFAULT_SOLA_SEARCH_FRAME_SEC,
     GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE,
     PitchEstimatorType,
 )
@@ -613,7 +614,7 @@ class VoiceChanger(EventEmitter):
         converted_waveform = pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)
         if vc_needs_crossfade is True:
             crossfade_frame = int(round(real_crossfade_sec * self.vc_info.vc_output_sample_rate))
-            sola_search_frame = int(round(conf.sola_search_frame_sec * self.vc_info.vc_output_sample_rate))
+            sola_search_frame = int(round(DEFAULT_SOLA_SEARCH_FRAME_SEC * self.vc_info.vc_output_sample_rate))
             crossfaded_waveform = self.crossfade_processor.apply(
                 converted_waveform, output_size, crossfade_frame, 0, 1, sola_search_frame
             )

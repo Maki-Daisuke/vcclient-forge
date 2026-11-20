@@ -83,17 +83,20 @@ def test_configuration_ignores_legacy_removed_fields(tmp_path, monkeypatch):
     assert "crossfade_sec" not in data
     assert "sio_broadcast" not in data
     assert "audio_monitor_device_gain" not in data
+    assert "sola_search_frame_sec" not in data
 
     # Add legacy removed fields and verify deserialization ignores them safely
     data["crossfade_sec"] = 0.052
     data["sio_broadcast"] = True
     data["audio_monitor_device_gain"] = 0.75
+    data["sola_search_frame_sec"] = 0.012
     test_conf_path.write_text(json.dumps(data), encoding="utf-8")
 
     cm = ConfigurationManager()
     assert not hasattr(cm.voice_changer_configuration, "crossfade_sec")
     assert not hasattr(cm.voice_changer_configuration, "sio_broadcast")
     assert not hasattr(cm.voice_changer_configuration, "audio_monitor_device_gain")
+    assert not hasattr(cm.voice_changer_configuration, "sola_search_frame_sec")
 
 
 def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
@@ -111,10 +114,12 @@ def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
     assert "crossfade_sec" not in config_dict
     assert "sio_broadcast" not in config_dict
     assert "audio_monitor_device_gain" not in config_dict
+    assert "sola_search_frame_sec" not in config_dict
 
     # Simulate legacy client sending removed fields in PUT
     config_dict["crossfade_sec"] = 0.052
     config_dict["sio_broadcast"] = True
     config_dict["audio_monitor_device_gain"] = 0.75
+    config_dict["sola_search_frame_sec"] = 0.012
     put_res = test_client.put("/api/configuration-manager/configuration", json=config_dict)
     assert put_res.status_code == 200

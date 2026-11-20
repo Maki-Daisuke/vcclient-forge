@@ -8,6 +8,7 @@ from pathlib import Path
 import onnx
 
 from vcclient.logger import logger
+from vcclient.voice_changer.voice_changer_const import DEFAULT_SOLA_SEARCH_FRAME_SEC
 
 COREML_CONV_MEMORY_LIMIT = 16384
 
@@ -16,12 +17,11 @@ def calculate_target_feats_length(
     chunk_sec: float,
     crossfade_sec: float = 0.05,
     extra_frame_sec: float = 0.34,
-    sola_search_frame_sec: float = 0.012,
 ) -> int:
     """Calculate the exact feature frame length (feats.shape[1]) produced by RVCPipeline._generate_inputs."""
     new_frame_size = int(round(chunk_sec * 16000))
     crossfade_overlap_size = int(round(min(chunk_sec, crossfade_sec) * 16000))
-    sola_search_frame_size = int(round(sola_search_frame_sec * 16000))
+    sola_search_frame_size = int(round(DEFAULT_SOLA_SEARCH_FRAME_SEC * 16000))
     extra_frame_size = int(round(extra_frame_sec * 16000))
 
     convert_size = new_frame_size + crossfade_overlap_size + sola_search_frame_size + extra_frame_size
