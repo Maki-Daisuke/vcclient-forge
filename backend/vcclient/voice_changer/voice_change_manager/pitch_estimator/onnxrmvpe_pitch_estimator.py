@@ -1,19 +1,29 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import numpy as np
 
-from vcclient.logger import logger
+from vcclient.device import DeviceConfig, get_device
 
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
-from ..device_manager.device_manager import DeviceManager
 from .pitch_estimator import PitchEstimator
 
 
 class RMVPEOnnxPitchEstimator(PitchEstimator):
-    def __init__(self, pitch_estimator_type: PitchEstimatorType, file: Path, device_id: int):
+    def __init__(
+        self,
+        pitch_estimator_type: PitchEstimatorType,
+        file: Path,
+        device: DeviceConfig | int | None = None,
+        *,
+        device_id: DeviceConfig | int | None = None,
+    ):
         super().__init__()
-        self.device_id = device_id
+        target = device if device is not None else (device_id if device_id is not None else 0)
+        self.device = get_device(target) if isinstance(target, int) else target
+        self.device_id = self.device.id
         self.file = file
         self.pitch_estimator_type = pitch_estimator_type
 
@@ -22,22 +32,8 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
 
-        (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(device_id)
-        self.candidate_onnx_providers = onnx_providers
-        self.candidate_onnx_provider_options = onnx_provider_options
-
-        model_payload: Path | str | bytes = self.file
-        if any("openvino" in p.lower() for p in onnx_providers):
-            try:
-                from ..inferencer.onnx_patch import patch_rmvpe_model_for_openvino
-
-                model_payload = patch_rmvpe_model_for_openvino(self.file)
-                logger.info("Applied OpenVINO Clip fix patch to RMVPE model: %s", self.file)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO patch to RMVPE model %s: %s", self.file, e)
-
-        self.onnx_session = DeviceManager.get_instance().create_inference_session(
-            model_payload, onnx_providers, onnx_provider_options
+        self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
+            self.device.create_session(self.file, patch_type="rmvpe")
         )
 
     def estimate(
@@ -67,13 +63,27 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
                 )
 
             pitch_length = audio.shape[0] // window_length
-            silence_front_frame = silence_front_sec * sample_rate
-            start_window = int(silence_front_frame / window_length)
-            slience_front_frame_offset = start_window * window_length
-            target_frame_length = len(audio) - slience_front_frame_offset
-            minimum_frames = int(round(0.01 * sample_rate))
-            target_frame_length = max(minimum_frames, target_frame_length)
-            audio = audio[-target_frame_length:]
+
+            # Centered STFT produces floor(samples / 160) + 1 mel frames.
+            # The RMVPE checkpoint trainer recommends a multiple of 32 mel
+            # frames to avoid degradation from padding inside the model:
+            # https://github.com/w-okada/voice-changer/issues/930
+            # Trim only Extra context to a multiple of 32 mel frames. If that
+            # would remove current audio, pad instead to preserve the chunk.
+            hop_samples = 160
+            block_samples = 32 * hop_samples
+            aligned_samples = ((audio.shape[0] + hop_samples) // block_samples) * block_samples - hop_samples
+            minimum_samples = block_samples - hop_samples
+            extra_samples = max(0, int(silence_front_sec * sample_rate))
+            required_samples = max(0, audio.shape[0] - extra_samples)
+            if aligned_samples >= max(minimum_samples, required_samples):
+                audio = audio[-aligned_samples:]
+            else:
+                padded_samples = (
+                    (audio.shape[0] + hop_samples + block_samples - 1) // block_samples
+                ) * block_samples - hop_samples
+                audio = np.pad(audio, (padded_samples - audio.shape[0], 0), mode="constant")
+
             audio = np.expand_dims(audio, axis=0)
 
             output = self.onnx_session.run(
@@ -83,15 +93,13 @@ class RMVPEOnnxPitchEstimator(PitchEstimator):
                     "threshold": np.array([0.3]).astype(np.float32),
                 },
             )
-            f0 = output[0].squeeze()
+            f0 = np.atleast_1d(output[0].squeeze())
             f0 *= pow(2, up_key / 12)
-            pitch = prev_pitch.squeeze(axis=0)
-            pitch = np.concatenate([pitch, f0], axis=0)
 
-            if pitch.shape[0] < pitch_length:
-                pitch = np.concatenate([np.zeros(pitch_length - pitch.shape[0]), pitch], axis=0)
+            if f0.shape[0] < pitch_length:
+                pitch = np.pad(f0, (pitch_length - f0.shape[0], 0), mode="constant")
             else:
-                pitch = pitch[-pitch_length:]
+                pitch = f0[-pitch_length:]
 
             f0_mel = 1127 * np.log(1 + pitch / 700)
             f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - self.f0_mel_min) * 254 / (self.f0_mel_max - self.f0_mel_min) + 1

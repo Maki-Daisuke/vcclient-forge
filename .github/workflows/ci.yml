@@ -24,6 +24,19 @@ jobs:
         with:
           node-version: "26"
 
+      - name: Install frontend dependencies and build assets
+        run: |
+          npm --prefix frontend ci
+          npm run build:frontend
+
+      - name: Install Playwright Chromium
+        if: runner.os == 'Windows' || runner.os == 'macOS'
+        run: npm --prefix frontend exec -- playwright install chromium
+
+      - name: Install Playwright Chromium (Linux)
+        if: runner.os == 'Linux'
+        run: npm --prefix frontend exec -- playwright install --with-deps chromium
+
       - name: Install uv
         uses: astral-sh/setup-uv@v10.3.2
         with:
@@ -40,15 +53,6 @@ jobs:
       - name: Install dependencies (Standard + Dev)
         run: uv sync --project backend --extra standard --extra dev --python 3.14
 
-      - name: Check code formatting (Ruff)
-        run: npm run format:check
-
-      - name: Lint code (Ruff)
-        run: npm run lint
-
-      - name: Run test suite (mypy & pytest)
-        run: npm run test:backend
-
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -57,12 +61,16 @@ jobs:
           cache-dependency-path: desktop/go.sum
 
       - name: Install Wails v3 CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
 
-      - name: Run desktop test suite
-        run: |
-          npm --prefix desktop/frontend ci
-          npm run test:desktop
+      - name: Install desktop frontend dependencies
+        run: npm --prefix desktop/frontend ci
+
+      - name: Check code formatting (Ruff)
+        run: npm run format:check
+
+      - name: Lint code (Ruff)
+        run: npm run lint
 
       - name: Check Go code formatting
         shell: bash
@@ -74,5 +82,46 @@ jobs:
             exit 1
           fi
 
+      - name: Run full test suite
+        run: npm test
+
       - name: Build desktop host
         run: npm run build:desktop
+
+  test-cuda-arm64:
+    name: self-hosted-linux-arm64 / cuda / py3.14
+    runs-on: [self-hosted, linux, ARM64, gpu]
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Build frontend
+        run: |
+          npm --prefix frontend ci
+          npm run build:frontend
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python 3.14
+        run: uv python install 3.14
+
+      - name: Install system audio dependencies (Linux)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libportaudio2
+
+      - name: Install dependencies (CUDA + Dev)
+        run: uv sync --project backend --extra cuda --extra dev --python 3.14
+
+      - name: Run test suite (mypy & pytest with CUDA)
+        run: npm run test:backend
+
+

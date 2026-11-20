@@ -9,7 +9,6 @@ class CrossfadeProcessor:
     crossfade_end: float = 1.0
     np_prev_strength: np.ndarray = np.array([0], dtype=np.float32)
     np_cur_strength: np.ndarray = np.array([0], dtype=np.float32)
-    np_prev_audio: np.ndarray = np.array([0], dtype=np.float32)
     prev_rest_buffer: np.ndarray = np.array([0], dtype=np.float32)
 
     def _generate_strength(self, crossfade_size: int, crossfade_offset: float, crossfade_end: float) -> None:
@@ -67,6 +66,9 @@ class CrossfadeProcessor:
             if audio_with_overlap_buffer.shape[0] > 0:
                 result[-audio_with_overlap_buffer.shape[0] :] = audio_with_overlap_buffer
             return result
+
+        # Ensure crossfade_size never exceeds output_audio_size
+        crossfade_size = min(crossfade_size, output_audio_size)
 
         if (
             self.crossfade_size != crossfade_size

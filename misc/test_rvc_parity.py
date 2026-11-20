@@ -11,7 +11,10 @@ _BACKEND_DIR = _PROJECT_ROOT / "backend"
 sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_BACKEND_DIR))
 
-from vcclient.utils.runtime_env import setup_runtime_env
+from vcclient.device import (
+    get_device,
+    setup_runtime_env,
+)
 
 setup_runtime_env()
 
@@ -19,8 +22,7 @@ import numpy as np
 import onnxruntime as ort
 import samplerate
 
-from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
-from vcclient.voice_changer.voice_change_manager.inferencer.onnx_patch import patch_rvc_model_for_openvino
+from vcclient.device.openvino_patch import patch_rvc_model_for_openvino
 
 
 def load_wav_as_float32(path: Path) -> tuple[np.ndarray, int]:
@@ -160,10 +162,9 @@ def main():
 
     # 3. 4D Patched model on OpenVINO GPU
     print("\n[3] Running 4D Patched Model on OpenVINO GPU...")
-    dev_mgr = DeviceManager.get_instance()
-    providers, provider_options = dev_mgr.get_onnx_execution_provider(1000)
+    dev_ov = get_device(1000)
     try:
-        s_ov_gpu = dev_mgr.create_inference_session(patched_bytes, providers, provider_options)
+        s_ov_gpu, _, _ = dev_ov.create_session(patched_bytes)
         print(f"  -> Active providers: {s_ov_gpu.get_providers()}")
         out_ov_gpu = s_ov_gpu.run(["audio"], feed_base)[0].squeeze()
         results["ov_gpu"] = out_ov_gpu

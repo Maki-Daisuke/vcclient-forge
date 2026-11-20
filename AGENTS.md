@@ -4,7 +4,7 @@
 > *(Core Philosophy: If the outcome and capabilities are identical, less code and concise documentation is the ultimate virtue.)*
 
 VCClient Forge is a Windows-first, local real-time RVC (Retrieval-based Voice Conversion) application.
-It features a pure-ONNX inference engine, a native PortAudio/WASAPI audio pipeline, a FastAPI + Socket.IO backend, and a Wails v3 (Go) desktop interface.
+It features a pure-ONNX inference engine, a native PortAudio/WASAPI audio pipeline, a FastAPI (REST + WebSocket) backend, and a Wails v3 (Go) desktop interface.
 
 ---
 
@@ -25,7 +25,9 @@ Always run commands from the repository root. Backend Python dependencies and to
 
 | Task                     | Command                                                                    |
 | ------------------------ | -------------------------------------------------------------------------- |
-| Run full test suite      | `npm test`                                                                 |
+| Run full test suite      | `npm test` (skips Playwright locally if Chromium is not installed)         |
+| Run frontend typecheck   | `npm run check:frontend`                                                   |
+| Run frontend browser tests | `npm run test:frontend` (explicit; requires Chromium or `PLAYWRIGHT_CHANNEL`) |
 | Run backend pytest suite | `npm run test:backend`                                                     |
 | Run single test file     | `uv run --project backend pytest backend/tests/test_pipeline_slot_sync.py` |
 | Run desktop tests        | `npm run test:desktop` (or `cd desktop && go test .`)                      |

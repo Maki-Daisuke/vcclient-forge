@@ -61,7 +61,7 @@ The user-facing goal is to reduce the number of pitch-estimator choices a user m
 
 Both supported estimators use ONNX Runtime for model inference, with NumPy-based surrounding processing:
 
-- **RMVPE**: Runs `rmvpe_20231006.onnx`. NumPy handles silence trimming, key-shifting, and mel-scale coarse pitch quantization.
+- **RMVPE**: Runs `rmvpe_20231006.onnx` on the audio window, including available Extra context. At 16 kHz, the oldest Extra samples are trimmed to an input length `160 * (32 * n - 1)`, giving a multiple of 32 centered STFT mel frames. If trimming would remove audio outside Extra, or if the window is too short for the model, silence is prepended to reach the next boundary instead. The pitch array retains its original length, with zeros for any missing oldest pitch frames. Padding can increase inference cost. NumPy also handles key-shifting and mel-scale coarse pitch quantization.
 - **FCPE**: Uses the community-exported `fcpe.onnx` model. It accepts 16 kHz audio and returns fundamental frequency in Hz for the RVC pipeline.
 
 ---

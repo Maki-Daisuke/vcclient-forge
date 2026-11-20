@@ -1,35 +1,13 @@
 import threading
 import time
-from collections.abc import Callable
-from pathlib import Path
 from queue import Empty, Queue
-from typing import Any
 
 import numpy as np
 import samplerate as sr
 from scipy import signal
 from scipy.io import wavfile
 
-try:
-    from simple_performance_timer.Timer import Timer
-except ImportError:
-
-    class Timer:  # type: ignore[no-redef]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        def __enter__(self) -> Timer:
-            return self
-
-        def __exit__(self, *args: Any) -> None:
-            pass
-
-        def record(self, *args: Any) -> None:
-            pass
-
-
 from vcclient.logger import logger
-from vcclient.server.event_emitter_manager import EventEmitterManager
 
 from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_MONITOR, SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
@@ -42,23 +20,30 @@ from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..data_types.data_types import PerformanceData
 from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
+from ..event_emitter import EventEmitter
 from ..slot_manager.slot_manager import SlotManager
-from ..voice_changer_const import GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE, PitchEstimatorType
+from ..voice_changer_const import (
+    CROSSFADE_SEC,
+    GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE,
+    REALTIME_PROCESS_STATUS_SEND_INTERVAL_SEC,
+    SOLA_SEARCH_FRAME_SEC,
+    PitchEstimatorType,
+)
 from .crossfade_processor import CrossfadeProcessor
 from .vc_pipelines.pipeline_manager import PipelineManager
+from .vc_pipelines.rvc_pipeline import RVCPipeline
 from .vc_pipelines.vc_pipeline import VCPipeline
 
-PerformanceListener = Callable[[PerformanceData], None]
+SILENCE_SKIP_DELAY_SEC = 0.2
 
 
-class VoiceChanger:
+class VoiceChanger(EventEmitter):
     _instance: VoiceChanger | None = None
 
     vc_info: VoiceChangerInformation
     crossfade_processor: CrossfadeProcessor
     bulk_process: threading.Thread | None
     vc_pipeline: VCPipeline | None
-    performance_listener: PerformanceListener | None
     input_record: list[np.ndarray]
     output_record: list[np.ndarray]
     monitor_record: list[np.ndarray]
@@ -79,6 +64,10 @@ class VoiceChanger:
     ab: np.ndarray
 
     @classmethod
+    def peek_instance(cls) -> VoiceChanger | None:
+        return cls._instance
+
+    @classmethod
     def get_instance(cls) -> VoiceChanger:
         if cls._instance is None:
             cls._instance = cls()
@@ -93,19 +82,9 @@ class VoiceChanger:
         self._check_and_update_filter()
 
     def __init__(self) -> None:
+        super().__init__()
         self.initialize()
-        self.performance_listener = None
-        self.currentCrossFadeOffsetRate = 0
-        self.currentCrossFadeEndRate = 0
-        self.currentCrossFadeOverlapSize = 0
-        self.crossfadeSize = 0
         self.realtime_process_status_send_counter = 0
-
-    def set_performance_listener(self, performance_listener: PerformanceListener | None = None) -> None:
-        self.performance_listener = performance_listener
-
-    def remove_performance_listener(self) -> None:
-        self.performance_listener = None
 
     def initialize(self) -> None:
         self.vc_info = VoiceChangerInformation()
@@ -146,9 +125,17 @@ class VoiceChanger:
     def _check_reload_model_is_required_and_update(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         slot_index = conf.current_slot_index
-        if self.vc_info.slot_index != slot_index or (
-            self.vc_info.gpu_device_index != conf.gpu_device_id_int
-            and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
+        shape_changed = (
+            isinstance(self.vc_pipeline, RVCPipeline)
+            and self.vc_pipeline.target_frames != self.vc_pipeline._calculate_target_feats_length()
+        )
+        if (
+            self.vc_info.slot_index != slot_index
+            or (
+                self.vc_info.gpu_device_index != conf.gpu_device_id_int
+                and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
+            )
+            or shape_changed
         ):
             logger.info(
                 "slot_index: %s -> %s, gpu_device_index: %s -> %s",
@@ -168,13 +155,17 @@ class VoiceChanger:
                 logger.error("Failed to switch model to slot %s: %s", slot_index, e)
                 self.vc_info.slot_index = prev_slot_index
                 self.vc_info.gpu_device_index = prev_gpu_index
+                if shape_changed and slot_index == prev_slot_index and conf.gpu_device_id_int == prev_gpu_index:
+                    raise
                 conf.current_slot_index = prev_slot_index
                 ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
             return None
         return None
 
     def _set_pitch_estimator(self, pitch_estimator: PitchEstimatorType) -> None:
-        self._require_pipeline().set_pitch_estimator_type(pitch_estimator)
+        pipeline = self._require_pipeline()
+        pipeline.set_pitch_estimator_type(pitch_estimator)
+        PipelineManager.warmup(pipeline)
 
     def _check_and_update_pitch_estimator(self) -> None:
         if self.vc_info.slot_index < 0:
@@ -353,12 +344,30 @@ class VoiceChanger:
         self._save_record()
 
     def _save_record(self) -> None:
+        def audio(chunks: list[np.ndarray]) -> np.ndarray:
+            if not chunks:
+                return np.empty(0, dtype=np.float32)
+            return np.concatenate(
+                [chunk.astype(np.float32) / 32768 if chunk.dtype == np.int16 else chunk for chunk in chunks]
+            )
+
         try:
-            wavfile.write(SERVER_IO_RECORDING_FILE_IN, self.input_sample_rate, np.concatenate(self.input_record))
-            wavfile.write(SERVER_IO_RECORDING_FILE_OUT, self.output_sample_rate, np.concatenate(self.output_record))
-            if self.vc_info.monitor_enabled is True:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            wavfile.write(
+                SERVER_IO_RECORDING_FILE_IN,
+                getattr(self, "input_sample_rate", conf.input_sample_rate),
+                audio(self.input_record),
+            )
+            wavfile.write(
+                SERVER_IO_RECORDING_FILE_OUT,
+                getattr(self, "output_sample_rate", conf.output_sample_rate),
+                audio(self.output_record),
+            )
+            if self.vc_info.monitor_enabled is True or self.monitor_record:
                 wavfile.write(
-                    SERVER_IO_RECORDING_FILE_MONITOR, self.output_sample_rate, np.concatenate(self.monitor_record)
+                    SERVER_IO_RECORDING_FILE_MONITOR,
+                    getattr(self, "monitor_sample_rate", conf.monitor_sample_rate),
+                    audio(self.monitor_record),
                 )
         except Exception as e:
             logger.warning("Failed to save recording: %s", e, exc_info=True)
@@ -366,8 +375,8 @@ class VoiceChanger:
 
     waveform_rest: np.ndarray = np.array([])
     convert_chunk_bulk_queue_in: Queue[np.ndarray] = Queue()
-    convert_chunk_bulk_queue_out: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
-    convert_chunk_bulk_queue_monitor: Queue[tuple[np.ndarray, PerformanceData | None]] = Queue()
+    convert_chunk_bulk_queue_out: Queue[np.ndarray] = Queue()
+    convert_chunk_bulk_queue_monitor: Queue[np.ndarray] = Queue()
 
     def is_convert_chunk_bulk_started(self) -> bool:
         return self.vc_info.bulk_process_start_flag
@@ -391,13 +400,11 @@ class VoiceChanger:
             self.bulk_process.join()
             return None
 
-    def convert_chunk_bulk(
-        self, waveform: np.ndarray
-    ) -> tuple[np.ndarray | None, np.ndarray | None, PerformanceData | None]:
+    def convert_chunk_bulk(self, waveform: np.ndarray) -> tuple[np.ndarray | None, np.ndarray | None]:
         try:
             if self.vc_info.bulk_process_start_flag is False:
                 logger.debug("bulk conversion process is not started.")
-                return (None, None, None)
+                return (None, None)
             if self.waveform_rest.dtype != waveform.dtype:
                 self.waveform_rest = np.array([], dtype=waveform.dtype)
             self.waveform_rest = np.concatenate([self.waveform_rest, waveform])
@@ -415,48 +422,32 @@ class VoiceChanger:
             out_ready_size = self.convert_chunk_bulk_queue_out.qsize()
             if out_ready_size == 0:
                 output = None
-                accumulated_performance_data = None
             else:
-                converted_waveforms = []
-                accumulated_performance_data = PerformanceData()
-                accumulated_performance_data_num = 0
-                for _i in range(out_ready_size):
-                    converted_waveform, performance_data = self.convert_chunk_bulk_queue_out.get()
-                    converted_waveforms.append(converted_waveform)
-                    if performance_data is not None:
-                        performance_dict = performance_data.model_dump()
-                        for k, v in performance_dict.items():
-                            setattr(accumulated_performance_data, k, getattr(accumulated_performance_data, k) + v)
-                        accumulated_performance_data_num += 1
+                converted_waveforms = [self.convert_chunk_bulk_queue_out.get() for _i in range(out_ready_size)]
                 output = np.concatenate(converted_waveforms)
-                if accumulated_performance_data_num > 0:
-                    for k, v in accumulated_performance_data.model_dump().items():
-                        setattr(accumulated_performance_data, k, v / accumulated_performance_data_num)
-                    accumulated_performance_data.data_num = accumulated_performance_data_num
-                else:
-                    accumulated_performance_data = None
 
             if self.vc_info.monitor_enabled is True:
                 monitor_ready_size = self.convert_chunk_bulk_queue_monitor.qsize()
                 if monitor_ready_size == 0:
                     monitor = None
                 else:
-                    monitor_waveforms = []
-                    for _i in range(monitor_ready_size):
-                        converted_waveform, _ = self.convert_chunk_bulk_queue_monitor.get()
-                        monitor_waveforms.append(converted_waveform)
+                    monitor_waveforms = [
+                        self.convert_chunk_bulk_queue_monitor.get() for _i in range(monitor_ready_size)
+                    ]
                     monitor = np.concatenate(monitor_waveforms)
             else:
                 monitor = None
 
             if self.vc_info.monitor_enabled is False:
-                return (output, None, accumulated_performance_data)
-            return (output, monitor, accumulated_performance_data)
+                return (output, None)
+            return (output, monitor)
         except Exception as e:
             logger.warning("Failed to convert_chunk_bulk: %s", e, exc_info=True)
             raise e
 
     def convert_chunk_bulk_internal(self) -> None:
+        silent_input_samples = 0
+        monitor_silent_input_samples = 0
         while True:
             try:
                 if self.vc_info.bulk_process_start_flag is False:
@@ -466,18 +457,31 @@ class VoiceChanger:
                     self.convert_chunk_bulk_queue_monitor = Queue()
                     return None
                 w = self.convert_chunk_bulk_queue_in.get(timeout=0.5)
-                converted, converted_for_monitor, performance_data = self.convert_chunk(w)
-                self.convert_chunk_bulk_queue_out.put((converted, performance_data))
-                if converted_for_monitor is not None:
-                    self.convert_chunk_bulk_queue_monitor.put((converted_for_monitor, performance_data))
+                converted, converted_for_monitor = self.convert_chunk(w)
+                silence_delay_samples = round(self.input_sample_rate * SILENCE_SKIP_DELAY_SEC)
+                if np.any(converted):
+                    silent_input_samples = 0
+                    self.convert_chunk_bulk_queue_out.put(converted)
+                else:
+                    if silent_input_samples < silence_delay_samples:
+                        self.convert_chunk_bulk_queue_out.put(converted)
+                    silent_input_samples += len(w)
+
+                if converted_for_monitor is None:
+                    monitor_silent_input_samples = 0
+                elif np.any(converted_for_monitor):
+                    monitor_silent_input_samples = 0
+                    self.convert_chunk_bulk_queue_monitor.put(converted_for_monitor)
+                else:
+                    if monitor_silent_input_samples < silence_delay_samples:
+                        self.convert_chunk_bulk_queue_monitor.put(converted_for_monitor)
+                    monitor_silent_input_samples += len(w)
             except Empty:
                 pass
             except Exception as e:
                 logger.warning("Failed to convert_chunk_bulk_internal: %s", e, exc_info=True)
 
-    def convert_chunk(
-        self, waveform: np.ndarray, direct_from_server: bool | None = None
-    ) -> tuple[np.ndarray, np.ndarray | None, PerformanceData | None]:
+    def convert_chunk(self, waveform: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         """Convert waveform.
 
         Args:
@@ -492,10 +496,10 @@ class VoiceChanger:
         if perf_enabled is True:
             self.realtime_process_status_send_counter += 1
             chunk_sec = self.vc_chunk_sec if hasattr(self, "vc_chunk_sec") and self.vc_chunk_sec > 0 else 0.1
-            if self.realtime_process_status_send_counter >= conf.realtime_process_status_send_interval_sec / chunk_sec:
+            if self.realtime_process_status_send_counter >= REALTIME_PROCESS_STATUS_SEND_INTERVAL_SEC / chunk_sec:
                 self.realtime_process_status_send_counter = 0
                 start_time = time.time()
-                (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
+                (output, monitor) = self._convert_chunk(waveform)
                 end_time = time.time()
                 elapsed_time = round(end_time - start_time, 3)
                 input_size = len(waveform)
@@ -527,26 +531,17 @@ class VoiceChanger:
                     dataNum=1,
                 )
 
-                if self.performance_listener is not None:
-                    self.performance_listener(performance_data)
+                self.emit("status", "realtime_process_status", performance_data.model_dump(by_alias=True))
 
-                event_emitter = EventEmitterManager.get_instance().get_event_emitter()
-                if event_emitter is not None:
-                    event_emitter.emit_coroutine(
-                        "data", ["realtime_process_status", performance_data.model_dump_json()]
-                    )
+                return (output, monitor)
 
-                return (output, monitor, performance_data)
+            (output, monitor) = self._convert_chunk(waveform)
+            return (output, monitor)
 
-            (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
-            return (output, monitor, None)
+        (output, monitor) = self._convert_chunk(waveform)
+        return (output, monitor)
 
-        (output, monitor) = self._convert_chunk(waveform, direct_from_server=direct_from_server)
-        return (output, monitor, None)
-
-    def _convert_chunk(
-        self, waveform: np.ndarray, direct_from_server: bool | None = None
-    ) -> tuple[np.ndarray, np.ndarray | None]:
+    def _convert_chunk(self, waveform: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
         """Convert waveform.
 
         Args:
@@ -558,14 +553,19 @@ class VoiceChanger:
         """
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
 
+        if self.vc_info.recording_start_flag is True:
+            self.input_record.append(waveform)
+
         if conf.pass_through is True or getattr(self, "vc_pipeline", None) is None:
             waveform_out = self._exec_resample_pass_through_in_out(waveform)
             if self.vc_info.recording_start_flag is True:
-                self.output_record.append(waveform_out)
+                self.output_record.append(waveform_out / 32768 if waveform.dtype == np.int16 else waveform_out)
             if self.vc_info.monitor_enabled is True:
                 waveform_monitor = self._exec_resample_pass_through_in_monitor(waveform)
                 if self.vc_info.recording_start_flag is True:
-                    self.monitor_record.append(waveform_monitor)
+                    self.monitor_record.append(
+                        waveform_monitor / 32768 if waveform.dtype == np.int16 else waveform_monitor
+                    )
                 return (waveform_out, waveform_monitor)
             return (waveform_out, None)
 
@@ -575,15 +575,8 @@ class VoiceChanger:
         vc_output_bitdepth = pipeline.get_output_bitdepth()
         vc_needs_crossfade = pipeline.needs_crossfade()
 
-        if direct_from_server is True:
-            input_size = int(self.vc_info.resample_ratio_in * waveform.shape[0])
-            output_size = int((input_size / self.vc_info.vc_input_sample_rate) * self.vc_info.vc_output_sample_rate)
-        else:
-            input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
-            output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
-
-        if self.vc_info.recording_start_flag is True:
-            self.input_record.append(waveform)
+        input_size = int(self.vc_info.vc_input_sample_rate * vc_chunk_sec)
+        output_size = int(self.vc_info.vc_output_sample_rate * vc_chunk_sec)
 
         input_data_type = waveform.dtype
         if vc_input_bitdepth == np.int16 and waveform.dtype != np.int16:
@@ -613,11 +606,16 @@ class VoiceChanger:
             padded_shape = resampled_waveform.shape
             logger.debug("data type resampled is short. padded.: %s, shape: %s", original_shape, padded_shape)
 
-        real_crossfade_sec = min(vc_chunk_sec, conf.crossfade_sec)
+        if hasattr(self, "vc_info") and self.vc_info.vc_output_sample_rate > 0 and output_size > 0:
+            actual_chunk_sec = output_size / self.vc_info.vc_output_sample_rate
+        else:
+            actual_chunk_sec = vc_chunk_sec
+
+        real_crossfade_sec = min(CROSSFADE_SEC, actual_chunk_sec)
         converted_waveform = pipeline.run(resampled_waveform, real_crossfade_sec=real_crossfade_sec)
         if vc_needs_crossfade is True:
             crossfade_frame = int(round(real_crossfade_sec * self.vc_info.vc_output_sample_rate))
-            sola_search_frame = int(round(conf.sola_search_frame_sec * self.vc_info.vc_output_sample_rate))
+            sola_search_frame = int(round(SOLA_SEARCH_FRAME_SEC * self.vc_info.vc_output_sample_rate))
             crossfaded_waveform = self.crossfade_processor.apply(
                 converted_waveform, output_size, crossfade_frame, 0, 1, sola_search_frame
             )
@@ -647,34 +645,6 @@ class VoiceChanger:
                 self.monitor_record.append(resampled_waveform_monitor)
 
         return (resampled_waveform_out, resampled_waveform_monitor)
-
-    def convert_file(self, input_file: str, output_file: str) -> None:
-        logger.info("file convert starts: %s -> %s", input_file, output_file)
-        input_path = Path(input_file)
-        if input_path.exists() is False:
-            raise FileNotFoundError(f"Input file not found:{input_file}")
-        src_sample_rate, waveform = wavfile.read(input_path)
-        if waveform.dtype == np.float32 or waveform.dtype == np.float64:
-            waveform = (waveform * 32768).astype(np.int16)
-        logger.info("srcSampleRate:%s, waveform:%s", src_sample_rate, waveform.shape)
-        configuration = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        configuration.input_sample_rate = src_sample_rate
-        configuration.output_sample_rate = src_sample_rate
-        self.vc_chunk_sec = self._require_pipeline().get_chunk_sec()
-        self.chunk_size = int(round(src_sample_rate * self.vc_chunk_sec))
-        splitted_waveforms = [waveform[i : i + self.chunk_size] for i in range(0, len(waveform), self.chunk_size)]
-        chunk_num = len(splitted_waveforms)
-        logger.info("chunk_size:%s, chunk_num:%s", self.chunk_size, chunk_num)
-        convertd_datas = []
-        with Timer("converting", enable=False) as t:
-            for i, splitted_waveform in enumerate(splitted_waveforms):
-                resampled_converted, _, _ = self.convert_chunk(splitted_waveform)
-                convertd_datas.append(resampled_converted)
-                print(f"converting... {i * 100 // chunk_num}%")
-                t.record(f"chunk-{i}")
-        output_data = np.concatenate(convertd_datas)
-        wavfile.write(output_file, src_sample_rate, output_data)
-        logger.info("file convert done: %s -> %s", input_file, output_file)
 
     def __del__(self) -> None:
         logger.info("VoiceChanger is deleting.")

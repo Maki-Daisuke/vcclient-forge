@@ -29,10 +29,17 @@ def prepare_artifacts(builder: ModuleType, mock_freeze: bool = True) -> Path:
     manifest = builder.get_build_dir("standard", "3.14") / "backend-manifest.json"
     manifest.write_text(json.dumps({executable: 7, "_internal/runtime.dll": 7}), encoding="utf-8")
     for name in ("index.html", "index.js", "945.index.js", "assets/image.png"):
-        for directory in ("web_front", "frontend/dist"):
-            destination = root / directory / name
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(b"frontend")
+        destination = root / "frontend/dist" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"frontend")
+    frontend_manifest = root / "frontend/dist/.vite/manifest.json"
+    frontend_manifest.parent.mkdir(parents=True, exist_ok=True)
+    frontend_manifest.write_text(
+        json.dumps(
+            {"index.html": {"file": "index.js", "isEntry": True, "assets": ["945.index.js", "assets/image.png"]}}
+        ),
+        encoding="utf-8",
+    )
     for name in ("start.bat", "start.sh", "README.md", "LICENSE"):
         (root / name).write_text("asset", encoding="utf-8")
     desktop_name = "vcclient-forge.exe" if builder.platform.system() == "Windows" else "vcclient-forge"
@@ -40,15 +47,6 @@ def prepare_artifacts(builder: ModuleType, mock_freeze: bool = True) -> Path:
     desktop.parent.mkdir(parents=True, exist_ok=True)
     desktop.write_bytes(b"desktop")
     return frozen
-
-
-@pytest.mark.parametrize("version, expected", [("v9.8.7-forge.1", "9.8.7-forge.1"), ("9.8.7", "9.8.7")])
-def test_package_version_comes_from_manifest(monkeypatch: pytest.MonkeyPatch, version: str, expected: str) -> None:
-    read_manifest = Mock(return_value=json.dumps({"version": version}))
-    monkeypatch.setattr(Path, "read_text", read_manifest)
-    builder = load_builder()
-    assert builder.VERSION == expected
-    read_manifest.assert_called_once_with(encoding="utf-8")
 
 
 def test_find_modern_7zip_binary(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -88,8 +86,10 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert freeze[freeze.index("--optimize") + 1] == "1"
     assert not Path(freeze[0]).is_relative_to(package)
     assert str(tmp_path / "package.json") + ":vcclient" in freeze
-    assert "vcclient.server.vcserver_socketio" in freeze
+    assert "vcclient.server.vcserver_websocket" in freeze
+    assert "engineio.async_drivers.asgi" not in freeze
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
+    assert ("nvidia.cu13" in freeze) == (edition == "cuda")
 
 
 def test_linux_cuda_bundles_nvidia_wheel_binaries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -247,22 +247,6 @@ def test_backend_cli_syncs_dependencies(monkeypatch: pytest.MonkeyPatch) -> None
         cwd=backend_builder.PROJECT_ROOT,
         check=False,
     )
-
-
-def test_npm_tasks_separate_build_from_packaging() -> None:
-    root = Path(__file__).resolve().parents[2]
-    tasks = json.loads((root / "package.json").read_text(encoding="utf-8"))["scripts"]
-    assert tasks["build"] == "node scripts/build.js"
-    assert tasks["build:backend"].endswith("scripts/build_backend.py")
-    assert tasks["package"].endswith("scripts/build_package.py")
-    assert tasks["build:desktop"] == "wails3 task --dir desktop build"
-    assert not hasattr(load_builder(), "build_application")
-    assert hasattr(load_builder(), "freeze_backend")
-    assert "--no-project" in tasks["package"]
-    assert "build:package" not in tasks
-    assert "build:desktop:package" not in tasks
-    for edition in ("standard", "cuda"):
-        assert f"build:{edition}" not in tasks
 
 
 @pytest.mark.parametrize("action", ["build", "build-backend"])

@@ -2,6 +2,8 @@
 
 > **A modernized, high-performance RVC fork of w-okada/voice-changer optimized for pure ONNX Runtime and modern CUDA environments.**
 
+<img width="741" height="640" alt="image" src="https://github.com/user-attachments/assets/50d1d022-25ed-4b03-ac0f-b4439f33cdc6" />
+
 This project is a modernized **spiritual successor** to [`w-okada/voice-changer`](https://github.com/w-okada/voice-changer) (a.k.a. W-Okada VC), originally created by **[w-okada](https://x.com/DannadoriYellow)**. We deeply respect and honor w-okada's pioneering contributions to the real-time AI voice conversion community.
 
 > [!NOTE]
@@ -17,10 +19,10 @@ Download the standalone package matching your operating system and hardware from
 
 | OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                           |
 | :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :---------------------------------------------- |
-| **Windows** | x86_64                   | **NVIDIA GPU** (GeForce / RTX)    | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 12.x / cuDNN 9 (TF32 / Tensor Core) |
-|             |                          | AMD Radeon / Intel Arc / CPU      | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / AMD DirectML / AVX-512 CPU     |
+| **Windows** | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 13.x / cuDNN 9                      |
+|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / DirectML / CPU                 |
 |             | ARM64                    | Any                               | _Not Supported_                          | —                                               |
-| **Linux**   | x86_64                   | **NVIDIA GPU**                    | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 12.x / cuDNN 9                      |
+| **Linux**   | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 13.x / cuDNN 9                      |
 |             |                          | AMD / Intel / CPU                 | **`vcclient-linux-x64-standard-*.7z`**   | Intel OpenVINO / AVX-512 CPU                    |
 |             | ARM64                    | **NVIDIA GPU** (DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     | NVIDIA CUDA 13.x                                |
 |             |                          | Non-NVIDIA / CPU                  | **`vcclient-linux-arm64-standard-*.7z`** | ARM NEON / SVE CPU                              |
@@ -29,38 +31,18 @@ Download the standalone package matching your operating system and hardware from
 
 > [!TIP]
 >
-> - **NVIDIA GPU users on Windows**: Select `win-x64-cuda` for optimal Tensor Core and CUDA performance.
+> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and newer, and GTX 16 series). Please update your NVIDIA driver to the latest version (CUDA 13-compatible, R580 or newer); CUDA Toolkit and cuDNN are bundled and not required. Real-time performance depends on the GPU and model.
+> - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices; real-time performance depends on the device and model.
 > - **Intel Arc / AMD Radeon / Mac users**: Select the universal `standard` package for your platform. Hardware acceleration (OpenVINO, DirectML, CoreML) is configured automatically out of the box!
 
-### 2. Launch
+### 2. Extract, Launch & Migrate
 
-Extract the archive to any folder and run:
+Extract the downloaded `.7z` archive to any folder (on Ubuntu/Debian, install `7zip` if needed: `sudo apt-get update && sudo apt-get install -y 7zip`).
 
-- **Desktop App (Recommended)**:
-  Double-click **`vcclient-forge.exe`** (Windows) or execute **`./vcclient-forge`** (Linux / macOS).
-- **Web Browser Mode (Classic)**:
-  Double-click **`start.bat`** (Windows) or execute **`./start.sh`** (Linux / macOS).
-  Your default web browser will automatically open:
-  ```text
-  http://localhost:18888/
-  ```
+For **launch steps** (Windows / macOS / Ubuntu Linux, Desktop App or Web Browser Mode), **Linux dependencies**, **first-launch model downloads**, and **migrating `settings` and `model_dir` from w-okada VC (`v2.0.78`)**, see the bundled Quick Start guide:
 
-> [!NOTE]
-> Initial model assets will be downloaded automatically on first launch. This may take a few moments depending on your internet connection.
-
-### Migrating from w-okada VC (v2.0.78)
-
-To transfer your existing models and settings, simply copy the **`settings`** and **`model_dir`** folders from your original v2.0.78 directory into the extracted Forge folder.
-
-### Linux only
-
-- **OS**: Ubuntu 24.04 LTS or newer (`glibc >= 2.39`).
-- **NVIDIA Driver (`cuda` edition only)**: Host NVIDIA GPU driver is required (CUDA Toolkit and cuDNN are bundled and **not** required).
-- **Audio, Desktop & Archive Dependencies**:
-  ```bash
-  # Ubuntu / Debian
-  sudo apt-get update && sudo apt-get install -y libportaudio2 libwebkitgtk-6.0-4 7zip
-  ```
+- **English**: **[`docs/README.txt`](docs/README.txt)** (`README.txt` inside the extracted folder)
+- **日本語**: **[`docs/README_ja.txt`](docs/README_ja.txt)** (`README_ja.txt` inside the extracted folder)
 
 ---
 

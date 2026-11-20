@@ -1,32 +1,39 @@
+from __future__ import annotations
+
 import numpy as np
 
+from vcclient.device import DeviceConfig, get_device
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
-from ..device_manager.device_manager import DeviceManager
 from .rvc_inferencer import RVCInferencer
 
 
 class RVCInferencerOnnxF0(RVCInferencer):
-    def load_model(self, file=None, device_id=None, inferencer_type_version=None):
+    def load_model(
+        self,
+        file=None,
+        device: DeviceConfig | int | None = None,
+        inferencer_type_version=None,
+        *,
+        device_id: DeviceConfig | int | None = None,
+        target_frames: int | None = None,
+        sample_rate: int = 40000,
+    ):
+        target = device if device is not None else (device_id if device_id is not None else 0)
+        self.device = get_device(target) if isinstance(target, int) else target
         self.file = file
-        self.device_id = device_id
-        (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(device_id)
-        self.candidate_onnx_providers = onnx_providers
-        self.candidate_onnx_provider_options = onnx_provider_options
-
-        model_payload: str | bytes = str(self.file)
-        if any("openvino" in p.lower() for p in onnx_providers):
-            try:
-                from .onnx_patch import patch_rvc_model_for_openvino
-
-                model_payload = patch_rvc_model_for_openvino(self.file)
-                logger.info("Applied OpenVINO 4D SineGen patch to %s", self.file)
-            except Exception as e:
-                logger.warning("Failed to apply OpenVINO 4D SineGen patch to %s: %s", self.file, e)
-
-        self.onnx_session = DeviceManager.get_instance().create_inference_session(
-            model_payload, onnx_providers, onnx_provider_options
+        self.device_id = self.device.id
+        self.target_frames = target_frames
+        self.sample_rate = sample_rate
+        upsample_rate = sample_rate // 100 if sample_rate > 0 else 400
+        self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
+            self.device.create_session(
+                self.file,
+                patch_type="rvc",
+                target_frames=target_frames,
+                upsample_rate=upsample_rate,
+            )
         )
 
         first_input_type = self.onnx_session.get_inputs()[0].type
@@ -49,6 +56,17 @@ class RVCInferencerOnnxF0(RVCInferencer):
         convert_length: int | None = None,
     ) -> np.ndarray:
         try:
+            if self.target_frames is not None:
+                if feats.shape[1] < self.target_frames:
+                    pad_len = self.target_frames - feats.shape[1]
+                    feats = np.pad(feats, ((0, 0), (0, pad_len), (0, 0)))
+                    pitch = np.pad(pitch, ((0, 0), (0, pad_len)))
+                    pitchf = np.pad(pitchf, ((0, 0), (0, pad_len)))
+                elif feats.shape[1] > self.target_frames:
+                    feats = feats[:, : self.target_frames, :]
+                    pitch = pitch[:, : self.target_frames]
+                    pitchf = pitchf[:, : self.target_frames]
+                pitch_length = np.array([self.target_frames], dtype=np.int64)
             if feats.ndim != 3:
                 raise RuntimeError(
                     f"Exeption in {self.__class__.__name__} feats.ndim is not 3 (size :{feats.ndim}, {feats.shape})"

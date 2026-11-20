@@ -1,58 +1,44 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import os
 import threading
+from typing import TYPE_CHECKING
 
 import portpicker
 import uvicorn
 
 from vcclient.logger import logger
-from vcclient.server.vcserver_socketio_server import SocketIOServer
+from vcclient.server.vcserver_rest_api import get_rest_api
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
+    from vcclient.server.vcserver_websocket import WebSocketHub
 
 
 class VCServer:
-    _instance: VCServer | None = None
     port: int = 0
     server_thread: threading.Thread | None = None
     server: uvicorn.Server
     loop: asyncio.AbstractEventLoop
-
-    @classmethod
-    def get_instance(
-        cls,
-        host: str = "127.0.0.1",
-        port: int | None = None,
-        allow_origins: list[str] | None = None,
-    ) -> VCServer:
-        if cls._instance is None:
-            app_fastapi = VCServer(host=host, port=port, allow_origins=allow_origins)
-            cls._instance = app_fastapi
-        return cls._instance
+    app: FastAPI
+    ws_hub: WebSocketHub
 
     def __init__(
         self,
         host: str = "127.0.0.1",
         port: int | None = None,
-        allow_origins: list[str] | None = None,
     ):
         super().__init__()
         self.host = host
-        self.allow_origins = allow_origins if allow_origins is not None else ["*"]
-        if port is not None:
-            self.port = port
-            return
-        self.port = portpicker.pick_unused_port()
+        self.port = port if port is not None else portpicker.pick_unused_port()
+        self.app = get_rest_api()
+        self.ws_hub = self.app.state.ws_hub
 
     def start(self):
-        this_modeule = importlib.util.find_spec(__name__)
-        if this_modeule is None:
-            raise Exception("FastAPI instance is not initialized.")
-
-        module_parent = this_modeule.parent
         config = uvicorn.Config(
-            f"{module_parent}.vcserver_socketio:serverio_app",
+            self.app,
             host=self.host,
             port=self.port,
             log_level="info",
@@ -65,29 +51,8 @@ class VCServer:
         self.server_thread.start()
         return self.port
 
-    async def stop_all_sockets(self):
-        try:
-            sio = SocketIOServer.get_instance()
-            if hasattr(sio, "manager"):
-                for ns in list(sio.manager.get_namespaces()):
-                    if ns in sio.manager.rooms and None in sio.manager.rooms[ns]:
-                        for sid in list(sio.manager.rooms[ns][None].keys()):
-                            try:
-                                await sio.disconnect(sid, namespace=ns)
-                            except Exception:
-                                pass
-            if hasattr(sio, "eio") and hasattr(sio.eio, "sockets"):
-                for eio_sid, sock in list(sio.eio.sockets.items()):
-                    try:
-                        if hasattr(sock, "close"):
-                            await sock.close(wait=False, abort=True)
-                        else:
-                            await sio.eio.disconnect(eio_sid)
-                    except Exception:
-                        pass
-                sio.eio.sockets.clear()
-        except Exception:
-            pass
+    async def stop_all_sockets(self) -> None:
+        await self.ws_hub.close_all()
 
     def start_server(self):
         logger.info("Starting VCServer on port %s", self.port)
@@ -118,6 +83,12 @@ class VCServer:
 
     def stop(self):
         logger.info("wait vcserver to stop...")
+        if hasattr(self, "loop") and self.loop and self.loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(self.ws_hub.close_all(), self.loop)
+            try:
+                future.result(timeout=2)
+            except Exception:
+                pass
         if hasattr(self, "server") and self.server:
             self.server.should_exit = True
         if hasattr(self, "server_thread") and self.server_thread and self.server_thread.is_alive():

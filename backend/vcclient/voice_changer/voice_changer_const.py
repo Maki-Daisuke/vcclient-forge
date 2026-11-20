@@ -1,6 +1,6 @@
 import tempfile
 from pathlib import Path
-from typing import Literal, TypeAlias, get_args
+from typing import Literal, TypeAlias
 
 SettingsDir = Path("./settings")
 SettingsDir.mkdir(parents=True, exist_ok=True)
@@ -9,18 +9,11 @@ ConfigFile = SettingsDir / "vc_conf.json"
 ModelDir = Path("model_dir")
 ModelDir.mkdir(parents=True, exist_ok=True)
 
-StaticModelDir = Path("static_model_dir")
-StaticModelDir.mkdir(parents=True, exist_ok=True)
-
 ModuleDir = Path("modules")
 
 SLOT_PARAM_FILE = "params.json"
 MAX_SLOT_INDEX = 199
 GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE = -100
-OPENVINO_GPU_DEVICE_ID = 1000
-OPENVINO_AUTO_DEVICE_ID = OPENVINO_GPU_DEVICE_ID
-COREML_ANE_DEVICE_ID = 0
-COREML_GPU_DEVICE_ID = 1
 
 OpenVinoCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "openvino_cache"
 OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
@@ -28,14 +21,10 @@ OpenVinoCacheDir.mkdir(parents=True, exist_ok=True)
 CoreMLCacheDir = Path(tempfile.gettempdir()) / "vcclient" / "coreml_cache"
 CoreMLCacheDir.mkdir(parents=True, exist_ok=True)
 
-AudioSampleRates = [8000, 16000, 24000, 32000, 44100, 48000, 96000]
-
 VoiceChangerInputMode: TypeAlias = Literal["server", "client"]
 AudioDeviceType: TypeAlias = Literal["audioinput", "audiooutput"]
-AudioDevicePurpose: TypeAlias = Literal["audioinput", "audiooutput", "monitoroutput"]
 
 VoiceChangerType: TypeAlias = Literal["RVC", "RESERVED_FOR_SAMPLE", "BROKEN"]
-VoiceChangerTypes: list[VoiceChangerType] = ["RVC"]
 
 InferencerType: TypeAlias = Literal[
     "onnxRVC",
@@ -63,35 +52,7 @@ PitchEstimatorType: TypeAlias = Literal[
     "fcpe",
 ]
 
-PitchEstimatorTypes: list[PitchEstimatorType] = list(get_args(PitchEstimatorType))
-
-ChunkSecs: list[float] = [
-    0.05,
-    0.08,
-    0.1,
-    0.12,
-    0.15,
-    0.2,
-    0.25,
-    0.3,
-    0.35,
-    0.4,
-    0.45,
-    0.5,
-    0.6,
-    0.7,
-    0.8,
-    0.9,
-    1,
-    1.1,
-    1.2,
-    1.3,
-    1.4,
-    1.5,
-    2,
-    3,
-    4,
-    5,
-]
-
-ExtraSec: list[float] = [0.08, 0.16, 0.34, 0.68, 1.36, 2.73, 3, 4, 5, 6, 7, 8, 9, 10]
+CROSSFADE_SEC: float = 0.05
+SOLA_SEARCH_FRAME_SEC: float = 0.012
+REALTIME_PROCESS_STATUS_SEND_INTERVAL_SEC: float = 1.0
+REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC: float = 0.2

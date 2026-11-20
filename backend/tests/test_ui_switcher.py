@@ -2,39 +2,48 @@ from pathlib import Path
 
 from starlette.testclient import TestClient
 
-from vcclient.server.vcserver_rest_api import RestAPI
+from vcclient.server import vcserver_rest_api
 
 
-def test_ui_switcher_assets_and_integration():
-    """Verify that ui_switcher.js is integrated into both UI versions."""
-    repo_root = Path(__file__).resolve().parent.parent.parent
-    ui_switcher_path = repo_root / "web_front" / "ui" / "ui_switcher.js"
-    assert ui_switcher_path.exists(), "web_front/ui/ui_switcher.js must exist"
+def test_frontend_and_api_are_served_together(tmp_path: Path, monkeypatch):
+    (tmp_path / "index.html").write_text("<title>Forge</title>", encoding="utf-8")
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets/app.js").write_text("console.log('forge')", encoding="utf-8")
+    monkeypatch.setattr(vcserver_rest_api, "get_frontend_path", lambda: tmp_path)
+    app = vcserver_rest_api._create_rest_api()
+    client = TestClient(app, follow_redirects=False)
 
-    content = ui_switcher_path.read_text(encoding="utf-8")
-    assert "vcclient-ui-switcher" in content
-    assert "/ui/2.1.4/" in content
-    assert "/ui/2.0.78/" in content
-    assert "Modern (v2.1.4)" in content
-    assert "Classic (v2.0.78)" in content
+    for url in ("/", "/?view=log", "/index.html"):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "<title>Forge</title>" in response.text
+        assert response.headers["cache-control"] == "no-store"
+        assert client.head(url).headers["cache-control"] == "no-store"
+    response = client.get("/assets/app.js")
+    assert response.text == "console.log('forge')"
+    assert response.headers["cache-control"] == "no-store"
+    assert client.head("/assets/app.js").headers["cache-control"] == "no-store"
+    for method in (client.get, client.post):
+        response = method("/api/does-not-exist")
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.headers["cache-control"] == "no-store"
 
-    # Check 2.0.78 integration
-    html_2078 = (repo_root / "web_front" / "ui" / "2.0.78" / "index.html").read_text(encoding="utf-8")
-    assert "ui_switcher.js" in html_2078, "2.0.78 index.html must include ui_switcher.js"
 
-    # Check 2.1.4 integration
-    html_214 = (repo_root / "web_front" / "ui" / "2.1.4" / "index.html").read_text(encoding="utf-8")
-    assert "ui_switcher.js" in html_214, "2.1.4 index.html must include ui_switcher.js"
+def test_log_responses_are_not_cached(tmp_path: Path, monkeypatch):
+    log_path = tmp_path / "vcclient.log"
+    log_path.write_text("test log", encoding="utf-8")
+    monkeypatch.setattr(vcserver_rest_api, "LOG_FILE", str(log_path))
+    app = vcserver_rest_api._create_rest_api()
+    client = TestClient(app)
 
+    response = client.get("/vcclient.log")
+    assert response.status_code == 200
+    assert response.text == "test log"
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.headers["cache-control"] == "no-store"
 
-def test_root_redirect_preserves_query_parameters():
-    """Verify that root redirect preserves query parameters such as app_mode."""
-    client = TestClient(RestAPI.get_instance(), follow_redirects=False)
-
-    res_root = client.get("/")
-    assert res_root.status_code == 307
-    assert res_root.headers.get("location") == "/ui/2.1.4/"
-
-    res_query = client.get("/?app_mode=LogViewer")
-    assert res_query.status_code == 307
-    assert res_query.headers.get("location") == "/ui/2.1.4/?app_mode=LogViewer"
+    log_path.unlink()
+    missing = client.get("/vcclient.log")
+    assert missing.status_code == 404
+    assert missing.headers["cache-control"] == "no-store"

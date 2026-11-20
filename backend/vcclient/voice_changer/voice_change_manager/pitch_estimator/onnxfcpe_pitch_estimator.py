@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import numpy as np
 
+from vcclient.device import DeviceConfig, get_device
+
 from ...data_types.voice_changer_data_types import PitchEstimatorInfo
 from ...voice_changer_const import PitchEstimatorType
-from ..device_manager.device_manager import DeviceManager
 from .pitch_estimator import PitchEstimator
 
 
@@ -15,9 +18,18 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
     using ONNX Runtime and NumPy.
     """
 
-    def __init__(self, pitch_estimator_type: PitchEstimatorType, file: Path, device_id: int):
+    def __init__(
+        self,
+        pitch_estimator_type: PitchEstimatorType,
+        file: Path,
+        device: DeviceConfig | int | None = None,
+        *,
+        device_id: DeviceConfig | int | None = None,
+    ):
         super().__init__()
-        self.device_id = device_id
+        target = device if device is not None else (device_id if device_id is not None else 0)
+        self.device = get_device(target) if isinstance(target, int) else target
+        self.device_id = self.device.id
         self.file = file
         self.pitch_estimator_type = pitch_estimator_type
 
@@ -26,12 +38,8 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
         self.f0_mel_min = 1127 * np.log(1 + self.f0_min / 700)
         self.f0_mel_max = 1127 * np.log(1 + self.f0_max / 700)
 
-        (onnx_providers, onnx_provider_options) = DeviceManager.get_instance().get_onnx_execution_provider(device_id)
-        self.candidate_onnx_providers = onnx_providers
-        self.candidate_onnx_provider_options = onnx_provider_options
-
-        self.onnx_session = DeviceManager.get_instance().create_inference_session(
-            self.file, onnx_providers, onnx_provider_options
+        self.onnx_session, self.candidate_onnx_providers, self.candidate_onnx_provider_options = (
+            self.device.create_session(self.file)
         )
 
     def estimate(
@@ -61,13 +69,12 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
                 )
 
             pitch_length = audio.shape[0] // window_length
-            silence_front_frame = silence_front_sec * sample_rate
-            start_window = int(silence_front_frame / window_length)
-            silence_front_frame_offset = start_window * window_length
-            target_frame_length = len(audio) - silence_front_frame_offset
-            minimum_frames = int(round(0.01 * sample_rate))
-            target_frame_length = max(minimum_frames, target_frame_length)
-            audio = audio[-target_frame_length:]
+
+            # FCPE requires minimum samples for pre-pad 432 (safe threshold: 3200 samples = 0.2s)
+            min_samples = 3200
+            if audio.shape[0] < min_samples:
+                pad_size = min_samples - audio.shape[0]
+                audio = np.pad(audio, (pad_size, 0), mode="constant")
 
             # FCPE expects input shape: [1, n_samples, 1] @ 16kHz
             input_audio = audio.astype(np.float32)[None, :, None]
@@ -76,18 +83,15 @@ class FCPEOnnxPitchEstimator(PitchEstimator):
                 ["f0_hz"],
                 {"audio": input_audio},
             )
-            f0 = output[0].squeeze()
+            f0 = np.atleast_1d(output[0].squeeze())
             f0 = np.nan_to_num(f0, nan=0.0)
             f0[f0 < 0] = 0.0
             f0 *= pow(2, up_key / 12)
 
-            pitch = prev_pitch.squeeze(axis=0)
-            pitch = np.concatenate([pitch, f0], axis=0)
-
-            if pitch.shape[0] < pitch_length:
-                pitch = np.concatenate([np.zeros(pitch_length - pitch.shape[0]), pitch], axis=0)
+            if f0.shape[0] < pitch_length:
+                pitch = np.pad(f0, (pitch_length - f0.shape[0], 0), mode="constant")
             else:
-                pitch = pitch[-pitch_length:]
+                pitch = f0[-pitch_length:]
 
             f0_mel = 1127 * np.log(1 + pitch / 700)
             f0_mel[f0_mel > 0] = (f0_mel[f0_mel > 0] - self.f0_mel_min) * 254 / (self.f0_mel_max - self.f0_mel_min) + 1

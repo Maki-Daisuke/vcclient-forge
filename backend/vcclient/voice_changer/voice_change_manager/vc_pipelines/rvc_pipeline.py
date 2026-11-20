@@ -8,19 +8,30 @@ import onnxruntime
 from onnx import TensorProto
 from onnx.helper import make_graph, make_model, make_node, make_opsetid, make_tensor_value_info
 
+from vcclient.device import (
+    DeviceConfig,
+    get_device,
+)
 from vcclient.logger import logger
-from vcclient.voice_changer.voice_change_manager.device_manager.device_manager import DeviceManager
 
 from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
 from ...slot_manager.slot_manager import SlotManager
-from ...voice_changer_const import ModelDir, PitchEstimatorType, RVCInferencerOnnxVersion
+from ...voice_changer_const import (
+    CROSSFADE_SEC,
+    SOLA_SEARCH_FRAME_SEC,
+    ModelDir,
+    PitchEstimatorType,
+    RVCInferencerOnnxVersion,
+)
 from ..embedders.embedder_manager import EmbedderManager
 from ..inferencer.inferencer_manager import InferencerManager
 from ..inferencer.rvc_inferencer import RVCInferencer
 from ..pitch_estimator.pitch_estimator_manager import PitchEstimatorManager
 from .vc_pipeline import VCPipeline
+
+NOISE_GATE_HOLD_SEC = 0.2
 
 
 class RVCPipeline(VCPipeline):
@@ -28,6 +39,7 @@ class RVCPipeline(VCPipeline):
     rvc: RVCInferencer
     slot_index: int
     gpu_device_id: int
+    device: DeviceConfig
     pitch_estimator_type: PitchEstimatorType
     index_data: tuple[faiss.Index, np.ndarray] | None
     pitchf_buffer: np.ndarray | None
@@ -40,7 +52,9 @@ class RVCPipeline(VCPipeline):
         self._slot_info = slot_info
         self.slot_index = slot_info.slot_index
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        self.gpu_device_id = conf.gpu_device_id_int
+        target_device = get_device(conf.gpu_device_id_int)
+        self.device = target_device
+        self.gpu_device_id = target_device.id
         self.pitch_estimator_type = slot_info.pitch_estimator
         logger.info(
             "construct new pipelinepitch: slot_index:%s, gpu_device_id:%s pitch_estimator: %s",
@@ -48,19 +62,21 @@ class RVCPipeline(VCPipeline):
             self.gpu_device_id,
             self.pitch_estimator_type,
         )
-        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(
-            slot_info.pitch_estimator, conf.gpu_device_id_int
-        )
-        self.embedder = EmbedderManager.get_embedder(slot_info.embedder, conf.gpu_device_id_int)
+        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(slot_info.pitch_estimator, self.device)
+        self.embedder = EmbedderManager.get_embedder(slot_info.embedder, self.device)
         if slot_info.model_file is None:
             raise ValueError(f"RVC slot {slot_info.slot_index} has no model file configured.")
+        target_frames = self._calculate_target_feats_length()
+        self.target_frames = target_frames
         self.rvc = cast(
             RVCInferencer,
             InferencerManager.get_inferencer(
                 slot_info.inferencer_type,
                 ModelDir / str(slot_info.slot_index) / slot_info.model_file,
-                conf.gpu_device_id_int,
+                self.device,
                 inferencer_type_version=cast(RVCInferencerOnnxVersion, slot_info.version),
+                target_frames=target_frames,
+                sample_rate=self.get_output_sample_rate(),
             ),
         )
         if slot_info.index_file is not None:
@@ -71,15 +87,53 @@ class RVCPipeline(VCPipeline):
             embedder_dim_size = 256
         else:
             embedder_dim_size = 768
-        self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, conf.gpu_device_id_int)
+        self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, self.device)
+        self._reset_buffers()
+
+    def _reset_buffers(self) -> None:
         self.audio_buffer = np.zeros([16384], dtype=float)
         self.pitchf_buffer = np.zeros([1, 1], dtype=np.float64)
-        if slot_info.embedder == "hubert_base_l12" or slot_info.embedder == "hubert_base_japanese_l12":
+        embedder_type = getattr(self.slot_info, "embedder", "hubert_base_l12")
+        if embedder_type in ("hubert_base_l12", "hubert_base_japanese_l12"):
             self.feature_buffer = np.zeros((1, 1, 768), dtype=np.float64)
         else:
             self.feature_buffer = np.zeros((1, 1, 256), dtype=np.float64)
-        self.prev_vol = 0
-        self.is_gate_open: bool = True
+        self.is_gate_open = True
+        self.noise_gate_below_threshold_samples = 0
+
+    def warmup(self) -> None:
+        """Warm up ONNX sessions with a realistic audio chunk to trigger AOT/JIT compilation."""
+        if not (
+            hasattr(self, "embedder")
+            and hasattr(self, "rvc")
+            and hasattr(self, "onnx_upscaler")
+            and hasattr(self, "pitch_estimator")
+        ):
+            return
+
+        try:
+            chunk_sec = self.get_chunk_sec()
+            input_sample_rate = self.get_input_sample_rate()
+            sample_count = int(round(chunk_sec * input_sample_rate))
+            if sample_count <= 0:
+                sample_count = 8000
+
+            real_crossfade_sec = min(chunk_sec, CROSSFADE_SEC)
+
+            # Generate synthetic audio (440Hz sine wave) with sufficient amplitude to open noise gate
+            t = np.arange(sample_count, dtype=np.float32) / input_sample_rate
+            dummy_audio = (0.1 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+
+            logger.info(
+                "Warming up RVCPipeline ONNX sessions (slot=%s, chunk_sec=%.2f, samples=%d)...",
+                self.slot_index,
+                chunk_sec,
+                sample_count,
+            )
+            self.run(dummy_audio, real_crossfade_sec=real_crossfade_sec)
+            logger.info("RVCPipeline warmup complete.")
+        finally:
+            self._reset_buffers()
 
     @property
     def slot_info(self) -> RVCSlotInfo:
@@ -101,7 +155,7 @@ class RVCPipeline(VCPipeline):
         return index, big_npy
 
     def make_onnx_upscaler(
-        self, dim_size: int, gpu_device_id_int: int, ir_version: int = 9
+        self, dim_size: int, device: DeviceConfig | int, ir_version: int = 9
     ) -> onnxruntime.InferenceSession:
         try:
             input = make_tensor_value_info("in", TensorProto.FLOAT, [1, dim_size, None])
@@ -110,12 +164,9 @@ class RVCPipeline(VCPipeline):
             resize_node = make_node("Resize", inputs=["in", "", "scales"], outputs=["out"], mode="nearest", axes=[2])
             graph = make_graph([resize_node], "upscaler", [input, scales], [output])
             onnx_model = make_model(graph, ir_version=ir_version, opset_imports=[make_opsetid("", 20)])
-            onnx_providers, onnx_provider_options = DeviceManager.get_instance().get_onnx_execution_provider(
-                gpu_device_id_int
-            )
-            return DeviceManager.get_instance().create_inference_session(
-                onnx_model.SerializeToString(), onnx_providers, onnx_provider_options
-            )
+            target_device = get_device(device) if isinstance(device, int) else device
+            session, _, _ = target_device.create_session(onnx_model.SerializeToString())
+            return session
         except Exception as e:
             logger.error("make_onnx_upscaler failed. %s", e)
             print("make_onnx_upscaler failed.", e)
@@ -136,6 +187,16 @@ class RVCPipeline(VCPipeline):
     def get_chunk_sec(self) -> float:
         return self.slot_info.chunk_sec
 
+    def _calculate_target_feats_length(self) -> int:
+        from vcclient.device.coreml_patch import calculate_target_feats_length
+
+        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+        chunk_sec = self.get_chunk_sec()
+        return calculate_target_feats_length(
+            chunk_sec=chunk_sec,
+            extra_frame_sec=conf.extra_frame_sec,
+        )
+
     def needs_crossfade(self) -> bool:
         return True
 
@@ -147,18 +208,19 @@ class RVCPipeline(VCPipeline):
 
     def set_pitch_estimator_type(self, pitch_estimator_type: PitchEstimatorType) -> None:
         logger.info("pitch estimator is changed: %s -> %s", self.pitch_estimator_type, pitch_estimator_type)
-        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, self.gpu_device_id)
+        target = self.device if hasattr(self, "device") else self.gpu_device_id
+        self.pitch_estimator = PitchEstimatorManager.get_pitch_estimator(pitch_estimator_type, target)
         self.pitch_estimator_type = pitch_estimator_type
         if hasattr(self, "_slot_info") and self._slot_info is not None:
             self._slot_info.pitch_estimator = pitch_estimator_type
         logger.info("pitch estimator is changed: done")
 
     def _generate_inputs(
-        self, audio: np.ndarray, crossfade_overlap_sec: float, sola_search_frame_sec: float, extra_frame_sec: float
+        self, audio: np.ndarray, crossfade_overlap_sec: float, extra_frame_sec: float
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray, int, float, int]:
         new_frame_size = audio.shape[0]
         crossfade_overlap_size = int(crossfade_overlap_sec * self.get_input_sample_rate())
-        sola_search_frame_size = int(sola_search_frame_sec * self.get_input_sample_rate())
+        sola_search_frame_size = int(SOLA_SEARCH_FRAME_SEC * self.get_input_sample_rate())
         extra_frame_size = int(extra_frame_sec * self.get_input_sample_rate())
 
         self.audio_buffer = np.concatenate([self.audio_buffer, audio], 0)
@@ -191,6 +253,24 @@ class RVCPipeline(VCPipeline):
             real_convert_size,
         )
 
+    def _update_noise_gate(self, vol_db: float, threshold_db: float, sample_count: int) -> None:
+        if threshold_db <= -100.0:
+            self.is_gate_open = True
+            self.noise_gate_below_threshold_samples = 0
+        elif not self.is_gate_open:
+            if vol_db >= threshold_db:
+                self.is_gate_open = True
+                self.noise_gate_below_threshold_samples = 0
+        elif vol_db < threshold_db - 5.0:
+            hold_samples = round(NOISE_GATE_HOLD_SEC * self.get_input_sample_rate())
+            if self.noise_gate_below_threshold_samples >= hold_samples:
+                self.is_gate_open = False
+                self.noise_gate_below_threshold_samples = 0
+            else:
+                self.noise_gate_below_threshold_samples += sample_count
+        else:
+            self.noise_gate_below_threshold_samples = 0
+
     def run(self, audio: np.ndarray, real_crossfade_sec: float) -> np.ndarray:
         if not isinstance(audio, np.ndarray):
             raise TypeError(f"audio must be a numpy array, got {type(audio).__name__}")
@@ -202,11 +282,10 @@ class RVCPipeline(VCPipeline):
         slot_info = self.slot_info
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         crossfacde_overlap_sec = real_crossfade_sec
-        sola_search_frame_sec = conf.sola_search_frame_sec
         extra_frame_sec = conf.extra_frame_sec
         index_data = self.index_data
 
-        data = self._generate_inputs(audio, crossfacde_overlap_sec, sola_search_frame_sec, extra_frame_sec)
+        data = self._generate_inputs(audio, crossfacde_overlap_sec, extra_frame_sec)
         audio, prev_pitch, prev_feature, convert_size, vol, real_output_size = data
 
         reference_volume = 1
@@ -215,18 +294,7 @@ class RVCPipeline(VCPipeline):
         else:
             vol_db = 20 * np.log10(vol / reference_volume)
 
-        # Noise gate with hysteresis (Open / Close threshold)
-        if conf.noise_gate <= -100.0:
-            self.is_gate_open = True
-        else:
-            open_threshold = conf.noise_gate
-            close_threshold = conf.noise_gate - 5.0
-            if not self.is_gate_open:
-                if vol_db >= open_threshold:
-                    self.is_gate_open = True
-            else:
-                if vol_db < close_threshold:
-                    self.is_gate_open = False
+        self._update_noise_gate(vol_db, conf.noise_gate, input_sample_num)
 
         if not self.is_gate_open:
             logger.debug(
@@ -291,20 +359,7 @@ class RVCPipeline(VCPipeline):
         self.pitchf_buffer = pitch
         self.feature_buffer = feats
 
-        if conf.volume_tuning_type == "linear":
-            converted = converted * vol
-        elif conf.volume_tuning_type == "linear_ratio":
-            converted_vol = float(np.sqrt(np.square(converted).mean())) if converted.size > 0 else 0.0
-            if converted_vol >= 1e-06:
-                vol_scaling_factor = vol / converted_vol
-                converted = converted * vol_scaling_factor
-        elif conf.volume_tuning_type == "sqrt":
-            converted = converted * np.sqrt(vol)
-        elif conf.volume_tuning_type == "sqrt_ratio":
-            converted_vol = float(np.sqrt(np.square(converted).mean())) if converted.size > 0 else 0.0
-            if converted_vol >= 1e-06:
-                vol_scaling_factor = np.sqrt(vol) / converted_vol
-                converted = converted * vol_scaling_factor
+        converted = converted * np.sqrt(vol)
 
         converted = np.nan_to_num(converted, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         return converted

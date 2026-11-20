@@ -4,10 +4,8 @@ import pytest
 
 from vcclient.exception import ERROR_CODE_SLOT_STATE_CONFLICT, VCClientError
 from vcclient.voice_changer.data_types.slot_manager_data_types import (
-    MoveModelParam,
     RVCModelImportParam,
     RVCSlotInfo,
-    SetIconParam,
 )
 from vcclient.voice_changer.slot_manager.slot_manager import SlotManager, reload_slot_infos
 from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
@@ -112,36 +110,6 @@ def test_get_blank_slot_index_and_out_of_range_lookup(monkeypatch, tmp_path: Pat
         slot_mgr.get_slot_info(-1)
 
 
-def test_delete_slot_with_readonly_attributes(monkeypatch, tmp_path: Path):
-    """Windows の ReadOnly 属性が付与されたファイルやフォルダでも安全に delete_slot できることを確認。"""
-    import os
-    import stat
-
-    slot_mgr = SlotManager.get_instance()
-    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path)
-
-    slot_dir = tmp_path / "7"
-    slot_dir.mkdir(parents=True)
-    param_file = slot_dir / SLOT_PARAM_FILE
-    param_file.write_text("{}", encoding="utf-8")
-    dummy_model = slot_dir / "model.onnx"
-    dummy_model.write_text("dummy", encoding="utf-8")
-
-    # ReadOnly 属性をファイルおよびディレクトリに付与
-    os.chmod(param_file, stat.S_IREAD)
-    os.chmod(dummy_model, stat.S_IREAD)
-    os.chmod(slot_dir, stat.S_IREAD)
-
-    slot_mgr.reload()
-    assert slot_dir.exists()
-
-    # 削除実行
-    slot_mgr.delete_slot(7)
-
-    # ディレクトリごと安全に削除されていること
-    assert not slot_dir.exists()
-
-
 def test_slot_state_conflicts_are_rejected_without_overwriting_existing_model(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path)
     slot_dir = tmp_path / "0"
@@ -152,14 +120,13 @@ def test_slot_state_conflicts_are_rejected_without_overwriting_existing_model(mo
     manager = SlotManager()
 
     import_param = RVCModelImportParam(slot_index=0, name="Replacement", model_file=tmp_path / "new.onnx")
-    for operation in (lambda: manager.set_new_slot(import_param), lambda: manager.reserve_slot_for_sample(0)):
-        with pytest.raises(VCClientError) as error:
-            operation()
-        assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
-        assert RVCSlotInfo.model_validate_json(params_file.read_text(encoding="utf-8")).name == "Existing"
+    with pytest.raises(VCClientError) as error:
+        manager.set_new_slot(import_param)
+    assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
+    assert RVCSlotInfo.model_validate_json(params_file.read_text(encoding="utf-8")).name == "Existing"
 
 
-def test_slot_updates_and_moves_reject_invalid_states(monkeypatch, tmp_path: Path):
+def test_slot_updates_reject_invalid_states(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path)
     slot_dir = tmp_path / "0"
     slot_dir.mkdir()
@@ -169,27 +136,133 @@ def test_slot_updates_and_moves_reject_invalid_states(monkeypatch, tmp_path: Pat
     )
     manager = SlotManager()
 
-    invalid_operations = (
-        lambda: manager.update_slot_for_sample(0, 0.5),
-        lambda: manager.update_slot_info(RVCSlotInfo(slot_index=1, name="Missing", model_file="missing.onnx")),
-        lambda: manager.move_model_slot(MoveModelParam(src=0, dst=0)),
-        lambda: manager.move_model_slot(MoveModelParam(src=1, dst=2)),
-    )
-    for operation in invalid_operations:
-        with pytest.raises(VCClientError) as error:
-            operation()
-        assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
+    with pytest.raises(VCClientError) as error:
+        manager.update_slot_info(RVCSlotInfo(slot_index=1, name="Missing", model_file="missing.onnx"))
+    assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
     assert RVCSlotInfo.model_validate_json(params_file.read_text(encoding="utf-8")).name == "Existing"
 
 
-def test_set_icon_rejects_empty_slot_before_moving_upload(monkeypatch, tmp_path: Path):
+def test_update_slot_metadata_rejects_empty_slot_without_copying_icon(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", tmp_path / "models")
     manager = SlotManager()
     icon_file = tmp_path / "icon.png"
     icon_file.write_bytes(b"icon")
 
     with pytest.raises(VCClientError) as error:
-        manager.set_icon_file(SetIconParam(slot_index=0, icon_file=icon_file))
+        manager.update_slot_metadata(0, icon_file=icon_file)
 
     assert error.value.info.code == ERROR_CODE_SLOT_STATE_CONFLICT
     assert icon_file.exists()
+    assert not (tmp_path / "models" / "0").exists()
+
+
+def test_update_slot_metadata_replaces_icon_atomically_without_pipeline_reload(monkeypatch, tmp_path: Path):
+    models_dir = tmp_path / "models"
+    slot_dir = models_dir / "0"
+    slot_dir.mkdir(parents=True)
+    old_icon = slot_dir / "old_icon.png"
+    old_icon.write_bytes(b"old-icon")
+    model_file = slot_dir / "voice.onnx"
+    model_file.write_bytes(b"onnx-bytes")
+    slot_info = RVCSlotInfo(
+        slot_index=0,
+        voice_changer_type="RVC",
+        name="InitialName",
+        model_file=Path("voice.onnx"),
+        icon_file=Path("old_icon.png"),
+    )
+    (slot_dir / SLOT_PARAM_FILE).write_text(slot_info.model_dump_json(indent=4), encoding="utf-8")
+
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
+    manager = SlotManager()
+    check_calls = 0
+
+    def fail_if_called():
+        nonlocal check_calls
+        check_calls += 1
+        raise AssertionError("check_and_update_pipeline must not be called for metadata-only edits")
+
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.voice_changer.VoiceChanger.get_instance",
+        lambda: type("DummyVC", (), {"check_and_update_pipeline": staticmethod(fail_if_called)})(),
+    )
+
+    new_icon = tmp_path / "icon_abc123.webp"
+    new_icon.write_bytes(b"new-icon")
+    updated = manager.update_slot_metadata(0, name="  Renamed  ", icon_file=new_icon)
+
+    assert updated.name == "Renamed"
+    assert updated.icon_file == Path("icon_abc123.webp")
+    assert check_calls == 0
+    assert (slot_dir / "icon_abc123.webp").read_bytes() == b"new-icon"
+    assert not old_icon.exists()
+    assert model_file.exists()
+    persisted = RVCSlotInfo.model_validate_json((slot_dir / SLOT_PARAM_FILE).read_text(encoding="utf-8"))
+    assert persisted.name == "Renamed"
+    assert persisted.icon_file == Path("icon_abc123.webp")
+
+
+def test_update_slot_metadata_invalid_name_preserves_existing_icon(monkeypatch, tmp_path: Path):
+    models_dir = tmp_path / "models"
+    slot_dir = models_dir / "0"
+    slot_dir.mkdir(parents=True)
+    old_icon = slot_dir / "old.png"
+    old_icon.write_bytes(b"old-icon")
+    slot_info = RVCSlotInfo(
+        slot_index=0,
+        voice_changer_type="RVC",
+        name="Original",
+        model_file=Path("voice.onnx"),
+        icon_file=Path("old.png"),
+    )
+    (slot_dir / SLOT_PARAM_FILE).write_text(slot_info.model_dump_json(indent=4), encoding="utf-8")
+
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
+    manager = SlotManager()
+    new_icon = tmp_path / "icon_new.png"
+    new_icon.write_bytes(b"new-icon")
+
+    with pytest.raises(ValueError, match="empty"):
+        manager.update_slot_metadata(0, name="   ", icon_file=new_icon)
+
+    assert old_icon.read_bytes() == b"old-icon"
+    assert not (slot_dir / "icon_new.png").exists()
+    persisted = RVCSlotInfo.model_validate_json((slot_dir / SLOT_PARAM_FILE).read_text(encoding="utf-8"))
+    assert persisted.name == "Original"
+    assert persisted.icon_file == Path("old.png")
+
+
+def test_update_slot_metadata_save_failure_rolls_back_memory_and_icon(monkeypatch, tmp_path: Path):
+    models_dir = tmp_path / "models"
+    slot_dir = models_dir / "0"
+    slot_dir.mkdir(parents=True)
+    old_icon = slot_dir / "old.png"
+    old_icon.write_bytes(b"old-icon")
+    slot_info = RVCSlotInfo(
+        slot_index=0,
+        voice_changer_type="RVC",
+        name="Original",
+        model_file=Path("voice.onnx"),
+        icon_file=Path("old.png"),
+    )
+    (slot_dir / SLOT_PARAM_FILE).write_text(slot_info.model_dump_json(indent=4), encoding="utf-8")
+
+    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
+    manager = SlotManager()
+    monkeypatch.setattr(manager, "save_slot_info", lambda _info: (_ for _ in ()).throw(OSError("disk full")))
+
+    new_icon = tmp_path / "icon_failed.png"
+    new_icon.write_bytes(b"new-icon")
+
+    with pytest.raises(OSError, match="disk full"):
+        manager.update_slot_metadata(0, name="FailedRename", icon_file=new_icon)
+
+    in_memory = manager.get_slot_info(0)
+    assert isinstance(in_memory, RVCSlotInfo)
+    assert in_memory.name == "Original"
+    assert in_memory.icon_file == Path("old.png")
+    assert old_icon.read_bytes() == b"old-icon"
+    assert not (slot_dir / "icon_failed.png").exists()
+    persisted = RVCSlotInfo.model_validate_json((slot_dir / SLOT_PARAM_FILE).read_text(encoding="utf-8"))
+    assert persisted.name == "Original"
+    assert persisted.icon_file == Path("old.png")

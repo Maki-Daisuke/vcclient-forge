@@ -24,13 +24,13 @@ Forge's later removal of PyTorch from the real-time inference path is a separate
 
 ## 2. Anatomy of the Upstream "Chimera Monorepo"
 
-The upstream repository grew organically as a multi-purpose monorepo housing unrelated sub-projects:
+The upstream repository grew organically as a multi-purpose monorepo housing unrelated sub-projects (all five upstream directories below were removed in Forge, with `frontend/` replacing `web_front/`, `desktop/` replacing `client/`, and `docs/` now holding only the user-facing `README.txt` and `README_ja.txt` quick-start guides):
 
-* **`docs/` (Removed in Forge)**: Not documentation, but a standalone client-side Web application ("Voice Recorder") hosted on GitHub Pages (`https://w-okada.github.io/voice-changer/`). Used in 2022 to record reading scripts (including Natsume Soseki's *I Am a Cat* and the ITA corpus) to build training datasets for MMVC. Not used by VCClient.
-* **`trainer/`**: Dockerfiles and notebooks for training MMVC models on Google Colab or local GPU rigs.
-* **`client/`**: Electron wrapper assets for desktop packaging.
-* **`server/`**: The frozen 2024 source of the v1.x server, superseded by `vcclient_dev`.
-* **`web_front/`**: Compiled SPA assets (React/Webpack) served statically by FastAPI.
+* **`docs/` (Upstream Voice Recorder, Removed)**: Not documentation, but a standalone client-side Web application ("Voice Recorder") hosted on GitHub Pages (`https://w-okada.github.io/voice-changer/`). Used in 2022 to record reading scripts (including Natsume Soseki's *I Am a Cat* and the ITA corpus) to build training datasets for MMVC. Not used by VCClient. (In Forge, `docs/` contains only `README.txt` and `README_ja.txt`.)
+* **`trainer/` (Removed)**: Dockerfiles and notebooks for training MMVC models on Google Colab or local GPU rigs.
+* **`client/` (Removed)**: Electron wrapper assets for desktop packaging, superseded by `desktop/` (Wails v3).
+* **`server/` (Removed)**: The frozen 2024 source of the v1.x server, superseded by `vcclient_dev` / `backend/vcclient/`.
+* **`web_front/` (Removed)**: Compiled legacy SPA assets (React/Webpack) previously served statically by FastAPI, replaced by the Svelte 5 UI built from `frontend/` into `frontend/dist/`.
 
 ## 3. Entry Point Resolution: The `main.py` Puzzle
 
@@ -49,32 +49,20 @@ Forge established an immediately intuitive, modern full-stack architecture that 
 * **Isolated uv Environment**: `pyproject.toml`, `uv.lock`, and standalone `.venv` reside directly inside `backend/`, cleanly decoupling backend Python dependencies from root task runners.
 * **Deterministic Static Asset Resolution**: `vcclient.server.server_const.get_frontend_path()` resolves `frontend/dist` via relative anchors from `__file__`, ensuring identical asset resolution both in local development and inside portable distribution zips.
 
-### 4.2. Strangler Fig Frontend Strategy (`frontend/dist`)
-An essential discovery was made regarding the legacy frontend assets:
-* **`client/` (Reference Implementation A)**: Contains early 2024 uncompiled React/Webpack source code (frozen at commit `2024-02-28`). It lacks Beatrice UI, modern multi-language localizations, and contemporary UI features. Compiling it directly causes regression.
-* **`web_front/` (Reference Implementation B)**: Contains the December 2025 golden binary bundle extracted from `vcclient_win_cuda_2.0.78-beta.zip`.
-* **Interface-First Shim**: Rather than contaminating `frontend/` with obsolete source or minified blobs, Forge established `frontend/dist` as an ignored build artifact (`.gitignore`).
-* **Safe Incremental Migration**: `npm run build:frontend` currently runs `scripts/build_frontend.js` to synchronize `web_front` into `frontend/dist`. The planned replacement is a new Svelte 5 + Vite UI, beginning with Server Mode. It can continue targeting `frontend/dist`, preserving the backend's static-asset location; the frontend build and package scripts still need to be updated as part of that migration.
+### 4.2. Svelte Frontend Deployment
 
-```
-voice-changer/
-├── backend/                  # Python / uv project (vcclient, main.py, tests)
-├── frontend/                 # Next-generation Svelte 5 + Vite UI (dist is .gitignored)
-├── client/                   # Reference implementation A (frozen 2024 source)
-├── web_front/                # Reference implementation B (golden 2025 binary)
-├── modules/                  # Pretrained ONNX/PyTorch models
-├── okf/                      # Open Knowledge Format bundle
-├── scripts/                  # Build & packaging scripts
-├── package.json              # Root orchestrator (npm start, npm test, etc.)
-└── start.bat / start.sh       # Portable-package executable launchers
-```
+The Svelte/Vite UI in `frontend/` replaces the legacy frontend. `npm run build:frontend`
+builds it into `frontend/dist`, which FastAPI serves and the portable distribution
+includes. Vite's manifest is used to validate the built assets during packaging.
+The previous `client/` source and `web_front/` bundles have been removed; retained
+translations and the placeholder image are in `frontend/src/`.
 
 ## 5. Pruning the Legacy CUI Layer
 
 Upstream included an optional terminal-based user interface (CUI) powered by `textual` and file monitoring via `watchdog`.
 
 In Forge, this layer was removed based on core engineering rationale:
-1. **Redundant Functionality**: Full-featured real-time log monitoring and status inspection are already provided in the Web UI, and management is exposed via REST and Socket.IO APIs. The CUI merely mirrored server logs inside an artificial terminal widget.
+1. **Redundant Functionality**: Full-featured real-time log monitoring and status inspection are already provided in the Web UI, and management is exposed via REST and WebSocket APIs. The CUI merely mirrored server logs inside an artificial terminal widget.
 2. **Dead Dependency Elimination**: Removing the CUI eliminated four heavy third-party packages (`textual`, `watchdog`, `linkify-it-py`, `mdit-py-plugins`) and pruned over 500 lines of complex terminal UI logic.
 3. **Clean Shutdown & Process Lifecycle**: Dropping terminal event loops and file watcher threads substantially simplified graceful shutdown, preventing thread deadlocks and orphaned async tasks.
 4. **Guiding Philosophy**: *"If the outcome is identical, having less code and fewer dependencies is strictly superior."*

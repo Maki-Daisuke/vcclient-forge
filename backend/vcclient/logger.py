@@ -19,13 +19,7 @@ class CustomFormatter(logging.Formatter):
 class IgnoreConvertRequestFilter(logging.Filter):
     def filter(self, record):
         msg = record.getMessage()
-        return all(
-            [
-                "/api/voice-changer/convert_chunk" not in msg,
-                "/api/voice-changer/convert_chunk_bulk" not in msg,
-                "/vcclient.log" not in msg,
-            ]
-        )
+        return "/vcclient.log" not in msg
 
 
 def _init_logger() -> logging.Logger:

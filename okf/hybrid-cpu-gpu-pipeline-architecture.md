@@ -7,6 +7,11 @@ description: "Analysis of PCIe transfer latencies, micro-benchmark measurements,
 
 # Hybrid CPU-GPU Pipelining vs. Monolithic Graph Fusion
 
+> **Planning update**: The hybrid pipeline remains a candidate, and Boost Mode
+> is also open for a controlled comparison on different hardware. The component
+> measurements below do not establish the winner of an end-to-end comparison;
+> see the [implementation roadmap](./implementation-roadmap.md#9-optimize-inference-evaluate-hybrid-pipelining-and-boost-mode).
+
 > **Summary**: Direct micro-benchmarks reveal that physical PCIe DMA transfers (16–160 KB) take tens of microseconds (16–86 μs across AMD and NVIDIA architectures), which does not materially impact real-time latency budgets. Small neural models (ContentVec, RMVPE) execute efficiently on modern multi-core CPUs (~19–32 ms total), with sequential operators in RMVPE executing faster on CPU than on GPU due to kernel dispatch overhead at batch=1. Meanwhile, the HiFi-GAN vocoder (156 convolutional layers) is internal VRAM-bandwidth bound. Rather than consolidating the entire pipeline into a monolithic ONNX graph ("Boost Mode"), a **concurrent hybrid pipeline** (CPU-based preprocessing overlapped with dedicated vocoder synthesis) avoids operator-fusion complexity, prevents vendor-specific reduction issues, and operates within real-time streaming constraints.
 
 ---

@@ -167,17 +167,10 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         "--collect-submodules",
         "uvicorn",
         "--hidden-import",
-        "engineio.async_drivers.asgi",
-        "--hidden-import",
-        "vcclient.server.vcserver_socketio",
+        "vcclient.server.vcserver_websocket",
     ]
     if requires_nvidia_wheel_binaries(edition):
-        for package in (
-            "nvidia.cublas",
-            "nvidia.cudnn",
-            "nvidia.cufft",
-            "nvidia.cuda_runtime",
-        ):
+        for package in ("nvidia.cu13", "nvidia.cudnn"):
             freeze_command.extend(
                 ["--hidden-import", package, "--collect-binaries", package]
             )
@@ -238,11 +231,22 @@ def validate_artifacts(edition: str, python_version: str) -> tuple[Path, Path]:
                 missing.append(str(artifact))
 
     frontend = PROJECT_ROOT / "frontend" / "dist"
-    source = PROJECT_ROOT / "web_front"
-    required_frontend = {Path("index.html")}
-    required_frontend.update(
-        path.relative_to(source) for path in source.rglob("*") if path.is_file()
-    )
+    frontend_manifest = frontend / ".vite" / "manifest.json"
+    required_frontend = {Path("index.html"), Path(".vite/manifest.json")}
+    if frontend_manifest.is_file():
+        entries = json.loads(frontend_manifest.read_text(encoding="utf-8"))
+        if not isinstance(entries, dict) or not any(
+            isinstance(entry, dict) and entry.get("isEntry") for entry in entries.values()
+        ):
+            raise ValueError(f"Invalid frontend build manifest: {frontend_manifest}")
+        for entry in entries.values():
+            if not isinstance(entry, dict) or not isinstance(entry.get("file"), str):
+                raise ValueError(f"Invalid frontend build manifest: {frontend_manifest}")
+            for name in [entry["file"], *entry.get("css", []), *entry.get("assets", [])]:
+                artifact = frontend / name
+                if not artifact.resolve().is_relative_to(frontend.resolve()):
+                    raise ValueError(f"Invalid frontend artifact path: {name}")
+                required_frontend.add(Path(name))
     missing.extend(
         str(frontend / relative)
         for relative in sorted(required_frontend)
@@ -292,7 +296,6 @@ def build_package(
         "frontend/dist",
         "start.bat",
         "start.sh",
-        "README.md",
         "LICENSE",
     ]
     if (PROJECT_ROOT / "MacStart.command").is_file():
@@ -318,6 +321,15 @@ def build_package(
         else:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
+
+    readme_txt = PROJECT_ROOT / "docs" / "README.txt"
+    if readme_txt.is_file():
+        shutil.copy2(readme_txt, package_dir / "README.txt")
+        readme_ja = PROJECT_ROOT / "docs" / "README_ja.txt"
+        if readme_ja.is_file():
+            shutil.copy2(readme_ja, package_dir / "README_ja.txt")
+    elif (PROJECT_ROOT / "README.md").is_file():
+        shutil.copy2(PROJECT_ROOT / "README.md", package_dir / "README.md")
 
     # Ensure empty modules and model_dir directories exist
     (package_dir / "modules").mkdir(exist_ok=True)

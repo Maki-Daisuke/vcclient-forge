@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 
+from ...device import get_device
 from ...exception import (
     ERROR_CODE_LOCAL_INPUT_DEVICE_CANNOT_BE_NONE,
     ERROR_CODE_LOCAL_INPUT_DEVICE_SAMPLE_RATE_CHECK_FAILED,
@@ -12,7 +13,7 @@ from ...exception import (
     ERROR_CODE_LOCAL_VOICE_CHANGER_INTERFACE_ACTIVE,
     VCClientError,
 )
-from ..audio_device_manager.audio_device_manager import AudioDeviceManager
+from ..audio_device_manager import check_available_sample_rate
 from ..data_types.data_types import VoiceChangerConfiguration
 from ..voice_changer_const import ConfigFile
 
@@ -22,31 +23,37 @@ class ConfigurationManager:
     voice_changer_configuration: VoiceChangerConfiguration
 
     @classmethod
-    def get_instance(cls) -> ConfigurationManager:
+    def get_instance(cls, *, defer_initial_save: bool = False) -> ConfigurationManager:
         if cls._instance is None:
-            cls._instance = cls()
+            cls._instance = cls(defer_initial_save=defer_initial_save)
         return cls._instance
 
-    def __init__(self) -> None:
-        self.reload()
+    def __init__(self, *, defer_initial_save: bool = False) -> None:
+        self.reload(defer_initial_save=defer_initial_save)
         self.voice_changer_configuration.recording_started = False
         self.voice_changer_configuration.pass_through = False
 
-    def reload(self) -> None:
+    def reload(self, *, defer_initial_save: bool = False) -> None:
         if os.path.exists(ConfigFile):
             with open(ConfigFile, "r", encoding="utf-8") as f:
                 self.voice_changer_configuration = VoiceChangerConfiguration.model_validate_json(f.read())
+            saved_device = self.voice_changer_configuration.gpu_device_id_int
+            self.voice_changer_configuration.gpu_device_id_int = get_device(saved_device).id
             self.voice_changer_configuration.recording_started = False
             self.voice_changer_configuration.pass_through = False
+            if self.voice_changer_configuration.gpu_device_id_int != saved_device:
+                self.save_voice_changer_configuration()
             return None
 
         self.voice_changer_configuration = VoiceChangerConfiguration()
-        self.save_voice_changer_configuration()
+        if not defer_initial_save:
+            self.save_voice_changer_configuration()
 
     def get_voice_changer_configuration(self) -> VoiceChangerConfiguration:
         return self.voice_changer_configuration
 
     def set_voice_changer_configuration(self, conf: VoiceChangerConfiguration) -> None:
+        conf.gpu_device_id_int = get_device(conf.gpu_device_id_int).id
         from ..voice_change_manager.local_voice_changer_interface import (
             LocalVoiceChangerInterface,
             local_voice_changer_loop_interval_sec,
@@ -77,7 +84,7 @@ class ConfigurationManager:
             or conf.audio_monitor_device_index != self.voice_changer_configuration.audio_monitor_device_index
             or conf.audio_monitor_device_sample_rate
             != self.voice_changer_configuration.audio_monitor_device_sample_rate
-            or conf.wasapi_exclude_emabled != self.voice_changer_configuration.wasapi_exclude_emabled
+            or conf.wasapi_exclusive_enabled != self.voice_changer_configuration.wasapi_exclusive_enabled
         ):
             change_audio = True
 
@@ -99,21 +106,20 @@ class ConfigurationManager:
                 time.sleep(local_voice_changer_loop_interval_sec * 2)
 
             try:
-                audio_device_manager = AudioDeviceManager.get_instance()
                 if conf.audio_input_device_index != -1 and conf.audio_input_device_sample_rate != -1:
-                    available = audio_device_manager.check_available_sample_rate(
+                    available = check_available_sample_rate(
                         conf.audio_input_device_index, conf.audio_input_device_sample_rate, "audioinput"
                     )
                     if not available:
                         raise VCClientError(ERROR_CODE_LOCAL_INPUT_DEVICE_SAMPLE_RATE_CHECK_FAILED)
                 if conf.audio_output_device_index != -1 and conf.audio_output_device_sample_rate != -1:
-                    available = audio_device_manager.check_available_sample_rate(
+                    available = check_available_sample_rate(
                         conf.audio_output_device_index, conf.audio_output_device_sample_rate, "audiooutput"
                     )
                     if not available:
                         raise VCClientError(ERROR_CODE_LOCAL_OUTPUT_DEVICE_SAMPLE_RATE_CHECK_FAILED)
                 if conf.audio_monitor_device_index != -1 and conf.audio_monitor_device_sample_rate != -1:
-                    available = audio_device_manager.check_available_sample_rate(
+                    available = check_available_sample_rate(
                         conf.audio_monitor_device_index, conf.audio_monitor_device_sample_rate, "audiooutput"
                     )
                     if not available:

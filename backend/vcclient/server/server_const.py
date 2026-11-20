@@ -1,12 +1,5 @@
-import os
 import sys
 from pathlib import Path
-
-from pydantic import BaseModel
-
-
-class VoiceChangerParams(BaseModel):
-    vc_model_dir: str
 
 
 def get_frontend_path() -> Path:
@@ -24,16 +17,4 @@ def get_frontend_path() -> Path:
     if cwd_dist.exists():
         return cwd_dist
 
-    cwd_web_front = Path("web_front")
-    if cwd_web_front.exists():
-        return cwd_web_front
-
     return frontend_dist
-
-
-TMP_DIR = "tmp_dir"
-os.makedirs(TMP_DIR, exist_ok=True)
-
-UPLOAD_DIR_STR = "upload_dir"
-UPLOAD_DIR = Path(UPLOAD_DIR_STR)
-UPLOAD_DIR.mkdir(exist_ok=True)

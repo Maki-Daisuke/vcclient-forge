@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -16,14 +15,8 @@ class ModelImportParam(BaseModel):
 
     voice_changer_type: VoiceChangerType
     name: str
-    terms_of_use_url: str = ""
     slot_index: int | None = None
     icon_file: Path | None = None
-
-
-class ReservedForSampleModelImportParam(ModelImportParam):
-    voice_changer_type: VoiceChangerType = "RESERVED_FOR_SAMPLE"
-    progress: float
 
 
 class RVCModelImportParam(ModelImportParam):
@@ -33,7 +26,7 @@ class RVCModelImportParam(ModelImportParam):
     embedder: EmbedderType | None = None
 
 
-ModelImportParamMember = ModelImportParam | ReservedForSampleModelImportParam | RVCModelImportParam
+ModelImportParamMember = ModelImportParam | RVCModelImportParam
 
 
 class SlotInfo(BaseModel):
@@ -42,16 +35,7 @@ class SlotInfo(BaseModel):
     slot_index: int = -1
     voice_changer_type: VoiceChangerType | None = None
     name: str = ""
-    description: str = ""
-    credit: str = ""
-    terms_of_use_url: str = ""
     icon_file: Path | None = None
-    speakers: dict = {}
-
-    def update(self, **kwargs: Any) -> None:
-        for key, value in kwargs.items():
-            if key in type(self).model_fields:
-                setattr(self, key, value)
 
 
 class RVCSlotInfo(SlotInfo):
@@ -62,15 +46,12 @@ class RVCSlotInfo(SlotInfo):
     inferencer_type: InferencerType = "onnxRVC"
     sample_rate: int = -1
     is_f0: bool = True
-    deprecated: bool = False
     embedder: EmbedderType = "hubert_base_l12"
     pitch_estimator: PitchEstimatorType = "rmvpe"
-    sample_id: str | None = None
     version: str = ""
     chunk_sec: float = 0.5
     pitch_shift: int = 0
     index_ratio: float = 0
-    protect_ratio: float = 0.5
 
     @field_validator("pitch_estimator", mode="before")
     @classmethod
@@ -95,13 +76,3 @@ class ReservedForSampleSlotInfo(SlotInfo):
 
 
 SlotInfoMember = SlotInfo | ReservedForSampleSlotInfo | RVCSlotInfo
-
-
-class MoveModelParam(BaseModel):
-    src: int
-    dst: int
-
-
-class SetIconParam(BaseModel):
-    slot_index: int
-    icon_file: Path

@@ -37,9 +37,9 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast, deterministic Pytho
    * **Go 1.27+**: Install from [go.dev](https://go.dev/dl/). Verify with `go version`.
    * **Wails v3 CLI**:
      ```bash
-     go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.34
+     go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
      ```
-   * **Desktop Frontend Dependencies**: Run `npm --prefix desktop/frontend ci` from the repository root.
+   * **Desktop Frontend Dependencies**: Installed by `npm run setup:dev` below.
    * **Windows**: Uses pure Go (`CGO_ENABLED=0`) and Microsoft Edge WebView2 Runtime (pre-installed on Windows 10/11). No MSVC or Windows SDK is required.
    * **Linux / macOS**: Compiles with `CGO_ENABLED=1` against GTK4 + WebKitGTK 6.0 (`libgtk-4-dev` and `libwebkitgtk-6.0-dev` on Ubuntu 24.04) or macOS Cocoa/WebKit frameworks.
 
@@ -50,15 +50,15 @@ Clone the repository and build the workspace for your target hardware accelerato
 ```bash
 git clone https://github.com/Maki-Daisuke/vcclient-forge.git
 cd vcclient-forge
-npm ci
-npm --prefix desktop/frontend ci
+npm run setup:dev -- --edition cuda  # Or --edition standard (the default)
 
 # Choose ONE edition matching your development/testing target:
 npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Windows DirectML, Apple CoreML, CPU)
-npm run build -- --edition cuda      # NVIDIA GPU (CUDA 12.x / cuDNN 9)
+npm run build -- --edition cuda      # NVIDIA Turing or newer (CUDA 13.x / cuDNN 9)
 ```
 
-* `npm run build` builds all supported components (`standard` by default): frontend assets in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
+* `npm run build` builds all supported components (`standard` by default): the Svelte UI in `frontend/dist`, the Wails v3 desktop executable in `desktop/bin/`, and synchronizes backend dependencies.
+* `npm run setup:dev` installs the locked root, Svelte frontend, and desktop frontend npm dependencies, downloads Go modules, and synchronizes backend dependencies for the selected edition. It does not install system prerequisites such as Node.js, uv, Go, Wails, or Linux system libraries.
 * `npm run build -- --edition <edition>` selects the hardware edition (`standard` or `cuda`). `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` synchronizes backend dependencies for the specified edition.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
 * The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
@@ -83,18 +83,76 @@ http://localhost:18888/
 
 Initial model assets are downloaded into `model_dir/` upon the first startup.
 
+### Svelte Frontend Development
+
+The UI in `frontend/` uses Svelte 5, TypeScript, and Vite. Its dependencies
+are managed separately from the root and desktop frontend packages. From the
+repository root, install the locked dependencies and start the Vite server:
+
+```bash
+npm --prefix frontend ci
+npm run dev:frontend
+```
+
+Open the URL printed by Vite, normally `http://127.0.0.1:5173`. For model data
+and audio features, start the backend in another terminal. If its dependencies
+have not been installed, synchronize the edition for your hardware first:
+
+```bash
+uv sync --project backend --extra standard  # Or cuda
+npm start
+```
+
+Vite proxies `/api` (including WebSocket connections), `/model_dir`, `/output.wav`, and `/vcclient.log` to
+`http://127.0.0.1:18888`. To use another backend, set `VCCLIENT_BACKEND_URL`
+before starting Vite. For example, in PowerShell:
+
+```powershell
+$env:VCCLIENT_BACKEND_URL = 'http://127.0.0.1:18889'
+npm run dev:frontend
+```
+
+The UI reads and updates the backend configuration and models; changes made in
+the development UI affect the backend it connects to. Client Mode also requires
+browser microphone permission for audio capture.
+
+To check types and build the standalone preview:
+
+```bash
+npm run check:frontend
+npm run build:frontend:preview
+```
+
+The preview build goes to `frontend/preview-dist`; `npm --prefix frontend run preview`
+serves it. `npm run build:frontend` builds the UI in `frontend/dist`,
+which is served by the backend and included in desktop distributions.
+
+For browser tests, install Playwright's Chromium once and run:
+
+```bash
+npm --prefix frontend exec -- playwright install chromium
+npm run test:frontend
+```
+
+These tests use mocked APIs and start a preview server on port 5174, which must be
+free. Alternatively, set `PLAYWRIGHT_CHANNEL` to `msedge` or `chrome` to use an
+installed browser. `npm test` runs frontend type checks and Playwright tests as well
+(skipping Playwright locally if neither Playwright's Chromium nor `PLAYWRIGHT_CHANNEL` is
+available). See [frontend/README.md](frontend/README.md) for the UI's current behavior and implementation details.
+
 ### Desktop Host (Wails v3)
 
 The desktop host lives in `desktop/`. Complete the Wails v3 toolchain setup under [Prerequisites](#prerequisites) before running these commands.
 
 ```bash
 npm ci
+npm --prefix frontend ci
 npm --prefix desktop/frontend ci
 uv sync --project backend --extra standard   # Or cuda; choose one hardware edition
 npm run dev:desktop
 ```
 
-Wails embeds `desktop/frontend/dist`, displays startup status/logs via `@xterm/xterm`, and launches the local Python virtual environment (`backend/.venv/Scripts/python.exe` on Windows, `backend/.venv/bin/python` on Linux/macOS) directly. It waits for the readiness sentinel from its own backend before navigating to `http://127.0.0.1:18888/`; the existing UI remains Python-served. Closing the window terminates its child process tree cleanly.
+Wails embeds `desktop/frontend/dist`, displays startup status/logs via `@xterm/xterm`, and launches the local Python virtual environment (`backend/.venv/Scripts/python.exe` on Windows, `backend/.venv/bin/python` on Linux/macOS) directly. It waits for the readiness sentinel from its own backend before navigating to `http://127.0.0.1:18888/`; the UI is Python-served. Closing the window terminates its child process tree cleanly.
 
 `npm run test:desktop` tests the bootstrap states, builds the Vite frontend, and runs `go test .` inside `desktop/`. `npm run build:desktop` builds only the desktop executable (`desktop/bin/vcclient-forge.exe` on Windows, `desktop/bin/vcclient-forge` on Linux/macOS), not a complete Python distribution.
 
@@ -155,11 +213,16 @@ For an import/startup check without starting a server or downloading models, use
 
 ### Running Tests
 
-Automated tests are divided into backend (type checking + pytest) and desktop suites, with a unified `npm test` runner:
+Automated tests cover frontend (type checking + Playwright browser tests), backend (type checking + pytest), and desktop suites, with a unified `npm test` runner:
 
 ```bash
-# Run all tests (backend typecheck, pytest, and desktop bootstrap):
+# Run all tests (frontend typecheck/Playwright, backend typecheck/pytest, desktop Go):
+# Locally skips Playwright if Chromium is absent and PLAYWRIGHT_CHANNEL is unset.
 npm test
+
+# Run frontend checks or Playwright tests explicitly:
+npm run check:frontend
+npm run test:frontend
 
 # Run backend tests only (mypy type checking + pytest):
 npm run test:backend
@@ -173,8 +236,8 @@ uv run --project backend pytest backend/tests
 
 Test coverage includes:
 * Import verification across server modules and inferencers.
-* Graceful shutdown and Socket.IO connection/disconnection lifecycle.
-* REST API endpoints (`/api/hello`, chunk conversion).
+* Graceful shutdown and WebSocket connection/disconnection lifecycle.
+* REST API endpoints and unsupported-route handling.
 * Web frontend static file delivery (`/`).
 * In-place ONNX export and pitch estimation pipelines (RMVPE, FCPE).
 * Desktop bootstrap IPC, retry lifecycle, and navigation security.
@@ -215,8 +278,8 @@ npm run format:check
 
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
-* **`ci.yml`**: Runs Ruff linting, formatting checks, backend test suite (`npm run test:backend`, including mypy type checking and pytest), desktop test suite (`npm run test:desktop`), Go formatting checks (`gofmt`), and desktop host build (`npm run build:desktop`) on every push and pull request across Ubuntu, Windows, and macOS using Python 3.14, Node.js 26, and Go 1.27.
-* **`release.yml`**: Automatically builds portable standalone packages (including the Wails v3 desktop executable and PyInstaller frozen backend) across all hardware matrix editions when a new version tag (`v*`) is pushed, attaching the archives directly to GitHub Releases.
+* **`ci.yml`**: Runs Ruff linting, Ruff/Go formatting checks, the unified `npm test` suite (frontend checks, Playwright Chromium browser tests, backend `mypy`/`pytest`, and desktop Go tests), and the desktop build on pushes and pull requests. The main matrix covers Ubuntu, Windows, and macOS; the CUDA job runs `npm run test:backend` on a self-hosted Linux ARM64 runner.
+* **`release.yml`**: Builds portable packages for all matrix editions when a version tag (`v*`) is pushed, attaching the archives to GitHub Releases. It can also be started manually from the GitHub Actions **Release Builds** page by selecting a branch, or with `gh workflow run release.yml --ref forge`. A branch run uploads the packages as workflow artifacts without publishing a release; artifacts are retained for seven days.
 
 ---
 
@@ -225,14 +288,14 @@ Continuous integration and automated release workflows are configured in `.githu
 ```text
 vcclient-forge/
 ├── backend/                    # Python / uv workspace
-│   ├── main.py                 # Backend application entry point (FastAPI + Socket.IO)
+│   ├── main.py                 # Backend application entry point (FastAPI REST + WebSocket)
 │   ├── pyproject.toml          # Python package metadata, dependencies, extras, and tool configs
 │   ├── uv.lock                 # Deterministic dependency lockfile (Python 3.14)
 │   ├── .python-version         # Pinned Python version (3.14)
 │   ├── tests/                  # Pytest test suite
 │   └── vcclient/               # Core application package
-│       ├── utils/runtime_env.py # Encapsulated platform-specific hardware acceleration runtime initialization
-│       ├── server/             # FastAPI REST and Socket.IO servers (graceful shutdown)
+│       ├── device/             # Unified hardware discovery, execution providers, and runtime initialization
+│       ├── server/             # FastAPI REST and WebSocket servers (graceful shutdown)
 │       └── voice_changer/      # Audio pipeline, inferencers, and model management
 ├── desktop/                    # Wails v3 (Go) cross-platform desktop host
 │   ├── main.go                 # Application window, asset server, and backend supervisor
@@ -244,16 +307,14 @@ vcclient-forge/
 │   └── frontend/               # Embedded bootstrap UI (Vite + TypeScript + xterm.js)
 ├── frontend/                   # Frontend workspace
 │   └── dist/                   # Built Web UI assets (.gitignored)
-├── web_front/                  # Bundled web UI assets (/ui/2.1.4/ and /ui/2.0.78/)
-├── client/                     # Frozen 2024 uncompiled React reference source
 ├── tests/                      # Node.js test suite for desktop bootstrap & build orchestration
 ├── okf/                        # Open Knowledge Format architectural documentation
 ├── scripts/
 │   ├── build.js                # Invokes component npm tasks without duplicating their commands
-│   ├── build_frontend.js       # Synchronizes web_front assets to frontend/dist
 │   ├── build_backend.py        # Builds backend artifacts with PyInstaller
 │   ├── build_package.py        # Validates and packages existing artifacts (sub-2GB target)
-│   └── clean.js                # Workspace cleaning script
+│   ├── clean.js                # Workspace cleaning script
+│   └── test.js                 # Runs frontend, backend, and desktop test suites for npm test
 ├── package.json                # Root task runner (npm start, npm test, etc.)
 └── start.bat / start.sh        # Portable-package executable launchers
 ```

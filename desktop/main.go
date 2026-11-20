@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -20,6 +22,34 @@ const (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// Use a new entry URL on each launch to bypass UI pages cached by older versions.
+var backendPageURL = BACKEND_URL + "/?startup=" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
+var zoomKeyBindingsJS = fmt.Sprintf(`
+	if (!window.__vcclientZoomKeys) {
+	window.__vcclientZoomKeys = true;
+	window.addEventListener('keydown', function(event) {
+		if (%t ? (!event.metaKey || event.ctrlKey) : (!event.ctrlKey || event.metaKey)) return;
+		if (event.altKey) return;
+		let action;
+		if (event.key === '+' || event.key === '=') action = 'zoom-in';
+		else if (event.key === '-' && !event.shiftKey) action = 'zoom-out';
+		else if (event.key === '0' && !event.shiftKey) action = 'zoom-reset';
+		if (!action || !window._wails || typeof window._wails.invoke !== 'function') return;
+		event.preventDefault();
+		window._wails.invoke('wails:event:emit:' + action);
+	}, true);
+	}
+`, runtime.GOOS == "darwin")
+
+func enableZoomKeys(window *application.WebviewWindow) {
+	if runtime.GOOS == "windows" {
+		window.OnWindowEvent(events.Windows.WebViewNavigationCompleted, func(*application.WindowEvent) {
+			window.ExecJS(zoomKeyBindingsJS)
+		})
+	}
+}
 
 func main() {
 	var (
@@ -49,6 +79,16 @@ func main() {
 	})
 
 	initJS := `
+		// Only the log viewer uses a native child window; other links still open in the browser.
+		window.vcclientForge = {
+			openLogWindow: function() {
+				if (window._wails && typeof window._wails.invoke === 'function') {
+					window._wails.invoke('wails:event:emit:open-log-window');
+					return true;
+				}
+				return false;
+			}
+		};
 		// Transparently redirect window.open() to default system browser
 		window.open = function(url) {
 			if (url && typeof url === 'string') {
@@ -60,20 +100,6 @@ func main() {
 				}
 			}
 			return null;
-		};
-
-		// Polyfill legacy Electron API for v2.0.78 UI
-		window.electronAPI = {
-			openBrowser: function(url) {
-				if (url && typeof url === 'string') {
-					if (url.startsWith('/')) {
-						url = 'http://127.0.0.1:18888' + url;
-					}
-					if (window.wails && window.wails.Browser) {
-						window.wails.Browser.OpenURL(url);
-					}
-				}
-			}
 		};
 	`
 
@@ -137,13 +163,53 @@ func main() {
 	}
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "VCClient Forge",
-		Width:     1000,
-		Height:    800,
-		MinWidth:  360,
-		MinHeight: 480,
-		URL:       "/",
-		JS:        initJS,
+		Name:                 "main",
+		Title:                "VCClient Forge",
+		Width:                1000,
+		Height:               800,
+		MinWidth:             360,
+		MinHeight:            480,
+		URL:                  "/",
+		JS:                   initJS + zoomKeyBindingsJS,
+		AllowSimpleEventEmit: true,
+		ZoomControlEnabled:   true,
+	})
+	enableZoomKeys(window)
+
+	for _, action := range []string{"zoom-in", "zoom-out", "zoom-reset"} {
+		app.Event.On(action, func(event *application.CustomEvent) {
+			window, ok := app.Window.GetByName(event.Sender)
+			if !ok {
+				return
+			}
+			switch action {
+			case "zoom-in":
+				window.ZoomIn()
+			case "zoom-out":
+				if zoom := window.GetZoom(); zoom > 0 {
+					window.SetZoom(max(0.25, zoom-0.05))
+				}
+			case "zoom-reset":
+				window.ZoomReset()
+			}
+		})
+	}
+
+	app.Event.On("open-log-window", func(event *application.CustomEvent) {
+		if event.Sender != "main" {
+			return
+		}
+		if logWindow, ok := app.Window.GetByName("log-viewer"); ok {
+			logWindow.Show()
+			logWindow.Focus()
+			return
+		}
+		logWindow := app.Window.NewWithOptions(application.WebviewWindowOptions{
+			Name: "log-viewer", Title: "VCClient Forge - Log", Width: 900, Height: 600,
+			MinWidth: 360, MinHeight: 300, URL: backendPageURL + "&view=log",
+			JS: zoomKeyBindingsJS, AllowSimpleEventEmit: true, ZoomControlEnabled: true,
+		})
+		enableZoomKeys(logWindow)
 	})
 
 	showFatalError := func(msg string) {
@@ -169,6 +235,9 @@ func main() {
 	})
 
 	window.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		if logWindow, ok := app.Window.GetByName("log-viewer"); ok {
+			logWindow.Close()
+		}
 		doCleanup()
 	})
 

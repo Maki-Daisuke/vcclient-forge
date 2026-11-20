@@ -1,0 +1,24 @@
+import { defineConfig, loadEnv } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { readFileSync } from 'node:fs';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VCCLIENT_');
+  const target = env.VCCLIENT_BACKEND_URL || 'http://127.0.0.1:18888';
+  const proxy = {
+    '/api': { target, changeOrigin: true, ws: true },
+    '/model_dir': { target, changeOrigin: true },
+    '/output.wav': { target, changeOrigin: true },
+    '/vcclient.log': { target, changeOrigin: true },
+  };
+  return {
+    plugins: [svelte()],
+    define: { __APP_VERSION__: JSON.stringify(version) },
+    base: './',
+    server: { proxy },
+    preview: { proxy },
+    build: { outDir: 'preview-dist', manifest: true },
+  };
+});

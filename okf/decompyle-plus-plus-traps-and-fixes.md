@@ -46,7 +46,7 @@ Restored the background thread for `VCClientCUI`, reinstated `local_voice_change
 Selecting "CPU" in the GPU dropdown caused the model update to fail, resetting `current_slot_index` to `-1` and causing all central UI controls in the web frontend to vanish.
 
 ### Root Cause
-In the reconstructed `device_manager.py`, Decompyle++ corrupted the ONNX execution provider fallback. The maintained implementation is now in [`device_manager.py`](../backend/vcclient/voice_changer/voice_change_manager/device_manager/device_manager.py):
+In the reconstructed `device_manager.py`, Decompyle++ corrupted the ONNX execution provider fallback. The maintained implementation is now in [`device_manager.py`](../backend/vcclient/device/device_manager.py):
 
 ```python
 # Corrupted decompiled code:
@@ -109,7 +109,7 @@ Safely return `self.vc_info` (which holds a valid `VoiceChangerInformation` stru
 On certain audio hardware (e.g., Razer Barracuda Pro 2.4 GHz wireless), opening a stream in WASAPI exclusive mode caused `PortAudioError: Invalid sample rate [-9997]`.
 
 ### Root Cause
-The original configuration defaulted `wasapi_exclude_emabled` to `True`; its maintained definition is in [`data_types.py`](../backend/vcclient/voice_changer/data_types/data_types.py). Exclusive mode forces strict sample rate matching that hardware drivers frequently reject.
+The original configuration defaulted `wasapi_exclude_emabled` (now `wasapi_exclusive_enabled` with legacy alias support in [`data_types.py`](../backend/vcclient/voice_changer/data_types/data_types.py)) to `True`. Exclusive mode forces strict sample rate matching that hardware drivers frequently reject.
 
 ### Fix
-Changed default `wasapi_exclude_emabled: bool` to `False` (Shared Mode), allowing the Windows Audio Engine mixer to handle sample rate bridging transparently.
+Changed default `wasapi_exclusive_enabled: bool` to `False` (Shared Mode), allowing the Windows Audio Engine mixer to handle sample rate bridging transparently.

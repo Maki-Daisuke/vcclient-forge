@@ -36,18 +36,22 @@ With desktop packaging and hardware sub-model benchmarking established, active d
   - Synthesis stage: HiFi-GAN vocoder runs in 11.71 ms on RTX 4090 vs 145.43 ms on CPU (12.4× GPU acceleration).
 - **Remaining Baseline Work**:
   - Run continuous long-duration (30+ minutes) streaming and silent-input tests on the active pipeline to evaluate end-to-end microphone-to-output latency, queue age, and clock drift.
-  - Reconcile the old Beatrice cleanup checklist: backend references in `backend/vcclient` are removed; verify remaining frontend/assets and regression coverage.
+  - Reconcile the old Beatrice cleanup checklist [Completed]: backend references in `backend/vcclient` and the legacy `web_front/` UI have been removed, leaving an RVC-only Svelte 5 UI (`frontend/`; only unused historical translation keys remain in `frontend/src/lib/i18n/*/translation.json`).
 - **Exit**: A documented end-to-end baseline under continuous streaming and confirmation of remaining legacy cleanup.
-- **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-roadmap).
+- **Sources**: [Audio Phase 0](./server-first-architecture-and-static-pipeline-roadmap.md#phase-0-measurement-baseline), [Hybrid CPU-GPU Pipelining](./hybrid-cpu-gpu-pipeline-architecture.md), [Beatrice cleanup](./deprecating-and-removing-beatrice.md#4-cleanup-status-completed).
 
-### 2. Separate Configuration Acceptance, Notification, and Application
+### 2. Separate Conversion Execution, Pure Storage, and Device Selection (Planned Direction)
 
-- Keep `ConfigurationManager` responsible for configuration storage/persistence. Introduce serialized request coordination, validation, coherent snapshots/change classification, and revision-aware requested/applied state.
-- Deliver commands to the owning thread. Apply scalar inference changes at chunk boundaries; coordinate structural changes explicitly and report completion/failure instead of waiting a fixed sleep. Treat recording start/stop as commands.
-- Define input/inference/output lifecycle and audio-format contracts, plus ownership of input context (`extra_chunk`), resampler/filter state, model histories, and crossfade state. Initially allow stop, finish in-flight work, reset affected state, rebuild, and restart.
-- Preserve current serialized settings and workflows until an explicit migration; do not require RxPY, uninterrupted in-flight replacement, or cross-component state transfer for this separation.
-- **Exit**: Settings changes no longer perform device/inference lifecycle work in the storage manager, and ordered application/failure handling has focused tests.
-- **Source**: [Configuration and modularization plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- Current behavior (`v2.0.78-forge.0.3.0`): `PUT` updates to `ConfigurationManager` and `SlotManager` (`PUT /api/slot-manager/slots/{index}`), as well as `GET /api/voice-changer-manager/information`, implicitly call `VoiceChanger.check_and_update_pipeline()` without locking against active conversion threads, while `RVCPipeline.slot_info` reads mutable `SlotManager` state mid-chunk. The Svelte 5 UI guards stopped settings client-side and stages edits until Start, and stages slot edits before `current_slot_index` switches to avoid double pipeline builds.
+- Target architecture (see **[Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs](./snapshot-driven-pipeline-and-stateless-control-api.md)**):
+  - Abstract public routes, schemas, and stable model identifiers around voice-conversion domain concepts rather than internal Python class names (`*-manager`), legacy disk formats (`vc_conf.json`, `params.json`), directory slot indices, or ONNX execution details, making alternative UIs straightforward to build.
+  - Enforce all validation, active-session invariants, and coordinator-level concurrency serialization strictly at the API boundary so concurrent, out-of-order, or malformed client requests fail atomically (`4xx` / `409 Conflict`) without corrupting runtime or persisted state.
+  - Make conversion execution explicitly **snapshot-driven** across both Server Mode and Client Mode via a RESTful session resource (`GET` / `PUT` / `DELETE .../session`, backed by engine `run(snapshot)` / `stop()`), where `PUT .../session` while active applies live changes or returns `409 Conflict` if rebuilding is required (intentionally omitting a separate `update` operation under declarative `PUT`), with workers consuming immutable active snapshots only.
+  - Keep rebuild-required vs. live-mutable classification strictly on the backend (`409 Conflict` when active topology changes are requested) rather than splitting API schemas along current hardware constraints.
+  - Isolate file persistence (`settings/vc_conf.json` and per-slot `params.json`) behind a pure, side-effect-free storage API/adapter so clients can preserve configuration-file compatibility with earlier versions and portable upgrades without coupling storage to the conversion engine or wire DTOs.
+  - Expose compute-device auto-selection (`_select_initial_compute_device()`) as an explicit stopped-only API to support re-probing and future per-stage accelerator assignment.
+- **Exit**: Settings storage no longer invokes audio/pipeline lifecycle work, active conversion rejects rebuild-requiring diffs with `409 Conflict`, scalar live updates apply via chunk-scoped immutable snapshots, and the session control flow has focused unit/API coverage.
+- **Sources**: [Snapshot-Driven Control Architecture](./snapshot-driven-pipeline-and-stateless-control-api.md), [Audio adapter and routing contracts](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
 ### 3. Complete the Native One-Way, Fixed-Chunk Audio Path
 
@@ -61,21 +65,133 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 
 ### 4. Deliver the Minimal Svelte 5 Native-Audio UI
 
-- Build Svelte 5 + Vite source in `frontend`, retaining `frontend/dist` as the served/package location and updating the root frontend build task.
-- Implement native input/main-output/monitor controls, model selection, start/stop, and core settings. Keep local draft interaction immediate; debounce/coalesce and serialize writes, distinguish draft/confirmed values, reject stale acknowledgements, and expose pending/error/retry states.
-- Move all 13 community translation dictionaries and required image/license assets before deleting their old home. Preserve i18next semantics and validate coverage, interpolation, fallback, and RTL behavior.
+- **Model information editing**: The selected model's name and icon are saved
+  together via a single multipart `PATCH /api/slot-manager/slots/{index}`
+  request while audio is stopped, deleting replaced icon files after saving
+  `params.json` (`PUT /api/slot-manager/slots/{index}` remains JSON for
+  inference settings). The UI keeps drafts on failure and refreshes the model
+  when possible. Browser tests mock the APIs. The user confirmed that
+  the display changed after editing (prior to the atomic `PATCH` change); fields
+  and persistence were not specified.
+
+- **Model deletion and reordering**: The Svelte UI can delete the selected model
+  after confirmation or reorder models using drag-and-drop.
+  Both operations currently require stopped audio. The backend compacts model
+  directories, updates the selected slot and pipeline reference, and uses a
+  journal to recover interrupted moves during startup. Operation assumes a
+  single interactive client; concurrent multi-tab use is not supported.
+  Deletion uses `DELETE /api/slot-manager/slots/{index}` and refreshes the UI's
+  model list and configuration after either success or failure.
+  Automated coverage uses temporary files and mocked browser APIs. The user has
+  confirmed reordering and model deletion against the running backend.
+
+- **Appearance scaffold implemented (2026-11-06)**: `frontend/` has a standalone
+  Svelte 5/Vite preview of the v2.1.4 layout using Bits UI, sample data, disabled
+  backend controls, navigable dialogs, themes, and the 13 community translation
+  dictionaries. This initial scaffold built to `frontend/preview-dist`; later
+  milestones connected the backend and switched production `frontend/dist` to Svelte.
+
+- **Read-only model integration implemented (2026-11-06)**: The new UI loads
+  stored slots and the configured current slot via GET. A validated API adapter
+  maps responses to display data; per-app catalog state owns loading, failure,
+  timeout, retry, and selection by ID. Model cards, management, metadata, and
+  portraits now use real backend data; offline/error states never use sample
+  models. Vite proxies API/image requests to the backend. Model selection and
+  settings/audio writes remain disabled; native integration is still pending.
+
+- **Read-only settings display implemented (2026-11-06)**: The existing GET pair
+  supplies configuration and selected-model settings to disabled controls.
+  Existing device-list GETs resolve native device names/hosts by configured ID,
+  including monitor output. Device failures preserve the settings display and
+  show IDs with status; reload reads cached lists without a native rescan.
+  Missing fields are shown as unknown; failed loads clear prior values. Backend
+  APIs are unchanged. The following native-controls milestone extends this baseline.
+
+- **Native controls implemented; playback confirmed (2026-11-06)**:
+  Model/device selection while stopped, Server Mode selection, start/stop, and live
+  input/output gain use existing APIs. Drafts and confirmed state are separated;
+  a coordinator throttles gains to 100 ms, flushes completion, serializes/coalesces
+  writes, and retains failures for explicit retry/discard. Fresh full GET/PUT/GET
+  preserves unrelated fields and detects silent rollback. Runtime enable state is
+  polled; no stream-health claim or live meters. Monitor gain follows output gain
+  because of existing backend behavior. All 41 API-mocked browser checks passed;
+  the user separately confirmed native audio playback. Gain-adjustment latency
+  and longer sessions remain to be validated; no backend changes.
+
+- **Live pitch/index controls implemented (2026-11-06)**: Existing slot GET/PUT/GET
+  preserves full model data and verifies target IDs and applied values. Per-slot
+  drafts share the serialized 100 ms gain coordinator, with completion flush and
+  retry/discard. Unsupported models/index-less slots stay disabled. All 49 mocked
+  browser checks passed; real-device pitch/index listening remains to be checked.
+  Backend APIs and persistence are unchanged.
+
+- **Main control sections reorganized (2026-11-06)**: Model-specific voice controls appear with
+  the selected model; audio devices, volume, noise suppression, and inference controls
+  are independently expandable in the main view.
+  Output/monitor share the existing output-volume slider. Pitch-estimator radios
+  are connected for stopped server audio; other unconnected settings remain disabled.
+  Backend APIs are unchanged.
+
+- **Server passthrough control**: The Svelte UI can toggle the existing passthrough
+  configuration while native audio is running, with readback and retry/discard.
+  Mocked browser tests cover the control; live audio verification remains pending.
+
+- **WASAPI exclusive mode**: The Svelte UI hides the WASAPI exclusive toggle (`frontend/tests/wasapi.spec.ts`) and disables any saved exclusive-mode setting before starting native audio; `test_wasapi_exclusive.py` covers backend propagation.
+
+- **Inference timing controls and deferred stopped settings**: The Svelte UI adjusts chunk (`0.05–1` s) and Extra frame (`0.01–2` s) with logarithmic sliders while audio is stopped. Chunk is model-specific; Extra frame is shared. The backend determines crossfade duration automatically. Stopped-only settings (model selection, input mode, audio devices/rates, preferred compute device, Extra frame, chunk, and pitch estimator) are staged locally in the frontend until Start and saved with warmup status before starting audio.
+
+- **Model upload**: The Svelte UI can upload RVC `.pth` or `.onnx` files with an
+  optional index to a vacant slot via a single multipart `POST /api/slot-manager/slots`
+  request (which also accepts an optional icon on the API and cleans up per-request
+  temporary files) while audio is stopped.
+  Browser tests mock the APIs. The user confirmed a real model upload (prior to
+  removing chunked uploads); the tested
+  model format and index presence were not specified. ZIP drag and drop extracts
+  files in the browser and is covered by mocked tests. The user confirmed a ZIP
+  import and subsequent voice conversion.
+
+- **Server recording**: The Svelte UI can start and stop recording using existing
+  APIs and download the output WAV. Recording can be armed before starting audio;
+  stopping audio saves a take and returns to the armed state. Recording uses fixed
+  backend filenames. Passthrough can be toggled during recording; the user confirmed
+  real-audio recording and switching passthrough in Client Mode. See `frontend/README.md`
+  for the recording behavior and limitations.
+
+- **Filter controls implemented**: Both Server Mode and Client Mode with a selected model provide high/low-pass
+  switches and cutoff sliders. The existing full PUT is preceded by current
+  configuration and voice-information reads and a cutoff/sample-rate check;
+  invalid combinations remain unsent. Browser tests mock writes, and displayed
+  values were checked against a real GET. Backend APIs are unchanged.
+
+- **Noise-gate control implemented**: In both Server Mode and Client Mode, the noise suppression section
+  provides an enable checkbox (saving `−100` dB when unchecked) and a threshold slider over `−100` to `0` dB in `1` dB steps. The pipeline bypasses the gate at `≤ −100` dB.
+  It shares the serialized settings queue and existing full PUT API; real-backend GET display was also confirmed.
+
+- **Production Svelte 5 build and asset migration [Completed]**: `npm run build:frontend` builds the Svelte 5 + Vite source in `frontend/` directly into `frontend/dist` for FastAPI serving and desktop/portable packaging. Legacy `web_front/` and `client/` have been retired, and all 13 community translation dictionaries (`frontend/src/lib/i18n/*/translation.json`) plus required image/license assets are preserved.
+- Implement remaining native control refinements and validate rapid edits, slow/failed responses, and keyboard completion cleanly end to end. Socket.IO notifications are addressed in item 5.
 - **Depends on**: Usable native conversion and a defined settings contract. UI scaffolding and asset migration can proceed alongside items 2-3; advanced inference optimization is not a dependency.
-- **Exit**: End-to-end native conversion through the new UI without a Socket.IO client; rapid edits, slow/failed responses, and keyboard completion behave correctly.
+- **Exit**: End-to-end native conversion through the new UI; rapid edits, slow/failed responses, and keyboard completion behave correctly. Socket.IO notifications are addressed in item 5.
 - **Sources**: [UI Step 1](./frontend-architecture-and-roadmap.md#step-1-minimal-svelte-5-ui-for-server-mode), [Settings redesign](./frontend-architecture-and-roadmap.md#settings-redesign-decouple-interaction-from-rest-synchronization), [Translation preservation](./frontend-architecture-and-roadmap.md#5-preserving-100-of-community-i18n-translation-assets).
 
-### 5. Migrate Notifications, Then Retire the Legacy UI and Socket.IO
+### 5. Connect Socket.IO Notifications
 
-- Add `/ws/events` for performance/state notifications, scheduled outside callbacks on the server event loop. Verify settings/model/device changes and startup/shutdown with the new UI.
-- Remove legacy Client Mode, Socket.IO/Engine.IO dependencies and ASGI wiring, obsolete emitters, and replaced tests only after native controls and replacement notifications work.
-- Remove `web_front` after asset migration, and retire legacy API assumptions as part of the explicit migration. Do not build a second compatibility protocol for the old UI; rollback uses the previous release.
-- **Depends on**: Item 4 and verified native lifecycle behavior. `/ws/audio` must not be required for this cutover.
-- **Exit**: Native conversion, monitor output, notifications, and shutdown work without Socket.IO. A temporary browser-audio gap is accepted.
-- **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-websocket-notifications--socketio-removal).
+- **Input/output meters implemented**: The Svelte UI subscribes to the existing
+  Socket.IO `realtime_output_status` event while Server Mode audio is active and
+  input/output analysis is enabled. It displays RMS values, clears stale data,
+  and reconnects after disconnects. Browser tests simulate Socket.IO messages;
+  values and bars were also verified in the UI against a live backend during
+  audio conversion, and the user confirmed the meters displayed. Callback
+  overhead has not been measured.
+- **Buffer meters implemented**: The UI converts existing output and process
+  status sample counts to seconds using current backend sample rates, with
+  independent stale handling and bounded histories. Browser tests simulate the
+  notifications; both values and graph lines were also observed in the UI against
+  a live backend during conversion.
+- Connect remaining performance and state notifications. Verify delivery and reconnects alongside settings, device changes, and startup/shutdown.
+- Review notification dispatch and callback overhead separately. Keep Socket.IO as the transport while allowing legacy API contracts to change; `web_front/` has been retired after migrating to `frontend/`.
+- **Depends on**: Item 4 and verified native lifecycle behavior. Browser audio is not required for native notifications.
+- **Exit**: Native conversion, monitor output, notifications, and shutdown work through the new UI.
+- **Source**: [UI Step 2](./frontend-architecture-and-roadmap.md#step-2-socketio-notifications).
 
 ### 6. Package the Native Desktop Experience with Wails v3 (Migrating from Tauri v2) [Completed]
 
@@ -86,61 +202,93 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Exit**: A usable packaged native desktop workflow with clean process lifecycle, fast Go compilation, and measured distribution size/resource use on target platforms. (Verified on Windows x64: `desktop/bin/vcclient-forge.exe` 10.18 MB).
 - **Sources**: [Desktop Transition](./frontend-architecture-and-roadmap.md#desktop-packaging-transitioning-from-tauri-to-wails), [Wails ADR](./migrating-desktop-host-from-tauri-to-wails.md), [Packaging headroom](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap).
 
-### 7. Restore Browser Audio as WebSocket Adapters
+### 7. Restore Browser Audio through Socket.IO [Implemented in Svelte 5 UI]
 
-- Add `/ws/audio` with a specified little-endian Float32 PCM format and frame/continuity metadata; use the common preparation/inference path. Add AudioWorklet capture/playback and reuse `/ws/events`.
-- First restore browser-input/browser-output operation alongside the native pair, without Socket.IO. Keep main/monitor routing contracts intact. Bound transport/client playback buffers and handle rate/channel conversion, overload, disconnects, and history recovery.
-- Validate browser secure-context/microphone requirements and Wails WebView2 permissions where applicable. Optional Tailscale Serve remains user-managed, not a bundled tunnel dependency.
+- **Client Mode implemented**: The Svelte 5 UI (`frontend/`) implements Socket.IO Client Mode browser capture and playback using Web Audio / AudioWorklet, supporting browser input/output device selection, recording (confirmed with real audio per `frontend/README.md`), filters, noise gate, and browser audio constraints (echo cancellation, noise suppression, auto-gain control).
+- Remaining validation covers long-duration overload/disconnect recovery, buffering bounds across varied browsers, and remote HTTPS/WSS access via user-managed Tailscale Serve (or Wails WebView2 permissions where applicable).
 - **Depends on**: Item 5, shared adapter contracts, and bounded audio processing. Desktop packaging is already established with Wails v3.
-- **Exit**: Browser audio works through WebSocket only, with one selected input and bounded latency/recovery behavior.
-- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-websocket-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- **Exit**: Browser audio works reliably through Socket.IO, with validated buffering and recovery.
+- **Sources**: [UI Step 3](./frontend-architecture-and-roadmap.md#step-3-incremental-socketio-client-mode), [Independent adapter direction](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
 ### 8. Evaluate Mixed Native/Browser Routing
 
-- Independently select native or WebSocket input and main/monitor destinations. Evaluate native input to browser output and browser input to native output; mode names may survive as presets rather than internal coupling.
+- Independently select native or Socket.IO-backed browser input and main/monitor destinations. Evaluate native input to browser output and browser input to native output; mode names may survive as presets rather than internal coupling.
 - Define and test independent clock drift, network jitter, conversion, output isolation, and failure/reconnect policies before supporting each combination. Do not infer compatibility from modular interfaces alone.
 - **Depends on**: Proven native and browser adapter paths from items 3 and 7.
 - **Exit**: Explicitly supported combinations pass routing, rate, main/monitor isolation, and discontinuity tests. This is an extension, not a gate for the native release.
-- **Source**: [Routing and monitor contract](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application).
+- **Source**: [Routing and monitor contract](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation).
 
-### 9. Optimize Inference: Concurrent Hybrid Pipelining (Superseding Boost Mode)
+### 9. Optimize Inference: Evaluate Hybrid Pipelining and Boost Mode
 
 The original monolithic end-to-end graph fusion track ("Boost Mode") was evaluated against empirical micro-benchmarks on modern hardware (AMD Ryzen 9 7950X, NVIDIA GeForce RTX 4090). Key findings:
 
 - PCIe Gen 4 x16 DMA transfer latency is 18.3 μs for audio chunks (16 KB) and 37.2 μs for ContentVec embeddings (147 KB), showing that host-device data transfers are not the primary bottleneck.
 - For small tensors at batch size 1, CPU execution (7.35 ms) is faster than GPU execution (16.91 ms) for RMVPE due to GPU kernel launch and synchronization overheads.
-- Monolithic graph fusion across ContentVec, RMVPE, FAISS, and RVC is superseded by a 2-stage concurrent hybrid pipeline where CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$) overlaps with GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) via a bounded double-buffered queue.
+- A 2-stage concurrent hybrid pipeline is a candidate architecture: CPU preparation ($T_{\text{prep}} \approx 23.4\text{ ms}$ in the component benchmark) could overlap GPU vocoder synthesis ($T_{\text{synth}} \approx 11.7\text{ ms}$) via a bounded double-buffered queue. These component measurements do not compare complete hybrid and Boost implementations.
+
+Revisit Boost Mode as a conditional experiment rather than ruling it out. A
+single ONNX graph could combine ContentVec, pitch estimation, feature retrieval,
+and synthesis. Prototype ONNX top-1 retrieval first, then integrate components
+incrementally. A flat matrix search scans all vectors and is not equivalent to
+the current IVF search; evaluate IVF-equivalent retrieval separately, including
+model-specific index changes and state handling.
+
+Compare complete implementations on integrated CPU/NPU/GPU systems and systems
+with a powerful discrete or integrated GPU. Resource overlap may benefit the
+hybrid design, while a single-device session may reduce host dispatch and
+intermediate transfers; shared bandwidth, power limits, provider partitioning,
+and CPU fallback can change the outcome. Under the same audio, model, index,
+chunk settings, and quality criteria, measure sustained throughput, end-to-end
+audio latency and tail latency, queue/buffer delay, CPU/GPU/NPU utilization,
+memory, startup/rebuild time, and power where practical. Distinguish throughput
+from per-chunk latency: overlapping successive chunks does not eliminate the
+two sequential stages of an individual chunk. Record actual execution-provider
+placement and compare output quality and retrieval results. No winner is assumed.
 
 Follow the concurrent hybrid optimization milestones in order:
 
 | Milestone      | Work                                                                          | Acceptance Gate                                                                                                                                               |
 | -------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hybrid Phase 1 | Stable runtime shapes, session warmup, reusable buffers, GPU IO Binding       | Measured memory stability and reduced allocation overhead without breaking DirectML/CUDA fallback.                                                            |
+| Hybrid Phase 1 | Stable runtime shapes, session warmup, reusable buffers, GPU IO Binding       | Measured memory stability and reduced allocation overhead without breaking DirectML/CUDA fallback. Pipeline-level session warmup implemented in `RVCPipeline` to eliminate initial JIT/AOT compilation spikes across OpenVINO, DirectML, and CUDA. |
 | Hybrid Phase 2 | Decouple CPU preparation (ContentVec, RMVPE, FAISS) and GPU vocoder synthesis | Independent worker execution with bounded queues; $T_{\text{effective}} = \max(T_{\text{prep}}, T_{\text{synth}})$ verified under continuous audio streaming. |
 | Hybrid Phase 3 | GPU vocoder IO Binding and CUDA stream management                             | Pre-allocated GPU output buffers; minimal host-to-device roundtrip latency verified.                                                                          |
 | Hybrid Phase 4 | Lightweight vocoder evaluation (DDSP / Streamable architectures)              | Synthesis latency reduced below 5 ms while maintaining perceptual audio quality thresholds.                                                                   |
 | Hybrid Phase 5 | Client NPU streaming offload (Intel AI Boost / AMD XDNA)                      | Evaluation of fixed-chunk inference offload to client NPUs.                                                                                                   |
 
-CUDA Graph capture remains a conditional investigation for the isolated GPU vocoder stage only, gated on fixed shapes, pinned memory addresses, and measurable speedup.
+CUDA Graph capture is a conditional investigation for the isolated GPU vocoder or a suitable Boost graph, gated on provider support, fixed shapes, stable memory addresses, and measurable benefit.
 
 **Source**: [Concurrent Hybrid Pipeline Architecture](./hybrid-cpu-gpu-pipeline-architecture.md), [Server-First Architecture and Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md#4-architectural-pivot-from-monolithic-graph-fusion-to-concurrent-hybrid-pipelining), [Hardware Acceleration & Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
 
 ## 3. Conditional Improvements, Not Initial Requirements
 
+- **FAISS SQ8 retrieval experiment (planned)**: Evaluate converting compatible
+  `IndexIVFFlat` indexes to `IndexIVFScalarQuantizer` (SQ8) in memory when a
+  model is loaded. The hypothesis is that smaller search codes may improve CPU
+  cache behavior and SIMD throughput; no speedup or specific instruction use
+  has been established. Preserve the source file and the original float32
+  `big_npy` so selected IDs retrieve original reconstructed vectors. Quantization
+  can still change the selected IDs. Keep the original cluster centroids,
+  `nlist`, `nprobe`, metric, and IDs for a controlled comparison; verify that
+  each supported source index permits this and handle invalid search results.
+  Compare search latency and tail latency using representative query batch sizes,
+  index sizes, CPU architectures, FAISS builds, and thread settings. Measure
+  cache/SIMD behavior where tools permit, ID agreement and converted-audio
+  quality, startup/rebuild time, steady-state and peak memory, and the break-even
+  point for repeated searches. Retain IVFFlat if results do not justify conversion.
 - **Reactive control library**: Evaluate RxPY or lightweight signals after control ownership is clear; notifications do not replace application acknowledgements or thread dispatch.
 - **Dynamic in-flight component exchange**: Add only where interruption matters and state compatibility is defined. Safe stop/reset/restart comes first.
 - **Alternative buffers and stage splitting**: Evaluate rings, custom synchronization, or separate postprocessing only if the bounded-queue baseline exposes a measured bottleneck. No new C++ toolchain solely for a ring wrapper.
 - **Further package reduction**: Measure against the self-contained CUDA archive baseline (1.228 GiB), not against the former environment-dependent package. Wails v3 is the established desktop shell, not a reason to restart completed packaging work.
 
-Sources: [Control and state plan](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-separate-configuration-acceptance-notification-and-application), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap), [Hardware Acceleration and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
+Sources: [Snapshot-Driven Control Architecture](./snapshot-driven-pipeline-and-stateless-control-api.md), [Audio adapter and routing contracts](./server-first-architecture-and-static-pipeline-roadmap.md#37-future-roadmap-audio-adapter-contracts-output-routing-and-control-separation), [Buffer selection](./server-first-architecture-and-static-pipeline-roadmap.md#35-select-buffer-data-structures-after-defining-stream-contracts), [Packaging roadmap](./sub-2gb-portable-distribution-and-packaging.md#4-future-headroom-and-roadmap), [Hardware Acceleration and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md).
 
 ## 4. Existing Foundations, Not New Roadmap Tasks
 
 - [Runtime/toolchain](./modern-runtime-and-toolchain.md): uv-managed pinned Python, locked hardware editions (`standard` and `cuda`), root npm tasks, and PyInstaller onedir packaging already exist. Continue testing them as migration gates.
-- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the frontend build currently copies tracked legacy assets and still needs item 4's Vite migration.
+- [Architecture separation](./architectural-evolution.md): Backend separation and legacy CUI removal are established; the Svelte frontend now builds to `frontend/dist` for backend serving and distribution; legacy frontend directories have been removed.
 - [Pitch estimators](./streamlined-pitch-estimation-and-torch-free-pipeline.md): RMVPE default and ONNX FCPE alternative already exist. Pure-ONNX inference does not mean removing CPU PyTorch needed for legacy model export.
 - [Hardware acceleration & universal distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md): AVX-512 CPU acceleration benchmarks, NPU execution characteristics, and the layered platform baseline strategy (OpenVINO + DirectML baseline on Windows, CoreML on macOS, OpenVINO on Linux, bundled across `standard` and `cuda` editions) are fully implemented and verified on physical hardware (Windows CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and macOS Apple Silicon M2 via CoreML).
 - [ngrok removal](./deprecating-and-removing-ngrok.md): Bundled ngrok is already removed. Tailscale Serve is optional external setup, not an unfinished Forge integration.
-- [Beatrice decision](./deprecating-and-removing-beatrice.md): RVC-only scope is established; backend references are absent in this inventory. Frontend/assets and the stale cleanup checklist still require reconciliation in item 1.
+- [Beatrice decision](./deprecating-and-removing-beatrice.md): RVC-only scope is completed across both the backend (`backend/vcclient`) and the Svelte 5 frontend (`frontend/`), and legacy `web_front/` has been removed (only unused historical translation keys remain in `frontend/src/lib/i18n/*/translation.json`).
 
 Keep this execution index updated when a milestone lands or an experiment is rejected; update the corresponding detailed document rather than accumulating conflicting completion claims.

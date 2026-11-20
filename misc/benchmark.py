@@ -25,7 +25,7 @@ if _BACKEND_DIR.exists() and str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 # Initialize hardware accelerator runtime environment transparently via vcclient
-from vcclient.utils.runtime_env import setup_runtime_env
+from vcclient.device import setup_runtime_env
 
 setup_runtime_env()
 

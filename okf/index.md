@@ -4,6 +4,7 @@ version: "0.1.0"
 okf_version: "0.2"
 description: "Open Knowledge Format bundle capturing architectural insights, reverse-engineering findings, and modernization decisions for VCClient Forge."
 entries:
+  - rationales.md
   - implementation-roadmap.md
   - origin-and-reverse-engineering.md
   - architectural-evolution.md
@@ -20,15 +21,22 @@ entries:
   - migrating-desktop-host-from-tauri-to-wails.md
   - remote-backend-tcp-proxy-architecture.md
   - npu-cpu-hardware-acceleration-and-universal-distribution.md
+  - device-config-and-unified-hardware-descriptor.md
+  - automatic-crossfade-and-boundary-stitching.md
+  - snapshot-driven-pipeline-and-stateless-control-api.md
+  - api-reference.md
 ---
 
 # VCClient Forge Knowledge Base
 
 This knowledge bundle documents the reverse-engineering discoveries, historical architecture, bug fixes, and engineering decisions established during the development of **VCClient Forge** (a community-driven modernization and fork of `w-okada/voice-changer` v2.0.78-beta).
 
-For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. The articles below retain the detailed rationale and acceptance criteria.
+For recommended implementation order, dependencies, and conditional experiments, start with the **[Consolidated Implementation Roadmap](./implementation-roadmap.md)**. For the current backend HTTP and WebSocket specification, see the **[HTTP & WebSocket API Reference](./api-reference.md)**. For a quick overview of key design choices before reading individual articles, start at **#0** below.
 
 ## Knowledge Map
+
+0. **[Architectural & Design Rationales](./rationales.md)**
+   Consolidated index of Forge's core engineering and product decisions ("why Forge is designed this way"), focusing on high-level reasoning and tradeoffs with links to the detailed documents below.
 
 1. **[Origin and Reverse Engineering](./origin-and-reverse-engineering.md)**
    Why Forge reconstructed the unavailable 2.x source from the v2.0.78-beta binary distribution, and how bytecode extraction, decompilation, and disassembly made that possible. Explains the choice of an RVC-capable baseline and the model ecosystem behind Forge's dedicated RVC focus.
@@ -43,7 +51,7 @@ For recommended implementation order, dependencies, and conditional experiments,
    How Forge makes development and distribution reproducible with pinned Python environments, `uv` dependency locking, and unified npm tasks. Covers the ONNX Runtime hardware backends, automatic CUDA library discovery, and automated standalone packaging.
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
-   Why the legacy UI needs a redesign to make settings responsive and new backend features usable, and why Forge selects Svelte 5 + Vite and Wails v3. Plans a Server Mode-first replacement, WebSocket notifications and Socket.IO removal, then WebSocket Client Mode, while preserving community translations.
+   Why the legacy UI needed a redesign and why Forge selects Svelte 5 + Vite and Wails v3. The Svelte 5 UI (`frontend/`) now serves both Server Mode and native WebSocket Client Mode (`/api/ws/audio`, `/api/ws/status`) in production, replacing `web_front/` while preserving all 13 community translation dictionaries.
 
 6. **[Pitch Estimation: RMVPE Default and FCPE Alternative](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
    Why Forge chooses the RVC ecosystem's widely used RMVPE as its default and retains FCPE as an alternative. Consolidating pitch estimation reduces maintenance and user decision friction, with both estimators running through ONNX Runtime and NumPy.
@@ -61,7 +69,7 @@ For recommended implementation order, dependencies, and conditional experiments,
     A roadmap toward local round-trip latency of 100 ms or less, built around native Server Mode, fixed-length inference, direct output delivery, and bounded buffering. Details the architectural pivot from monolithic graph fusion to concurrent hybrid pipelining (CPU preparation overlapped with GPU vocoder synthesis via bounded double-buffering) and lightweight vocoder exploration.
 
 11. **[Inversion of Control: Client-Driven Architecture and Process Lifecycle](./inversion-of-control-and-process-lifecycle.md)**
-    How Forge inverts the legacy Python-centric master/slave model by isolating the Python backend to a pure HTTP/Socket.IO server, shifting UI and browser launching to client launchers (Wails, shell scripts), and standardizing process lifecycle management via standard OS signals.
+    How Forge inverts the legacy Python-centric master/slave model by isolating the Python backend to a pure HTTP/WebSocket server, shifting UI and browser launching to client launchers (Wails, shell scripts), and standardizing process lifecycle management via standard OS signals.
 
 12. **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**
     Why Forge migrates its desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go). In a system where heavy lifting is handled by Python/ONNX and UI is rendered by WebView2, Rust's runtime advantages are negligible compared to the high cost of build times, permission ceremony, and boilerplate. Wails v3 provides fast builds, concise process control, pure Go Windows builds without CGO, and declarative script injection (`WebviewWindowOptions.JS`) that eliminates native event hooking while reusing all existing bootstrap assets.
@@ -73,4 +81,17 @@ For recommended implementation order, dependencies, and conditional experiments,
     How Forge replaces upstream's self-signed HTTPS certificate generation and browser certificate warnings. By embedding a Layer-4 TCP proxy (`--remote`) in the desktop host, the browser connects to `127.0.0.1`, satisfying WebAudio's Secure Context requirement without self-signed certificates.
 
 15. **[Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md)**
-    Re-evaluates the assumption that real-time voice conversion strictly requires discrete GPUs. Features empirical telemetry from Zen 4 (RMVPE 7.35 ms), Intel Lunar Lake (RMVPE 5.09 ms on NPU, FCPE 1.19 ms on Arc GPU), and Apple Silicon M2 (CoreML NeuralNetwork on ANE/GPU). Details NPU static shape resolution (`reshape_input`), in-memory 4D graph surgery enabling OpenVINO GPU RVC synthesis, and the implemented two-tier distribution strategy (Standard vs. CUDA) governed by Python wheel coexistence boundaries.
+    Re-evaluates the assumption that real-time voice conversion strictly requires discrete GPUs. Features empirical telemetry from Zen 4 (RMVPE 7.35 ms), Intel Lunar Lake (RMVPE 5.09 ms on NPU, FCPE 1.19 ms on Arc GPU), and Apple Silicon M2 (CoreML on ANE/Metal GPU). Details NPU static shape resolution (`reshape_input`), in-memory 4D graph surgery enabling OpenVINO GPU RVC synthesis, the CoreML 16,384-sample convolution memory barrier and Two-Tier Static Shape architecture, and the implemented two-tier distribution strategy (Standard vs. CUDA) governed by Python wheel coexistence boundaries.
+
+16. **[DeviceConfig & Catalog Index Architecture](./device-config-and-unified-hardware-descriptor.md)**
+    Specifies the transition from overloaded integer sentinels (`-1`, `0`, `1000`, even/odd parity) to a sequential hardware catalog index (`list[DeviceConfig]`). With host CPU assigned to index `0` and accelerators numbered sequentially (`1..N`), device resolution operates as an $O(1)$ array lookup. Preserves `gpu_device_id_int` REST API compatibility for the Svelte 5 frontend and legacy API clients, and provides the catalog foundation for planned two-stage concurrent hybrid pipelining (NPU/CPU front-end + GPU back-end).
+
+17. **[Automatic Crossfade & Buffer-Boundary Stitching](./automatic-crossfade-and-boundary-stitching.md)**
+    Analyzes why manual crossfade duration configuration (`crossfade_sec`) is eliminated in favor of a fixed pipeline target (`CROSSFADE_SEC = 0.05`). Discusses SOLA phase alignment and how adaptive clamping prevents array broadcast exceptions on short output chunks.
+
+18. **[Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs](./snapshot-driven-pipeline-and-stateless-control-api.md)** *(Planned)*
+    Diagnoses the mixed responsibilities, implicit pipeline rebuilds, thread-safety gaps, startup-only device probing, and class-coupled endpoints in the current control flow. Defines API boundary principles—domain-oriented abstraction hiding internal Python classes/disk formats and server-enforced invariants independent of caller ordering—alongside a target architecture separating a RESTful snapshot-driven session resource (`GET` / `PUT` / `DELETE .../session`, engine `run(snapshot)` / `stop()` with backend-owned `409 Conflict` policies), pure persistence adapters (`settings/vc_conf.json`, `model_dir/<slot>/params.json`), and an explicit compute-device auto-selection API.
+
+19. **[HTTP & WebSocket API Reference](./api-reference.md)**
+    Complete specification of the currently implemented backend HTTP REST, multipart upload/metadata, native WebSocket (`/api/ws/status`, `/api/ws/audio`), and static file endpoints, including request/response schemas, error envelopes, runtime side effects, and removed legacy endpoints.
+

@@ -1,7 +1,11 @@
 from fastapi import APIRouter
 
+from vcclient.device import (
+    DeviceConfig,
+    get_device_catalog,
+    reload_device_catalog,
+)
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
-from vcclient.voice_changer.gpu_device_manager.gpu_device_manager import GPUDeviceManager
 
 
 class RestAPIGPUDeviceManager:
@@ -10,10 +14,7 @@ class RestAPIGPUDeviceManager:
         self.router.route_class = ValidationErrorLoggingRoute
         self.router.add_api_route("/api/gpu-device-manager/devices", self.get_devices, methods=["GET"])
 
-    def get_devices(self, reload: bool = False):
-        gpu_device_manager = GPUDeviceManager.get_instance()
+    def get_devices(self, reload: bool = False) -> list[DeviceConfig]:
         if reload:
-            gpu_device_manager.reload()
-        if gpu_device_manager.is_cuda_available() is False:
-            return gpu_device_manager.get_gpu_info()
-        return gpu_device_manager.get_cuda_info()
+            reload_device_catalog()
+        return get_device_catalog()

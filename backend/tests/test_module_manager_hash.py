@@ -6,17 +6,15 @@ import pytest
 from vcclient.exception import ERROR_CODE_MODULE_NOT_FOUND, VCClientError
 from vcclient.voice_changer.data_types.data_types import ModuleInfo
 from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
-from vcclient.voice_changer.module_manager.module_manager import ModuleManager
+from vcclient.voice_changer.module_manager import get_module_filepath
+from vcclient.voice_changer.module_manager.module_manager import _download
 
 
 def test_download_hash_mismatch_reports_error_and_removes_corrupt_file(tmp_path: Path, monkeypatch):
-    """Verify that a hash mismatch in ModuleManager._download results in status='error'
+    """Verify that a hash mismatch in _download results in status='error'
 
     and the corrupt file is deleted from disk, rather than reporting status='done'.
     """
-    manager = ModuleManager.__new__(ModuleManager)
-    manager.threads = {}
-
     save_path = tmp_path / "test_module.bin"
     test_module = ModuleInfo(
         id="test_module_id",
@@ -43,8 +41,8 @@ def test_download_hash_mismatch_reports_error_and_removes_corrupt_file(tmp_path:
 
     with patch("requests.get", return_value=mock_resp):
         # Force _check_hash to return False (mismatch)
-        with patch.object(manager, "_check_hash", return_value=False):
-            manager._download(target_module=test_module, callback=callback)
+        with patch("vcclient.voice_changer.module_manager.module_manager._check_hash", return_value=False):
+            _download(target_module=test_module, callback=callback)
 
     # Must have recorded validating and error statuses
     assert len(statuses) > 0
@@ -61,9 +59,6 @@ def test_download_hash_mismatch_reports_error_and_removes_corrupt_file(tmp_path:
 
 def test_download_hash_match_reports_done_and_keeps_file(tmp_path: Path, monkeypatch):
     """Verify that a successful hash match reports status='done' and keeps the file."""
-    manager = ModuleManager.__new__(ModuleManager)
-    manager.threads = {}
-
     save_path = tmp_path / "test_module_good.bin"
     test_module = ModuleInfo(
         id="test_module_good",
@@ -88,8 +83,8 @@ def test_download_hash_match_reports_done_and_keeps_file(tmp_path: Path, monkeyp
         statuses.append(status)
 
     with patch("requests.get", return_value=mock_resp):
-        with patch.object(manager, "_check_hash", return_value=True):
-            manager._download(target_module=test_module, callback=callback)
+        with patch("vcclient.voice_changer.module_manager.module_manager._check_hash", return_value=True):
+            _download(target_module=test_module, callback=callback)
 
     assert len(statuses) > 0
     final_status = statuses[-1]
@@ -102,9 +97,6 @@ def test_download_callback_failure_after_hash_match_keeps_file(tmp_path: Path, m
 
     the valid file is NOT deleted from disk.
     """
-    manager = ModuleManager.__new__(ModuleManager)
-    manager.threads = {}
-
     save_path = tmp_path / "test_module_callback_fail.bin"
     test_module = ModuleInfo(
         id="test_module_callback_fail",
@@ -128,16 +120,15 @@ def test_download_callback_failure_after_hash_match_keeps_file(tmp_path: Path, m
             raise RuntimeError("Simulated websocket/UI error during completion notification")
 
     with patch("requests.get", return_value=mock_resp):
-        with patch.object(manager, "_check_hash", return_value=True):
+        with patch("vcclient.voice_changer.module_manager.module_manager._check_hash", return_value=True):
             # This should handle the callback error gracefully without deleting the valid file
-            manager._download(target_module=test_module, callback=failing_callback)
+            _download(target_module=test_module, callback=failing_callback)
 
     assert save_path.exists(), "Valid file must be kept on disk even if completion callback raises an exception"
 
 
 def test_get_module_filepath_returns_registered_path_and_rejects_unknown_id(tmp_path: Path, monkeypatch):
     """Registered IDs resolve to their path; an unregistered ID is a programming error, not None."""
-    manager = ModuleManager.__new__(ModuleManager)
     save_path = tmp_path / "registered.onnx"
     module = ModuleInfo(
         id="registered.onnx",
@@ -151,8 +142,8 @@ def test_get_module_filepath_returns_registered_path_and_rejects_unknown_id(tmp_
         [module],
     )
 
-    assert manager.get_module_filepath("registered.onnx") == save_path
+    assert get_module_filepath("registered.onnx") == save_path
 
     with pytest.raises(VCClientError) as exc_info:
-        manager.get_module_filepath("unregistered.onnx")
+        get_module_filepath("unregistered.onnx")
     assert exc_info.value.info.code == ERROR_CODE_MODULE_NOT_FOUND

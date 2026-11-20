@@ -42,10 +42,10 @@ Fixed-length inference is the basis for the following improvements:
 
 1. **Predictable Work and Output Cadence**: Processing the same number of new samples with the same context on each iteration gives the worker a consistent workload and a defined output interval. This makes deadline budgeting and queue sizing straightforward and removes chunk-length changes as a source of timing variation.
 2. **Reusable Buffers instead of Repeated Reconstruction**: The current audio-history path concatenates arrays and resizes its retained window for each call. A fixed window lets us replace this with fixed-capacity history and pre-allocated staging/input/output buffers, reducing allocation and copying in the steady-state path.
-3. **Stable GPU Execution Shapes**: Fixed feature, pitch, and synthesis tensor dimensions let sessions warm up for the actual recurring workload and reuse matching device buffers. This reduces shape-dependent allocation and setup work and provides a stable foundation for IO Binding and model specialization.
+3. **Stable GPU & NPU Execution Shapes**: Fixed feature, pitch, and synthesis tensor dimensions let sessions warm up for the actual recurring workload and reuse matching device buffers. This reduces shape-dependent allocation and setup work and provides a stable foundation for IO Binding and model specialization. Crucially on Apple Silicon, fixed shapes eliminate 512 dynamic shape nodes, preventing graph fragmentation into 99 submodels and unblocking native `MLProgram` execution on Metal GPU and ANE (see [Section 2.4 of npu-cpu-hardware-acceleration-and-universal-distribution.md](./npu-cpu-hardware-acceleration-and-universal-distribution.md#24-apple-silicon-m-series-coreml-execution-provider-graph-partitioning-barriers-and-two-tier-static-shape-architecture)).
 4. **A Foundation for GPU-Resident Integration**: Stable shapes and buffer layouts simplify connecting pitch estimation, ContentVec, retrieval, and RVC without intermediate host transfers. Combined with fixed GPU addresses and the CUDA execution requirements in Section 4.3, they enable capture/replay for supported integrated graphs.
 
-Variable-length support belongs at the input adapters, where buffering absorbs differences in device blocks and WebSocket messages. The inference worker consumes a configured number of new samples plus a fixed amount of overlap/context per iteration. Users can select a different chunk size by switching execution profiles and rebuilding the associated buffers outside the audio callback. The goal is predictable real-time execution, not one immutable chunk size for every device and model.
+Variable-length support belongs at the input adapters, where buffering absorbs differences in device blocks and WebSocket (`/api/ws/audio`) audio messages. The inference worker consumes a configured number of new samples plus a fixed amount of overlap/context per iteration. Users can select a different chunk size by switching execution profiles and rebuilding the associated buffers outside the audio callback. The goal is predictable real-time execution, not one immutable chunk size for every device and model.
 
 ---
 
@@ -71,10 +71,10 @@ The existing design has pipeline concurrency, but completed audio must wait for 
 
 ### 3.2 Target: One-Way Stream Processing
 
-Both input modes use the same processing worker through source-specific adapters. Server Mode and Client Mode are alternatives, and Client Mode is added after the Server-Mode-first UI migration:
+Both input modes use the same processing worker through source-specific adapters. Server Mode and Client Mode operate as alternative modes in the Svelte 5 UI (which now replaces the retired `web_front/` UI):
 
 ```text
-Native input callback / WebSocket receiver
+Native input callback / WebSocket (`/api/ws/audio`) audio receiver
            |
            v
    Pre-allocated input slots
@@ -105,10 +105,79 @@ Native input callback / WebSocket receiver
 - **Event-Driven Scheduling**: Wake stages when a slot is ready and pass slot identifiers/metadata through bounded queues. This requires a preparation worker and a serial inference worker, not a separate thread for every individual operation.
 - **Defaulting to `"server"` Mode**: New configurations default to `voice_changer_input_mode = "server"`; preserve an existing user's explicit mode and require device selection before starting audio.
 - **Callback Boundary**: Input callbacks copy samples into an available owned, pre-allocated slot and signal readiness before returning; output callbacks fill the supplied `outdata` from completed audio. Move accumulation/splitting, result collection, settings/reload checks, allocation-heavy processing, logging, and notifications out of callbacks.
-- **Preparation Boundary**: A preparation worker owns input accumulation and fixed-window assembly, independently of device block size or WebSocket message boundaries. It may prepare chunk N+1 while inference handles chunk N, while preserving order for stateful filters/resamplers.
+- **Preparation Boundary**: A preparation worker owns input accumulation and fixed-window assembly, independently of device block size or WebSocket audio frame boundaries. It may prepare chunk N+1 while inference handles chunk N, while preserving order for stateful filters/resamplers.
 - **Inference Boundary**: The serial inference worker owns pitch/feature/RVC histories and model calls, then applies initial SOLA/crossfade postprocessing and publishes to output. Keep profile changes at safe processing boundaries.
 
 ### 3.3 Output Buffers: Bridge Production and Playback, Not Extra Batch Waiting
+
+**Current experiment:** The existing bulk worker retains digital silence chunks (`0.0`) for at least 200 ms of consecutive silence, then skips them until nonzero output resumes. Main and monitor audio are tracked independently. The threshold is applied at chunk boundaries, so the retained silence can exceed 200 ms by up to one chunk. Playback callbacks fill shortages with silence; this allows queued audio to drain during silent periods, and does not drain backlog during sustained speech. To absorb inference-time jitter when playback resumes from an empty or drained buffer without retaining stale speech tails, both Server Mode (`LocalVoiceChangerInterface`) and Client Mode (`ClientAudio`) insert a chunk-relative silence preroll (`max(0.02, chunk_sec * 0.1)` s) when nonzero audio resumes after silence. Performance-only entries are retained for notifications. In Client Mode, a request with no converted audio ready receives no audio response; compatibility during extended silence still needs verification. This can shorten recorded silence and does not preserve timing between the two output streams. Latency and audio effects still need end-to-end measurement with real devices. The RVC noise gate also holds open for at least 200 ms below the close threshold, independently of this output silence delay; the resulting compute and audio effects need testing.
+
+#### 3.3.1 Silence-Skip Underrun Mechanism and Relative Preroll Cushion
+
+When silence skipping drains `out_queue` (or Client Mode's `nextPlayback` timeline) to an initial buffered depth of $B_0 = 0$, playback of the first nonzero chunk in a new utterance starts with `0` margin ahead of the audio clock:
+
+1. **Arrival Deadline Coupling and Boundary Quantization**:
+   Let $D = \text{chunk\_sec}$ be the chunk playback duration, $t_k = t_0 + kD$ ($k = 0, 1, 2, \dots$) be the input chunk boundaries, $T_n$ be the end-to-end conversion and handoff latency of chunk $C_n$ ($n \ge 0$), and $B_0 \ge 0$ be the silence buffer depth present when $C_0$ begins playing.
+   - **Throughput bound**: Sustained operation requires average conversion time not to exceed chunk duration ($\bar{T} \le D$) so input does not accumulate ahead of the worker.
+   - **Non-underrun jitter budget**: Chunk $C_0$ accumulates during $[t_0, t_1]$ and finishes conversion at $t_1 + T_0$; chunk $C_n$ accumulates during $[t_n, t_{n+1}]$ and reaches playback at $t_{\text{out}, n} = t_{n+1} + T_n$ (when no worker backlog precedes it). With initial margin $B_0$, playback of $C_0$ starts at $t_1 + T_0 + B_0$ and plays for duration $D$ until $t_2 + T_0 + B_0$; chunks $C_0 \dots C_{n-1}$ sustain playback until $t_{n+1} + T_0 + B_0$. Avoiding an underrun before $C_n$ arrives therefore requires $t_{n+1} + T_n \le t_{n+1} + T_0 + B_0$, which simplifies to $T_n - T_0 \le B_0$. When silence skipping drains the buffer to $B_0 = 0$, even when $T_0 < D$ and $T_1 < D$, any chunk $C_1$ slower than $C_0$ ($T_1 > T_0$) leaves an underrun gap on $[t_2 + T_0,\ t_2 + T_1]$ of duration $T_1 - T_0$:
+
+```mermaid
+sequenceDiagram
+    participant Input
+    participant Buffer
+    participant Pipeline
+    participant Output
+
+    activate Input
+    Input->>Buffer: t0 - Capture C0 (chunk size D)
+    activate Buffer
+    Input-->>Buffer: Stream C0 samples (1/2)
+    Note over Buffer: Accumulate C0 [t0, t1] (fixed chunk D)
+    Input-->>Buffer: Stream C0 samples (2/2)
+    Buffer->>Pipeline: t1 - Enqueue C0 (chunk size D)
+    deactivate Buffer
+    activate Pipeline
+
+    Input->>Buffer: t1 - Capture C1 (chunk size D)
+    activate Buffer
+    Pipeline->>Output: t1 + T0 - Emit converted C0 (T0 < D)
+    deactivate Pipeline
+    activate Output
+    Note over Output: Play C0 [t1 + T0, t2 + T0] (duration D, B0 = 0)
+    Input-->>Buffer: Stream C1 samples
+    Buffer->>Pipeline: t2 - Enqueue C1 (chunk size D)
+    deactivate Buffer
+    activate Pipeline
+
+    Input->>Buffer: t2 - Capture C2 (chunk size D)
+    activate Buffer
+    Input-->>Buffer: t2 + T0 - Stream C2 (C0 playback ends)
+    deactivate Output
+    Note over Output: Underrun gap [t2 + T0, t2 + T1] (T1 - T0)
+    Pipeline->>Output: t2 + T1 - Emit converted C1 (T0 < T1 < D)
+    deactivate Pipeline
+    activate Output
+    Buffer->>Pipeline: t3 - Enqueue C2 (chunk size D)
+    deactivate Buffer
+
+    Note over Output: Play C1 [t2 + T1, t3 + T1] (duration D)
+    deactivate Output
+    deactivate Input
+```
+
+   - **Callback quantization**: In Server Mode, `audio_input_callback` drains `convert_chunk_bulk_queue_out` only at 10 ms callback ticks, so sub-millisecond inference jitter that misses one 10 ms tick adds a full 10 ms step to $T_n$.
+2. **Waveform Discontinuities (Click Artifacts)**:
+   When `out_queue` is empty during continuous speech, `audio_output_callback` fills one 10 ms block with `0.0` (`outdata.fill(0)`). Because `CrossfadeProcessor.apply` has stitched $C_{n-1}$ and $C_n$ into continuous nonzero waveforms, inserting a 10 ms digital-silence notch produces two abrupt vertical step transitions ($y \neq 0 \to 0.0$ and $0.0 \to y \neq 0$) heard as clicks. Before commit [`2283fa2ff44733e3eabdbb0eb551de8968ba1013`](https://github.com/Maki-Daisuke/vcclient-forge/commit/2283fa2ff44733e3eabdbb0eb551de8968ba1013), continuously enqueueing silent chunks preserved whatever queue cushion had built up from prior underflows or spikes, trading latency accumulation for jitter immunity.
+3. **Why Consumer-Side Queue Floors Are Avoided**:
+   Halting consumption in `audio_output_callback` when `out_queue.qsize()` drops to a fixed floor $K$ (e.g., 2–3 blocks) would trap the final $K$ blocks in `out_queue` whenever silence skipping stops chunk production. Depending on noise-gate release timing, trailing speech samples remain trapped in the queue at the end of an utterance and are emitted at the start of the next utterance. Letting `out_queue` drain completely to `0` plays out the full tail of every utterance and discards accumulated latency, while prepending silence only on resumption after silence rebuilds a cushion without trapping prior speech.
+4. **Relative Preroll Formula (`max(0.02, chunk_sec * 0.1)`)**:
+   - The term `chunk_sec * 0.1` sets the initial jitter budget $B_0$ to 10% of the configured chunk duration $D = \text{chunk\_sec}$. Longer inference runs encounter more OS scheduler preemptions, GIL contention, and clock-frequency shifts, so expected conversion-time jitter ($T_n - T_0$) scales with compute duration; because practical settings match `chunk_sec` to the hardware's inference budget ($\bar{T} \le D$), `0.1 * chunk_sec` scales $B_0$ proportionally to that jitter budget.
+   - Separately, in terms of user-visible latency, each chunk already requires one full chunk interval $D$ for input framing before conversion begins; reserving $B_0 = 0.1 D$ adds 10% of that inherent single-chunk buffering interval at utterance onset.
+   - The `0.02` s (20 ms = two 10 ms blocks) floor covers one 10 ms `audio_input_callback` collection-boundary quantization step plus one 10 ms block of inference-jitter margin on short chunks ($\le 200\text{ ms}$). For longer chunks (e.g., `0.5` s), the target scales to 50 ms (`5` blocks).
+5. **Replenishment Rules, Constraints, and Trade-Offs**:
+   - **Resumption-only trigger**: Preroll is inserted only on initial stream start and when nonzero audio resumes after trailing digital silence (`0.0`), not during mid-utterance underruns (where prepending zeros would extend an active dropout).
+   - **Shortfall-only top-up**: Server Mode enqueues only `max(0, target_blocks - queue.qsize())` zero blocks and Client Mode clamps `nextPlayback` via `Math.max(nextPlayback, context.currentTime + prerollSec)` so partial queue drains across brief pauses do not accumulate extra delay.
+   - **Trade-offs**: Each utterance following silence incurs `max(20 ms, 0.1 * chunk_sec)` of additional initial playback latency. Preroll does not prevent underruns when an intra-utterance conversion spike exceeds the available jitter budget ($T_n - T_0 > B_0$), and backlog during uninterrupted speech without silent pauses still requires the one-way pipeline changes in Section 3.2.
 
 In the current `sounddevice.OutputStream(callback=...)` design, PortAudio supplies `outdata` and determines when samples are needed. The application keeps completed samples between worker completion and these callbacks; the driver/PortAudio buffers do not replace that worker-to-callback handoff.
 
@@ -155,23 +224,16 @@ The upstream RVC [real-time GUI](https://github.com/RVC-Project/Retrieval-based-
 - The pipeline's 160-sample processing unit at 16 kHz corresponds to 10 ms, but does not establish the minimum usable input window for every model. Validate feature/F0 alignment, receptive-field requirements, and quality before shrinking chunks.
 - Target measured local round-trip latency of **100 ms or less** on specified configurations. Include accumulation, algorithmic delay, resampling, scheduling, transfers, inference, and playback buffering in that measurement.
 
-### 3.7 Future Roadmap: Separate Configuration Acceptance, Notification, and Application
+### 3.7 Future Roadmap: Audio Adapter Contracts, Output Routing, and Control Separation
 
-Refactor the responsibilities currently mixed in `ConfigurationManager` into an explicit control flow. This is planned work, not implemented behavior:
+Control-plane architecture—decoupling the snapshot-driven session lifecycle (`GET` / `PUT` / `DELETE .../session`, backed by engine `run(snapshot)` / `stop()` with `409 Conflict` active guards and snapshot-controlled recording), pure configuration storage, and explicit compute-device auto-selection—is defined in **[Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs](./snapshot-driven-pipeline-and-stateless-control-api.md)**. That document is the single source of truth for configuration handling and session control, replacing the earlier `ConfigurationManager` acceptance/notification/application draft.
 
-1. **Acceptance**: Validate configuration requests and serialize updates through a coordinator. Keep `ConfigurationManager` focused on configuration storage and persistence rather than recording commands, device operations, inference setup, or timing-based waits.
-2. **Notification**: Publish coherent configuration snapshots and classified changes with revision identifiers. Distinguish requested configuration from successfully applied runtime state; report application success or failure separately. Recording start/stop remain commands rather than persisted settings.
-3. **Application**: Route changes to the component's owning thread through explicit command queues. Apply inference settings at chunk boundaries and coordinate device/profile changes as stop, reconfigure, and restart operations. Do not let independent subscribers reconfigure dependent stages in an unspecified order, or use sleeps as completion acknowledgements.
+From the **audio-pipeline perspective**, this separation relies on explicit audio-format, routing, and state-ownership contracts between interchangeable input/output adapters and inference components (`RVCPipeline` / proposed `BoostModePipeline`):
 
-This separation should support interchangeable input (`PortAudioInput` / `WebSocketInput`), inference (`RvcPipeline` / proposed `BoostModePipeline`), and output (`PortAudioOutput` / `WebSocketOutput`) components with explicit audio-format, lifecycle, and state-ownership contracts. A configuration update does not necessarily rebuild the whole pipeline: update compatible scalar values in place and replace or reopen only affected components under coordinator control.
-
-After the native-only UI migration temporarily removes Client Mode, browser audio may return as independently selectable WebSocket input/output adapters rather than as a coupled "Client Mode" switch. Initially reproduce the native/native and browser/browser combinations; later evaluate native input with browser output and browser input with native output. The earlier Server/Client Mode descriptions specify the initial paired configurations, not a permanent coupling between input and output. Mode names could remain as presets. Mixed routing requires explicit format conversion, clock-drift and network-jitter handling, and disconnect/recovery policies before it is supported; it does not introduce multiple simultaneous inputs or multi-user sessions.
-
-Preserve the existing monitor capability: the minimum routing contract is **one selected input, one main output, and one optional monitor output**, not a single output only. Keep the monitor's signal source distinct from its destination adapter. Each enabled output needs independently owned bounded buffering/read positions, rate conversion and gain as required, and its own overflow/underflow and failure policy. Outputs must not compete to consume one queue, and a slow or disconnected output must not block inference or the other output. Account for independent playback clocks and define safe buffer lifetime if audio storage is shared. Arbitrary output counts are not required for the initial modularization.
-
-Start by separating responsibilities while preserving current workflows. Initially allow a brief interruption for structural changes: wait for in-flight work to finish, reset affected state, rebuild, and restart. Keep input context (`extra_chunk`), resampler/filter state, and inference/crossfade histories under explicit ownership; preserve compatible state for scalar updates, but reset invalidated histories and reject obsolete results when a source or execution profile changes. Uninterrupted in-flight replacement and cross-component state transfer are later improvements, not prerequisites for modularization.
-
-Evaluate RxPY (`reactivex`) or lightweight signals only after defining these boundaries; library adoption is not decided. Reactive notifications belong to the control path, not the real-time audio-sample handoffs, and do not replace owner-thread dispatch, ordered reconfiguration, or completion/failure reporting.
+- **Input/Output Adapter Independence**: The Svelte 5 UI now supports both Server Mode (native audio) and Client Mode (browser audio over `/api/ws/audio`) and has replaced the legacy `web_front/` bundles. As future work, browser audio may use independently selectable WebSocket-backed input/output adapters rather than a coupled "Client Mode" switch: first reproducing the native/native and browser/browser combinations (already working), and later evaluating native input with browser output or browser input with native output. The earlier Server/Client Mode descriptions specify the initial paired configurations, not a permanent coupling between input and output; mode names could remain as presets. Mixed routing requires explicit format conversion, clock-drift and network-jitter handling, and disconnect/recovery policies before it is supported; it does not introduce multiple simultaneous inputs or multi-user sessions.
+- **Routing and Monitor Output Contract**: Preserve the existing monitor capability: the minimum routing contract is **one selected input, one main output, and one optional monitor output**, not a single output only. Keep the monitor's signal source distinct from its destination adapter. Each enabled output needs independently owned bounded buffering/read positions, rate conversion and gain as required, and its own overflow/underflow and failure policy. Outputs must not compete to consume one queue, and a slow or disconnected output must not block inference or the other output. Account for independent playback clocks and define safe buffer lifetime if audio storage is shared. Arbitrary output counts are not required for the initial modularization.
+- **Audio State Ownership on Session Changes**: Keep input context (`extra_chunk`), resampler/filter state, and inference/crossfade histories under explicit pipeline ownership; preserve compatible state across live-safe snapshot updates, reset invalidated histories, and reject obsolete in-flight results when a session stops or changes structural profile. Uninterrupted in-flight replacement and cross-component state transfer are later improvements, not prerequisites for modularization.
+- **Reactive Control Libraries**: Evaluate RxPY (`reactivex`) or lightweight signals only if control-plane needs later justify them; library adoption is not decided, and reactive notifications belong strictly on control boundaries—never on real-time audio-sample handoffs.
 
 ---
 
@@ -250,7 +312,7 @@ flowchart LR
 - Define per-boundary producer/consumer contracts and start with standard-library `queue.Queue` instances carrying fixed-duration blocks and bounded audio-time capacity. Use an explicitly owned pre-allocated slot pool for callback/preparation handoff; replace repeated audio-history concatenation with fixed-capacity storage and contiguous staging where necessary. Benchmark alternative ring implementations only if the queue baseline shows a measurable bottleneck.
 - Keep RMVPE/FCPE, ContentVec, and RVC calls serial in the inference worker initially; their model histories and accelerator resources require ordered ownership. Run SOLA/crossfade after RVC in the same worker and publish completed audio directly to output buffers. Split postprocessing into another stage only if profiling shows it delays the next inference enough to justify the extra handoff.
 - Output callbacks only consume available audio and fill shortages with silence.
-- Define the shared input/output adapter contract for both modes, implementing native audio first and connecting the WebSocket adapter when Client Mode returns. Keep overlap, search region, and history/context fixed for each profile, separately from device callback sizes.
+- Define the shared input/output adapter contract for both modes, implementing native audio first and connecting the WebSocket-backed adapter for browser Client Mode. Keep overlap, search region, and history/context fixed for each profile, separately from device callback sizes.
 - Publish native/monitor audio directly to their bounded playback buffers; publish Client Mode output to the sender as soon as ready, with bounded transport backlog and client-side playback buffering.
 - Move settings changes and notifications out of audio callbacks. Implement time-based backlog limits, aligned stale-input/output drops, discontinuity generations, history recovery, and safe handling of obsolete in-flight results.
 - **Acceptance**: Prepared chunk N+1 can be ready while the inference worker runs chunk N; callbacks never wait for inference or queue capacity; and completed output reaches its destination without another input callback/message. Verify slot ownership/reuse, bounded queue age, sample counts across block/slot boundaries and rate conversion, overload drops, underflow silence, restart/profile changes, and discontinuity recovery. Long-duration tests must keep buffer age within budget without progressive delay growth. Compare stage timings, allocations, and audio quality with the Phase 0 baseline; retain the simpler path if overlap does not improve measured latency or throughput.
@@ -288,8 +350,9 @@ Following empirical benchmarks on modern hardware, the optimization strategy cen
 2. **GPU Synthesis**: HiFi-GAN vocoder executes on GPU with IO Binding where parallel compute provides substantial acceleration (11.71 ms GPU vs 145.43 ms CPU).
 3. **Double Buffering**: Host and device stages overlap across consecutive chunks, reducing effective inference time to the maximum of the two stages while incurring less than 0.05 ms of PCIe transfer overhead.
 
-Monolithic graph fusion and ONNX-native FAISS conversion are superseded by this architecture.
-
-Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).
+Monolithic graph fusion and ONNX-native feature retrieval remain conditional
+experiments to compare against this architecture; the existing component
+benchmarks do not establish an end-to-end winner. See the [implementation
+roadmap](./implementation-roadmap.md#9-optimize-inference-evaluate-hybrid-pipelining-and-boost-mode).
 
 Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).
