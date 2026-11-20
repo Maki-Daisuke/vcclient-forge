@@ -14,8 +14,7 @@ from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChang
 def recorder(tmp_path, monkeypatch):
     from vcclient.voice_changer.voice_change_manager import voice_changer
 
-    for suffix in ("IN", "OUT", "MONITOR"):
-        monkeypatch.setattr(voice_changer, f"SERVER_IO_RECORDING_FILE_{suffix}", str(tmp_path / f"{suffix}.wav"))
+    monkeypatch.setattr(voice_changer, "SERVER_IO_RECORDING_FILE_OUT", str(tmp_path / "OUT.wav"))
 
     vc = VoiceChanger.__new__(VoiceChanger)
     vc.vc_info = VoiceChangerInformation()
@@ -44,22 +43,18 @@ def recorder(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("modes", [(True,), (False, True, False), (True, False, True)])
-def test_recording_preserves_input_and_output_across_passthrough_changes(recorder, monkeypatch, modes):
+def test_recording_preserves_output_across_passthrough_changes(recorder, monkeypatch, modes):
     vc, conf, path = recorder
     vc.start_recording()
-    expected_input = []
     expected_output = []
     for index, passthrough in enumerate(modes, start=1):
         monkeypatch.setattr(conf, "pass_through", passthrough)
         chunk = np.full(16, index / 10, dtype=np.float32)
         vc._convert_chunk(chunk)
-        expected_input.append(chunk)
         expected_output.append(chunk if passthrough else chunk * 0.5)
     vc.stop_recording()
-    input_rate, input_audio = wavfile.read(path / "IN.wav")
     output_rate, output_audio = wavfile.read(path / "OUT.wav")
-    assert input_rate == output_rate == 48000
-    np.testing.assert_array_equal(input_audio, np.concatenate(expected_input))
+    assert output_rate == 48000
     np.testing.assert_array_equal(output_audio, np.concatenate(expected_output))
     assert vc.vc_info.recording_start_flag is False
 
@@ -107,30 +102,27 @@ def test_records_accumulate_only_while_recording_is_active(recorder, monkeypatch
     monkeypatch.setattr(conf, "pass_through", passthrough)
     vc.vc_info.monitor_enabled = True
     vc.vc_info.recording_start_flag = False
-    vc.input_record, vc.output_record, vc.monitor_record = [], [], []
+    vc.output_record = []
     chunk = np.zeros(16, dtype=np.float32)
 
     for _ in range(3):
         vc._convert_chunk(chunk)
-    assert (len(vc.input_record), len(vc.output_record), len(vc.monitor_record)) == (0, 0, 0)
+    assert len(vc.output_record) == 0
 
     vc.start_recording()
     for _ in range(3):
         vc._convert_chunk(chunk)
-    assert (len(vc.input_record), len(vc.output_record), len(vc.monitor_record)) == (3, 3, 3)
+    assert len(vc.output_record) == 3
 
 
-@pytest.mark.parametrize("monitor_enabled", [False, True])
-def test_empty_recording_writes_empty_wav_without_reusing_previous_output(recorder, monitor_enabled):
+def test_empty_recording_writes_empty_wav_without_reusing_previous_output(recorder):
     vc, _, path = recorder
     (path / "OUT.wav").write_bytes(b"previous recording")
-    vc.vc_info.monitor_enabled = monitor_enabled
     vc.start_recording()
     vc.stop_recording()
-    for name, expected_rate in [("IN", 48000), ("OUT", 48000)] + ([("MONITOR", 44100)] if monitor_enabled else []):
-        rate, samples = wavfile.read(path / f"{name}.wav")
-        assert rate == expected_rate
-        assert samples.size == 0
+    rate, samples = wavfile.read(path / "OUT.wav")
+    assert rate == 48000
+    assert samples.size == 0
     assert vc.vc_info.recording_start_flag is False
 
 
@@ -142,5 +134,4 @@ def test_empty_recording_before_audio_initialization_uses_configured_rates(recor
     monkeypatch.setattr(conf, "output_sample_rate", 48000)
     vc.start_recording()
     vc.stop_recording()
-    assert wavfile.read(path / "IN.wav")[0] == 44100
     assert wavfile.read(path / "OUT.wav")[0] == 48000

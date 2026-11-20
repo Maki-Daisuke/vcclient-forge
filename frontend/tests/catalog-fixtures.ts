@@ -12,7 +12,7 @@ export const slots = [
   {
     slot_index: 2, voice_changer_type: 'RVC', name: 'Test model A',
     icon_file: null,
-    is_onnx: true, is_f0: true, version: 'v2', embedder: 'contentvec',
+    is_onnx: true, is_f0: true, version: 'v2', embedder: 'hubert_base_japanese_l12',
     pitch_shift: 3, index_ratio: 0.25, pitch_estimator: 'fcpe', chunk_sec: 0.5,
   },
 ];

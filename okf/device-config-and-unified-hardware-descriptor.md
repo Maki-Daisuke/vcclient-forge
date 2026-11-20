@@ -108,7 +108,7 @@ Under `vcclient.device.data_types`, `DeviceConfig` defines the typed descriptor 
 from __future__ import annotations
 
 from typing import Any, Literal
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field
 
 ExecutionProviderType = Literal[
     "cpu",
@@ -157,29 +157,15 @@ class DeviceConfig(BaseModel):
         description="Provider-specific metadata (DXGI LUID, OpenVINO 'ov_device', CoreML 'compute_units', etc.).",
     )
 
-    @computed_field
-    @property
-    def device_id_int(self) -> int:
-        """Exposes catalog index as device_id_int in JSON responses for legacy web_front contracts."""
-        return self.id
-
-    @computed_field
-    @property
-    def device_id(self) -> str:
-        """Exposes canonical_id as device_id in JSON responses for legacy GPUInfo compatibility."""
-        return self.canonical_id
-
     def is_cpu(self) -> bool:
         return self.id == 0 or self.provider == "cpu" or self.device_type == "CPU"
 ```
-
-Using Pydantic v2's `@computed_field` ensures that both `device_id_int` and `device_id` are included when FastAPI serializes `list[DeviceConfig]` to JSON.
 
 ---
 
 ## 4. UI & API Integration: REST Contract & Frontend Compatibility
 
-The Catalog Index design originally maintained drop-in compatibility with the bundled legacy frontends (`web_front/`) without frontend bundle edits and continues to serve the Svelte 5 UI (`frontend/`) and REST API clients through the same `gpu_device_id_int` contract:
+The Catalog Index design originally maintained drop-in compatibility with the bundled legacy frontends (`web_front/`) and continues to serve the Svelte 5 UI (`frontend/`) and REST API clients through the `gpu_device_id_int` configuration field:
 
 ```mermaid
 sequenceDiagram
@@ -194,8 +180,8 @@ sequenceDiagram
     UI->>API: GET /api/gpu-device-manager/devices
     API->>DM: get_device_catalog()
     DM-->>API: list[DeviceConfig]
-    API-->>UI: 200 OK (JSON with name and device_id_int = 0, 1, 2, ...)
-    Note over UI: Populates <select> options with device_id_int values
+    API-->>UI: 200 OK (JSON with id and name for 0, 1, 2, ...)
+    Note over UI: Populates <select> options with device id values
 
     Note over UI,VC: 2. Device Selection & Model Reload
     UI->>API: PUT /api/configuration-manager/configuration (gpu_device_id_int = 2)
@@ -222,9 +208,7 @@ When the UI queries `/api/gpu-device-manager/devices`, `RestAPIGPUDeviceManager.
     "device_type": "CPU",
     "name": "CPU",
     "adapter_ram": 0,
-    "metadata": {},
-    "device_id_int": 0,
-    "device_id": "cpu"
+    "metadata": {}
   },
   {
     "id": 1,
@@ -234,9 +218,7 @@ When the UI queries `/api/gpu-device-manager/devices`, `RestAPIGPUDeviceManager.
     "device_type": "GPU",
     "name": "[DirectML] Intel(R) Arc(TM) 140V GPU (16GB)",
     "adapter_ram": 17179869184,
-    "metadata": {},
-    "device_id_int": 1,
-    "device_id": "dml:0"
+    "metadata": {}
   },
   {
     "id": 2,
@@ -246,14 +228,12 @@ When the UI queries `/api/gpu-device-manager/devices`, `RestAPIGPUDeviceManager.
     "device_type": "GPU",
     "name": "[OpenVINO] Intel(R) Arc(TM) 140V GPU (16GB)",
     "adapter_ram": 0,
-    "metadata": { "ov_device": "GPU.0" },
-    "device_id_int": 2,
-    "device_id": "openvino:gpu:0"
+    "metadata": { "ov_device": "GPU.0" }
   }
 ]
 ```
 
-The UI binds each `<option>` label to `item.name` and its value to `item.device_id_int`.
+The UI binds each `<option>` label to `item.name` and its value to `item.id`.
 
 ### 4.2 Constant-Time $O(1)$ Resolution and Configuration Normalization
 
@@ -364,7 +344,7 @@ flowchart LR
 ```
 
 1. **Milestone 1: Domain Model & Catalog Construction** `[Completed]`
-   - Create `backend/vcclient/device/data_types.py` defining `DeviceConfig` with `@computed_field` properties (`device_id_int` and `device_id`).
+   - Create `backend/vcclient/device/data_types.py` defining `DeviceConfig` (legacy `web_front` `@computed_field` aliases `device_id_int` and `device_id` were subsequently retired once `web_front/` was removed).
    - Implement `reload_device_catalog() -> list[DeviceConfig]` in `device_manager.py` with Index `0` assigned to CPU and all active providers enumerated sequentially.
    - Implement `get_device(id: int) -> DeviceConfig` with $O(1)$ array access and CPU fallback (`_device_catalog[0]`).
 

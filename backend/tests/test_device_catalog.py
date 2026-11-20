@@ -12,8 +12,8 @@ from vcclient.device.device_manager import (
 from vcclient.voice_changer.data_types.data_types import GPUInfo
 
 
-def test_device_config_model_and_computed_fields() -> None:
-    """Verify DeviceConfig schema and computed fields serialization for legacy web_front contracts."""
+def test_device_config_model_serialization() -> None:
+    """Verify DeviceConfig schema and JSON serialization."""
     dev = DeviceConfig(
         id=2,
         canonical_id="openvino:gpu:0",
@@ -28,15 +28,17 @@ def test_device_config_model_and_computed_fields() -> None:
     dumped = dev.model_dump()
     assert dumped["id"] == 2
     assert dumped["canonical_id"] == "openvino:gpu:0"
-    assert dumped["device_id_int"] == 2
-    assert dumped["device_id"] == "openvino:gpu:0"
+    assert "device_id_int" not in dumped
+    assert "device_id" not in dumped
     assert not dev.is_cpu()
 
     # JSON serialization contract check
     json_str = dev.model_dump_json()
     parsed = json.loads(json_str)
-    assert parsed["device_id_int"] == 2
-    assert parsed["device_id"] == "openvino:gpu:0"
+    assert parsed["id"] == 2
+    assert parsed["canonical_id"] == "openvino:gpu:0"
+    assert "device_id_int" not in parsed
+    assert "device_id" not in parsed
 
     cpu_dev = DeviceConfig(
         id=0,
@@ -47,8 +49,6 @@ def test_device_config_model_and_computed_fields() -> None:
         name="CPU",
     )
     assert cpu_dev.is_cpu()
-    assert cpu_dev.device_id_int == 0
-    assert cpu_dev.device_id == "cpu"
 
 
 def test_device_catalog_index_0_is_strictly_cpu() -> None:
@@ -223,7 +223,7 @@ def test_device_config_create_session_npu_rvc_fallback() -> None:
 
 
 def test_rest_api_gpu_device_manager_returns_catalog() -> None:
-    """Verify that GET /api/gpu-device-manager/devices returns DeviceConfig catalog with legacy JSON keys."""
+    """Verify that GET /api/gpu-device-manager/devices returns DeviceConfig catalog."""
     from fastapi import FastAPI
     from starlette.testclient import TestClient
 
@@ -243,6 +243,6 @@ def test_rest_api_gpu_device_manager_returns_catalog() -> None:
     first = data[0]
     assert first["id"] == 0
     assert first["canonical_id"] == "cpu"
-    assert first["device_id_int"] == 0
-    assert first["device_id"] == "cpu"
+    assert "device_id_int" not in first
+    assert "device_id" not in first
     assert first["name"] == "CPU"

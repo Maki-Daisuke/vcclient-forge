@@ -9,14 +9,7 @@ class PerformanceData(BaseModel):
     model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
 
     input_buffer_size: float = Field(default=0, alias="inputBufferSize")
-    input_size: float = Field(default=0, alias="inputSize")
-    input_sec: float = Field(default=0, alias="inputSec")
-    output_size: float = Field(default=0, alias="outputSize")
-    output_sec: float = Field(default=0, alias="outputSec")
     elapsed_time: float = Field(default=0, alias="elapsedTime")
-    input_volume_db: float = 0
-    output_volume_db: float = 0
-    data_num: int = Field(default=0, alias="dataNum")
 
 
 class AudioDevice(BaseModel):

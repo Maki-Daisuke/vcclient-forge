@@ -10,11 +10,13 @@ from vcclient.device import DeviceConfig, get_device
 from vcclient.logger import logger
 
 from ...data_types.voice_changer_data_types import EmbedderInfo
+from ...voice_changer_const import EmbedderType
 from .embedder import Embedder
 
 
 class ContentvecOnnx(Embedder):
     model_file: Path
+    embedder_type: EmbedderType = "hubert_base_l12"
     deviceId: int = 0
     layer: int = 12
     candidate_onnx_providers: list[str] = []
@@ -30,10 +32,12 @@ class ContentvecOnnx(Embedder):
         layer: int = 12,
         *,
         device_id: DeviceConfig | int | None = None,
+        embedder_type: EmbedderType = "hubert_base_l12",
     ) -> Embedder:
         target = device if device_id is None else device_id
         self.device = get_device(target) if isinstance(target, int) else target
         self.model_file = model_file
+        self.embedder_type = embedder_type
         self.deviceId = self.device.id
         self.layer = layer
 
@@ -79,7 +83,7 @@ class ContentvecOnnx(Embedder):
 
     def get_info(self):
         return EmbedderInfo(
-            embedder_type="contentvec",
+            embedder_type=self.embedder_type,
             model_file=self.model_file,
             device_id=self.deviceId,
             candidate_onnx_providers=self.candidate_onnx_providers,

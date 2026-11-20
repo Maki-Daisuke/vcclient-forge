@@ -9,7 +9,7 @@ from scipy.io import wavfile
 
 from vcclient.logger import logger
 
-from ...const import SERVER_IO_RECORDING_FILE_IN, SERVER_IO_RECORDING_FILE_MONITOR, SERVER_IO_RECORDING_FILE_OUT
+from ...const import SERVER_IO_RECORDING_FILE_OUT
 from ...exception import (
     ERROR_CODE_MODEL_UPDATE_FAILED,
     ERROR_CODE_PIPELINE_IS_NOT_INITIALIZED,
@@ -44,9 +44,7 @@ class VoiceChanger(EventEmitter):
     crossfade_processor: CrossfadeProcessor
     bulk_process: threading.Thread | None
     vc_pipeline: VCPipeline | None
-    input_record: list[np.ndarray]
     output_record: list[np.ndarray]
-    monitor_record: list[np.ndarray]
     resampler_in: sr.Resampler
     resampler_out: sr.Resampler
     resampler_monitor: sr.Resampler
@@ -91,9 +89,7 @@ class VoiceChanger(EventEmitter):
         self.crossfade_processor = CrossfadeProcessor()
         self.bulk_process = None
         self.vc_pipeline = None
-        self.input_record = []
         self.output_record = []
-        self.monitor_record = []
         self.resampler_in = sr.Resampler("sinc_best", channels=1)
         self.resampler_out = sr.Resampler("sinc_best", channels=1)
         self.resampler_monitor = sr.Resampler("sinc_best", channels=1)
@@ -331,9 +327,7 @@ class VoiceChanger(EventEmitter):
         if self.vc_info.recording_start_flag is True:
             logger.warning("recording process is already started.")
             return None
-        self.input_record = []
         self.output_record = []
-        self.monitor_record = []
         self.vc_info.recording_start_flag = True
 
     def stop_recording(self) -> None:
@@ -354,21 +348,10 @@ class VoiceChanger(EventEmitter):
         try:
             conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
             wavfile.write(
-                SERVER_IO_RECORDING_FILE_IN,
-                getattr(self, "input_sample_rate", conf.input_sample_rate),
-                audio(self.input_record),
-            )
-            wavfile.write(
                 SERVER_IO_RECORDING_FILE_OUT,
                 getattr(self, "output_sample_rate", conf.output_sample_rate),
                 audio(self.output_record),
             )
-            if self.vc_info.monitor_enabled is True or self.monitor_record:
-                wavfile.write(
-                    SERVER_IO_RECORDING_FILE_MONITOR,
-                    getattr(self, "monitor_sample_rate", conf.monitor_sample_rate),
-                    audio(self.monitor_record),
-                )
         except Exception as e:
             logger.warning("Failed to save recording: %s", e, exc_info=True)
             raise VCClientError(ERROR_CODE_RECORDING_FAILED, f"Failed to save recording:{e}")
@@ -503,7 +486,6 @@ class VoiceChanger(EventEmitter):
                 end_time = time.time()
                 elapsed_time = round(end_time - start_time, 3)
                 input_size = len(waveform)
-                output_size = len(output)
                 in_qsize = (
                     self.convert_chunk_bulk_queue_in.qsize() if hasattr(self, "convert_chunk_bulk_queue_in") else 0
                 )
@@ -511,24 +493,9 @@ class VoiceChanger(EventEmitter):
                 rest_len = len(self.waveform_rest) if hasattr(self, "waveform_rest") else 0
                 input_buffer_size = rest_len + in_qsize * chunk_sz
 
-                output_sec = (
-                    self.vc_chunk_sec
-                    if hasattr(self, "vc_chunk_sec") and self.vc_chunk_sec > 0
-                    else (
-                        len(waveform) / self.input_sample_rate
-                        if hasattr(self, "input_sample_rate") and self.input_sample_rate > 0
-                        else 0.1
-                    )
-                )
-
                 performance_data = PerformanceData(
                     inputBufferSize=input_buffer_size,
-                    inputSize=input_size,
-                    inputSec=output_sec,
-                    outputSize=output_size,
-                    outputSec=output_sec,
                     elapsedTime=elapsed_time,
-                    dataNum=1,
                 )
 
                 self.emit("status", "realtime_process_status", performance_data.model_dump(by_alias=True))
@@ -553,19 +520,12 @@ class VoiceChanger(EventEmitter):
         """
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
 
-        if self.vc_info.recording_start_flag is True:
-            self.input_record.append(waveform)
-
         if conf.pass_through is True or getattr(self, "vc_pipeline", None) is None:
             waveform_out = self._exec_resample_pass_through_in_out(waveform)
             if self.vc_info.recording_start_flag is True:
                 self.output_record.append(waveform_out / 32768 if waveform.dtype == np.int16 else waveform_out)
             if self.vc_info.monitor_enabled is True:
                 waveform_monitor = self._exec_resample_pass_through_in_monitor(waveform)
-                if self.vc_info.recording_start_flag is True:
-                    self.monitor_record.append(
-                        waveform_monitor / 32768 if waveform.dtype == np.int16 else waveform_monitor
-                    )
                 return (waveform_out, waveform_monitor)
             return (waveform_out, None)
 
@@ -641,8 +601,6 @@ class VoiceChanger(EventEmitter):
                     resampled_waveform_monitor = (resampled_waveform_monitor * 32768).astype(np.int16)
                 elif input_data_type == np.float32:
                     resampled_waveform_monitor = (resampled_waveform_monitor / 32768).astype(np.float32)
-            if self.vc_info.recording_start_flag is True:
-                self.monitor_record.append(resampled_waveform_monitor)
 
         return (resampled_waveform_out, resampled_waveform_monitor)
 

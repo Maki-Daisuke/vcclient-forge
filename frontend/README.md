@@ -24,8 +24,8 @@ during audio. Arming is local to the page and is cleared on a browser reload.
 In Server Mode recording starts after audio start is confirmed, so its initial audio may not
 be included. Client Mode arms backend recording before opening the microphone.
 After stopping, a nonempty output WAV is downloaded; an empty recording shows a notice.
-The backend stores input.wav, output.wav, and optionally monitor.wav at fixed paths,
-overwriting prior recordings. Audio is held in memory until recording stops.
+The backend stores output.wav at a fixed path, overwriting the previous recording.
+Audio is held in memory until recording stops.
 Passthrough may be toggled while recording. Failed recording saves are reported;
 the backend's recording state can become inconsistent after a save error, so a
 retry is not guaranteed to recover audio. Client Mode recording has been verified with real audio.

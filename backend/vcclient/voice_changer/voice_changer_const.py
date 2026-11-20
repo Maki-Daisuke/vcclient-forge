@@ -36,18 +36,11 @@ RVCInferencerOnnxVersion: TypeAlias = Literal["v1", "v1.1", "v2", "v2.1", "v2.2"
 EmbedderType: TypeAlias = Literal[
     "hubert_base_l9fp",
     "hubert_base_l12",
-    "contentvec",
     "hubert_base_japanese_l9fp",
     "hubert_base_japanese_l12",
-    "whisper",
-    "applio_japanese_hubert_base_l12",
-    "applio_chinese_hubert_base_l12",
-    "applio_korean_hubert_base_l12",
 ]
 
 PitchEstimatorType: TypeAlias = Literal[
-    "harvest",
-    "dio",
     "rmvpe",
     "fcpe",
 ]

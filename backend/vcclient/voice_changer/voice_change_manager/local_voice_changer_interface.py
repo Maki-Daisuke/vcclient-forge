@@ -145,8 +145,6 @@ class LocalVoiceChangerInterface(EventEmitter):
 
         realtime_output_status_data = {
             "realtimeOutputStatusSendIntervalSec": REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC,
-            "realtimeOutputStatusSendInterval": REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC
-            / local_voice_changer_callback_chunk_sec,
             "outputBufferSize": self.out_queue.qsize() * getattr(self, "output_block_size", 0),
             "inputRms": float(self.input_volume),
             "outputRms": float(self.output_volume),

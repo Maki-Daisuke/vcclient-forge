@@ -202,8 +202,8 @@ Defined in [`slot_manager_data_types.py`](../backend/vcclient/voice_changer/data
 | `index_ratio` | `number` | `0` | FAISS index blend ratio (`0.0`–`1.0`) |
 
 - **Allowed Literal Types**:
-  - `EmbedderType`: `"hubert_base_l9fp"`, `"hubert_base_l12"`, `"contentvec"`, `"hubert_base_japanese_l9fp"`, `"hubert_base_japanese_l12"`, `"whisper"`, `"applio_japanese_hubert_base_l12"`, `"applio_chinese_hubert_base_l12"`, `"applio_korean_hubert_base_l12"`.
-  - `PitchEstimatorType`: `"harvest"`, `"dio"`, `"rmvpe"`, `"fcpe"` (stored slots normalize to `"rmvpe"` or `"fcpe"`).
+  - `EmbedderType`: `"hubert_base_l9fp"`, `"hubert_base_l12"`, `"hubert_base_japanese_l9fp"`, `"hubert_base_japanese_l12"`.
+  - `PitchEstimatorType`: `"rmvpe"`, `"fcpe"` (stored slots normalize unsupported legacy values to `"rmvpe"`).
   - `InferencerType`: `"onnxRVC"`, `"onnxRVCNono"`.
   - `RVCInferencerOnnxVersion`: `"v1"`, `"v1.1"`, `"v2"`, `"v2.1"`, `"v2.2"`, `"v3.0"`.
 
@@ -310,7 +310,7 @@ Implemented in [`vcserver_rest_api_gpu_device_manager.py`](../backend/vcclient/s
 
 - **Query**: `reload: bool = False`. When `true`, re-probes platform hardware and rebuilds the catalog.
 - **Response (`200`, `list[DeviceConfig]`)**: Sequential catalog where `id = 0` is always host CPU:
-  - `id` (`int`), `canonical_id` (`str`, e.g. `"cpu"`, `"cuda:0"`, `"dml:0"`, `"openvino:gpu:0"`), `provider` (`"cpu" | "cuda" | "directml" | "openvino" | "coreml"`), `device_index` (`int`), `device_type` (`"CPU" | "GPU" | "NPU"`), `name` (`str`), `adapter_ram` (`int`, bytes), `metadata` (`object`), plus computed compatibility fields `device_id_int` (`id`) and `device_id` (`canonical_id`).
+  - `id` (`int`), `canonical_id` (`str`, e.g. `"cpu"`, `"cuda:0"`, `"dml:0"`, `"openvino:gpu:0"`), `provider` (`"cpu" | "cuda" | "directml" | "openvino" | "coreml"`), `device_index` (`int`), `device_type` (`"CPU" | "GPU" | "NPU"`), `name` (`str`), `adapter_ram` (`int`, bytes), `metadata` (`object`).
 
 ---
 
@@ -323,9 +323,9 @@ Implemented in [`vcserver_websocket.py`](../backend/vcclient/server/vcserver_web
 - **Behavior**: Accepts connection with a per-client bounded queue (`STATUS_QUEUE_MAXSIZE = 32`, dropping oldest queued message when full). Any incoming client messages are ignored (read loop exists to detect disconnects). Closed with code `1001` on server shutdown.
 - **Message Format (JSON text frames)**: `{"type": "<event_type>", "data": {...}}`.
   - **`realtime_output_status`** (emitted in Server Mode when `realtime_output_status_enabled` is `true`):
-    - `realtimeOutputStatusSendIntervalSec` (`float`), `realtimeOutputStatusSendInterval` (`float`, computed as `REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC / 0.01`), `outputBufferSize` (`int`, queued sample count), `inputRms` (`float`), `outputRms` (`float`).
+    - `realtimeOutputStatusSendIntervalSec` (`float`), `outputBufferSize` (`int`, queued sample count), `inputRms` (`float`), `outputRms` (`float`).
   - **`realtime_process_status`** (emitted when both `realtime_process_status_enabled` and `enable_performance_monitor` are `true`):
-    - `PerformanceData` serialized with aliases: `inputBufferSize` (`float`), `inputSize` (`float`), `inputSec` (`float`), `outputSize` (`float`), `outputSec` (`float`), `elapsedTime` (`float`), `input_volume_db` (`float`), `output_volume_db` (`float`), `dataNum` (`int`).
+    - `PerformanceData` serialized with aliases: `inputBufferSize` (`float`), `elapsedTime` (`float`).
 
 ### 8.2 `WS /api/ws/audio` (Client Mode Streaming PCM)
 

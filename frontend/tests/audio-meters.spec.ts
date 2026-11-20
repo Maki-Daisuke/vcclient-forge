@@ -175,15 +175,15 @@ test('displays the most recent valid conversion time independently of buffer dat
   await expect.poll(() => Boolean(socket())).toBe(true);
   const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
   await expect(value).toHaveText('—');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05 });
   await expect(value).toHaveText('0.050 s');
-  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 0, elapsedTime: 0.3, outputSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 0, elapsedTime: 0.3 });
   await expect(value).toHaveText('0.300 s');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 1, outputSec: 0 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 1 });
   await expect(value).toHaveText('1.000 s');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: -1, outputSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: -1 });
   await expect(value).toHaveText('1.000 s');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0, outputSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0 });
   await expect(value).toHaveText('0.000 s');
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(value).toHaveText('—');
@@ -198,7 +198,7 @@ test('clears stale conversion time even when input-buffer updates continue', asy
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
   const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05 });
   await expect(value).toHaveText('0.050 s');
   await page.clock.fastForward(1_500);
   sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 4800 });
@@ -217,7 +217,7 @@ test('does not display conversion time when performance monitoring is disabled',
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
   const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05 });
   await expect(value).toHaveText('—');
 });
 
@@ -232,7 +232,7 @@ test('keeps conversion time between measurements when the chunk is longer than t
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
   const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
-  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 1, outputSec: 5 });
+  sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 1 });
   await expect(value).toHaveText('1.000 s');
   await page.clock.fastForward(5_100);
   await expect(value).toHaveText('1.000 s');

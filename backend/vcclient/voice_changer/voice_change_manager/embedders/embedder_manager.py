@@ -39,23 +39,15 @@ class EmbedderManager:
         """
         if embedder_type == "hubert_base_l9fp":
             file = get_module_filepath("contentvec-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 9)
+            return ContentvecOnnx().load_model(file, target, 9, embedder_type=embedder_type)
         elif embedder_type == "hubert_base_l12":
             file = get_module_filepath("contentvec-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 12)
+            return ContentvecOnnx().load_model(file, target, 12, embedder_type=embedder_type)
         elif embedder_type == "hubert_base_japanese_l9fp":
             file = get_module_filepath("rinna_hubert_base-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 9)
+            return ContentvecOnnx().load_model(file, target, 9, embedder_type=embedder_type)
         elif embedder_type == "hubert_base_japanese_l12":
             file = get_module_filepath("rinna_hubert_base-f.onnx")
-            return ContentvecOnnx().load_model(file, target, 12)
-        elif embedder_type in (
-            "applio_japanese_hubert_base_l12",
-            "applio_chinese_hubert_base_l12",
-            "applio_korean_hubert_base_l12",
-        ):
-            raise RuntimeError(
-                f"Applio embedder '{embedder_type}' with PyTorch format is not supported in pure-ONNX runtime."
-            )
+            return ContentvecOnnx().load_model(file, target, 12, embedder_type=embedder_type)
         else:
             raise RuntimeError(f"Unknown Embedder {embedder_type}")
