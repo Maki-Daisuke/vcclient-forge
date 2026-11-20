@@ -127,7 +127,6 @@ Imports a new RVC model into a vacant slot in a single request (`multipart/form-
 | `index_file` | File | No | `.index`, non-empty |
 | `icon_file` | File | No | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif`, `.bmp`; non-empty; `Content-Type` (if set) must start with `image/` or equal `application/octet-stream` |
 | `slot_index` | Form int | No | `0 <= slot_index < 199`; assigns lowest blank slot when omitted |
-| `terms_of_use_url` | Form string | No | Default `""` |
 | `embedder` | Form string | No | `EmbedderType`; overrides auto-detected embedder when supplied |
 
 - **Execution & Cleanup**:
@@ -182,7 +181,7 @@ Both routes share `_organize_models()` (`lifecycle_lock`) and [`ModelTransaction
 
 Defined in [`slot_manager_data_types.py`](../backend/vcclient/voice_changer/data_types/slot_manager_data_types.py) and [`voice_changer_const.py`](../backend/vcclient/voice_changer/voice_changer_const.py):
 
-- **`SlotInfo` (base / empty / broken)**: `slot_index: int = -1`, `voice_changer_type: "RVC" | "RESERVED_FOR_SAMPLE" | "BROKEN" | null = null`, `name: str = ""`, `description: str = ""`, `credit: str = ""`, `terms_of_use_url: str = ""`, `icon_file: str | null = null`.
+- **`SlotInfo` (base / empty / broken)**: `slot_index: int = -1`, `voice_changer_type: "RVC" | "RESERVED_FOR_SAMPLE" | "BROKEN" | null = null`, `name: str = ""`, `icon_file: str | null = null`.
 - **`ReservedForSampleSlotInfo`** (extends `SlotInfo`): `voice_changer_type: "RESERVED_FOR_SAMPLE"`, `progress: float`.
 - **`RVCSlotInfo`** (extends `SlotInfo`):
 
@@ -226,7 +225,7 @@ Implemented in [`vcserver_rest_api_configuration_manager.py`](../backend/vcclien
   1. Normalizes `gpu_device_id_int` via `get_device()`.
   2. Rejects `voice_changer_input_mode` changes while `LocalVoiceChangerInterface.stop_flag is False` (`VCClientError` `100` -> `422`).
   3. Transitions on `recording_started` invoke `VoiceChanger.get_instance().start_recording()` or `stop_recording()`.
-  4. If audio device indices, device sample rates, or `wasapi_exclude_emabled` change, validates explicitly selected device/sample-rate pairs (`201`–`203`), even when native audio is stopped. If `local_voice_changer_enabled` is `True`, also validates non-`-1` input/output devices (`204`, `205`), stops native audio before the sample-rate checks, and calls `setup()` and `start()` in `finally`.
+  4. If audio device indices, device sample rates, or `wasapi_exclusive_enabled` change, validates explicitly selected device/sample-rate pairs (`201`–`203`), even when native audio is stopped. If `local_voice_changer_enabled` is `True`, also validates non-`-1` input/output devices (`204`, `205`), stops native audio before the sample-rate checks, and calls `setup()` and `start()` in `finally`.
   5. Preserves current runtime `input_sample_rate`, `output_sample_rate`, and `monitor_sample_rate` (client-supplied values for those three fields are overwritten by current in-memory values).
   6. Writes `settings/vc_conf.json` excluding `pass_through` and `recording_started`.
   7. Calls `VoiceChanger.get_instance().check_and_update_pipeline()`.
@@ -245,21 +244,17 @@ Implemented in [`vcserver_rest_api_configuration_manager.py`](../backend/vcclien
 | `high_pass_filter_cutoff` | `number` | `100` | High-pass cutoff frequency (Hz) |
 | `enable_low_pass_filter` | `boolean` | `true` | Output low-pass filter toggle |
 | `low_pass_filter_cutoff` | `number` | `12000` | Low-pass cutoff frequency (Hz) |
-| `volume_tuning_type` | `string` | `"sqrt"` | Volume scaling mode |
 | `audio_input_device_index` | `integer` | `-1` | Server Mode PortAudio input index (`-1` = unselected) |
 | `audio_output_device_index` | `integer` | `-1` | Server Mode PortAudio output index (`-1` = unselected) |
 | `audio_monitor_device_index` | `integer` | `-1` | Server Mode PortAudio monitor index (`-1` = disabled) |
-| `wasapi_exclude_emabled` | `boolean` | `false` | WASAPI exclusive flag (legacy spelling preserved) |
+| `wasapi_exclusive_enabled` | `boolean` | `false` | WASAPI exclusive flag (accepts legacy `wasapi_exclude_emabled` on read via Pydantic `AliasChoices`) |
 | `audio_input_device_sample_rate` | `integer` | `-1` | Input device sample rate (`-1` = device default) |
 | `audio_output_device_sample_rate` | `integer` | `-1` | Output device sample rate (`-1` = device default) |
 | `audio_monitor_device_sample_rate` | `integer` | `-1` | Monitor device sample rate (`-1` = device default) |
 | `audio_input_device_gain` | `number` | `2` | Server Mode input gain multiplier |
 | `audio_output_device_gain` | `number` | `1` | Server Mode output gain multiplier |
-| `server_device_trancate_buffer_ratio` | `number` | `1` | Server buffer truncate ratio (legacy spelling preserved) |
-| `realtime_process_status_enabled` | `boolean` | `true` | Controls `realtime_process_status` emission |
-| `realtime_process_status_send_interval_sec` | `number` | `1.0` | Configured interval for process telemetry |
-| `realtime_output_status_enabled` | `boolean` | `true` | Controls `realtime_output_status` emission |
-| `realtime_output_status_send_interval_sec` | `number` | `0.2` | Server Mode output meter interval (s) |
+| `realtime_process_status_enabled` | `boolean` | `true` | Controls `realtime_process_status` emission (fixed `1.0` s interval constant) |
+| `realtime_output_status_enabled` | `boolean` | `true` | Controls `realtime_output_status` emission (fixed `0.2` s interval constant) |
 | `noise_gate` | `number` | `-35` | Gate threshold in dB (`<= -100` bypasses gate) |
 | `extra_frame_sec` | `number` | `0.5` | Extra context window length (s) |
 | `gpu_device_id_int` | `integer` | `0` | Compute device catalog index (`0` = CPU) |
@@ -328,7 +323,7 @@ Implemented in [`vcserver_websocket.py`](../backend/vcclient/server/vcserver_web
 - **Behavior**: Accepts connection with a per-client bounded queue (`STATUS_QUEUE_MAXSIZE = 32`, dropping oldest queued message when full). Any incoming client messages are ignored (read loop exists to detect disconnects). Closed with code `1001` on server shutdown.
 - **Message Format (JSON text frames)**: `{"type": "<event_type>", "data": {...}}`.
   - **`realtime_output_status`** (emitted in Server Mode when `realtime_output_status_enabled` is `true`):
-    - `realtimeOutputStatusSendIntervalSec` (`float`), `realtimeOutputStatusSendInterval` (`float`, computed as `realtime_output_status_send_interval_sec / 0.01`), `outputBufferSize` (`int`, queued sample count), `inputRms` (`float`), `outputRms` (`float`).
+    - `realtimeOutputStatusSendIntervalSec` (`float`), `realtimeOutputStatusSendInterval` (`float`, computed as `REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC / 0.01`), `outputBufferSize` (`int`, queued sample count), `inputRms` (`float`), `outputRms` (`float`).
   - **`realtime_process_status`** (emitted when both `realtime_process_status_enabled` and `enable_performance_monitor` are `true`):
     - `PerformanceData` serialized with aliases: `inputBufferSize` (`float`), `inputSize` (`float`), `inputSec` (`float`), `outputSize` (`float`), `outputSec` (`float`), `elapsedTime` (`float`), `input_volume_db` (`float`), `output_volume_db` (`float`), `dataNum` (`int`).
 

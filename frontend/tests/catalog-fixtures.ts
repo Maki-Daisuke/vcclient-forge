@@ -4,14 +4,14 @@ import { expect, type Page, type Route } from '@playwright/test';
 export const slots = [
   {
     slot_index: 7, voice_changer_type: 'RVC', name: 'Test model B',
-    description: 'Description of the selected model', icon_file: 'C:\\old\\portrait #1.png',
+    icon_file: 'C:\\old\\portrait #1.png',
     is_onnx: false, is_f0: false, version: 'v1', embedder: 'hubert_base_l12',
     pitch_shift: -5, index_ratio: 0.63, pitch_estimator: 'rmvpe', chunk_sec: 0.3,
   },
   { slot_index: 0, voice_changer_type: null },
   {
     slot_index: 2, voice_changer_type: 'RVC', name: 'Test model A',
-    description: '', icon_file: null,
+    icon_file: null,
     is_onnx: true, is_f0: true, version: 'v2', embedder: 'contentvec',
     pitch_shift: 3, index_ratio: 0.25, pitch_estimator: 'fcpe', chunk_sec: 0.5,
   },
@@ -30,7 +30,7 @@ export const configuration = {
   audio_monitor_device_sample_rate: -1,
   input_sample_rate: 48000,
   gpu_device_id_int: 2,
-  wasapi_exclude_emabled: true,
+  wasapi_exclusive_enabled: true,
   enable_high_pass_filter: true,
   high_pass_filter_cutoff: 140,
   enable_low_pass_filter: false,
@@ -38,10 +38,8 @@ export const configuration = {
   noise_gate: -55,
   extra_frame_sec: 0.68,
   realtime_output_status_enabled: true,
-  realtime_output_status_send_interval_sec: 0.4,
   enable_performance_monitor: true,
   realtime_process_status_enabled: false,
-  realtime_process_status_send_interval_sec: 2.2,
 };
 
 export const computeDevices = [

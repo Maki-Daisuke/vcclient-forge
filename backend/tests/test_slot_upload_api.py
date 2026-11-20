@@ -89,7 +89,7 @@ def test_post_slot_onnx_with_optional_index_and_icon(upload_env):
 
     res = client.post(
         "/api/slot-manager/slots",
-        data={"name": "  MyVoice  ", "voice_changer_type": "RVC", "terms_of_use_url": "https://example.com"},
+        data={"name": "  MyVoice  ", "voice_changer_type": "RVC"},
         files=[
             ("model_file", ("voice.onnx", b"onnx-binary-payload", "application/octet-stream")),
             ("index_file", ("voice.index", b"index-payload", "application/octet-stream")),
@@ -101,7 +101,7 @@ def test_post_slot_onnx_with_optional_index_and_icon(upload_env):
     body = res.json()
     assert body["slot_index"] == 0
     assert body["name"] == "MyVoice"
-    assert body["terms_of_use_url"] == "https://example.com"
+    assert "terms_of_use_url" not in body
     assert body["model_file"].startswith("model_") and body["model_file"].endswith(".onnx")
     assert body["index_file"].startswith("index_") and body["index_file"].endswith(".index")
     assert body["icon_file"].startswith("icon_") and body["icon_file"].endswith(".png")

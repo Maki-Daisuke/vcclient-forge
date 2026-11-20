@@ -15,7 +15,6 @@ class ModelImportParam(BaseModel):
 
     voice_changer_type: VoiceChangerType
     name: str
-    terms_of_use_url: str = ""
     slot_index: int | None = None
     icon_file: Path | None = None
 
@@ -36,9 +35,6 @@ class SlotInfo(BaseModel):
     slot_index: int = -1
     voice_changer_type: VoiceChangerType | None = None
     name: str = ""
-    description: str = ""
-    credit: str = ""
-    terms_of_use_url: str = ""
     icon_file: Path | None = None
 
 

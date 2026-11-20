@@ -62,9 +62,6 @@ def onnx_v3_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
     return RVCSlotInfo(
         slot_index=-1,
         name="",
-        description="",
-        credit="",
-        terms_of_use_url="",
         icon_file=None,
         model_file=Path(model_path.name),
         index_file=None,
@@ -127,9 +124,6 @@ def onnx_v2_x(metadata: dict[str, Any], model_path: Path) -> RVCSlotInfo:
     return RVCSlotInfo(
         slot_index=-1,
         name="",
-        description="",
-        credit="",
-        terms_of_use_url="",
         icon_file=None,
         model_file=Path(model_path.name),
         index_file=None,

@@ -71,7 +71,6 @@ def import_model(model_dir: Path, model_importer_param: ModelImportParamMember, 
             slot_info.icon_file = (
                 Path(model_importer_param.icon_file.name) if model_importer_param.icon_file is not None else None
             )
-            slot_info.terms_of_use_url = model_importer_param.terms_of_use_url
             if model_importer_param.embedder is not None:
                 slot_info.embedder = model_importer_param.embedder
         else:

@@ -22,6 +22,7 @@ from ..audio_device_manager import (
 )
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..event_emitter import EventEmitter
+from ..voice_changer_const import REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC
 from .voice_changer import VoiceChanger
 
 local_voice_changer_callback_chunk_sec = 0.01
@@ -142,10 +143,9 @@ class LocalVoiceChangerInterface(EventEmitter):
         self.input_volume = self.calc_vol(input_combined_data, self.input_volume)
         self.output_volume = self.calc_vol(output_combined_data, self.output_volume)
 
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         realtime_output_status_data = {
-            "realtimeOutputStatusSendIntervalSec": conf.realtime_output_status_send_interval_sec,
-            "realtimeOutputStatusSendInterval": conf.realtime_output_status_send_interval_sec
+            "realtimeOutputStatusSendIntervalSec": REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC,
+            "realtimeOutputStatusSendInterval": REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC
             / local_voice_changer_callback_chunk_sec,
             "outputBufferSize": self.out_queue.qsize() * getattr(self, "output_block_size", 0),
             "inputRms": float(self.input_volume),
@@ -240,7 +240,7 @@ class LocalVoiceChangerInterface(EventEmitter):
         )
         logger.info("block size:%s, %s, %s", self.input_block_size, self.output_block_size, self.monitor_block_size)
 
-        exclusive_mode = getattr(conf, "wasapi_exclusive_enabled", getattr(conf, "wasapi_exclude_emabled", False))
+        exclusive_mode = conf.wasapi_exclusive_enabled
         logger.info("wasapi_exclusive_enabled:%s", exclusive_mode)
 
         input_audio_device = get_audio_input_device(conf.audio_input_device_index)
@@ -380,8 +380,7 @@ class LocalVoiceChangerInterface(EventEmitter):
     def audio_output_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
-            buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
-            buffer_for_trancate = max(buffer_for_trancate, 3)
+            buffer_for_trancate = max(self.split_length, 3)
 
             if self.out_queue.qsize() > self.split_length + buffer_for_trancate:
                 drop_count = self.out_queue.qsize()
@@ -418,7 +417,7 @@ class LocalVoiceChangerInterface(EventEmitter):
                 self.output_volume_calculation_buffer.append(outdata[:, 0].copy())
                 self.process_call_counter += 1
                 if self.process_call_counter >= (
-                    conf.realtime_output_status_send_interval_sec / local_voice_changer_callback_chunk_sec
+                    REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC / local_voice_changer_callback_chunk_sec
                 ):
                     self.calculate_and_send_realtime_output_status()
                     self.process_call_counter = 0
@@ -426,8 +425,7 @@ class LocalVoiceChangerInterface(EventEmitter):
     def audio_monitor_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         try:
-            buffer_for_trancate = self.split_length * conf.server_device_trancate_buffer_ratio
-            buffer_for_trancate = max(buffer_for_trancate, 3)
+            buffer_for_trancate = max(self.split_length, 3)
 
             if self.monitor_queue.qsize() > self.split_length + buffer_for_trancate:
                 drop_count = self.monitor_queue.qsize()

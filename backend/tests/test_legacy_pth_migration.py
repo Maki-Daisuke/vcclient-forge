@@ -128,14 +128,19 @@ def test_migration_converts_legacy_pth_slot_with_params_json(dummy_rvc_pth: Path
     assert slot_info.inferencer_type == "onnxRVC"
     assert slot_info.model_file == Path(expected_onnx.name)
     assert slot_info.name == "My Migrated Character"
-    assert slot_info.description == "Imported from upstream v2.0.78"
     assert slot_info.pitch_shift == 12
     assert slot_info.index_ratio == 0.8
+    assert not hasattr(slot_info, "description")
+    assert not hasattr(slot_info, "credit")
+    assert not hasattr(slot_info, "terms_of_use_url")
     assert not hasattr(slot_info, "protect_ratio")
     assert not hasattr(slot_info, "speakers")
     assert not hasattr(slot_info, "deprecated")
     assert not hasattr(slot_info, "sample_id")
     dumped = slot_info.model_dump()
+    assert "description" not in dumped
+    assert "credit" not in dumped
+    assert "terms_of_use_url" not in dumped
     assert "protect_ratio" not in dumped
     assert "speakers" not in dumped
     assert "deprecated" not in dumped

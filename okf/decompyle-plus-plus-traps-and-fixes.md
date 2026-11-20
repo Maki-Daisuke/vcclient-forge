@@ -109,7 +109,7 @@ Safely return `self.vc_info` (which holds a valid `VoiceChangerInformation` stru
 On certain audio hardware (e.g., Razer Barracuda Pro 2.4 GHz wireless), opening a stream in WASAPI exclusive mode caused `PortAudioError: Invalid sample rate [-9997]`.
 
 ### Root Cause
-The original configuration defaulted `wasapi_exclude_emabled` to `True`; its maintained definition is in [`data_types.py`](../backend/vcclient/voice_changer/data_types/data_types.py). Exclusive mode forces strict sample rate matching that hardware drivers frequently reject.
+The original configuration defaulted `wasapi_exclude_emabled` (now `wasapi_exclusive_enabled` with legacy alias support in [`data_types.py`](../backend/vcclient/voice_changer/data_types/data_types.py)) to `True`. Exclusive mode forces strict sample rate matching that hardware drivers frequently reject.
 
 ### Fix
-Changed default `wasapi_exclude_emabled: bool` to `False` (Shared Mode), allowing the Windows Audio Engine mixer to handle sample rate bridging transparently.
+Changed default `wasapi_exclusive_enabled: bool` to `False` (Shared Mode), allowing the Windows Audio Engine mixer to handle sample rate bridging transparently.

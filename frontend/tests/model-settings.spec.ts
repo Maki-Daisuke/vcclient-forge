@@ -203,12 +203,12 @@ test('retains a failed model draft and retries the same slot against fresh data'
   await pitch(page).press('End');
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeDisabled();
   expect(state.modelWrites).toHaveLength(1);
-  state.models[0].description = 'New backend description';
+  state.models[0].name = 'New backend name';
   state.modelStatus = 200;
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await saved(page);
-  expect(state.modelWrites[1]).toMatchObject({ id: 7, data: { slot_index: 7, pitch_shift: 24, description: 'New backend description' } });
-  expect(state.models[0].description).toBe('New backend description');
+  expect(state.modelWrites[1]).toMatchObject({ id: 7, data: { slot_index: 7, pitch_shift: 24, name: 'New backend name' } });
+  expect(state.models[0].name).toBe('New backend name');
   expect(state.writes).toHaveLength(0);
 });
 

@@ -19,9 +19,7 @@ export interface ConfigurationSnapshot {
   noiseGate: number | null;
   extraSeconds: number | null;
   ioAnalysisEnabled: boolean | null;
-  ioAnalysisInterval: number | null;
   processAnalysisEnabled: boolean | null;
-  processAnalysisInterval: number | null;
   performanceMonitorEnabled: boolean | null;
 }
 

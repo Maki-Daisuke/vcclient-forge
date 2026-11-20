@@ -84,12 +84,24 @@ def test_configuration_ignores_legacy_removed_fields(tmp_path, monkeypatch):
     assert "sio_broadcast" not in data
     assert "audio_monitor_device_gain" not in data
     assert "sola_search_frame_sec" not in data
+    assert "volume_tuning_type" not in data
+    assert "server_device_trancate_buffer_ratio" not in data
+    assert "realtime_process_status_send_interval_sec" not in data
+    assert "realtime_output_status_send_interval_sec" not in data
+    assert "wasapi_exclude_emabled" not in data
+    assert data["wasapi_exclusive_enabled"] is False
 
     # Add legacy removed fields and verify deserialization ignores them safely
     data["crossfade_sec"] = 0.052
     data["sio_broadcast"] = True
     data["audio_monitor_device_gain"] = 0.75
     data["sola_search_frame_sec"] = 0.012
+    data["volume_tuning_type"] = "linear"
+    data["server_device_trancate_buffer_ratio"] = 2.0
+    data["realtime_process_status_send_interval_sec"] = 0.5
+    data["realtime_output_status_send_interval_sec"] = 0.5
+    data.pop("wasapi_exclusive_enabled")
+    data["wasapi_exclude_emabled"] = True
     test_conf_path.write_text(json.dumps(data), encoding="utf-8")
 
     cm = ConfigurationManager()
@@ -97,6 +109,12 @@ def test_configuration_ignores_legacy_removed_fields(tmp_path, monkeypatch):
     assert not hasattr(cm.voice_changer_configuration, "sio_broadcast")
     assert not hasattr(cm.voice_changer_configuration, "audio_monitor_device_gain")
     assert not hasattr(cm.voice_changer_configuration, "sola_search_frame_sec")
+    assert not hasattr(cm.voice_changer_configuration, "volume_tuning_type")
+    assert not hasattr(cm.voice_changer_configuration, "server_device_trancate_buffer_ratio")
+    assert not hasattr(cm.voice_changer_configuration, "realtime_process_status_send_interval_sec")
+    assert not hasattr(cm.voice_changer_configuration, "realtime_output_status_send_interval_sec")
+    assert not hasattr(cm.voice_changer_configuration, "wasapi_exclude_emabled")
+    assert cm.voice_changer_configuration.wasapi_exclusive_enabled is True
 
 
 def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
@@ -115,11 +133,23 @@ def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
     assert "sio_broadcast" not in config_dict
     assert "audio_monitor_device_gain" not in config_dict
     assert "sola_search_frame_sec" not in config_dict
+    assert "volume_tuning_type" not in config_dict
+    assert "server_device_trancate_buffer_ratio" not in config_dict
+    assert "realtime_process_status_send_interval_sec" not in config_dict
+    assert "realtime_output_status_send_interval_sec" not in config_dict
+    assert "wasapi_exclude_emabled" not in config_dict
+    assert "wasapi_exclusive_enabled" in config_dict
 
     # Simulate legacy client sending removed fields in PUT
     config_dict["crossfade_sec"] = 0.052
     config_dict["sio_broadcast"] = True
     config_dict["audio_monitor_device_gain"] = 0.75
     config_dict["sola_search_frame_sec"] = 0.012
+    config_dict["volume_tuning_type"] = "linear"
+    config_dict["server_device_trancate_buffer_ratio"] = 2.0
+    config_dict["realtime_process_status_send_interval_sec"] = 0.5
+    config_dict["realtime_output_status_send_interval_sec"] = 0.5
+    config_dict.pop("wasapi_exclusive_enabled")
+    config_dict["wasapi_exclude_emabled"] = False
     put_res = test_client.put("/api/configuration-manager/configuration", json=config_dict)
     assert put_res.status_code == 200

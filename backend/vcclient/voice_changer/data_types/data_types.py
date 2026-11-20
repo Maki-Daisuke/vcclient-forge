@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from ..voice_changer_const import AudioDeviceType, InferencerType, VoiceChangerInputMode, VoiceChangerType
 
@@ -39,21 +39,20 @@ class VoiceChangerConfiguration(BaseModel):
     high_pass_filter_cutoff: float = 100
     enable_low_pass_filter: bool = True
     low_pass_filter_cutoff: float = 12000
-    volume_tuning_type: str = "sqrt"
     audio_input_device_index: int = -1
     audio_output_device_index: int = -1
     audio_monitor_device_index: int = -1
-    wasapi_exclude_emabled: bool = False
+    wasapi_exclusive_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("wasapi_exclusive_enabled", "wasapi_exclude_emabled"),
+    )
     audio_input_device_sample_rate: int = -1
     audio_output_device_sample_rate: int = -1
     audio_monitor_device_sample_rate: int = -1
     audio_input_device_gain: float = 2
     audio_output_device_gain: float = 1
-    server_device_trancate_buffer_ratio: float = 1
     realtime_process_status_enabled: bool = True
-    realtime_process_status_send_interval_sec: float = 1.0
     realtime_output_status_enabled: bool = True
-    realtime_output_status_send_interval_sec: float = 0.2
     noise_gate: float = -35
     extra_frame_sec: float = 0.5
     gpu_device_id_int: int = 0
@@ -93,10 +92,7 @@ class SampleInfo(BaseModel):
     lang: str
     tag: list[str]
     name: str
-    terms_of_use_url: str
     icon_url: str | None = None
-    credit: str
-    description: str
 
 
 class RVCSampleInfo(SampleInfo):

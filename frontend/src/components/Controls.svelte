@@ -68,8 +68,7 @@
   const showStartMessage = $derived(!showStop && !session.canStart && !!startMessage);
   $effect(() => {
     meters.setEnabled(session.active === true, settings?.inputMode === 'server' && settings?.ioAnalysisEnabled === true,
-      settings?.processAnalysisEnabled === true && settings?.performanceMonitorEnabled === true, settings?.ioAnalysisInterval ?? null,
-      settings?.processAnalysisInterval ?? null, modelSettings?.chunkSeconds ?? null);
+      settings?.processAnalysisEnabled === true && settings?.performanceMonitorEnabled === true, modelSettings?.chunkSeconds ?? null);
   });
   $effect(() => {
     if (session.active !== true || settings?.inputMode !== 'client' || session.realtimeDisplayEnabled !== true) {

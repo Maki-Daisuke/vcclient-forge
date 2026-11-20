@@ -63,7 +63,7 @@ and settings writes remain disabled.
 The existing catalog/configuration GET pair also supplies the configuration
 snapshot in `frontend/src/lib/settings.ts`. Input/output/monitor gains, mode,
 native device/GPU IDs, filters,
-cutoffs, noise gate, extra context, and analysis switches/intervals now populate
+cutoffs, noise gate, extra context, and analysis switches now populate
 the controls. Selected-model pitch/index/estimator/embedder/chunk settings are
 mapped from the slot response. Missing fields remain null and display `—` or an
 indeterminate checkbox, rather than sample defaults. Browser-only preferences

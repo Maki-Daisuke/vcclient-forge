@@ -72,7 +72,6 @@ test('uses fresh device rates for independent input and output buffer histories'
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.config.realtime_process_status_send_interval_sec = 0.1;
   state.config.output_sample_rate = 48000;
   const socket = await mockSocket(page);
   await page.goto('/');
@@ -94,9 +93,9 @@ test('uses fresh device rates for independent input and output buffer histories'
   await clear.click();
   await expect(page.locator('.buffer-chart polyline')).toHaveCount(0);
   await expect(metrics.nth(0)).toContainText('0.200 s');
-  sendEvent(socket()!, 'realtime_output_status', { inputRms: 0.1, outputRms: 0.2, outputBufferSize: 6400, realtimeOutputStatusSendIntervalSec: 1 });
+  sendEvent(socket()!, 'realtime_output_status', { inputRms: 0.1, outputRms: 0.2, outputBufferSize: 6400, realtimeOutputStatusSendIntervalSec: 2 });
   await expect(metrics.nth(1)).toContainText('0.200 s');
-  await expect(metrics.nth(0)).toContainText('—', { timeout: 4000 });
+  await expect(metrics.nth(0)).toContainText('—', { timeout: 5000 });
   await expect(metrics.nth(1)).toContainText('0.200 s');
 });
 
@@ -171,7 +170,6 @@ test('displays the most recent valid conversion time independently of buffer dat
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.config.realtime_process_status_send_interval_sec = 0.1;
   const socket = await mockSocket(page);
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
@@ -195,7 +193,6 @@ test('clears stale conversion time even when input-buffer updates continue', asy
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.config.realtime_process_status_send_interval_sec = 0.1;
   const socket = await mockSocket(page);
   await page.clock.install();
   await page.goto('/');
@@ -203,10 +200,10 @@ test('clears stale conversion time even when input-buffer updates continue', asy
   const value = page.getByText('変換時間', { exact: true }).locator('..').locator('dd');
   sendEvent(socket()!, 'realtime_process_status', { elapsedTime: 0.05, outputSec: 0.2 });
   await expect(value).toHaveText('0.050 s');
-  await page.clock.fastForward(1_000);
+  await page.clock.fastForward(1_500);
   sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 4800 });
   await expect(page.locator('.performance dl > div').first()).toContainText('0.100 s');
-  await page.clock.fastForward(1_100);
+  await page.clock.fastForward(1_600);
   await expect(value).toHaveText('—');
   await expect(page.locator('.performance dl > div').first()).toContainText('0.100 s');
 });
@@ -229,7 +226,6 @@ test('keeps conversion time between measurements when the chunk is longer than t
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.config.realtime_process_status_send_interval_sec = 0.1;
   state.models.find(model => model.slot_index === 7)!.chunk_sec = 5;
   const socket = await mockSocket(page);
   await page.clock.install();

@@ -182,7 +182,6 @@ class RestAPISlotManager:
         index_file: UploadFile | None = File(None),
         icon_file: UploadFile | None = File(None),
         slot_index: int | None = Form(None),
-        terms_of_use_url: str = Form(""),
         embedder: str | None = Form(None),
     ) -> SlotInfoMember:
         if voice_changer_type != "RVC":
@@ -223,7 +222,6 @@ class RestAPISlotManager:
                 import_kwargs: dict[str, object] = {
                     "voice_changer_type": "RVC",
                     "name": normalized_name,
-                    "terms_of_use_url": terms_of_use_url,
                     "slot_index": slot_index,
                     "model_file": model_path,
                     "index_file": index_path,

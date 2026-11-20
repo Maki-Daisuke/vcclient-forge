@@ -84,7 +84,7 @@ class ConfigurationManager:
             or conf.audio_monitor_device_index != self.voice_changer_configuration.audio_monitor_device_index
             or conf.audio_monitor_device_sample_rate
             != self.voice_changer_configuration.audio_monitor_device_sample_rate
-            or conf.wasapi_exclude_emabled != self.voice_changer_configuration.wasapi_exclude_emabled
+            or conf.wasapi_exclusive_enabled != self.voice_changer_configuration.wasapi_exclusive_enabled
         ):
             change_audio = True
 

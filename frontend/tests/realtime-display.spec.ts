@@ -23,8 +23,6 @@ test('switches both backend analysis settings while audio is running and preserv
   await setting.uncheck();
   await expect.poll(() => state.config.realtime_output_status_enabled).toBe(false);
   expect(state.config.realtime_process_status_enabled).toBe(false);
-  expect(state.config.realtime_output_status_send_interval_sec).toBe(0.4);
-  expect(state.config.realtime_process_status_send_interval_sec).toBe(2.2);
   await expect(page.locator('.meter > span').first()).toHaveAttribute('style', /--empty:\s*100%/);
   for (const value of await page.locator('.performance dl dd').all()) await expect(value).toHaveText('—');
   await setting.check();

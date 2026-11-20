@@ -9,9 +9,9 @@ test('disables a saved exclusive setting before starting native audio', async ({
   await expect(page.getByText('保存設定では排他モードが有効です。音声を開始する前に無効にします。')).toBeVisible();
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
-  expect(state.writes[0]).toMatchObject({ wasapi_exclude_emabled: false, future_setting: { keep: [1, 2] } });
+  expect(state.writes[0]).toMatchObject({ wasapi_exclusive_enabled: false, future_setting: { keep: [1, 2] } });
   expect(state.operations).toEqual(['start']);
-  expect(state.config.wasapi_exclude_emabled).toBe(false);
+  expect(state.config.wasapi_exclusive_enabled).toBe(false);
 });
 
 test('does not change exclusive settings while existing audio is running', async ({ page }) => {
@@ -30,5 +30,5 @@ test('does not start when disabling the saved exclusive setting fails', async ({
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('HTTP 503');
   expect(state.operations).not.toContain('start');
-  expect(state.config.wasapi_exclude_emabled).toBe(true);
+  expect(state.config.wasapi_exclusive_enabled).toBe(true);
 });

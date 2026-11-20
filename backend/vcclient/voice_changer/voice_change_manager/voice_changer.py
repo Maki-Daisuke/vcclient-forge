@@ -25,6 +25,7 @@ from ..slot_manager.slot_manager import SlotManager
 from ..voice_changer_const import (
     CROSSFADE_SEC,
     GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE,
+    REALTIME_PROCESS_STATUS_SEND_INTERVAL_SEC,
     SOLA_SEARCH_FRAME_SEC,
     PitchEstimatorType,
 )
@@ -495,7 +496,7 @@ class VoiceChanger(EventEmitter):
         if perf_enabled is True:
             self.realtime_process_status_send_counter += 1
             chunk_sec = self.vc_chunk_sec if hasattr(self, "vc_chunk_sec") and self.vc_chunk_sec > 0 else 0.1
-            if self.realtime_process_status_send_counter >= conf.realtime_process_status_send_interval_sec / chunk_sec:
+            if self.realtime_process_status_send_counter >= REALTIME_PROCESS_STATUS_SEND_INTERVAL_SEC / chunk_sec:
                 self.realtime_process_status_send_counter = 0
                 start_time = time.time()
                 (output, monitor) = self._convert_chunk(waveform)

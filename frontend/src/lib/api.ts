@@ -55,7 +55,7 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
     outputDeviceRate: numeric(config.audio_output_device_sample_rate),
     monitorDeviceRate: numeric(config.audio_monitor_device_sample_rate),
     gpuDevice: numeric(config.gpu_device_id_int),
-    wasapiExclusive: boolean(config.wasapi_exclude_emabled),
+    wasapiExclusive: boolean(config.wasapi_exclusive_enabled),
     highPassEnabled: boolean(config.enable_high_pass_filter),
     highPassCutoff: numeric(config.high_pass_filter_cutoff),
     lowPassEnabled: boolean(config.enable_low_pass_filter),
@@ -63,9 +63,7 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
     noiseGate: numeric(config.noise_gate),
     extraSeconds: numeric(config.extra_frame_sec),
     ioAnalysisEnabled: boolean(config.realtime_output_status_enabled),
-    ioAnalysisInterval: numeric(config.realtime_output_status_send_interval_sec),
     processAnalysisEnabled: boolean(config.realtime_process_status_enabled),
-    processAnalysisInterval: numeric(config.realtime_process_status_send_interval_sec),
     performanceMonitorEnabled: boolean(config.enable_performance_monitor),
   };
 }
@@ -100,7 +98,6 @@ function parseModel(slot: Record<string, unknown>): ModelSummary {
   return {
     id,
     name: text(slot.name),
-    description: text(slot.description),
     imageUrl: modelImage(id, slot.icon_file),
     status: type === 'RVC' ? 'ready' : type === 'RESERVED_FOR_SAMPLE' ? 'pending' : type === 'BROKEN' ? 'broken' : 'unsupported',
     tags,
@@ -302,7 +299,7 @@ const editFields: Record<keyof ConfigurationEdits, string> = {
   monitorDevice: 'audio_monitor_device_index',
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
   monitorDeviceRate: 'audio_monitor_device_sample_rate', gpuDevice: 'gpu_device_id_int',
-  wasapiExclusive: 'wasapi_exclude_emabled',
+  wasapiExclusive: 'wasapi_exclusive_enabled',
   extraSeconds: 'extra_frame_sec',
   ioAnalysisEnabled: 'realtime_output_status_enabled', processAnalysisEnabled: 'realtime_process_status_enabled',
   performanceMonitorEnabled: 'enable_performance_monitor',

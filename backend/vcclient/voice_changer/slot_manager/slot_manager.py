@@ -225,12 +225,6 @@ class SlotManager:
         if isinstance(existing_info, RVCSlotInfo):
             if existing_info.name:
                 new_slot_info.name = existing_info.name
-            if existing_info.description:
-                new_slot_info.description = existing_info.description
-            if existing_info.credit:
-                new_slot_info.credit = existing_info.credit
-            if existing_info.terms_of_use_url:
-                new_slot_info.terms_of_use_url = existing_info.terms_of_use_url
             if existing_info.icon_file and (slot_dir / existing_info.icon_file.name).exists():
                 new_slot_info.icon_file = existing_info.icon_file
             if existing_info.index_file and (slot_dir / existing_info.index_file.name).exists():

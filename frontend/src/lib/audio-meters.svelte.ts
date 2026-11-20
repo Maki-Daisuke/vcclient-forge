@@ -45,13 +45,12 @@ export class AudioMeters {
   private outputInterval = 0.2;
   private processInterval = 1;
 
-  setEnabled(active: boolean, outputEnabled: boolean, processEnabled: boolean, outputInterval: number | null, processInterval: number | null, chunkSeconds: number | null) {
+  setEnabled(active: boolean, outputEnabled: boolean, processEnabled: boolean, chunkSeconds: number | null) {
     this.outputEnabled = outputEnabled;
     this.processEnabled = processEnabled;
-    this.outputInterval = outputInterval !== null && Number.isFinite(outputInterval) && outputInterval > 0 ? outputInterval : 0.2;
-    const requestedInterval = processInterval !== null && Number.isFinite(processInterval) && processInterval > 0 ? processInterval : 1;
+    this.outputInterval = 0.2;
     this.processInterval = chunkSeconds !== null && Number.isFinite(chunkSeconds) && chunkSeconds > 0
-      ? Math.max(requestedInterval, chunkSeconds) : requestedInterval;
+      ? Math.max(1, chunkSeconds) : 1;
     if (!active || (!outputEnabled && !processEnabled)) { this.dispose(); return; }
     if (!outputEnabled) { this.clearLevels(); this.clearOutput(); }
     if (!processEnabled) { this.clearInput(); this.clearConversionTime(); }

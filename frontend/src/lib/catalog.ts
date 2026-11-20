@@ -3,7 +3,6 @@ import type { ConfigurationSnapshot, ModelSettingsSnapshot } from './settings';
 export interface ModelSummary {
   id: number;
   name: string;
-  description: string;
   imageUrl: string | null;
   status: 'ready' | 'pending' | 'broken' | 'unsupported';
   tags: string[];
