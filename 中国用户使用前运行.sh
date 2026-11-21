@@ -136,4 +136,4 @@ echo "========================================="
 echo "所有操作已完成！"
 
 echo "正在打开模型下载页面..."
-./模型下载ModelDownload.sh
+./ModelDownload.sh
