@@ -106,19 +106,21 @@ def _get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
 
 _audio_input_devices: list[AudioDevice] = []
 _audio_output_devices: list[AudioDevice] = []
+_audio_devices_initialized: bool = False
 
 
 def reload_audio_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
-    global _audio_input_devices, _audio_output_devices
+    global _audio_input_devices, _audio_output_devices, _audio_devices_initialized
     logger.info("Reloading Audio Device info")
     (_audio_input_devices, _audio_output_devices) = _list_device()
+    _audio_devices_initialized = True
     logger.info("Audio(input): %s", _audio_input_devices)
     logger.info("Audio(output): %s", _audio_output_devices)
     return (_audio_input_devices, _audio_output_devices)
 
 
 def get_audio_input_devices() -> list[AudioDevice]:
-    if not _audio_input_devices and not _audio_output_devices:
+    if not _audio_devices_initialized:
         reload_audio_devices()
     return _audio_input_devices
 
@@ -131,7 +133,7 @@ def get_audio_input_device(index: int) -> AudioDevice | None:
 
 
 def get_audio_output_devices() -> list[AudioDevice]:
-    if not _audio_input_devices and not _audio_output_devices:
+    if not _audio_devices_initialized:
         reload_audio_devices()
     return _audio_output_devices
 

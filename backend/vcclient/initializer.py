@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import time
 from collections.abc import Callable
@@ -18,6 +20,7 @@ from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 DownloadStatus = TypeVar("DownloadStatus", ModuleDownloadStatus, SampleDownloadStatus)
 
 if TYPE_CHECKING:
+    from vcclient.voice_changer.data_types.data_types import VoiceChangerConfiguration
     from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
 
 
@@ -92,16 +95,9 @@ def _verify_device_sessions(pipeline: "RVCPipeline", device: DeviceConfig) -> No
         session.disable_fallback()
 
 
-def _select_initial_compute_device() -> bool:
+def _probe_first_working_device(conf: VoiceChangerConfiguration, slot: RVCSlotInfo) -> DeviceConfig:
+    """Test ranked compute devices against `slot` and return the first device whose pipeline warms up cleanly."""
     from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
-
-    manager = ConfigurationManager.get_instance()
-    conf = manager.get_voice_changer_configuration()
-    slot = SlotManager.get_instance().get_slot_info(conf.current_slot_index)
-    if not isinstance(slot, RVCSlotInfo) or slot.model_file is None:
-        logger.warning("Skipping initial device selection: the initial model is unavailable.")
-        print("Initial model is unavailable; automatic device selection skipped.", flush=True)
-        return False
 
     for device in _initial_device_candidates(get_device_catalog()):
         conf.gpu_device_id_int = device.id
@@ -115,12 +111,52 @@ def _select_initial_compute_device() -> bool:
             logger.warning("Initial device test failed for %s: %s", device.canonical_id, e, exc_info=True)
             print(f"Inference device test failed: {device.name}", flush=True)
             continue
-        logger.info("Initial inference device selected: %s", device.canonical_id)
-        print(f"Inference device selected: {device.name}", flush=True)
-        return True
+        return device
 
     conf.gpu_device_id_int = 0
     raise RuntimeError("No inference device passed the initial pipeline test; see vcclient.log for details.")
+
+
+def _find_auto_select_slot(slot_manager: SlotManager, preferred_slot_index: int) -> RVCSlotInfo:
+    slot = slot_manager.get_slot_info(preferred_slot_index)
+    if isinstance(slot, RVCSlotInfo) and slot.model_file is not None:
+        return slot
+    for candidate in slot_manager.get_slot_infos():
+        if isinstance(candidate, RVCSlotInfo) and candidate.model_file is not None:
+            return candidate
+    raise LookupError("No valid RVC model is available for compute device auto-selection.")
+
+
+def recommend_compute_device() -> DeviceConfig:
+    """Probe available compute devices against a valid model and return the recommended device without persisting."""
+    manager = ConfigurationManager.get_instance()
+    conf = manager.get_voice_changer_configuration()
+    slot = _find_auto_select_slot(SlotManager.get_instance(), conf.current_slot_index)
+
+    original_device_id = conf.gpu_device_id_int
+    try:
+        device = _probe_first_working_device(conf, slot)
+    finally:
+        conf.gpu_device_id_int = original_device_id
+
+    logger.info("Recommended compute device selected: %s", device.canonical_id)
+    print(f"Inference device selected: {device.name}", flush=True)
+    return device
+
+
+def _select_initial_compute_device() -> bool:
+    manager = ConfigurationManager.get_instance()
+    conf = manager.get_voice_changer_configuration()
+    slot = SlotManager.get_instance().get_slot_info(conf.current_slot_index)
+    if not isinstance(slot, RVCSlotInfo) or slot.model_file is None:
+        logger.warning("Skipping initial device selection: the initial model is unavailable.")
+        print("Initial model is unavailable; automatic device selection skipped.", flush=True)
+        return False
+
+    device = _probe_first_working_device(conf, slot)
+    logger.info("Initial inference device selected: %s", device.canonical_id)
+    print(f"Inference device selected: {device.name}", flush=True)
+    return True
 
 
 def _check_and_download_rvc_modules() -> None:

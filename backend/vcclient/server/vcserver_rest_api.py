@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import swagger_ui_default_parameters
@@ -16,10 +16,12 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from vcclient.const import LOG_FILE, SERVER_IO_RECORDING_FILE_OUT
 from vcclient.logger import logger
+from vcclient.server.api_common import DomainApiError, DomainApiRoute, is_recording_active
 from vcclient.server.server_const import get_frontend_path
 from vcclient.server.validation_error_logging_route import ValidationErrorLoggingRoute
 from vcclient.server.vcserver_rest_api_audio_device_manager import RestAPIAudioDeviceManager
 from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfigurationManager
+from vcclient.server.vcserver_rest_api_devices import RestAPIDevices
 from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
 from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
@@ -90,6 +92,10 @@ def get_rest_api() -> FastAPI:
 
 
 def register_api_exception_handlers(app_fastapi: FastAPI) -> None:
+    @app_fastapi.exception_handler(DomainApiError)
+    async def domain_api_error_handler(_request: Request, exc: DomainApiError):
+        return exc.to_response()
+
     @app_fastapi.exception_handler(StarletteHTTPException)
     async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
         if request.url.path.startswith("/api/"):
@@ -158,6 +164,33 @@ def _create_rest_api() -> FastAPI:
     app_fastapi.include_router(voice_changer.router)
     local_voice_changer_interface = RestAPILocalVoiceChangerInterface()
     app_fastapi.include_router(local_voice_changer_interface.router)
+
+    rest_devices = RestAPIDevices()
+    app_fastapi.include_router(rest_devices.router)
+
+    domain_system_router = APIRouter(route_class=DomainApiRoute)
+
+    @domain_system_router.get("/api/recordings/latest")
+    def get_latest_recording():
+        if is_recording_active():
+            raise DomainApiError(
+                409,
+                "recording_in_progress",
+                "Cannot download recording while recording is in progress.",
+            )
+        file_path = Path(SERVER_IO_RECORDING_FILE_OUT)
+        if not file_path.exists():
+            raise DomainApiError(404, "recording_not_found", f"Recording {file_path.name} not found.")
+        return FileResponse(path=str(file_path), media_type="audio/wav", filename=file_path.name)
+
+    @domain_system_router.get("/api/logs")
+    def get_logs():
+        file_path = Path(LOG_FILE)
+        if not file_path.exists():
+            raise DomainApiError(404, "log_not_found", f"Log file {file_path.name} not found.")
+        return FileResponse(path=str(file_path), media_type="text/plain", filename=file_path.name)
+
+    app_fastapi.include_router(domain_system_router)
 
     ws_hub = WebSocketHub()
     ws_hub.subscribe_core_events()
