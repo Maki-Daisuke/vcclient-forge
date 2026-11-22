@@ -1,6 +1,7 @@
 import math
+from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import faiss
 import numpy as np
@@ -47,14 +48,26 @@ class RVCPipeline(VCPipeline):
     feature_buffer: np.ndarray
     is_gate_open: bool = True
 
-    def __init__(self, slot_info: SlotInfoMember) -> None:
+    def __init__(
+        self,
+        slot_info: SlotInfoMember,
+        *,
+        device: DeviceConfig | int | None = None,
+        extra_frame_sec: float | None = None,
+        snapshot_getter: Callable[[], Any] | None = None,
+    ) -> None:
         if not isinstance(slot_info, RVCSlotInfo):
             raise TypeError(f"slot_info must be RVCSlotInfo, got {type(slot_info).__name__}")
         self._slot_info = slot_info
+        self._snapshot_getter = snapshot_getter
+        self._fixed_extra_frame_sec = extra_frame_sec
         self.slot_index = slot_info.slot_index
         self.model_id = getattr(slot_info, "model_id", None)
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        target_device = get_device(conf.gpu_device_id_int)
+        if device is not None:
+            target_device = get_device(device) if isinstance(device, int) else device
+        else:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            target_device = get_device(conf.gpu_device_id_int)
         self.device = target_device
         self.gpu_device_id = target_device.id
         self.pitch_estimator_type = slot_info.pitch_estimator
@@ -150,6 +163,18 @@ class RVCPipeline(VCPipeline):
 
     @property
     def slot_info(self) -> RVCSlotInfo:
+        getter = getattr(self, "_snapshot_getter", None)
+        if getter is not None:
+            snap = getter()
+            if snap is not None:
+                return self._slot_info.model_copy(
+                    update={
+                        "chunk_sec": snap.chunk_sec,
+                        "pitch_estimator": snap.pitch_estimator,
+                        "pitch_shift": snap.pitch_shift,
+                        "index_ratio": snap.index_ratio,
+                    }
+                )
         model_id = getattr(self, "model_id", None)
         if model_id is not None:
             try:
@@ -208,16 +233,30 @@ class RVCPipeline(VCPipeline):
         return np.float32
 
     def get_chunk_sec(self) -> float:
+        getter = getattr(self, "_snapshot_getter", None)
+        if getter is not None:
+            snap = getter()
+            if snap is not None:
+                return float(snap.chunk_sec)
         return self.slot_info.chunk_sec
 
     def _calculate_target_feats_length(self) -> int:
         from vcclient.device.coreml_patch import calculate_target_feats_length
 
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+        fixed_extra = getattr(self, "_fixed_extra_frame_sec", None)
+        if fixed_extra is not None:
+            extra_frame_sec = float(fixed_extra)
+        else:
+            getter = getattr(self, "_snapshot_getter", None)
+            snap = getter() if getter is not None else None
+            if snap is not None:
+                extra_frame_sec = float(snap.extra_frame_sec)
+            else:
+                extra_frame_sec = ConfigurationManager.get_instance().get_voice_changer_configuration().extra_frame_sec
         chunk_sec = self.get_chunk_sec()
         return calculate_target_feats_length(
             chunk_sec=chunk_sec,
-            extra_frame_sec=conf.extra_frame_sec,
+            extra_frame_sec=extra_frame_sec,
         )
 
     def needs_crossfade(self) -> bool:
@@ -302,10 +341,23 @@ class RVCPipeline(VCPipeline):
         if audio.dtype not in (np.float32, np.float64):
             raise TypeError(f"audio should be float32 or float64, got {audio.dtype}.")
         input_sample_num = audio.shape[0]
-        slot_info = self.slot_info
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+        getter = getattr(self, "_snapshot_getter", None)
+        snap = getter() if getter is not None else None
+        if snap is not None:
+            extra_frame_sec = float(snap.extra_frame_sec)
+            noise_gate = float(snap.noise_gate)
+            pitch_shift = int(snap.pitch_shift)
+            index_ratio = float(snap.index_ratio)
+            is_f0 = bool(self._slot_info.is_f0)
+        else:
+            slot_info = self.slot_info
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            extra_frame_sec = conf.extra_frame_sec
+            noise_gate = conf.noise_gate
+            pitch_shift = slot_info.pitch_shift
+            index_ratio = slot_info.index_ratio
+            is_f0 = slot_info.is_f0
         crossfacde_overlap_sec = real_crossfade_sec
-        extra_frame_sec = conf.extra_frame_sec
         index_data = self.index_data
 
         data = self._generate_inputs(audio, crossfacde_overlap_sec, extra_frame_sec)
@@ -317,22 +369,22 @@ class RVCPipeline(VCPipeline):
         else:
             vol_db = 20 * np.log10(vol / reference_volume)
 
-        self._update_noise_gate(vol_db, conf.noise_gate, input_sample_num)
+        self._update_noise_gate(vol_db, noise_gate, input_sample_num)
 
         if not self.is_gate_open:
             logger.debug(
                 "noise gate closed (vol_db=%s < open=%s, close=%s)",
                 vol_db,
-                conf.noise_gate,
-                conf.noise_gate - 5.0,
+                noise_gate,
+                noise_gate - 5.0,
             )
             return np.zeros(real_output_size).astype(float)
 
-        if slot_info.is_f0:
+        if is_f0:
             pitch_coarse, pitch = self.pitch_estimator.estimate(
                 audio,
                 prev_pitch,
-                slot_info.pitch_shift,
+                pitch_shift,
                 self.get_input_sample_rate(),
                 self.processing_window,
                 extra_frame_sec,
@@ -341,7 +393,7 @@ class RVCPipeline(VCPipeline):
             pitch_coarse, pitch = None, None
 
         feats = self.embedder.extract_features(audio)
-        if index_data is not None and slot_info.index_ratio > 0:
+        if index_data is not None and index_ratio > 0:
             index, big_npy = index_data
             new_feats = feats[0]
             feats_length = new_feats.shape[0]
@@ -359,7 +411,7 @@ class RVCPipeline(VCPipeline):
                     new_feats_retrieved,
                 ]
             )[-1 * feats_length :]
-            feats = new_feats_retrieved[np.newaxis, :] * slot_info.index_ratio + (1 - slot_info.index_ratio) * feats
+            feats = new_feats_retrieved[np.newaxis, :] * index_ratio + (1 - index_ratio) * feats
 
         feats = feats.transpose(0, 2, 1)
         feats = self.onnx_upscaler.run(["out"], {"in": feats, "scales": np.array([2], dtype=np.float32)})

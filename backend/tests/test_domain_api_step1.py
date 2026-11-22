@@ -232,6 +232,7 @@ def test_compute_auto_select_error_envelopes(
 
     _, conf = stopped_session
     monkeypatch.setattr(conf, "gpu_device_id_int", 2)
+    monkeypatch.setattr(conf, "model_id", None)
     empty_model_dir = tmp_path / "empty_models"
     empty_model_dir.mkdir()
     monkeypatch.setattr(voice_changer_const, "ModelDir", empty_model_dir)

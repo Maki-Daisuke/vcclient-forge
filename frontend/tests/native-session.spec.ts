@@ -58,7 +58,7 @@ test('an unavailable monitor explains how to unblock Start without requiring mon
 
 test('switches from client to server mode with the keyboard', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.goto('/');
   await openControlSections(page);
   const client = page.getByRole('radio', { name: 'クライアントモード' });
@@ -68,12 +68,12 @@ test('switches from client to server mode with the keyboard', async ({ page }) =
   await server.focus();
   await server.press('Space');
   await expect(server).toBeChecked();
-  expect(state.config.voice_changer_input_mode).toBe('client');
+  expect(state.config.input_mode).toBe('client');
 });
 
-test('selects a model and native devices, starts, adjusts volume, and stops using existing APIs', async ({ page }) => {
+test('selects a model and native devices, starts, adjusts volume, and stops using domain APIs', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.goto('/');
   await openControlSections(page);
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeEnabled();
@@ -100,6 +100,13 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   expect(state.config.audio_monitor_device_index).toBe(11);
   expect(state.config.audio_input_device_sample_rate).toBe(-1);
   expect(state.config.audio_output_device_sample_rate).toBe(-1);
+  expect(state.sessionWrites[0]).toMatchObject({
+    model_id: 'model_a',
+    input_mode: 'server',
+    audio_input_device_index: 11,
+    audio_output_device_index: 25,
+    audio_monitor_device_index: 11,
+  });
   await expect(page.getByRole('button', { name: '開始', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeDisabled();
@@ -107,16 +114,16 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   await expect(inputGain(page)).toBeEnabled();
   await inputGain(page).press('ArrowRight');
   await saved(page);
-  expect(state.config.audio_input_device_gain).toBe(2.71);
+  expect(state.config.input_gain).toBe(2.71);
+  expect(state.sessionWrites.at(-1)?.input_gain).toBe(2.71);
   await page.getByRole('slider', { name: '出力音量', exact: true }).press('ArrowRight');
   await saved(page);
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
-  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['start', 'stop']);
   expect(state.maxInFlight).toBe(1);
   expect(state.config.future_setting).toEqual({ keep: [1, 2] });
-  expect(state.config.recording_started).toBe(false);
+  expect(state.recording).toBe(false);
 });
 
 test('reads fresh full configuration before each write and preserves unrelated fields', async ({ page }) => {
@@ -128,7 +135,7 @@ test('reads fresh full configuration before each write and preserves unrelated f
   state.config.future_setting = { keep: 'changed by another client' };
   await inputGain(page).press('ArrowRight');
   await saved(page);
-  expect(state.writes[0]).toEqual({ ...state.config, audio_input_device_gain: 2.71 });
+  expect(state.writes[0]).toEqual({ ...state.config, input_gain: 2.71 });
   expect(state.config.noise_gate).toBe(-71);
   expect(state.config.future_setting).toEqual({ keep: 'changed by another client' });
 });
@@ -180,7 +187,7 @@ test('sends during dragging at bounded intervals and flushes the final pointer v
   await page.clock.runFor(1);
   await saved(page);
   expect(state.writes).toHaveLength(3);
-  expect(state.config.audio_input_device_gain).toBe(Number(await inputGain(page).getAttribute('aria-valuenow')));
+  expect(state.config.input_gain).toBe(Number(await inputGain(page).getAttribute('aria-valuenow')));
   expect(state.operations).toEqual([]);
 });
 
@@ -200,8 +207,8 @@ test('slow writes coalesce edits and old acknowledgements never overwrite the ne
   release();
   await saved(page);
   await expect(inputGain(page)).toHaveAttribute('aria-valuenow', '10');
-  expect(state.config.audio_input_device_gain).toBe(10);
-  expect(state.config.audio_output_device_gain).toBe(0);
+  expect(state.config.input_gain).toBe(10);
+  expect(state.config.output_gain).toBe(0);
   expect(state.writes).toHaveLength(2);
   expect(state.maxInFlight).toBe(1);
 });
@@ -228,13 +235,13 @@ test('held arrow keys are throttled and key release flushes the final value', as
   await page.clock.runFor(1);
   await saved(page);
   expect(state.writes).toHaveLength(3);
-  expect(state.config.audio_input_device_gain).toBe(2.76);
+  expect(state.config.input_gain).toBe(2.76);
 });
 
 test('a timed-out write remains uncertain and does not automatically resend pending edits', async ({ page }) => {
   const state = await mockSession(page);
   await page.clock.install();
-  await page.route('**/api/configuration-manager/configuration', async route => {
+  await page.route('**/api/settings', async route => {
     if (route.request().method() === 'GET') await route.fulfill({ json: state.config });
     else state.writes.push(route.request().postDataJSON());
   });
@@ -248,11 +255,11 @@ test('a timed-out write remains uncertain and does not automatically resend pend
   await page.clock.fastForward(1_000);
   expect(state.writes).toHaveLength(1);
   await expect(inputGain(page)).toHaveAttribute('aria-valuenow', '10');
-  await page.unroute('**/api/configuration-manager/configuration');
+  await page.unroute('**/api/settings');
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await saved(page);
   expect(state.writes).toHaveLength(2);
-  expect(state.config.audio_input_device_gain).toBe(10);
+  expect(state.config.input_gain).toBe(10);
 });
 
 test('failed saves retain the draft and retry only on request with fresh settings', async ({ page }) => {
@@ -269,7 +276,7 @@ test('failed saves retain the draft and retry only on request with fresh setting
   state.putStatus = 200;
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await saved(page);
-  expect(state.config.audio_input_device_gain).toBe(10);
+  expect(state.config.input_gain).toBe(10);
   expect(state.config.noise_gate).toBe(-88);
 });
 
@@ -349,11 +356,59 @@ test('stop waits for the in-flight gain update without racing it', async ({ page
   await openControlSections(page);
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
   await inputGain(page).press('ArrowRight');
-  await expect.poll(() => state.writes.length).toBe(1);
+  await expect.poll(() => state.sessionWrites.length).toBe(1);
   await page.getByRole('button', { name: '停止', exact: true }).click();
   expect(state.operations).toEqual([]);
   state.gate = null;
   release();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   expect(state.operations).toEqual(['stop']);
+});
+
+test('polls 202 starting state until running and follows startup after page reload', async ({ page }) => {
+  const state = await mockSession(page);
+  let release!: () => void;
+  state.sessionGate = new Promise(resolve => { release = resolve; });
+  await page.goto('/');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect.poll(() => state.sessionWrites.length).toBe(1);
+  await expect(page.getByRole('status').filter({ hasText: 'ウォームアップ中' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('status').filter({ hasText: 'ウォームアップ中' })).toBeVisible();
+  state.sessionGate = null;
+  release();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+});
+
+test('surfaces async startup failure last_error cleanly when starting settles to stopped', async ({ page }) => {
+  const state = await mockSession(page);
+  let release!: () => void;
+  state.sessionGate = new Promise(resolve => { release = resolve; });
+  state.asyncStartError = { code: 'invalid_audio_device', message: 'Selected microphone is busy.' };
+  await page.goto('/');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect.poll(() => state.sessionWrites.length).toBe(1);
+  await expect(page.getByRole('status').filter({ hasText: 'ウォームアップ中' })).toBeVisible();
+  state.sessionGate = null;
+  release();
+  const alert = page.locator('main > .configuration-status').getByRole('alert');
+  await expect(alert).toContainText('オーディオデバイス');
+  await expect(alert).toContainText('Selected microphone is busy.');
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
+});
+
+test('reloading mid-session syncs active model snapshot and locked controls', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.model_id = 'model_a';
+  state.passThrough = true;
+  state.recording = true;
+  state.active = true;
+  await page.goto('/');
+  await openControlSections(page);
+  await expect(page.getByRole('heading', { name: '1. Test model A' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'パススルー' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: '録音', exact: true })).toContainText('録音中');
+  await expect(page.getByRole('combobox', { name: '入力デバイス（マイク）', exact: true })).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: '優先デバイス', exact: true })).toBeDisabled();
 });

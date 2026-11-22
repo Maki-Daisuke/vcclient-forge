@@ -19,8 +19,9 @@ test('lists compute devices and saves the selection on start', async ({ page }) 
   expect(state.writes).toHaveLength(0);
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect.poll(() => state.writes.length).toBeGreaterThanOrEqual(1);
-  expect(state.writes[0].gpu_device_id_int).toBe(1);
+  expect(state.writes[0].compute_device_id).toBe(1);
   expect(state.writes[0].future_setting).toEqual({ keep: [1, 2] });
+  expect(state.sessionWrites[0].compute_device_id).toBe(1);
   await expect(select).toHaveValue('1');
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
 });
@@ -45,7 +46,7 @@ test('shows an unavailable list without hiding other settings', async ({ page })
 
 test('does not label an unknown selected ID as CPU or another device', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.gpu_device_id_int = 99;
+  state.config.compute_device_id = 99;
   const select = await openInference(page);
   await expect(select.locator('option:checked')).toContainText('デバイス #99');
   await expect(select.locator('option:checked')).toHaveAttribute('disabled', '');
@@ -60,17 +61,18 @@ test('reports a device change that the backend rolled back', async ({ page }) =>
   await select.selectOption('1');
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('反映');
-  expect(state.config.gpu_device_id_int).toBe(2);
+  expect(state.config.compute_device_id).toBe(2);
 });
 
-
-test('reports a pipeline device that differs from the saved preference', async ({ page }) => {
+test('reports an invalid compute device rejected by the session endpoint', async ({ page }) => {
   const state = await mockSession(page);
-  state.gpuMismatch = true;
+  state.startStatus = 422;
+  state.startErrorCode = 'invalid_compute_device';
+  state.startErrorMessage = 'Compute device 1 does not exist.';
   const select = await openInference(page);
   await expect(select).toBeEnabled();
   await select.selectOption('1');
   await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('反映');
-  expect(state.config.gpu_device_id_int).toBe(1);
+  await expect(page.getByRole('alert')).toContainText('利用できません');
+  expect(state.config.compute_device_id).toBe(1);
 });

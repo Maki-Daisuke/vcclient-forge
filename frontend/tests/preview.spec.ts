@@ -59,9 +59,8 @@ test('initialization only reads backend data and keeps browser audio and device 
   await expect(page.getByRole('heading', { name: '2. Test model B' })).toBeVisible();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toHaveCount(0);
-  for (const name of ['パススルー', '録音']) {
-    await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
-  }
+  await expect(page.getByRole('button', { name: 'パススルー', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '録音', exact: true })).toBeEnabled();
   const sliders = page.getByRole('slider');
   await expect(sliders).toHaveCount(9);
   for (const name of ['入力音量', '出力音量']) await expect(page.getByRole('slider', { name, exact: true })).toBeEnabled();
@@ -69,12 +68,12 @@ test('initialization only reads backend data and keeps browser audio and device 
   await page.getByRole('button', { name: '配色を切り替える' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect([...new Set(backendRequests.map(url => new URL(url).pathname))].sort()).toEqual([
-    '/api/configuration-manager/configuration',
     '/api/devices/audio',
     '/api/devices/compute',
-    '/api/local-voice-changer-interface/information',
     '/api/models',
     '/api/models/model_b/icon',
+    '/api/session',
+    '/api/settings',
   ]);
   expect(errors).toEqual([]);
 });

@@ -14,7 +14,7 @@ test('deletes the selected model after confirmation and clears the selection', a
       await route.fulfill({ status: 204 });
     } else if (deleted && path === '/api/models') {
       await route.fulfill({ json: [slots[0]] });
-    } else if (deleted && path === '/api/configuration-manager/configuration') {
+    } else if (deleted && path === '/api/settings') {
       await route.fulfill({ json: { ...configuration, model_id: null } });
     } else await fulfillCatalog(route);
   });
@@ -58,7 +58,7 @@ test('deletes consecutive models without starting conversion', async ({ page }) 
       await route.fulfill({ status: 204 });
     } else if (path === '/api/models') {
       await route.fulfill({ json: models });
-    } else if (path === '/api/configuration-manager/configuration') {
+    } else if (path === '/api/settings') {
       await route.fulfill({ json: { ...configuration, model_id: selected } });
     } else await fulfillCatalog(route);
   });
@@ -86,7 +86,7 @@ test('reloads models and configuration after a failed deletion', async ({ page }
       await route.fulfill({ status: 500, json: { code: 'internal_error', message: 'Delete failed' } });
     } else {
       if (failed && path === '/api/models') reloadedSlots = true;
-      if (failed && path === '/api/configuration-manager/configuration') reloadedConfiguration = true;
+      if (failed && path === '/api/settings') reloadedConfiguration = true;
       await fulfillCatalog(route);
     }
   });
@@ -152,8 +152,27 @@ test('does not show stale reorder errors inside the delete confirmation dialog',
 
 test('explains why deleting is unavailable during conversion', async ({ page }) => {
   await page.route('**/api/**', async route => {
-    if (new URL(route.request().url()).pathname === '/api/local-voice-changer-interface/information') {
-      await route.fulfill({ json: { local_voice_changer_interface_active: true } });
+    if (new URL(route.request().url()).pathname === '/api/session') {
+      await route.fulfill({
+        json: {
+          status: 'running',
+          snapshot: {
+            ...configuration,
+            model_id: 'model_b',
+            pitch_shift: -5,
+            index_ratio: 0.63,
+            chunk_sec: 0.3,
+            pitch_estimator: 'rmvpe',
+            pass_through: false,
+            recording: false,
+          },
+          locked_fields: ['model_id'],
+          input_sample_rate: 48000,
+          output_sample_rate: 48000,
+          monitor_sample_rate: null,
+          last_error: null,
+        },
+      });
     } else await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -177,7 +196,7 @@ test('reorders models with drag and commits the displayed order', async ({ page 
       await route.fulfill({ json: body });
     } else if (saved && path === '/api/models') {
       await route.fulfill({ json: [slots[1], slots[0]] });
-    } else if (saved && path === '/api/configuration-manager/configuration') {
+    } else if (saved && path === '/api/settings') {
       await route.fulfill({ json: { ...configuration, model_id: 'model_b' } });
     } else await fulfillCatalog(route);
   });

@@ -1,5 +1,9 @@
+export type SessionStatus = 'stopped' | 'starting' | 'running';
+export type InputMode = 'server' | 'client';
+export type PitchEstimator = 'rmvpe' | 'fcpe';
+
 export interface ConfigurationSnapshot {
-  inputMode: 'server' | 'client' | null;
+  inputMode: InputMode | null;
   passThrough: boolean | null;
   recording: boolean | null;
   inputGain: number | null;
@@ -36,14 +40,13 @@ export interface ModelSettingsSnapshot {
 export interface ModelEdits {
   pitch?: number;
   indexRatio?: number;
-  pitchEstimator?: 'rmvpe' | 'fcpe';
+  pitchEstimator?: PitchEstimator;
   chunkSeconds?: number;
 }
 
-// Only these fields can be changed by the native-audio UI.
 export interface ConfigurationEdits {
   currentModelId?: string;
-  inputMode?: 'server' | 'client';
+  inputMode?: InputMode;
   passThrough?: boolean;
   recording?: boolean;
   inputDevice?: number;
@@ -67,9 +70,69 @@ export interface ConfigurationEdits {
   lowPassCutoff?: number;
 }
 
+export interface SessionLastError {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+}
+
+export interface SessionRuntimeSnapshot extends ConfigurationSnapshot {
+  modelId: string;
+  pitch: number | null;
+  indexRatio: number | null;
+  pitchEstimator: string | null;
+  chunkSeconds: number | null;
+}
+
+export interface SessionStateSnapshot {
+  status: SessionStatus;
+  snapshot: SessionRuntimeSnapshot | null;
+  lockedFields: string[];
+  inputSampleRate: number | null;
+  outputSampleRate: number | null;
+  monitorSampleRate: number | null;
+  lastError: SessionLastError | null;
+}
+
+export interface SessionSnapshotPayload {
+  model_id: string;
+  pitch_shift: number;
+  index_ratio: number;
+  chunk_sec: number;
+  pitch_estimator: PitchEstimator;
+  extra_frame_sec: number;
+  compute_device_id: number;
+  input_mode: InputMode;
+  audio_input_device_index: number;
+  audio_output_device_index: number;
+  audio_monitor_device_index: number;
+  audio_input_device_sample_rate: number;
+  audio_output_device_sample_rate: number;
+  audio_monitor_device_sample_rate: number;
+  wasapi_exclusive_enabled: boolean;
+  input_gain: number;
+  output_gain: number;
+  enable_high_pass_filter: boolean;
+  high_pass_filter_cutoff: number;
+  enable_low_pass_filter: boolean;
+  low_pass_filter_cutoff: number;
+  noise_gate: number;
+  pass_through: boolean;
+  recording: boolean;
+  enable_performance_monitor: boolean;
+  realtime_process_status_enabled: boolean;
+  realtime_output_status_enabled: boolean;
+}
+
 export interface ConfirmedConfiguration {
   currentModelId: string | null;
   settings: ConfigurationSnapshot;
+  etag: string | null;
+}
+
+export interface ConfirmedSession {
+  session: SessionStateSnapshot;
+  etag: string | null;
 }
 
 export function displayNumber(value: number | null | undefined, unit = ''): string {

@@ -50,18 +50,33 @@ export class ModelCatalogState {
     return this.state.status === 'ready' ? this.state.catalog.settings : null;
   }
 
+  get settingsEtag() {
+    return this.state.status === 'ready' ? this.state.catalog.settingsEtag : null;
+  }
+
   applyConfiguration(configuration: ConfirmedConfiguration) {
     if (this.state.status === 'ready') {
-      this.state = { status: 'ready', catalog: { ...this.state.catalog, ...configuration } };
+      this.state = {
+        status: 'ready',
+        catalog: {
+          ...this.state.catalog,
+          currentModelId: configuration.currentModelId,
+          settings: configuration.settings,
+          settingsEtag: configuration.etag,
+        },
+      };
     }
   }
 
   applyModel(model: ModelSummary) {
     if (this.state.status === 'ready') {
-      this.state = { status: 'ready', catalog: {
-        ...this.state.catalog,
-        models: this.state.catalog.models.map(current => current.id === model.id ? model : current),
-      } };
+      this.state = {
+        status: 'ready',
+        catalog: {
+          ...this.state.catalog,
+          models: this.state.catalog.models.map(current => current.id === model.id ? model : current),
+        },
+      };
     }
   }
 

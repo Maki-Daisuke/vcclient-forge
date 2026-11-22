@@ -109,14 +109,18 @@ def start_server(
     print("-" * 50, flush=True)
     print("Please press Ctrl+C once to exit vcclient.", flush=True)
 
+    from vcclient.voice_changer.session_manager import is_session_starting_or_running
+    from vcclient.voice_changer.session_manager.session_manager import report_audio_failure
+
     err_msg = ""
     while not is_app_stopping():
         try:
             conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
             local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
-            if conf.voice_changer_input_mode == "server":
-                if local_voice_changer_interface.local_voice_changer_enabled is True:
-                    local_voice_changer_interface.run()
+            if local_voice_changer_interface.local_voice_changer_enabled is True and (
+                conf.voice_changer_input_mode == "server" or is_session_starting_or_running()
+            ):
+                local_voice_changer_interface.run()
             if is_app_stopping():
                 break
             wait_for_stop(0.3)
@@ -134,12 +138,14 @@ def start_server(
             print(err_msg)
             print(f" {wasapi_not_supported_msg} ")
             local_voice_changer_interface.stop()
+            report_audio_failure(e)
             time.sleep(1)
         except Exception as e:
             err_msg = f"Error:{e}"
             logger.error("Runtime error: %s", e, exc_info=True)
             print(err_msg)
             local_voice_changer_interface.stop()
+            report_audio_failure(e)
             time.sleep(1)
 
     print("terminate vcclient... (press Ctrl+C again to force exit)", flush=True)

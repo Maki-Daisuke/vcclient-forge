@@ -1,22 +1,153 @@
 import { getContext, setContext } from 'svelte';
-import { confirmPitchEstimator, deleteModel, loadAudioDevices, operateNative, organizeModels, readAudioSampleRates, readModel, readNativeActive, updateConfiguration, updateModelInfo, updateModelSettings } from './api';
+import {
+  deleteModel,
+  loadAudioDevices,
+  organizeModels,
+  putSession,
+  readModel,
+  readSessionState,
+  stopSession,
+  updateModelInfo,
+  updateModelSettings,
+  updateSettings,
+  validateFilterParameters,
+} from './api';
 import { ClientAudio } from './client-audio.svelte';
 import { ApiError } from './api-error';
 import { importModel } from './model-upload';
 import type { ModelCatalogState } from './catalog.svelte';
-import type { ConfigurationEdits, ModelEdits } from './settings';
+import type {
+  ConfigurationEdits,
+  ConfigurationSnapshot,
+  ModelEdits,
+  PitchEstimator,
+  SessionLastError,
+  SessionSnapshotPayload,
+  SessionStateSnapshot,
+} from './settings';
 
 const contextKey = Symbol('native-session');
 const updateIntervalMs = 100;
+const startupPollIntervalMs = 100;
+const startupTimeoutMs = 180_000;
 type PendingWrite =
   | { kind: 'configuration'; edits: ConfigurationEdits }
   | { kind: 'model'; id: string; edits: ModelEdits };
 type DeviceKey = 'inputDevice' | 'outputDevice' | 'monitorDevice';
-const stagedKeys: (keyof ConfigurationEdits)[] = ['currentModelId', 'inputMode', 'inputDevice', 'outputDevice', 'monitorDevice', 'inputDeviceRate', 'outputDeviceRate', 'monitorDeviceRate', 'gpuDevice', 'extraSeconds'];
+const stagedKeys: (keyof ConfigurationEdits)[] = [
+  'currentModelId',
+  'inputMode',
+  'inputDevice',
+  'outputDevice',
+  'monitorDevice',
+  'inputDeviceRate',
+  'outputDeviceRate',
+  'monitorDeviceRate',
+  'gpuDevice',
+  'extraSeconds',
+];
+
+function mapLastErrorToApiError(lastError: SessionLastError): ApiError {
+  switch (lastError.code) {
+    case 'invalid_compute_device':
+      return new ApiError('invalid_compute_device', undefined, lastError.message, lastError.code, lastError.details);
+    case 'invalid_audio_device':
+      return new ApiError('invalid_audio_device', undefined, lastError.message, lastError.code, lastError.details);
+    case 'model_not_found':
+      return new ApiError('model_not_found', undefined, lastError.message, lastError.code, lastError.details);
+    case 'invalid_filter_cutoff':
+      return new ApiError('invalid_filter', undefined, lastError.message, lastError.code, lastError.details);
+    case 'session_starting':
+      return new ApiError('starting', undefined, lastError.message, lastError.code, lastError.details);
+    default:
+      return new ApiError('session_start_failed', undefined, lastError.message, lastError.code, lastError.details);
+  }
+}
+
+export interface SessionOverrideEdits extends Partial<ConfigurationEdits & ModelEdits> {}
+
+function buildSessionPayload(
+  base: ConfigurationSnapshot,
+  modelId: string,
+  modelSettings: NonNullable<ModelCatalogState['currentModel']>['settings'] & object,
+  overrides: SessionOverrideEdits,
+  recording: boolean,
+): SessionSnapshotPayload {
+  const inputMode = overrides.inputMode ?? base.inputMode;
+  const computeDeviceId = overrides.gpuDevice ?? base.gpuDevice;
+  const extraSeconds = overrides.extraSeconds ?? base.extraSeconds;
+  const inputGain = overrides.inputGain ?? base.inputGain;
+  const outputGain = overrides.outputGain ?? base.outputGain;
+  const highPassEnabled = overrides.highPassEnabled ?? base.highPassEnabled;
+  const highPassCutoff = overrides.highPassCutoff ?? base.highPassCutoff;
+  const lowPassEnabled = overrides.lowPassEnabled ?? base.lowPassEnabled;
+  const lowPassCutoff = overrides.lowPassCutoff ?? base.lowPassCutoff;
+  const noiseGate = overrides.noiseGate ?? base.noiseGate;
+  const perfEnabled = overrides.performanceMonitorEnabled ?? base.performanceMonitorEnabled;
+  const procEnabled = overrides.processAnalysisEnabled ?? base.processAnalysisEnabled;
+  const ioEnabled = overrides.ioAnalysisEnabled ?? base.ioAnalysisEnabled;
+  const pitch = overrides.pitch ?? modelSettings.pitch;
+  const indexRatio = overrides.indexRatio ?? modelSettings.indexRatio;
+  const chunkSec = overrides.chunkSeconds ?? modelSettings.chunkSeconds;
+  const estimator = (overrides.pitchEstimator ?? modelSettings.pitchEstimator) as PitchEstimator | null;
+
+  if (
+    inputMode === null
+    || computeDeviceId === null
+    || extraSeconds === null
+    || inputGain === null
+    || outputGain === null
+    || highPassEnabled === null
+    || highPassCutoff === null
+    || lowPassEnabled === null
+    || lowPassCutoff === null
+    || noiseGate === null
+    || perfEnabled === null
+    || procEnabled === null
+    || ioEnabled === null
+    || pitch === null
+    || indexRatio === null
+    || chunkSec === null
+    || (estimator !== 'rmvpe' && estimator !== 'fcpe')
+  ) {
+    throw new ApiError('invalid_response');
+  }
+
+  return {
+    model_id: modelId,
+    pitch_shift: pitch,
+    index_ratio: indexRatio,
+    chunk_sec: chunkSec,
+    pitch_estimator: estimator,
+    extra_frame_sec: extraSeconds,
+    compute_device_id: computeDeviceId,
+    input_mode: inputMode,
+    audio_input_device_index: overrides.inputDevice ?? base.inputDevice ?? -1,
+    audio_output_device_index: overrides.outputDevice ?? base.outputDevice ?? -1,
+    audio_monitor_device_index: overrides.monitorDevice ?? base.monitorDevice ?? -1,
+    audio_input_device_sample_rate: overrides.inputDeviceRate ?? base.inputDeviceRate ?? -1,
+    audio_output_device_sample_rate: overrides.outputDeviceRate ?? base.outputDeviceRate ?? -1,
+    audio_monitor_device_sample_rate: overrides.monitorDeviceRate ?? base.monitorDeviceRate ?? -1,
+    wasapi_exclusive_enabled: overrides.wasapiExclusive ?? base.wasapiExclusive ?? false,
+    input_gain: inputGain,
+    output_gain: outputGain,
+    enable_high_pass_filter: highPassEnabled,
+    high_pass_filter_cutoff: highPassCutoff,
+    enable_low_pass_filter: lowPassEnabled,
+    low_pass_filter_cutoff: lowPassCutoff,
+    noise_gate: noiseGate,
+    pass_through: overrides.passThrough ?? base.passThrough ?? false,
+    recording,
+    enable_performance_monitor: perfEnabled,
+    realtime_process_status_enabled: procEnabled,
+    realtime_output_status_enabled: ioEnabled,
+  };
+}
 
 export class NativeSession {
   readonly clientAudio = new ClientAudio();
-  private clientActive = false;
+  sessionState = $state<SessionStateSnapshot | null>(null);
+  sessionEtag = $state<string | null>(null);
   draft = $state<ConfigurationEdits>({});
   modelDraft = $state<{ id: string; edits: ModelEdits } | null>(null);
   stagedConfiguration = $state<ConfigurationEdits>({});
@@ -27,7 +158,7 @@ export class NativeSession {
   active = $state<boolean | null>(null);
   statusError = $state(false);
   recordingCompleted = $state<Blob | null>(null);
-  recordingNotice = $state<'empty' | 'download_failed' | null>(null);
+  recordingNotice = $state<'empty' | 'download_failed' | 'superseded' | null>(null);
   recordingArmed = $state(false);
   uploadStatus = $state<'idle' | 'uploading' | 'registering' | 'success' | 'refresh_failed' | 'error' | 'uncertain'>('idle');
   uploadError = $state<ApiError | null>(null);
@@ -52,43 +183,98 @@ export class NativeSession {
   private lastEnabledNoiseGate = -60;
   private urgent = false;
   private statusVersion = 0;
+  private reconnectVersion = 0;
+  private reconnecting = false;
   private disposed = false;
 
   constructor(readonly catalog: ModelCatalogState) {}
 
-  get settings() { return this.catalog.settings ? { ...this.catalog.settings, ...this.stagedConfiguration, ...this.draft } : null; }
-  get currentModelId() { return this.stagedConfiguration.currentModelId ?? this.draft.currentModelId ?? this.catalog.currentModelId; }
-  get currentModel() { return this.catalog.models.find(model => model.id === this.currentModelId) ?? null; }
+  get starting() {
+    return this.sessionState?.status === 'starting';
+  }
+
+  get settings(): ConfigurationSnapshot | null {
+    const persisted = this.catalog.settings;
+    if (!persisted) return null;
+    const sessionSnap = this.sessionState?.status !== 'stopped' ? this.sessionState?.snapshot : null;
+    const base: ConfigurationSnapshot = sessionSnap
+      ? { ...persisted, ...sessionSnap }
+      : { ...persisted, passThrough: false, recording: false };
+    return {
+      ...base,
+      ...(this.active !== true ? this.stagedConfiguration : {}),
+      ...this.draft,
+    };
+  }
+
+  get currentModelId() {
+    if (this.active === true || this.starting) {
+      return this.sessionState?.snapshot?.modelId ?? this.catalog.currentModelId;
+    }
+    return this.stagedConfiguration.currentModelId ?? this.draft.currentModelId ?? this.catalog.currentModelId;
+  }
+
+  get currentModel() {
+    return this.catalog.models.find(model => model.id === this.currentModelId) ?? null;
+  }
+
   get modelSettings() {
     const model = this.currentModel;
     if (!model?.settings) return null;
-    return { ...model.settings, ...this.stagedModels[model.id], ...(this.modelDraft?.id === model.id ? this.modelDraft.edits : {}) };
+    const snap = this.sessionState?.status !== 'stopped' ? this.sessionState?.snapshot : null;
+    const liveOverrides: ModelEdits = snap && snap.modelId === model.id
+      ? {
+          ...(snap.pitch !== null ? { pitch: snap.pitch } : {}),
+          ...(snap.indexRatio !== null ? { indexRatio: snap.indexRatio } : {}),
+          ...(snap.pitchEstimator === 'rmvpe' || snap.pitchEstimator === 'fcpe'
+            ? { pitchEstimator: snap.pitchEstimator } : {}),
+          ...(snap.chunkSeconds !== null ? { chunkSeconds: snap.chunkSeconds } : {}),
+        }
+      : {};
+    return {
+      ...model.settings,
+      ...liveOverrides,
+      ...(this.active !== true ? this.stagedModels[model.id] : undefined),
+      ...(this.modelDraft?.id === model.id ? this.modelDraft.edits : {}),
+    };
   }
+
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
-  get canReload() { return !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.isSaving && !this.operation && !this.dirty && this.catalog.state.status !== 'loading'; }
-  get canConfigure() {
-    return this.catalog.state.status === 'ready' && this.active === false && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty;
+  get canReload() {
+    return !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
+      && !this.isSaving && !this.operation && !this.starting && !this.dirty && this.catalog.state.status !== 'loading';
   }
-  get canOrganizeModels() { return this.canConfigure && this.stagedConfiguration.currentModelId === undefined && Object.keys(this.stagedModels).length === 0; }
+  get canConfigure() {
+    return this.catalog.state.status === 'ready' && this.active === false && !this.starting
+      && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
+      && !this.operation && !this.isSaving && !this.dirty;
+  }
+  get canOrganizeModels() {
+    return this.canConfigure && this.stagedConfiguration.currentModelId === undefined && Object.keys(this.stagedModels).length === 0;
+  }
   get canDeleteModel() { return this.canConfigure && this.currentModel?.status === 'ready'; }
   get canAdjustGain() {
-    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.starting
+      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
   get canAdjustNoiseGate() {
-    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.starting
+      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
   get canAdjustModel() {
-    return this.catalog.state.status === 'ready' && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation
-      && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined
+    return this.catalog.state.status === 'ready' && !this.starting && !this.modelInfoSaving && !this.organizing
+      && !this.importing && !this.operation && this.currentModel?.status === 'ready'
+      && this.draft.currentModelId === undefined
       && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
   get canAdjustFilter() {
     return this.canAdjustNoiseGate && this.currentModel?.status === 'ready' && this.draft.currentModelId === undefined;
   }
+
   get startBlockReason() {
     if (this.importing || this.organizing || this.modelInfoSaving || this.deviceRescanning) return 'saving';
-    if (this.operation) return 'operation';
+    if (this.operation || this.starting) return 'operation';
     if (this.catalog.state.status === 'loading') return 'loading';
     if (this.catalog.state.status === 'error') return 'load_error';
     if (this.active === null) return 'unknown';
@@ -109,12 +295,29 @@ export class NativeSession {
     return null;
   }
   get canStart() { return this.startBlockReason === null; }
-  get canStop() { return this.active !== false && !this.operation; }
+  get canStop() { return (this.active !== false || this.statusError) && !this.operation && !this.starting; }
 
   async mount() {
     await this.reload();
     if (this.settings?.inputMode === 'client') await this.clientAudio.refreshDevices().catch(() => {});
     this.schedulePoll();
+    if (this.sessionState?.status === 'running') void this.reconnectClientAudio(this.sessionState);
+  }
+
+  private applySessionConfirmed(confirmed: { session: SessionStateSnapshot; etag: string | null }) {
+    this.sessionState = confirmed.session;
+    this.sessionEtag = confirmed.etag;
+    this.syncFromSessionState(confirmed.session);
+  }
+
+  private syncFromSessionState(session: SessionStateSnapshot | null) {
+    if (!session) {
+      this.active = null;
+      this.statusError = true;
+      return;
+    }
+    this.statusError = false;
+    this.active = session.status === 'running';
   }
 
   async organizeModels(order: string[]): Promise<boolean> {
@@ -123,7 +326,7 @@ export class NativeSession {
     this.modelOperationError = null;
     try {
       await this.request(signal => organizeModels(order, signal), 120_000);
-      await this.catalog.reload();
+      await this.reload();
       if (this.catalog.state.status !== 'ready') throw new ApiError('invalid_response');
       return true;
     } catch (error) {
@@ -146,7 +349,7 @@ export class NativeSession {
       const { currentModelId: _discarded, ...remaining } = this.stagedConfiguration;
       this.stagedConfiguration = remaining;
       this.stagedModels = {};
-      await this.catalog.reload();
+      await Promise.all([this.catalog.reload(), this.refreshActive()]);
       this.organizing = false;
     }
   }
@@ -160,7 +363,9 @@ export class NativeSession {
     this.modelInfoError = null;
     try {
       await this.request(async signal => {
-        if (await readNativeActive(signal)) throw new ApiError('active');
+        const { session } = await readSessionState(signal);
+        if (session.status === 'starting') throw new ApiError('starting');
+        if (session.status === 'running') throw new ApiError('active');
         const updates: { name?: string; icon?: File } = {};
         if (icon && extension) updates.icon = icon;
         if (name !== model.name) updates.name = name;
@@ -186,14 +391,18 @@ export class NativeSession {
     const phase = { registering: false };
     try {
       await this.request(signal => importModel(model, index, signal,
-        bytes => { this.uploadBytes = Math.min(bytes, this.uploadTotal); }, () => { phase.registering = true; this.uploadStatus = 'registering'; }), 30 * 60_000);
+        bytes => { this.uploadBytes = Math.min(bytes, this.uploadTotal); },
+        () => { phase.registering = true; this.uploadStatus = 'registering'; }), 30 * 60_000);
       if (this.disposed) return;
       await this.catalog.reload();
+      await this.refreshActive();
       if (!this.disposed) this.uploadStatus = this.catalog.state.status === 'ready' ? 'success' : 'refresh_failed';
     } catch (error) {
       if (!this.disposed) {
         this.uploadError = this.apiError(error);
-        this.uploadStatus = phase.registering && (this.uploadError.code === 'network' || this.uploadError.code === 'timeout' || this.uploadError.code === 'invalid_response') ? 'uncertain' : 'error';
+        this.uploadStatus = phase.registering
+          && (this.uploadError.code === 'network' || this.uploadError.code === 'timeout' || this.uploadError.code === 'invalid_response')
+          ? 'uncertain' : 'error';
       }
     }
   }
@@ -209,6 +418,28 @@ export class NativeSession {
     this.operationError = null;
     this.active = null;
     await Promise.all([this.catalog.reload(), this.refreshActive()]);
+    if (!this.disposed && this.sessionState?.status === 'starting') {
+      void this.followExternalStartup();
+    }
+  }
+
+  private async followExternalStartup() {
+    if (this.operation || this.disposed) return;
+    this.operation = 'start';
+    this.warmingUp = true;
+    try {
+      const settled = await this.waitForStartupSettlement();
+      if (this.disposed) return;
+      if (settled.status === 'stopped' && settled.lastError) {
+        this.operationError = mapLastErrorToApiError(settled.lastError);
+      }
+      if (settled.status === 'running') void this.reconnectClientAudio(settled);
+    } catch (error) {
+      if (!this.disposed) this.operationError = this.apiError(error);
+    } finally {
+      this.warmingUp = false;
+      this.operation = null;
+    }
   }
 
   setGain(key: 'inputGain' | 'outputGain', value: number) {
@@ -246,8 +477,9 @@ export class NativeSession {
 
   get canAdjustRealtimeDisplay() {
     const settings = this.settings;
-    return this.catalog.state.status === 'ready' && settings?.ioAnalysisEnabled != null && settings.processAnalysisEnabled != null
-      && settings.performanceMonitorEnabled != null && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+    return this.catalog.state.status === 'ready' && !this.starting && settings?.ioAnalysisEnabled != null
+      && settings.processAnalysisEnabled != null && settings.performanceMonitorEnabled != null
+      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
 
   setRealtimeDisplay(enabled: boolean) {
@@ -256,9 +488,9 @@ export class NativeSession {
   }
 
   get canTogglePassThrough() {
-    return this.catalog.state.status === 'ready' && this.settings?.inputMode != null
-      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation
-      && this.settings.passThrough != null && this.settings.recording != null;
+    return this.catalog.state.status === 'ready' && this.active === true && !this.starting
+      && this.settings?.inputMode != null && this.settings.passThrough !== null
+      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
   }
 
   togglePassThrough() {
@@ -268,7 +500,7 @@ export class NativeSession {
 
   get canToggleRecording() {
     const settings = this.settings;
-    return this.catalog.state.status === 'ready' && settings?.inputMode != null && settings.recording !== null
+    return this.catalog.state.status === 'ready' && settings?.inputMode != null && !this.starting
       && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty
       && this.active !== null;
   }
@@ -277,16 +509,17 @@ export class NativeSession {
     if (!this.canToggleRecording || !this.settings) return;
     this.recordingCompleted = null;
     this.recordingNotice = null;
-    if (this.settings.recording === false && this.active === false) {
+    if (this.active === false) {
       this.recordingArmed = !this.recordingArmed;
       return;
     }
-    if (this.settings.recording === false && this.recordingArmed) {
+    const currentlyRecording = this.settings.recording === true;
+    if (!currentlyRecording && this.recordingArmed) {
       this.recordingArmed = false;
       return;
     }
-    this.recordingArmed = !this.settings.recording;
-    this.edit({ recording: !this.settings.recording }, true);
+    this.recordingArmed = !currentlyRecording;
+    this.edit({ recording: !currentlyRecording }, true);
   }
 
   setFilter(key: 'highPassEnabled' | 'lowPassEnabled', value: boolean): void;
@@ -309,7 +542,7 @@ export class NativeSession {
     this.schedule();
   }
 
-  setPitchEstimator(value: 'rmvpe' | 'fcpe') {
+  setPitchEstimator(value: PitchEstimator) {
     const model = this.currentModel;
     if (!this.canConfigure || !this.settings?.inputMode || model?.status !== 'ready'
       || !model.settings?.supportsPitch || !this.modelSettings?.pitchEstimator || this.modelSettings.pitchEstimator === value) return;
@@ -338,9 +571,10 @@ export class NativeSession {
     let rescanStarted = false;
     try {
       const devices = await this.request(async signal => {
-        if (await readNativeActive(signal)) {
-          this.active = true;
-          throw new ApiError('active');
+        const confirmed = await readSessionState(signal);
+        if (confirmed.session.status !== 'stopped') {
+          this.applySessionConfirmed(confirmed);
+          throw new ApiError(confirmed.session.status === 'starting' ? 'starting' : 'active');
         }
         rescanStarted = true;
         return loadAudioDevices(signal, true);
@@ -378,7 +612,6 @@ export class NativeSession {
     const devices = key === 'inputDevice' ? state.devices.input : state.devices.output;
     if (id !== -1 && !devices.some(device => device.id === id)) return;
     if (id === this.settings[key] && !this.devicesNeedingSelection.includes(key)) return;
-    // A different device may not support the previous device's fixed sample rate.
     const rateKey = `${key}Rate` as 'inputDeviceRate' | 'outputDeviceRate' | 'monitorDeviceRate';
     this.devicesNeedingSelection = this.devicesNeedingSelection.filter(device => device !== key);
     this.edit({ [key]: id, [rateKey]: -1 }, true);
@@ -398,10 +631,9 @@ export class NativeSession {
 
   setExtraSeconds(value: number) {
     if (!this.canConfigure || !this.settings?.inputMode || this.settings.extraSeconds == null
-      || !Number.isFinite(value) || value < 0.01 || value > 10 || value === this.settings.extraSeconds) return;
+      || !Number.isFinite(value) || value < 0.01 || value > 2 || value === this.settings.extraSeconds) return;
     this.edit({ extraSeconds: value }, true);
   }
-
 
   setChunkSeconds(value: number) {
     const model = this.currentModel;
@@ -432,7 +664,9 @@ export class NativeSession {
     }
     this.stagedConfiguration = { ...this.stagedConfiguration, ...staged };
     for (const key of Object.keys(this.stagedConfiguration) as (keyof ConfigurationEdits)[]) {
-      const original = key === 'currentModelId' ? this.catalog.currentModelId : this.catalog.settings?.[key as keyof NonNullable<typeof this.catalog.settings>];
+      const original = key === 'currentModelId'
+        ? this.catalog.currentModelId
+        : this.catalog.settings?.[key as keyof NonNullable<typeof this.catalog.settings>];
       if (this.stagedConfiguration[key] === original) delete this.stagedConfiguration[key];
     }
     if (!Object.keys(live).length) return;
@@ -472,7 +706,6 @@ export class NativeSession {
     this.isSaving = true;
     this.urgent = false;
     this.lastStarted = performance.now();
-    // Alternate when both have edits so a continuous volume drag cannot starve model settings.
     const sent: PendingWrite = this.modelDraft && (this.nextWrite === 'model' || Object.keys(this.draft).length === 0)
       ? { kind: 'model', id: this.modelDraft.id, edits: { ...this.modelDraft.edits } }
       : { kind: 'configuration', edits: { ...this.draft } };
@@ -481,20 +714,96 @@ export class NativeSession {
     return this.flight;
   }
 
+  private async putLiveSessionWithRetry(
+    edits: Partial<ConfigurationEdits & ModelEdits>,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const model = this.currentModel;
+    const base = this.sessionState?.snapshot ?? this.catalog.settings;
+    const modelId = this.sessionState?.snapshot?.modelId ?? model?.id;
+    const modelSettings = model?.settings;
+    if (!base || !modelId || !modelSettings) throw new ApiError('invalid_response');
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const snap = this.sessionState?.snapshot ?? base;
+      const payload = buildSessionPayload(
+        snap,
+        modelId,
+        modelSettings,
+        edits,
+        (edits.recording ?? (snap as { recording?: boolean | null }).recording) ?? false,
+      );
+      try {
+        const updated = await putSession(payload, signal, this.sessionEtag);
+        if (this.disposed) return;
+        this.applySessionConfirmed(updated);
+        return;
+      } catch (error) {
+        if (attempt === 0 && error instanceof ApiError && error.code === 'etag_mismatch') {
+          const refreshed = await readSessionState(signal);
+          this.applySessionConfirmed(refreshed);
+          if (refreshed.session.status === 'running') continue;
+        }
+        throw error;
+      }
+    }
+  }
+
   private async persist(sent: PendingWrite) {
     try {
       if (sent.kind === 'configuration') {
-        const confirmed = await this.request(signal => updateConfiguration(sent.edits, signal), sent.edits.gpuDevice !== undefined ? 120_000 : 30_000);
-        if (this.disposed) return;
-        this.catalog.applyConfiguration(confirmed);
-        this.devicesNeedingSelection = this.devicesNeedingSelection.filter(key =>
-          sent.edits[key] === undefined || sent.edits[key] !== this.draft[key] || confirmed.settings[key] !== sent.edits[key]);
-        if (sent.edits.recording === false) await this.prepareRecordingDownload();
-        // A response acknowledges only the values it sent, never newer interactions.
+        const { passThrough, recording, ...persistentEdits } = sent.edits;
+        const hasSessionOnly = passThrough !== undefined || recording !== undefined;
+        const hasPersistent = Object.keys(persistentEdits).length > 0;
+        const hasFilterEdits = ['highPassEnabled', 'lowPassEnabled', 'highPassCutoff', 'lowPassCutoff']
+          .some(key => key in persistentEdits);
+
+        if (this.active === true && hasFilterEdits) {
+          const fresh = await this.request(readSessionState, 8_000);
+          if (this.disposed) return;
+          this.applySessionConfirmed(fresh);
+        }
+
+        const sampleInputRate = this.active === true ? (this.sessionState?.inputSampleRate ?? null) : null;
+        if (this.active === true && hasFilterEdits && this.sessionState?.snapshot) {
+          const baseSnap = this.sessionState.snapshot;
+          const high = persistentEdits.highPassCutoff ?? baseSnap.highPassCutoff;
+          const low = persistentEdits.lowPassCutoff ?? baseSnap.lowPassCutoff;
+          const highEnabled = persistentEdits.highPassEnabled ?? baseSnap.highPassEnabled ?? false;
+          const lowEnabled = persistentEdits.lowPassEnabled ?? baseSnap.lowPassEnabled ?? false;
+          validateFilterParameters(high, low, highEnabled, lowEnabled, sampleInputRate);
+        }
+
+        if (this.active === true && (hasSessionOnly || hasPersistent)) {
+          await this.request(signal => this.putLiveSessionWithRetry(sent.edits, signal), 30_000);
+          if (this.disposed) return;
+          if (recording === false) await this.prepareRecordingDownload();
+        } else if (hasSessionOnly) {
+          throw new ApiError('active');
+        }
+
+        if (hasPersistent) {
+          const timeoutMs = persistentEdits.gpuDevice !== undefined ? 120_000 : 30_000;
+          const confirmed = await this.request(
+            signal => updateSettings(persistentEdits, signal, { input: sampleInputRate }),
+            timeoutMs,
+          );
+          if (this.disposed) return;
+          this.catalog.applyConfiguration(confirmed);
+          this.devicesNeedingSelection = this.devicesNeedingSelection.filter(key =>
+            persistentEdits[key] === undefined
+            || persistentEdits[key] !== this.draft[key]
+            || confirmed.settings[key] !== persistentEdits[key]);
+        }
+
         this.draft = Object.fromEntries(Object.entries(this.draft).filter(
           ([key, value]) => sent.edits[key as keyof ConfigurationEdits] !== value,
         ));
       } else {
+        if (this.active === true && this.sessionState?.snapshot?.modelId === sent.id) {
+          await this.request(signal => this.putLiveSessionWithRetry(sent.edits, signal), 30_000);
+          if (this.disposed) return;
+        }
         const confirmed = await this.request(signal => updateModelSettings(sent.id, sent.edits, signal));
         if (this.disposed) return;
         this.catalog.applyModel(confirmed);
@@ -516,162 +825,217 @@ export class NativeSession {
   }
 
   private async applyStagedSettings() {
-    const modelId = this.currentModelId;
-    const originalModelId = this.catalog.currentModelId;
-    const switchingModel = modelId !== originalModelId;
-    const selectedEdits = modelId === null ? undefined : this.stagedModels[modelId];
-    const saveModel = async (id: string, confirmPipeline: boolean) => {
+    const selectedId = this.currentModelId;
+    const ids = Object.keys(this.stagedModels);
+    ids.sort((a, b) => (a === selectedId ? -1 : b === selectedId ? 1 : 0));
+
+    for (const id of ids) {
       const edits = this.stagedModels[id];
-      if (!edits || !Object.keys(edits).length) return;
-      const confirmed = await this.request(signal => updateModelSettings(id, edits, signal, confirmPipeline), 180_000);
+      if (!edits || !Object.keys(edits).length) continue;
+      const confirmed = await this.request(signal => updateModelSettings(id, edits, signal), 180_000);
       this.catalog.applyModel(confirmed);
-      if (id !== modelId || !switchingModel) {
-        const remaining = { ...this.stagedModels };
-        delete remaining[id];
-        this.stagedModels = remaining;
-      }
-    };
-    for (const id of Object.keys(this.stagedModels)) {
-      if (id !== originalModelId) await saveModel(id, false);
+      const remaining = { ...this.stagedModels };
+      delete remaining[id];
+      this.stagedModels = remaining;
     }
-    if (!switchingModel && originalModelId !== null) await saveModel(originalModelId, true);
-    if (Object.keys(this.stagedConfiguration).length) {
-      const confirmed = await this.request(signal => updateConfiguration(this.stagedConfiguration, signal), 180_000);
+
+    const persistentConfig: ConfigurationEdits = { ...this.stagedConfiguration };
+    if (this.catalog.settings?.wasapiExclusive === true) {
+      persistentConfig.wasapiExclusive = false;
+    }
+    if (Object.keys(persistentConfig).length) {
+      const confirmed = await this.request(signal => updateSettings(persistentConfig, signal), 180_000);
       this.catalog.applyConfiguration(confirmed);
       this.stagedConfiguration = {};
     }
-    if (switchingModel && modelId !== null && selectedEdits?.pitchEstimator) {
-      await this.request(signal => confirmPitchEstimator(modelId, selectedEdits.pitchEstimator!, signal));
+  }
+
+  private async waitForStartupSettlement(): Promise<SessionStateSnapshot> {
+    const deadline = Date.now() + startupTimeoutMs;
+    while (!this.disposed) {
+      const current = this.sessionState;
+      if (current && current.status !== 'starting') return current;
+      if (Date.now() >= deadline) throw new ApiError('timeout');
+      await new Promise(resolve => setTimeout(resolve, startupPollIntervalMs));
+      if (this.disposed) throw new DOMException('Disposed', 'AbortError');
+      const confirmed = await this.request(readSessionState, 8_000);
+      if (this.disposed) throw new DOMException('Disposed', 'AbortError');
+      this.applySessionConfirmed(confirmed);
+      if (confirmed.session.status !== 'starting') return confirmed.session;
     }
-    if (switchingModel && modelId !== null && selectedEdits) {
-      const remaining = { ...this.stagedModels };
-      delete remaining[modelId];
-      this.stagedModels = remaining;
+    throw new DOMException('Disposed', 'AbortError');
+  }
+
+  private handleClientSuperseded() {
+    this.clientAudio.stop();
+    if (!this.disposed) {
+      this.recordingNotice = 'superseded';
+      void this.refreshActive();
     }
-    if (switchingModel && originalModelId !== null && this.stagedModels[originalModelId]) {
-      await saveModel(originalModelId, false);
+  }
+
+  private handleClientClosed() {
+    this.clientAudio.stop();
+    if (!this.disposed) {
+      void this.refreshActive();
+    }
+  }
+
+  private handleClientFailure(error: Error) {
+    this.clientAudio.stop();
+    if (!this.disposed) {
+      this.operationError = new ApiError('client_audio', undefined, error.message);
+      void this.refreshActive();
+    }
+  }
+
+  private async reconnectClientAudio(session: SessionStateSnapshot) {
+    if (this.disposed || this.reconnecting || session.status !== 'running' || session.snapshot?.inputMode !== 'client') return;
+    this.reconnecting = true;
+    const version = ++this.reconnectVersion;
+    try {
+      const inputRate = session.inputSampleRate;
+      const outputRate = session.outputSampleRate;
+      if (!inputRate || !outputRate || inputRate <= 0 || outputRate <= 0) throw new ApiError('invalid_response');
+      await this.clientAudio.prepareCapture(inputRate);
+      if (this.disposed || version !== this.reconnectVersion) return;
+      const confirmed = await this.request(readSessionState, 8_000);
+      if (this.disposed || version !== this.reconnectVersion) return;
+      this.applySessionConfirmed(confirmed);
+      if (confirmed.session.status !== 'running' || confirmed.session.snapshot?.inputMode !== 'client'
+        || confirmed.session.inputSampleRate !== inputRate || confirmed.session.outputSampleRate !== outputRate) {
+        this.clientAudio.stop();
+        return;
+      }
+      await this.clientAudio.connectStream(outputRate, {
+        onSuperseded: () => this.handleClientSuperseded(),
+        onClosed: () => this.handleClientClosed(),
+        onFailure: err => this.handleClientFailure(err),
+      });
+    } catch (error) {
+      if (!this.disposed && version === this.reconnectVersion) {
+        this.handleClientFailure(error instanceof Error ? error : new Error('Audio connection failed.'));
+      }
+    } finally {
+      this.reconnecting = false;
     }
   }
 
   async operate(operation: 'start' | 'stop') {
     if (this.disposed || (operation === 'start' ? !this.canStart : !this.canStop)) return;
+    if (operation === 'stop') ++this.reconnectVersion;
     this.operation = operation;
     this.operationError = null;
     ++this.statusVersion;
     clearTimeout(this.timer);
+    let capturePrepared = false;
     try {
-      // Stop also waits for the current PUT, but is not blocked by a failed save.
       await this.flight;
       if (this.disposed) return;
+
       if (operation === 'start') {
+        const latestSession = await this.request(readSessionState, 8_000);
+        if (this.disposed) return;
+        this.applySessionConfirmed(latestSession);
+        if (latestSession.session.status === 'starting') throw new ApiError('starting');
+        if (latestSession.session.status === 'running') throw new ApiError('active');
+
+        const effectiveMode = this.settings?.inputMode;
+        if (effectiveMode === 'client') {
+          const inputRate = this.settings?.inputDeviceRate && this.settings.inputDeviceRate > 0
+            ? this.settings.inputDeviceRate : 48000;
+          await this.clientAudio.prepareCapture(inputRate);
+          capturePrepared = true;
+          if (this.disposed) {
+            this.clientAudio.stop();
+            return;
+          }
+        }
+
         this.warmingUp = true;
         await this.applyStagedSettings();
         if (this.disposed) return;
-      }
-      if (this.settings?.inputMode === 'client') {
-        if (operation === 'start') {
-          await this.request(signal => operateNative('stop', signal));
-          const confirmed = await this.request(signal => updateConfiguration({ currentModelId: this.currentModelId! }, signal));
-          this.catalog.applyConfiguration(confirmed);
-          this.warmingUp = false;
-          if (confirmed.settings.inputMode !== 'client') throw new ApiError('not_applied');
-          const rates = await this.request(readAudioSampleRates);
-          if (!rates.input || !rates.output) throw new ApiError('invalid_response');
-          if (this.recordingArmed) {
-            const recording = await this.request(signal => updateConfiguration({ recording: true }, signal));
-            this.catalog.applyConfiguration(recording);
-          }
-          try { await this.clientAudio.start(rates.input, rates.output, error => {
-            this.clientAudio.stop();
-            this.clientActive = false;
-            this.active = false;
-            this.operation = 'stop';
-            this.operationError = new ApiError('client_audio', undefined, error.message);
-            void (async () => {
-              try {
-                if (this.settings?.recording === true) {
-                  const recording = await this.request(signal => updateConfiguration({ recording: false }, signal));
-                  if (!this.disposed) {
-                    this.catalog.applyConfiguration(recording);
-                    this.recordingArmed = true;
-                    await this.prepareRecordingDownload();
-                  }
-                }
-              } catch (error) {
-                if (!this.disposed) this.operationError = this.apiError(error);
-              } finally {
-                await this.request(signal => operateNative('stop', signal)).catch(error => {
-                  if (!this.disposed) this.operationError = this.apiError(error);
-                });
-                if (!this.disposed) this.operation = null;
-              }
-            })();
-          }); } catch (error) {
-            if (this.settings?.recording === true) {
-              const recording = await this.request(signal => updateConfiguration({ recording: false }, signal));
-              this.catalog.applyConfiguration(recording);
-            }
+
+        const base = this.catalog.settings;
+        const model = this.currentModel;
+        if (!base || !model?.settings || !this.currentModelId) throw new ApiError('invalid_response');
+        const payload = buildSessionPayload(
+          base,
+          this.currentModelId,
+          model.settings,
+          { wasapiExclusive: false },
+          this.recordingArmed,
+        );
+
+        const initial = await this.request(
+          signal => putSession(payload, signal, this.sessionEtag),
+          120_000,
+        );
+        if (this.disposed) return;
+        this.applySessionConfirmed(initial);
+
+        const settled = initial.session.status === 'starting'
+          ? await this.waitForStartupSettlement()
+          : initial.session;
+        if (this.disposed) return;
+
+        if (settled.status !== 'running') {
+          this.clientAudio.stop();
+          capturePrepared = false;
+          if (settled.lastError) throw mapLastErrorToApiError(settled.lastError);
+          throw new ApiError('session_start_failed');
+        }
+
+        if (effectiveMode === 'client') {
+          const outputRate = settled.outputSampleRate && settled.outputSampleRate > 0
+            ? settled.outputSampleRate : 48000;
+          try {
+            await this.clientAudio.connectStream(outputRate, {
+              onSuperseded: () => this.handleClientSuperseded(),
+              onClosed: () => this.handleClientClosed(),
+              onFailure: err => this.handleClientFailure(err),
+            });
+          } catch (error) {
+            await this.request(signal => stopSession(signal, this.sessionEtag), 30_000)
+              .then(stopped => { this.applySessionConfirmed(stopped); })
+              .catch(() => {});
             throw error;
           }
-          if (this.disposed) return;
-          this.clientActive = true;
-          this.active = true;
-        } else {
-          this.clientAudio.stop();
-          this.clientActive = false;
-          this.active = false;
-          let recordingError: unknown;
-          if (this.settings?.recording === true) {
-            try {
-              const recording = await this.request(signal => updateConfiguration({ recording: false }, signal));
-              this.catalog.applyConfiguration(recording);
-              this.recordingArmed = true;
-              await this.prepareRecordingDownload();
-            } catch (error) { recordingError = error; }
-          }
-          await this.request(signal => operateNative('stop', signal));
-          if (recordingError) throw recordingError;
         }
         this.statusError = false;
         return;
       }
-      this.active = await this.request(async signal => {
-        if (operation === 'start') {
-          // Reapply/confirm the selected model through the existing PUT before starting.
-          // This also initializes a pipeline when a previous startup load failed.
-          const confirmed = await updateConfiguration({ currentModelId: this.currentModelId!, wasapiExclusive: false }, signal);
-          if (!this.disposed) this.catalog.applyConfiguration(confirmed);
-          this.warmingUp = false;
-          if (confirmed.settings.inputMode !== 'server') throw new ApiError('not_applied');
-          const active = await operateNative('start', signal);
-          if (this.recordingArmed) {
-            this.recordingCompleted = null;
-            const recording = await updateConfiguration({ recording: true }, signal);
-            if (!this.disposed) this.catalog.applyConfiguration(recording);
-          }
-          return active;
-        }
-        let recordingError: unknown;
-        if (this.settings?.recording === true) {
+
+      const wasRecording = this.sessionState?.snapshot?.recording === true;
+      this.clientAudio.stop();
+      const stopped = await this.request(async signal => {
+        for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            const recording = await updateConfiguration({ recording: false }, signal);
-            if (!this.disposed) {
-              this.catalog.applyConfiguration(recording);
-              this.recordingArmed = true;
-              await this.prepareRecordingDownload();
+            return await stopSession(signal, this.sessionEtag);
+          } catch (error) {
+            if (attempt === 0 && error instanceof ApiError && error.code === 'etag_mismatch') {
+              const refreshed = await readSessionState(signal);
+              this.applySessionConfirmed(refreshed);
+              if (refreshed.session.status === 'stopped') return refreshed;
+              continue;
             }
-          } catch (error) { recordingError = error; }
+            throw error;
+          }
         }
-        const active = await operateNative('stop', signal);
-        if (recordingError) throw recordingError;
-        return active;
-      });
+        throw new ApiError('invalid_response');
+      }, 30_000);
+      if (this.disposed) return;
+      this.applySessionConfirmed(stopped);
+      if (wasRecording) {
+        await this.prepareRecordingDownload();
+      }
       this.statusError = false;
     } catch (error) {
+      if (capturePrepared) this.clientAudio.stop();
       if (!this.disposed) {
-        this.operationError = error instanceof ApiError ? error : this.settings?.inputMode === 'client'
-          ? new ApiError('client_audio', undefined, error instanceof Error ? error.message : undefined) : this.apiError(error);
-        this.active = null;
+        this.operationError = error instanceof ApiError ? error : this.settings?.inputMode === 'client' && operation === 'start'
+          ? new ApiError('client_audio', undefined, error instanceof Error ? error.message : undefined)
+          : this.apiError(error);
       }
     } finally {
       this.warmingUp = false;
@@ -709,13 +1073,14 @@ export class NativeSession {
   private async refreshActive() {
     const version = ++this.statusVersion;
     try {
-      const active = await this.request(readNativeActive, 8_000);
+      const confirmed = await this.request(readSessionState, 8_000);
       if (!this.disposed && version === this.statusVersion) {
-        this.active = active || this.clientActive;
-        this.statusError = false;
+        this.applySessionConfirmed(confirmed);
       }
     } catch {
       if (!this.disposed && version === this.statusVersion) {
+        this.sessionState = null;
+        this.sessionEtag = null;
         this.active = null;
         this.statusError = true;
       }
@@ -743,12 +1108,13 @@ export class NativeSession {
 
   dispose() {
     this.disposed = true;
+    ++this.reconnectVersion;
     this.clientAudio.stop();
     ++this.statusVersion;
     clearTimeout(this.timer);
     clearTimeout(this.poll);
     for (const request of this.requests) request.abort();
-    this.catalog.dispose();
+    this.requests.clear();
   }
 }
 
@@ -756,4 +1122,6 @@ export function provideSession(catalog: ModelCatalogState) {
   return setContext(contextKey, new NativeSession(catalog));
 }
 
-export function useSession(): NativeSession { return getContext(contextKey); }
+export function useSession(): NativeSession {
+  return getContext(contextKey);
+}

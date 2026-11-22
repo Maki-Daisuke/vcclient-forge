@@ -27,7 +27,7 @@ test('shows loading until both the model list and the selection arrive', async (
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   await page.route('**/api/**', async route => {
-    if (route.request().url().endsWith('/configuration')) await pending;
+    if (route.request().url().endsWith('/settings')) await pending;
     await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -113,7 +113,7 @@ for (const invalid of [
 }
 
 test('a failed configuration request does not publish a partial list', async ({ page }) => {
-  await page.route('**/api/**', route => route.request().url().endsWith('/configuration')
+  await page.route('**/api/**', route => route.request().url().endsWith('/settings')
     ? route.fulfill({ status: 503 }) : fulfillCatalog(route));
   await page.goto('/');
   await expect(page.locator('.models-panel').getByRole('alert')).toContainText('HTTP 503');
@@ -121,7 +121,7 @@ test('a failed configuration request does not publish a partial list', async ({ 
 });
 
 test('an invalid current model ID does not silently choose a model', async ({ page }) => {
-  await page.route('**/api/**', route => route.request().url().endsWith('/configuration')
+  await page.route('**/api/**', route => route.request().url().endsWith('/settings')
     ? route.fulfill({ json: { model_id: 7 } }) : fulfillCatalog(route));
   await page.goto('/');
   await expect(page.locator('.models-panel').getByRole('alert')).toContainText('応答形式が想定と異なる');

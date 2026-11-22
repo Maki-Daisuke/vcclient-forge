@@ -13,6 +13,7 @@ export interface ModelCatalog {
   models: ModelSummary[];
   currentModelId: string | null;
   settings: ConfigurationSnapshot;
+  settingsEtag: string | null;
 }
 
 export type CatalogLoader = (signal: AbortSignal) => Promise<ModelCatalog>;

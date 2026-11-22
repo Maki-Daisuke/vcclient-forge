@@ -96,6 +96,11 @@ def get_active_model_id() -> str | None:
     """Return the model_id currently held by a starting or running session, if any."""
     if _active_model_id_getter is not None:
         return _active_model_id_getter()
+    from vcclient.voice_changer.session_manager import get_active_session_model_id
+
+    session_model_id = get_active_session_model_id()
+    if session_model_id is not None:
+        return session_model_id
     if is_session_active():
         voice = VoiceChanger.peek_instance()
         if voice is not None and voice.vc_info.model_id is not None:
@@ -116,7 +121,11 @@ def ensure_model_not_in_use(model_id: str, message: str) -> None:
 
 
 def is_session_active() -> bool:
-    """Return True when native audio or client bulk conversion is currently active."""
+    """Return True when a conversion session, native audio, or client bulk conversion is active."""
+    from vcclient.voice_changer.session_manager import is_session_starting_or_running
+
+    if is_session_starting_or_running():
+        return True
     local = LocalVoiceChangerInterface.get_instance()
     if local.local_voice_changer_enabled or local.stream_running:
         return True
@@ -134,6 +143,10 @@ def ensure_session_stopped(
 
 def is_recording_active() -> bool:
     """Return True when server recording is enabled or currently running."""
+    from vcclient.voice_changer.session_manager import is_session_recording_active
+
+    if is_session_recording_active():
+        return True
     conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
     if conf.recording_started:
         return True

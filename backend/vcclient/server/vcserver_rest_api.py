@@ -25,10 +25,12 @@ from vcclient.server.vcserver_rest_api_devices import RestAPIDevices
 from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
 from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
 from vcclient.server.vcserver_rest_api_models import RestAPIModels
+from vcclient.server.vcserver_rest_api_session import RestAPISession
 from vcclient.server.vcserver_rest_api_settings import RestAPISettings
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.server.vcserver_websocket import WebSocketHub
+from vcclient.voice_changer.session_manager import set_websocket_hub
 from vcclient.voice_changer.voice_changer_const import ModelDir
 
 
@@ -173,6 +175,8 @@ def _create_rest_api() -> FastAPI:
     app_fastapi.include_router(rest_models.router)
     rest_settings = RestAPISettings()
     app_fastapi.include_router(rest_settings.router)
+    rest_session = RestAPISession()
+    app_fastapi.include_router(rest_session.router)
 
     domain_system_router = APIRouter(route_class=DomainApiRoute)
 
@@ -198,8 +202,9 @@ def _create_rest_api() -> FastAPI:
 
     app_fastapi.include_router(domain_system_router)
 
-    ws_hub = WebSocketHub()
+    ws_hub = WebSocketHub(enforce_session=True)
     ws_hub.subscribe_core_events()
+    set_websocket_hub(ws_hub)
     app_fastapi.state.ws_hub = ws_hub
     app_fastapi.include_router(ws_hub.router)
 

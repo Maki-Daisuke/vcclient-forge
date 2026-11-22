@@ -50,23 +50,24 @@ test('applies filter switches and cutoffs during native audio using the complete
 });
 
 for (const scenario of [
-  { name: 'inverted cutoffs', high: 140, low: 100, rate: 48000 },
-  { name: 'cutoff above the effective limit', high: 140, low: 9500, rate: 300 },
-  { name: 'unavailable sample rate', high: 140, low: 9500, rate: -1 },
+  { name: 'inverted cutoffs', active: false, high: 140, low: 100, rate: 48000 },
+  { name: 'cutoff above the effective Nyquist limit while running', active: true, high: 140, low: 9500, rate: 300 },
 ]) {
   test(`does not write ${scenario.name} and permits retry after correction`, async ({ page }) => {
     const state = await mockSession(page);
+    state.active = scenario.active;
     state.config.high_pass_filter_cutoff = scenario.high;
     state.config.low_pass_filter_cutoff = scenario.low;
-    state.config.input_sample_rate = scenario.rate;
+    state.inputSampleRate = scenario.rate;
     await page.goto('/');
     await openControlSections(page);
     await page.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
     const status = page.locator('.configuration-status');
-    await expect(status.getByRole('alert')).toContainText('サンプルレート');
+    await expect(status.getByRole('alert')).toContainText('カットオフ');
     expect(state.writes).toHaveLength(0);
+    if (scenario.active) expect(state.sessionWrites).toHaveLength(0);
     state.config.low_pass_filter_cutoff = 9500;
-    state.config.input_sample_rate = 48000;
+    state.inputSampleRate = 48000;
     await status.getByRole('button', { name: '保存を再試行' }).click();
     await expect(status).toHaveAttribute('data-state', 'saved');
     expect(state.writes).toHaveLength(1);
@@ -74,27 +75,14 @@ for (const scenario of [
   });
 }
 
-test('a missing filter value remains unknown and disabled', async ({ page }) => {
+test('allows saving filter settings while stopped without requiring an active session sample rate', async ({ page }) => {
   const state = await mockSession(page);
-  delete state.config.enable_high_pass_filter;
-  delete state.config.high_pass_filter_cutoff;
-  await page.goto('/');
-  await openControlSections(page);
-  await expect(page.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeDisabled();
-  await expect(page.getByRole('slider', { name: 'ハイパスのカットオフ' })).toBeDisabled();
-  expect(state.writes).toHaveLength(0);
-});
-
-test('does not use audio information belonging to a different model', async ({ page }) => {
-  const state = await mockSession(page);
-  await page.route('**/api/voice-changer-manager/information', route => route.fulfill({
-    json: { voice_changer_information: { model_id: 'model_a', input_sample_rate: 48000, output_sample_rate: 48000 } },
-  }));
   await page.goto('/');
   await openControlSections(page);
   await page.getByRole('checkbox', { name: 'ローパスフィルタを有効にする' }).check();
-  await expect(page.locator('.configuration-status').getByRole('alert')).toContainText('サンプルレート');
-  expect(state.writes).toHaveLength(0);
+  await expect(page.locator('.configuration-status')).toHaveAttribute('data-state', 'saved');
+  expect(state.config.enable_low_pass_filter).toBe(true);
+  expect(state.sessionWrites).toHaveLength(0);
 });
 
 test('requires a model before editing filters', async ({ page }) => {

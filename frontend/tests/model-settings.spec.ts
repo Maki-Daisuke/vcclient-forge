@@ -61,7 +61,7 @@ test('keeps pitch estimator disabled during audio conversion', async ({ page }) 
 
 test('switches the pitch estimator in client mode while stopped', async ({ page }) => {
   const state = await mockEditableModel(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.goto('/');
   const fcpe = page.getByRole('radio', { name: 'FCPE' });
   await expect(fcpe).toBeEnabled();
@@ -95,15 +95,20 @@ test('rechecks stopped audio before writing a pitch estimator', async ({ page })
   expect(state.modelWrites).toHaveLength(0);
 });
 
-test('reports a pitch estimator that was saved but not applied to the pipeline', async ({ page }) => {
+test('reports an async startup failure when starting with an updated pitch estimator', async ({ page }) => {
   const state = await mockEditableModel(page);
-  state.estimatorMismatch = true;
+  let release!: () => void;
+  state.sessionGate = new Promise(resolve => { release = resolve; });
+  state.asyncStartError = { code: 'session_start_failed', message: 'FCPE initialization failed' };
   await page.goto('/');
   await page.getByRole('radio', { name: 'FCPE' }).check();
   await page.getByRole('button', { name: '開始', exact: true }).click();
-  await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
+  await expect(page.getByRole('status').filter({ hasText: 'ウォームアップ中' })).toBeVisible();
+  release();
+  await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('FCPE initialization failed');
   expect(state.models.find(model => model.id === 'model_b')!.pitch_estimator).toBe('fcpe');
-  state.estimatorMismatch = false;
+  state.sessionGate = null;
+  state.asyncStartError = null;
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeChecked();
@@ -124,6 +129,10 @@ test('updates pitch and index while running, preserving unrelated model fields a
   await saved(page);
   expect(state.modelWrites.map(write => write.id)).toEqual(['model_b', 'model_b']);
   expect(state.modelWrites[1].data).toEqual({ index_ratio: 0.64 });
+  expect(state.sessionWrites.map(write => ({ pitch_shift: write.pitch_shift, index_ratio: write.index_ratio }))).toEqual([
+    { pitch_shift: -4, index_ratio: 0.63 },
+    { pitch_shift: -4, index_ratio: 0.64 },
+  ]);
   expect(modelB).toMatchObject({
     id: 'model_b',
     pitch_shift: -4,
@@ -161,7 +170,7 @@ test('coalesces model edits with volume writes in one queue without stale slider
   const modelB = state.models.find(model => model.id === 'model_b')!;
   expect(modelB.pitch_shift).toBe(24);
   expect(modelB.index_ratio).toBe(0);
-  expect(state.config.audio_input_device_gain).toBe(10);
+  expect(state.config.input_gain).toBe(10);
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '24');
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await saved(page);

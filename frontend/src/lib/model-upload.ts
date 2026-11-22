@@ -1,5 +1,5 @@
 import { ApiError } from './api-error';
-import { readNativeActive, sendMultipart } from './api';
+import { readSessionState, sendMultipart } from './api';
 
 export async function importModel(
   model: File,
@@ -12,7 +12,9 @@ export async function importModel(
   if (!ext || model.size === 0 || (index && (!/\.index$/i.test(index.name) || index.size === 0))) {
     throw new ApiError('invalid_response');
   }
-  if (await readNativeActive(signal)) throw new ApiError('active');
+  const { session } = await readSessionState(signal);
+  if (session.status === 'starting') throw new ApiError('starting');
+  if (session.status === 'running') throw new ApiError('active');
   const name = model.name.slice(0, -ext.length).trim() || model.name;
   const form = new FormData();
   form.append('name', name);

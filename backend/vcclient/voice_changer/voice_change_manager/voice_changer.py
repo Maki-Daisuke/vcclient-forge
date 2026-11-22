@@ -1,6 +1,7 @@
 import threading
 import time
 from queue import Empty, Queue
+from typing import Any
 
 import numpy as np
 import samplerate as sr
@@ -60,9 +61,17 @@ class VoiceChanger(EventEmitter):
     al: np.ndarray
     bb: np.ndarray
     ab: np.ndarray
+    _active_snapshot: Any
+    _filter_coeffs: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None
 
     @classmethod
     def peek_instance(cls) -> VoiceChanger | None:
+        return cls._instance
+
+    @classmethod
+    def get_or_create_raw(cls) -> VoiceChanger:
+        if cls._instance is None:
+            cls._instance = cls()
         return cls._instance
 
     @classmethod
@@ -73,6 +82,8 @@ class VoiceChanger(EventEmitter):
         return cls._instance
 
     def check_and_update_pipeline(self) -> None:
+        if getattr(self, "_active_snapshot", None) is not None:
+            return None
         logger.info("[check_and_update_pipeline]")
         self._check_reload_model_is_required_and_update()
         self._check_and_update_pitch_estimator()
@@ -89,6 +100,8 @@ class VoiceChanger(EventEmitter):
         self.crossfade_processor = CrossfadeProcessor()
         self.bulk_process = None
         self.vc_pipeline = None
+        self._active_snapshot = None
+        self._filter_coeffs = None
         self.output_record = []
         self.resampler_in = sr.Resampler("sinc_best", channels=1)
         self.resampler_out = sr.Resampler("sinc_best", channels=1)
@@ -311,25 +324,113 @@ class VoiceChanger(EventEmitter):
             self._set_io_sample_rate()
             return None
 
+    @staticmethod
+    def _compute_filter_coeffs(
+        input_sample_rate: int,
+        high_cutoff: float,
+        low_cutoff: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        (bh, ah) = signal.butter(N=5, Wn=high_cutoff, btype="high", fs=input_sample_rate)
+        clamped_low = min(low_cutoff, (input_sample_rate / 2) * 0.9)
+        (bl, al) = signal.butter(N=5, Wn=clamped_low, btype="low", fs=input_sample_rate)
+        (bb, ab) = signal.butter(N=5, Wn=[high_cutoff, clamped_low], btype="band", fs=input_sample_rate)
+        return (bh, ah, bl, al, bb, ab)
+
     def _generate_filter(self) -> None:
         if hasattr(self, "input_sample_rate") is False:
             return None
 
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        (bh, ah) = signal.butter(N=5, Wn=conf.high_pass_filter_cutoff, btype="high", fs=self.input_sample_rate)
-        self.bh = bh
-        self.ah = ah
-
-        low_pass_filter_cutoff = min(conf.low_pass_filter_cutoff, (self.input_sample_rate / 2) * 0.9)
-        (bl, al) = signal.butter(N=5, Wn=low_pass_filter_cutoff, btype="low", fs=self.input_sample_rate)
-        self.bl = bl
-        self.al = al
-
-        (bb, ab) = signal.butter(
-            N=5, Wn=[conf.high_pass_filter_cutoff, low_pass_filter_cutoff], btype="band", fs=self.input_sample_rate
+        coeffs = self._compute_filter_coeffs(
+            self.input_sample_rate, conf.high_pass_filter_cutoff, conf.low_pass_filter_cutoff
         )
-        self.bb = bb
-        self.ab = ab
+        self._filter_coeffs = coeffs
+        (self.bh, self.ah, self.bl, self.al, self.bb, self.ab) = coeffs
+
+    def reset_client_stream_buffers(self) -> None:
+        self.waveform_rest = np.array([], dtype=np.float32)
+        for queue_obj in (
+            self.convert_chunk_bulk_queue_in,
+            self.convert_chunk_bulk_queue_out,
+            self.convert_chunk_bulk_queue_monitor,
+        ):
+            while True:
+                try:
+                    queue_obj.get_nowait()
+                except Empty:
+                    break
+
+    def configure_for_session(
+        self,
+        snapshot: Any,
+        pipeline: VCPipeline,
+        *,
+        input_sample_rate: int,
+        output_sample_rate: int,
+        monitor_sample_rate: int | None,
+    ) -> None:
+        self.vc_pipeline = pipeline
+        self.vc_info.model_id = snapshot.model_id
+        self.vc_info.slot_index = -1
+        self.vc_info.gpu_device_index = snapshot.compute_device_id
+        slot_meta = getattr(pipeline, "_slot_info", None)
+        self.vc_info.voice_changer_type = getattr(slot_meta, "voice_changer_type", "RVC")
+        self.vc_info.vc_input_sample_rate = pipeline.get_input_sample_rate()
+        self.vc_info.vc_output_sample_rate = pipeline.get_output_sample_rate()
+        self.vc_info.pitch_estimator_type = pipeline.get_pitch_estimator_type()
+        self.vc_info.chunk_sec = pipeline.get_chunk_sec()
+        self.vc_info.input_sample_rate = input_sample_rate
+        self.vc_info.output_sample_rate = output_sample_rate
+        self.vc_info.monitor_sample_rate = monitor_sample_rate if monitor_sample_rate is not None else -1
+        self.vc_info.monitor_enabled = (
+            snapshot.input_mode == "server"
+            and monitor_sample_rate is not None
+            and snapshot.audio_monitor_device_index != -1
+        )
+        self.vc_info.enable_high_pass_filter = snapshot.enable_high_pass_filter
+        self.vc_info.high_pass_filter_cutoff = snapshot.high_pass_filter_cutoff
+        self.vc_info.enable_low_pass_filter = snapshot.enable_low_pass_filter
+        self.vc_info.low_pass_filter_cutoff = snapshot.low_pass_filter_cutoff
+        self._set_io_sample_rate()
+        coeffs = self._compute_filter_coeffs(
+            self.input_sample_rate,
+            snapshot.high_pass_filter_cutoff,
+            snapshot.low_pass_filter_cutoff,
+        )
+        self._filter_coeffs = coeffs
+        (self.bh, self.ah, self.bl, self.al, self.bb, self.ab) = coeffs
+        self.crossfade_processor = CrossfadeProcessor()
+        self.reset_client_stream_buffers()
+        self.vc_info.pipeline_info = pipeline.get_pipeline_info()
+        self._active_snapshot = snapshot
+
+    def apply_live_snapshot(self, snapshot: Any) -> None:
+        prev = getattr(self, "_active_snapshot", None)
+        if (
+            prev is None
+            or prev.high_pass_filter_cutoff != snapshot.high_pass_filter_cutoff
+            or prev.low_pass_filter_cutoff != snapshot.low_pass_filter_cutoff
+            or getattr(self, "_filter_coeffs", None) is None
+        ):
+            coeffs = self._compute_filter_coeffs(
+                self.input_sample_rate,
+                snapshot.high_pass_filter_cutoff,
+                snapshot.low_pass_filter_cutoff,
+            )
+            self._filter_coeffs = coeffs
+            (self.bh, self.ah, self.bl, self.al, self.bb, self.ab) = coeffs
+        self.vc_info.enable_high_pass_filter = snapshot.enable_high_pass_filter
+        self.vc_info.high_pass_filter_cutoff = snapshot.high_pass_filter_cutoff
+        self.vc_info.enable_low_pass_filter = snapshot.enable_low_pass_filter
+        self.vc_info.low_pass_filter_cutoff = snapshot.low_pass_filter_cutoff
+        self._active_snapshot = snapshot
+        if snapshot.recording and not self.vc_info.recording_start_flag:
+            self.start_recording()
+        elif not snapshot.recording and self.vc_info.recording_start_flag:
+            self.stop_recording()
+
+    def clear_session_snapshot(self) -> None:
+        self._active_snapshot = None
 
     def _check_and_update_filter(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
@@ -373,6 +474,11 @@ class VoiceChanger(EventEmitter):
         )
 
     def get_voice_changer_information(self) -> VoiceChangerInformation:
+        if getattr(self, "_active_snapshot", None) is not None:
+            if self.vc_pipeline is not None:
+                self.vc_info.chunk_sec = self.vc_pipeline.get_chunk_sec()
+                self.vc_info.pipeline_info = self.vc_pipeline.get_pipeline_info()
+            return self.vc_info
         self._check_reload_model_is_required_and_update()
         if self.vc_pipeline is None:
             logger.warning("vc_pipeline is None, returning default vc_info")
@@ -413,10 +519,12 @@ class VoiceChanger(EventEmitter):
             )
 
         try:
-            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            sample_rate = getattr(self, "output_sample_rate", None)
+            if not isinstance(sample_rate, int) or sample_rate <= 0:
+                sample_rate = ConfigurationManager.get_instance().get_voice_changer_configuration().output_sample_rate
             wavfile.write(
                 SERVER_IO_RECORDING_FILE_OUT,
-                getattr(self, "output_sample_rate", conf.output_sample_rate),
+                sample_rate,
                 audio(self.output_record),
             )
         except Exception as e:
@@ -541,8 +649,12 @@ class VoiceChanger(EventEmitter):
             np.ndarray: converted waveform. int16 or float32. shape: (n,)
             np.ndarray: converted waveform for monitor. int16 or float32. shape: (n,)
         """
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        perf_enabled = conf.realtime_process_status_enabled and conf.enable_performance_monitor
+        snap = getattr(self, "_active_snapshot", None)
+        if snap is not None:
+            perf_enabled = snap.realtime_process_status_enabled and snap.enable_performance_monitor
+        else:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            perf_enabled = conf.realtime_process_status_enabled and conf.enable_performance_monitor
         if perf_enabled is True:
             self.realtime_process_status_send_counter += 1
             chunk_sec = self.vc_chunk_sec if hasattr(self, "vc_chunk_sec") and self.vc_chunk_sec > 0 else 0.1
@@ -585,9 +697,18 @@ class VoiceChanger(EventEmitter):
             np.ndarray: converted waveform. int16 or float32. shape: (n,)
             np.ndarray: converted waveform for monitor. int16 or float32. shape: (n,)
         """
-        conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+        snap = getattr(self, "_active_snapshot", None)
+        if snap is not None:
+            pass_through = snap.pass_through
+            enable_high_pass_filter = snap.enable_high_pass_filter
+            enable_low_pass_filter = snap.enable_low_pass_filter
+        else:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            pass_through = conf.pass_through
+            enable_high_pass_filter = conf.enable_high_pass_filter
+            enable_low_pass_filter = conf.enable_low_pass_filter
 
-        if conf.pass_through is True or getattr(self, "vc_pipeline", None) is None:
+        if pass_through is True or getattr(self, "vc_pipeline", None) is None:
             waveform_out = self._exec_resample_pass_through_in_out(waveform)
             if self.vc_info.recording_start_flag is True:
                 self.output_record.append(waveform_out / 32768 if waveform.dtype == np.int16 else waveform_out)
@@ -611,12 +732,23 @@ class VoiceChanger(EventEmitter):
         elif vc_input_bitdepth == np.float32 and waveform.dtype != np.float32:
             waveform = (waveform / 32768).astype(np.float32)
 
+        coeffs = getattr(self, "_filter_coeffs", None)
         try:
-            if conf.enable_high_pass_filter is True and conf.enable_low_pass_filter is True:
+            if snap is not None and coeffs is not None:
+                bh, ah, bl, al, bb, ab = coeffs
+                if enable_high_pass_filter is True and enable_low_pass_filter is True:
+                    filtered_waveform = signal.filtfilt(bb, ab, waveform)
+                elif enable_high_pass_filter is True:
+                    filtered_waveform = signal.filtfilt(bh, ah, waveform)
+                elif enable_low_pass_filter is True:
+                    filtered_waveform = signal.filtfilt(bl, al, waveform)
+                else:
+                    filtered_waveform = waveform
+            elif enable_high_pass_filter is True and enable_low_pass_filter is True:
                 filtered_waveform = self._exec_filter_in_band_pass(waveform)
-            elif conf.enable_high_pass_filter is True:
+            elif enable_high_pass_filter is True:
                 filtered_waveform = self._exec_filter_in_high_pass(waveform)
-            elif conf.enable_low_pass_filter is True:
+            elif enable_low_pass_filter is True:
                 filtered_waveform = self._exec_filter_in_low_pass(waveform)
             else:
                 filtered_waveform = waveform

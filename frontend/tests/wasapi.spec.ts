@@ -12,6 +12,7 @@ test('disables a saved exclusive setting before starting native audio', async ({
   expect(state.writes[0]).toMatchObject({ wasapi_exclusive_enabled: false, future_setting: { keep: [1, 2] } });
   expect(state.operations).toEqual(['start']);
   expect(state.config.wasapi_exclusive_enabled).toBe(false);
+  expect(state.sessionWrites[0]).toMatchObject({ wasapi_exclusive_enabled: false });
 });
 
 test('does not change exclusive settings while existing audio is running', async ({ page }) => {

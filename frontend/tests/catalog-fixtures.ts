@@ -34,29 +34,54 @@ export const slots = [
   },
 ];
 
+export const LOCKED_SESSION_FIELDS = [
+  'model_id',
+  'chunk_sec',
+  'pitch_estimator',
+  'extra_frame_sec',
+  'compute_device_id',
+  'input_mode',
+  'audio_input_device_index',
+  'audio_output_device_index',
+  'audio_monitor_device_index',
+  'audio_input_device_sample_rate',
+  'audio_output_device_sample_rate',
+  'audio_monitor_device_sample_rate',
+  'wasapi_exclusive_enabled',
+];
+
 export const configuration = {
   model_id: 'model_b' as string | null,
-  voice_changer_input_mode: 'server',
-  audio_input_device_gain: 2.7,
-  audio_output_device_gain: 0.65,
+  input_mode: 'server' as 'server' | 'client',
+  compute_device_id: 2,
+  extra_frame_sec: 0.68,
   audio_input_device_index: 8,
   audio_output_device_index: 11,
   audio_monitor_device_index: -1,
   audio_input_device_sample_rate: 44100,
   audio_output_device_sample_rate: 48000,
   audio_monitor_device_sample_rate: -1,
-  input_sample_rate: 48000,
-  gpu_device_id_int: 2,
   wasapi_exclusive_enabled: true,
+  input_gain: 2.7,
+  output_gain: 0.65,
   enable_high_pass_filter: true,
   high_pass_filter_cutoff: 140,
   enable_low_pass_filter: false,
   low_pass_filter_cutoff: 9500,
   noise_gate: -55,
-  extra_frame_sec: 0.68,
-  realtime_output_status_enabled: true,
   enable_performance_monitor: true,
   realtime_process_status_enabled: false,
+  realtime_output_status_enabled: true,
+};
+
+export const stoppedSessionState = {
+  status: 'stopped' as const,
+  snapshot: null,
+  locked_fields: LOCKED_SESSION_FIELDS,
+  input_sample_rate: null as number | null,
+  output_sample_rate: null as number | null,
+  monitor_sample_rate: null as number | null,
+  last_error: null,
 };
 
 export const computeDevices = [
@@ -80,16 +105,20 @@ export async function fulfillCatalog(route: Route, data: unknown = slots, curren
   const path = new URL(route.request().url()).pathname;
   if (path === '/api/models') {
     await route.fulfill({ json: data });
-  } else if (path === '/api/configuration-manager/configuration') {
-    await route.fulfill({ json: { ...configuration, model_id: currentId } });
+  } else if (path === '/api/settings') {
+    await route.fulfill({
+      headers: { ETag: '"settings-1"' },
+      json: { ...configuration, model_id: currentId },
+    });
+  } else if (path === '/api/session') {
+    await route.fulfill({
+      headers: { ETag: '"session-1"' },
+      json: stoppedSessionState,
+    });
   } else if (path === '/api/devices/compute') {
     await route.fulfill({ json: computeDevices });
   } else if (path === '/api/devices/audio') {
     await route.fulfill({ json: { inputs: inputDevices, outputs: outputDevices } });
-  } else if (path === '/api/local-voice-changer-interface/information') {
-    await route.fulfill({ json: { local_voice_changer_interface_active: false } });
-  } else if (path === '/api/voice-changer-manager/information') {
-    await route.fulfill({ json: { voice_changer_information: { model_id: currentId, input_sample_rate: 48000, output_sample_rate: 48000 } } });
   } else if (/^\/api\/models\/[^/]+\/icon$/.test(path)) {
     await route.fulfill({
       contentType: 'image/svg+xml',

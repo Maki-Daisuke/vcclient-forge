@@ -152,7 +152,7 @@ test('filters Windows devices until legacy devices are enabled', async ({ page }
 });
 
 test('retains a selected legacy device without offering it as a selectable option', async ({ page }) => {
-  await page.route('**/api/configuration-manager/configuration', route => route.fulfill({
+  await page.route('**/api/settings', route => route.fulfill({
     json: { ...configuration, audio_input_device_index: 11 },
   }));
   await page.goto('/');
@@ -202,7 +202,7 @@ test('matches sparse IDs and uses output devices for the monitor without request
       requests.push({ path: url.pathname, search: url.search });
     }
   });
-  await page.route('**/api/configuration-manager/configuration', route => route.fulfill({
+  await page.route('**/api/settings', route => route.fulfill({
     json: { ...configuration, audio_monitor_device_index: 25 },
   }));
   await page.goto('/');

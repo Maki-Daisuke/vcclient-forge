@@ -17,7 +17,7 @@ test('shows the selected compute device when inference settings are collapsed', 
   await waitForControlSection(page, 'inference');
   await expect(badge).toBeHidden();
   await section.getByLabel('優先デバイス').selectOption('1');
-  expect(state.config.gpu_device_id_int).toBe(2);
+  expect(state.config.compute_device_id).toBe(2);
   await section.locator('summary').click();
   await waitForControlSection(page, 'inference', false);
   await expect(badge).toBeVisible();
@@ -44,7 +44,7 @@ test('explains inference controls are unavailable during conversion', async ({ p
 
 test('stages inference settings while client audio is stopped', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.goto('/');
   await openControlSections(page);
   const device = page.getByLabel('優先デバイス');
