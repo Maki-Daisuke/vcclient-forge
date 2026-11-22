@@ -56,7 +56,7 @@ test('initialization only reads backend data and keeps browser audio and device 
   await page.goto('/');
   await openControlSections(page);
   await expect(page.getByRole('heading', { name: 'VCClient Forge' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2. Test model B' })).toBeVisible();
   await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toHaveCount(0);
   for (const name of ['パススルー', '録音']) {
@@ -69,9 +69,12 @@ test('initialization only reads backend data and keeps browser audio and device 
   await page.getByRole('button', { name: '配色を切り替える' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect([...new Set(backendRequests.map(url => new URL(url).pathname))].sort()).toEqual([
-    '/api/audio-device-manager/input_devices', '/api/audio-device-manager/output_devices',
-    '/api/configuration-manager/configuration', '/api/gpu-device-manager/devices',
-    '/api/local-voice-changer-interface/information', '/api/slot-manager/slots',
+    '/api/configuration-manager/configuration',
+    '/api/devices/audio',
+    '/api/devices/compute',
+    '/api/local-voice-changer-interface/information',
+    '/api/models',
+    '/api/models/model_b/icon',
   ]);
   expect(errors).toEqual([]);
 });
@@ -115,7 +118,7 @@ test('controls remain usable when storage access throws', async ({ page }) => {
 
 test('dialogs open, trap focus, close with Escape, and restore focus', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2. Test model B' })).toBeVisible();
   for (const name of ['アップロード', '編集', '詳細設定', 'このアプリについて']) {
     const trigger = page.getByRole('button', { name, exact: true });
     await trigger.click();

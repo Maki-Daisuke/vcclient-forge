@@ -7,7 +7,7 @@ const saved = (page: Page) => expect(page.locator('main > .configuration-status'
 
 test('an unselected model explains the disabled Start button and selecting a card enables it', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.current_slot_index = -1;
+  state.config.model_id = null;
   await page.goto('/');
   await openControlSections(page);
   const start = page.getByRole('button', { name: '開始', exact: true });
@@ -23,13 +23,13 @@ test('an unselected model explains the disabled Start button and selecting a car
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await expect(start).toBeEnabled();
   await expect(page.locator('#start-reason')).toHaveCount(0);
-  expect(state.config.current_slot_index).toBe(-1);
+  expect(state.config.model_id).toBeNull();
   expect(state.operations).toEqual([]);
 });
 
 test('shows missing device guidance even when no model is selected', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.current_slot_index = -1;
+  state.config.model_id = null;
   state.config.audio_input_device_index = -1;
   state.config.audio_output_device_index = -1;
   await page.goto('/');
@@ -78,8 +78,8 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   await openControlSections(page);
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
-  expect(state.config.current_slot_index).toBe(7);
-  await expect(page.getByRole('heading', { name: '3. Test model A' })).toBeVisible();
+  expect(state.config.model_id).toBe('model_b');
+  await expect(page.getByRole('heading', { name: '1. Test model A' })).toBeVisible();
   const dialog = page;
   await dialog.getByText('サーバーモード', { exact: true }).click();
   await expect(dialog.getByRole('radio', { name: 'サーバーモード' })).toBeChecked();
@@ -94,7 +94,7 @@ test('selects a model and native devices, starts, adjusts volume, and stops usin
   }
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
-  expect(state.config.current_slot_index).toBe(2);
+  expect(state.config.model_id).toBe('model_a');
   expect(state.config.audio_input_device_index).toBe(11);
   expect(state.config.audio_output_device_index).toBe(25);
   expect(state.config.audio_monitor_device_index).toBe(11);
@@ -281,7 +281,7 @@ test('detects silent model rollback on start and retains the staged model', asyn
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
-  await expect(page.getByRole('heading', { name: '3. Test model A' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '1. Test model A' })).toBeVisible();
   expect(state.operations).toEqual([]);
 });
 

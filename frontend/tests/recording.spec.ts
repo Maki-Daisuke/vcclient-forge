@@ -11,7 +11,7 @@ function wav(dataSize = 4): Buffer {
 }
 
 async function mockRecording(page: Page, dataSize = 4) {
-  await page.route('**/output.wav', route => route.fulfill({ contentType: 'audio/wav', body: wav(dataSize) }));
+  await page.route('**/api/recordings/latest', route => route.fulfill({ contentType: 'audio/wav', body: wav(dataSize) }));
 }
 
 async function mockClientAudio(page: Page) {
@@ -115,7 +115,7 @@ test('a failed recording download shows a notice instead of opening a download',
   const state = await mockSession(page);
   state.active = true;
   state.config.recording_started = true;
-  await page.route('**/output.wav', route => route.fulfill({ status: 500 }));
+  await page.route('**/api/recordings/latest', route => route.fulfill({ status: 500 }));
   let downloads = 0;
   page.on('download', () => { downloads++; });
   await page.goto('/');

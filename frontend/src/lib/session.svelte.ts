@@ -10,7 +10,7 @@ const contextKey = Symbol('native-session');
 const updateIntervalMs = 100;
 type PendingWrite =
   | { kind: 'configuration'; edits: ConfigurationEdits }
-  | { kind: 'model'; id: number; edits: ModelEdits };
+  | { kind: 'model'; id: string; edits: ModelEdits };
 type DeviceKey = 'inputDevice' | 'outputDevice' | 'monitorDevice';
 const stagedKeys: (keyof ConfigurationEdits)[] = ['currentModelId', 'inputMode', 'inputDevice', 'outputDevice', 'monitorDevice', 'inputDeviceRate', 'outputDeviceRate', 'monitorDeviceRate', 'gpuDevice', 'extraSeconds'];
 
@@ -18,9 +18,9 @@ export class NativeSession {
   readonly clientAudio = new ClientAudio();
   private clientActive = false;
   draft = $state<ConfigurationEdits>({});
-  modelDraft = $state<{ id: number; edits: ModelEdits } | null>(null);
+  modelDraft = $state<{ id: string; edits: ModelEdits } | null>(null);
   stagedConfiguration = $state<ConfigurationEdits>({});
-  stagedModels = $state<Record<number, ModelEdits>>({});
+  stagedModels = $state<Record<string, ModelEdits>>({});
   isSaving = $state(false);
   saved = $state(false);
   error = $state<ApiError | null>(null);
@@ -117,7 +117,7 @@ export class NativeSession {
     this.schedulePoll();
   }
 
-  async organizeModels(order: number[]): Promise<boolean> {
+  async organizeModels(order: string[]): Promise<boolean> {
     if (!this.canOrganizeModels) return false;
     this.organizing = true;
     this.modelOperationError = null;
@@ -134,7 +134,7 @@ export class NativeSession {
     }
   }
 
-  async deleteModel(id: number): Promise<void> {
+  async deleteModel(id: string): Promise<void> {
     if (!this.canDeleteModel || this.currentModelId !== id) return;
     this.organizing = true;
     this.modelOperationError = null;
@@ -151,7 +151,7 @@ export class NativeSession {
     }
   }
 
-  async saveModelInfo(id: number, name: string, icon: File | null): Promise<boolean> {
+  async saveModelInfo(id: string, name: string, icon: File | null): Promise<boolean> {
     const model = this.currentModel;
     if (!this.canConfigure || !model || model.id !== id || model.status !== 'ready' || !name.trim()) return false;
     const extension = icon ? /\.(png|jpe?g|webp|gif|avif|bmp)$/i.exec(icon.name)?.[0].toLowerCase() : null;
@@ -316,7 +316,7 @@ export class NativeSession {
     this.stageModel(model.id, { pitchEstimator: value });
   }
 
-  selectModel(id: number) {
+  selectModel(id: string) {
     if (!this.canConfigure || !this.catalog.models.some(model => model.id === id && model.status === 'ready')) return;
     if (id !== this.currentModelId) this.edit({ currentModelId: id }, true);
   }
@@ -411,7 +411,7 @@ export class NativeSession {
     this.stageModel(model.id, { chunkSeconds: value });
   }
 
-  private stageModel(id: number, edits: ModelEdits) {
+  private stageModel(id: string, edits: ModelEdits) {
     const model = this.catalog.models.find(item => item.id === id);
     if (!model?.settings) return;
     const merged = { ...this.stagedModels[id], ...edits };
@@ -520,7 +520,7 @@ export class NativeSession {
     const originalModelId = this.catalog.currentModelId;
     const switchingModel = modelId !== originalModelId;
     const selectedEdits = modelId === null ? undefined : this.stagedModels[modelId];
-    const saveModel = async (id: number, confirmPipeline: boolean) => {
+    const saveModel = async (id: string, confirmPipeline: boolean) => {
       const edits = this.stagedModels[id];
       if (!edits || !Object.keys(edits).length) return;
       const confirmed = await this.request(signal => updateModelSettings(id, edits, signal, confirmPipeline), 180_000);
@@ -531,7 +531,7 @@ export class NativeSession {
         this.stagedModels = remaining;
       }
     };
-    for (const id of Object.keys(this.stagedModels).map(Number)) {
+    for (const id of Object.keys(this.stagedModels)) {
       if (id !== originalModelId) await saveModel(id, false);
     }
     if (!switchingModel && originalModelId !== null) await saveModel(originalModelId, true);
@@ -685,7 +685,7 @@ export class NativeSession {
 
   private async prepareRecordingDownload() {
     try {
-      const response = await fetch('/output.wav', { cache: 'no-store' });
+      const response = await fetch('/api/recordings/latest', { cache: 'no-store' });
       if (!response.ok) throw new Error('Recording download failed');
       const blob = await response.blob();
       const bytes = new DataView(await blob.arrayBuffer());

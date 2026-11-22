@@ -8,10 +8,10 @@ import requests
 
 from vcclient.logger import logger
 
+from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..data_types.data_types import RVCSampleInfo
 from ..data_types.sample_manager_data_types import SampleDownloadStatus
-from ..data_types.slot_manager_data_types import RVCModelImportParam
-from ..slot_manager.slot_manager import SlotManager
+from ..model_catalog import create_model
 
 __all__ = [
     "download_initial_samples",
@@ -145,13 +145,21 @@ def download_initial_samples(callback: Callable[[list[SampleDownloadStatus]], No
 
         logger.debug("Sample download done.")
 
-        for i, sample in enumerate(_SAMPLES):
-            import_params = RVCModelImportParam(
-                slot_index=i,
+        first_model_id: str | None = None
+        for sample in _SAMPLES:
+            model_path = download_dir / sample.model_url.split("/")[-1]
+            icon_path = download_dir / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None
+            created, _ = create_model(
                 name=sample.name,
-                model_file=download_dir / sample.model_url.split("/")[-1],
-                index_file=None,
-                icon_file=download_dir / sample.icon_url.split("/")[-1] if sample.icon_url is not None else None,
+                model_path=model_path,
+                index_path=None,
+                icon_path=icon_path,
             )
-            slot_manager = SlotManager.get_instance()
-            slot_manager.set_new_slot(import_params, remove_src=True)
+            if first_model_id is None:
+                first_model_id = created.id
+
+        if first_model_id is not None:
+            cm = ConfigurationManager._instance
+            if cm is not None and cm.voice_changer_configuration.model_id is None:
+                cm.voice_changer_configuration.model_id = first_model_id
+                cm.voice_changer_configuration.current_slot_index = -1

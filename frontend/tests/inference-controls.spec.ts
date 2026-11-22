@@ -68,7 +68,7 @@ test('stages inference settings while client audio is stopped', async ({ page })
 
 test('saves chunk in the selected model and retains other slot fields', async ({ page }) => {
   const state = await mockSession(page);
-  const other = structuredClone(state.models[2]);
+  const other = structuredClone(state.models.find(model => model.id === 'model_a')!);
   await page.goto('/');
   await openControlSections(page);
   const slider = page.getByRole('slider', { name: chunk });
@@ -78,8 +78,8 @@ test('saves chunk in the selected model and retains other slot fields', async ({
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
   expect(state.modelWrites).toHaveLength(1);
-  expect(state.modelWrites[0]).toMatchObject({ id: 7, data: { slot_index: 7, chunk_sec: 1, pitch_shift: -5 } });
-  expect(state.models[2]).toEqual(other);
+  expect(state.modelWrites[0]).toMatchObject({ id: 'model_b', data: { chunk_sec: 1 } });
+  expect(state.models.find(model => model.id === 'model_a')).toEqual(other);
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await expect(slider).toHaveAttribute('aria-valuetext', '0.5 s');

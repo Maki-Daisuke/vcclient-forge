@@ -83,6 +83,38 @@ def set_etag_header(response: Response, etag: str) -> None:
     response.headers["ETag"] = etag
 
 
+def set_active_model_id_getter(getter: Callable[[], str | None] | None) -> None:
+    """Register or clear the callback returning the active session's model_id."""
+    global _active_model_id_getter
+    _active_model_id_getter = getter
+
+
+_active_model_id_getter: Callable[[], str | None] | None = None
+
+
+def get_active_model_id() -> str | None:
+    """Return the model_id currently held by a starting or running session, if any."""
+    if _active_model_id_getter is not None:
+        return _active_model_id_getter()
+    if is_session_active():
+        voice = VoiceChanger.peek_instance()
+        if voice is not None and voice.vc_info.model_id is not None:
+            return voice.vc_info.model_id
+        return ConfigurationManager.get_instance().get_voice_changer_configuration().model_id
+    return None
+
+
+def is_model_in_use(model_id: str) -> bool:
+    """Return True when `model_id` is actively held by a starting or running session."""
+    return get_active_model_id() == model_id
+
+
+def ensure_model_not_in_use(model_id: str, message: str) -> None:
+    """Raise DomainApiError(409, 'model_in_use') when `model_id` is in use by a session."""
+    if is_model_in_use(model_id):
+        raise DomainApiError(409, "model_in_use", message, {"model_id": model_id})
+
+
 def is_session_active() -> bool:
     """Return True when native audio or client bulk conversion is currently active."""
     local = LocalVoiceChangerInterface.get_instance()

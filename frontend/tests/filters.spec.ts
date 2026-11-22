@@ -88,7 +88,7 @@ test('a missing filter value remains unknown and disabled', async ({ page }) => 
 test('does not use audio information belonging to a different model', async ({ page }) => {
   const state = await mockSession(page);
   await page.route('**/api/voice-changer-manager/information', route => route.fulfill({
-    json: { voice_changer_information: { slot_index: 2, input_sample_rate: 48000, output_sample_rate: 48000 } },
+    json: { voice_changer_information: { model_id: 'model_a', input_sample_rate: 48000, output_sample_rate: 48000 } },
   }));
   await page.goto('/');
   await openControlSections(page);
@@ -99,7 +99,7 @@ test('does not use audio information belonging to a different model', async ({ p
 
 test('requires a model before editing filters', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.current_slot_index = -1;
+  state.config.model_id = null;
   await page.goto('/');
   await openControlSections(page);
   await expect(page.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toBeDisabled();

@@ -4,7 +4,7 @@ import { mockCatalog } from './catalog-fixtures';
 test('opens a separate log page that can refresh without starting the main UI', async ({ page }) => {
   await mockCatalog(page);
   let log = 'First log line';
-  await page.context().route('**/vcclient.log', route => route.fulfill({ contentType: 'text/plain', body: log }));
+  await page.context().route('**/api/logs', route => route.fulfill({ contentType: 'text/plain', body: log }));
   await page.goto('/');
   const popupPromise = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'ログ', exact: true }).click();
@@ -21,7 +21,7 @@ test('opens a separate log page that can refresh without starting the main UI', 
 
 test('reports a log fetch error and can retry', async ({ page }) => {
   let failed = true;
-  await page.route('**/vcclient.log', route => failed ? route.fulfill({ status: 503 }) : route.fulfill({ body: 'Recovered' }));
+  await page.route('**/api/logs', route => failed ? route.fulfill({ status: 503 }) : route.fulfill({ body: 'Recovered' }));
   await page.goto('/?view=log');
   await expect(page.getByRole('alert')).toContainText('ログを取得できませんでした。');
   failed = false;
@@ -32,7 +32,7 @@ test('reports a log fetch error and can retry', async ({ page }) => {
 
 test('updates automatically, follows the end, and preserves the position when reading older lines', async ({ page }) => {
   let log = Array.from({ length: 200 }, (_, index) => `Line ${index}`).join('\n');
-  await page.route('**/vcclient.log', route => route.fulfill({ contentType: 'text/plain', body: log }));
+  await page.route('**/api/logs', route => route.fulfill({ contentType: 'text/plain', body: log }));
   await page.goto('/?view=log');
   const content = page.locator('.log-content');
   await expect(content).toContainText('Line 199');
@@ -50,7 +50,7 @@ test('updates automatically, follows the end, and preserves the position when re
 
 test('recovers automatically after a failed refresh', async ({ page }) => {
   let failed = true;
-  await page.route('**/vcclient.log', route => failed ? route.fulfill({ status: 503 }) : route.fulfill({ body: 'Recovered automatically' }));
+  await page.route('**/api/logs', route => failed ? route.fulfill({ status: 503 }) : route.fulfill({ body: 'Recovered automatically' }));
   await page.goto('/?view=log');
   await expect(page.getByRole('alert')).toBeVisible();
   failed = false;

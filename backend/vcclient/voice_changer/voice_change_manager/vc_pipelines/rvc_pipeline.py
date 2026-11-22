@@ -38,6 +38,7 @@ class RVCPipeline(VCPipeline):
     processing_window: int = 160
     rvc: RVCInferencer
     slot_index: int
+    model_id: str | None
     gpu_device_id: int
     device: DeviceConfig
     pitch_estimator_type: PitchEstimatorType
@@ -51,14 +52,16 @@ class RVCPipeline(VCPipeline):
             raise TypeError(f"slot_info must be RVCSlotInfo, got {type(slot_info).__name__}")
         self._slot_info = slot_info
         self.slot_index = slot_info.slot_index
+        self.model_id = getattr(slot_info, "model_id", None)
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
         target_device = get_device(conf.gpu_device_id_int)
         self.device = target_device
         self.gpu_device_id = target_device.id
         self.pitch_estimator_type = slot_info.pitch_estimator
         logger.info(
-            "construct new pipelinepitch: slot_index:%s, gpu_device_id:%s pitch_estimator: %s",
+            "construct new pipelinepitch: slot_index:%s, model_id:%s, gpu_device_id:%s pitch_estimator: %s",
             self.slot_index,
+            self.model_id,
             self.gpu_device_id,
             self.pitch_estimator_type,
         )
@@ -68,11 +71,16 @@ class RVCPipeline(VCPipeline):
             raise ValueError(f"RVC slot {slot_info.slot_index} has no model file configured.")
         target_frames = self._calculate_target_feats_length()
         self.target_frames = target_frames
+        model_path = (
+            slot_info.model_file
+            if slot_info.model_file.is_absolute()
+            else ModelDir / str(slot_info.slot_index) / slot_info.model_file
+        )
         self.rvc = cast(
             RVCInferencer,
             InferencerManager.get_inferencer(
                 slot_info.inferencer_type,
-                ModelDir / str(slot_info.slot_index) / slot_info.model_file,
+                model_path,
                 self.device,
                 inferencer_type_version=cast(RVCInferencerOnnxVersion, slot_info.version),
                 target_frames=target_frames,
@@ -80,7 +88,12 @@ class RVCPipeline(VCPipeline):
             ),
         )
         if slot_info.index_file is not None:
-            self.index_data = self._load_index(ModelDir / str(slot_info.slot_index) / slot_info.index_file)
+            index_path = (
+                slot_info.index_file
+                if slot_info.index_file.is_absolute()
+                else ModelDir / str(slot_info.slot_index) / slot_info.index_file
+            )
+            self.index_data = self._load_index(index_path)
         else:
             self.index_data = None
         if slot_info.embedder == "hubert_base_japanese_l9fp" or slot_info.embedder == "hubert_base_l9fp":
@@ -137,10 +150,20 @@ class RVCPipeline(VCPipeline):
 
     @property
     def slot_info(self) -> RVCSlotInfo:
+        model_id = getattr(self, "model_id", None)
+        if model_id is not None:
+            try:
+                from ...model_catalog import get_slot_info_by_model_id
+
+                info = get_slot_info_by_model_id(model_id, use_cache_only=True)
+                if info is not None:
+                    return info
+            except Exception:
+                pass
         try:
-            info = SlotManager.get_instance().get_slot_info(self.slot_index)
-            if isinstance(info, RVCSlotInfo):
-                return info
+            legacy_info = SlotManager.get_instance().get_slot_info(self.slot_index)
+            if isinstance(legacy_info, RVCSlotInfo):
+                return legacy_info
         except Exception:
             pass
         return self._slot_info
@@ -368,6 +391,7 @@ class RVCPipeline(VCPipeline):
         inferencer_info = self.rvc.get_info()
         return RVCPipelineInfo(
             slot_index=self.slot_index,
+            model_id=getattr(self, "model_id", None),
             input_sample_rate=self.get_input_sample_rate(),
             output_sample_rate=self.get_output_sample_rate(),
             chunk_sec=self.get_chunk_sec(),

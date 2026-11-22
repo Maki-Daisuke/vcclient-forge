@@ -42,7 +42,7 @@ export interface ModelEdits {
 
 // Only these fields can be changed by the native-audio UI.
 export interface ConfigurationEdits {
-  currentModelId?: number;
+  currentModelId?: string;
   inputMode?: 'server' | 'client';
   passThrough?: boolean;
   recording?: boolean;
@@ -68,7 +68,7 @@ export interface ConfigurationEdits {
 }
 
 export interface ConfirmedConfiguration {
-  currentModelId: number | null;
+  currentModelId: string | null;
   settings: ConfigurationSnapshot;
 }
 

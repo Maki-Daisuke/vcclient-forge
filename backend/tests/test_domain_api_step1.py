@@ -224,12 +224,17 @@ def test_compute_auto_select_recommends_without_mutating_config(
 def test_compute_auto_select_error_envelopes(
     client: TestClient,
     stopped_session: tuple[LocalVoiceChangerInterface, object],
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from vcclient import initializer
+    from vcclient.voice_changer import voice_changer_const
 
     _, conf = stopped_session
     monkeypatch.setattr(conf, "gpu_device_id_int", 2)
+    empty_model_dir = tmp_path / "empty_models"
+    empty_model_dir.mkdir()
+    monkeypatch.setattr(voice_changer_const, "ModelDir", empty_model_dir)
 
     empty_slot_mgr = MagicMock()
     empty_slot_mgr.get_slot_info.return_value = RVCSlotInfo(slot_index=0, model_file=None)

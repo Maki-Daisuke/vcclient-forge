@@ -36,7 +36,7 @@ test('cannot change compute device while audio is active', async ({ page }) => {
 
 test('shows an unavailable list without hiding other settings', async ({ page }) => {
   await mockSession(page);
-  await page.route('**/api/gpu-device-manager/devices', route => route.fulfill({ status: 503 }));
+  await page.route('**/api/devices/compute', route => route.fulfill({ status: 503 }));
   const select = await openInference(page);
   await expect(select).toBeDisabled();
   await expect(select.locator('option:checked')).toContainText('一覧を取得できません');

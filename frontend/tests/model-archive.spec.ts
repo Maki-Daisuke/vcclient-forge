@@ -15,8 +15,8 @@ async function openUpload(page: Page) {
 
 test('drops a ZIP, extracts model and index, and imports their bytes', async ({ page }) => {
   const state = await mockSession(page);
-  const submissions: { name: FormDataEntryValue | null; voiceChangerType: FormDataEntryValue | null; modelBytes: string; indexBytes: string | null }[] = [];
-  await page.route('**/api/slot-manager/slots', async route => {
+  const submissions: { name: FormDataEntryValue | null; modelBytes: string; indexBytes: string | null }[] = [];
+  await page.route('**/api/models', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     const form = await readMultipart(route.request());
     const modelFile = form.get('model_file') as File;
@@ -24,13 +24,12 @@ test('drops a ZIP, extracts model and index, and imports their bytes', async ({ 
     const name = String(form.get('name'));
     submissions.push({
       name: form.get('name'),
-      voiceChangerType: form.get('voice_changer_type'),
       modelBytes: await modelFile.text(),
       indexBytes: indexFile instanceof File ? await indexFile.text() : null,
     });
-    const created = { ...state.models[2], slot_index: 3, name };
+    const created = { ...state.models[0], id: 'model_c', name };
     state.models.push(created);
-    await route.fulfill({ json: created });
+    await route.fulfill({ status: 201, json: created });
   });
   const zip = await makeZip({ 'folder/voice.pth': 'model bytes', 'folder/voice.index': 'index bytes', 'README.txt': 'info' });
   await page.goto('/');
@@ -47,7 +46,6 @@ test('drops a ZIP, extracts model and index, and imports their bytes', async ({ 
   await expect(dialog.getByRole('status')).toHaveText('モデルを追加しました。');
   expect(submissions).toEqual([{
     name: 'voice',
-    voiceChangerType: 'RVC',
     modelBytes: 'model bytes',
     indexBytes: 'index bytes',
   }]);

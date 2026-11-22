@@ -44,6 +44,7 @@ from vcclient.logger import logger
 from vcclient.server.vcserver import VCServer
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
+from vcclient.voice_changer.model_catalog import list_models
 from vcclient.voice_changer.slot_manager.reorder_transaction import ModelTransaction
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
@@ -76,6 +77,7 @@ def start_server(
     _check_and_download_rvc_modules()
     _check_and_convert_legacy_pth_models()
     _check_and_download_initial_samples()
+    list_models()
     if is_app_stopping():
         return
 

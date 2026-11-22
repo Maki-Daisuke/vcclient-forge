@@ -8,8 +8,8 @@ const saved = (page: Page) => expect(page.locator('main > .configuration-status'
 
 async function mockEditableModel(page: Page) {
   const state = await mockSession(page);
-  Object.assign(state.models[0], {
-    is_f0: true, model_file: 'voice.onnx', index_file: 'voice.index',
+  Object.assign(state.models.find(model => model.id === 'model_b')!, {
+    supports_f0: true, has_index: true,
     future_model_setting: { keep: true },
   });
   return state;
@@ -36,7 +36,8 @@ test('stages the selected model pitch estimator and applies it on start', async 
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
   await expect(fcpe).toBeChecked();
   await expect(fcpe).toBeDisabled();
-  expect(state.modelWrites[0]).toMatchObject({ id: 7, data: { pitch_estimator: 'fcpe', future_model_setting: { keep: true } } });
+  expect(state.modelWrites[0]).toEqual({ id: 'model_b', data: { pitch_estimator: 'fcpe' } });
+  expect(state.models.find(model => model.id === 'model_b')).toMatchObject({ pitch_estimator: 'fcpe', future_model_setting: { keep: true } });
   await page.getByRole('button', { name: '停止', exact: true }).click();
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   await expect(fcpe).toBeChecked();
@@ -79,7 +80,7 @@ test('shows Index usage as a percentage while saving the backend ratio', async (
   await index(page).press('ArrowRight');
   await saved(page);
   await expect(field.locator('output')).toHaveText('64%');
-  expect(state.models[0].index_ratio).toBe(0.64);
+  expect(state.models.find(model => model.id === 'model_b')!.index_ratio).toBe(0.64);
 });
 
 test('rechecks stopped audio before writing a pitch estimator', async ({ page }) => {
@@ -101,32 +102,35 @@ test('reports a pitch estimator that was saved but not applied to the pipeline',
   await page.getByRole('radio', { name: 'FCPE' }).check();
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.locator('main > .configuration-status').getByRole('alert')).toContainText('反映されていません');
-  expect(state.models[0].pitch_estimator).toBe('fcpe');
+  expect(state.models.find(model => model.id === 'model_b')!.pitch_estimator).toBe('fcpe');
   state.estimatorMismatch = false;
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'FCPE' })).toBeChecked();
 });
 
-test('updates pitch and index while running, preserving fresh full slot data and other models', async ({ page }) => {
+test('updates pitch and index while running, preserving unrelated model fields and other models', async ({ page }) => {
   const state = await mockEditableModel(page);
   state.active = true;
-  const otherModel = structuredClone(state.models[2]);
+  const modelA = structuredClone(state.models.find(model => model.id === 'model_a')!);
+  const modelB = state.models.find(model => model.id === 'model_b')!;
   await page.goto('/');
   await openControlSections(page);
   await expect(pitch(page)).toBeEnabled();
-  state.models[0].future_model_setting = { keep: 'newer backend value' };
+  modelB.future_model_setting = { keep: 'newer backend value' };
   await pitch(page).press('ArrowRight');
   await saved(page);
   await index(page).press('ArrowRight');
   await saved(page);
-  expect(state.modelWrites.map(write => write.id)).toEqual([7, 7]);
-  expect(state.modelWrites[1].data).toMatchObject({
-    slot_index: 7, voice_changer_type: 'RVC', pitch_shift: -4, index_ratio: 0.64,
-    model_file: 'voice.onnx', index_file: 'voice.index',
+  expect(state.modelWrites.map(write => write.id)).toEqual(['model_b', 'model_b']);
+  expect(state.modelWrites[1].data).toEqual({ index_ratio: 0.64 });
+  expect(modelB).toMatchObject({
+    id: 'model_b',
+    pitch_shift: -4,
+    index_ratio: 0.64,
     future_model_setting: { keep: 'newer backend value' },
   });
-  expect(state.models[2]).toEqual(otherModel);
+  expect(state.models.find(model => model.id === 'model_a')).toEqual(modelA);
   expect(state.writes).toHaveLength(0);
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '-4');
@@ -154,15 +158,16 @@ test('coalesces model edits with volume writes in one queue without stale slider
   expect(state.maxInFlight).toBe(1);
   expect(state.modelWrites).toHaveLength(2);
   expect(state.writes).toHaveLength(1);
-  expect(state.models[0].pitch_shift).toBe(24);
-  expect(state.models[0].index_ratio).toBe(0);
+  const modelB = state.models.find(model => model.id === 'model_b')!;
+  expect(modelB.pitch_shift).toBe(24);
+  expect(modelB.index_ratio).toBe(0);
   expect(state.config.audio_input_device_gain).toBe(10);
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '24');
   await page.getByRole('button', { name: 'Test model A', exact: true }).click();
   await saved(page);
   await expect(pitch(page)).toHaveAttribute('aria-valuenow', '3');
   await expect(index(page)).toHaveAttribute('aria-valuenow', '25');
-  expect(state.models[2].pitch_shift).toBe(3);
+  expect(state.models.find(model => model.id === 'model_a')!.pitch_shift).toBe(3);
 });
 
 test('throttles index dragging and flushes the final value on release', async ({ page }) => {
@@ -190,10 +195,10 @@ test('throttles index dragging and flushes the final value on release', async ({
   await page.clock.runFor(1);
   await saved(page);
   expect(state.modelWrites).toHaveLength(3);
-  expect(state.models[0].index_ratio).toBe(Number(await index(page).getAttribute('aria-valuenow')) / 100);
+  expect(state.models.find(model => model.id === 'model_b')!.index_ratio).toBe(Number(await index(page).getAttribute('aria-valuenow')) / 100);
 });
 
-test('retains a failed model draft and retries the same slot against fresh data', async ({ page }) => {
+test('retains a failed model draft and retries the same model against fresh data', async ({ page }) => {
   const state = await mockEditableModel(page);
   state.modelStatus = 503;
   await page.goto('/');
@@ -203,12 +208,13 @@ test('retains a failed model draft and retries the same slot against fresh data'
   await pitch(page).press('End');
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeDisabled();
   expect(state.modelWrites).toHaveLength(1);
-  state.models[0].name = 'New backend name';
+  const modelB = state.models.find(model => model.id === 'model_b')!;
+  modelB.name = 'New backend name';
   state.modelStatus = 200;
   await page.getByRole('button', { name: '保存を再試行', exact: true }).click();
   await saved(page);
-  expect(state.modelWrites[1]).toMatchObject({ id: 7, data: { slot_index: 7, pitch_shift: 24, name: 'New backend name' } });
-  expect(state.models[0].name).toBe('New backend name');
+  expect(state.modelWrites[1]).toEqual({ id: 'model_b', data: { pitch_shift: 24 } });
+  expect(modelB.name).toBe('New backend name');
   expect(state.writes).toHaveLength(0);
 });
 
@@ -225,9 +231,9 @@ test('detects an unapplied model update and discards back to confirmed settings'
   await expect(page.getByRole('button', { name: 'Test model A', exact: true })).toBeEnabled();
 });
 
-test('rejects a mismatched slot ID before PUT can affect another model', async ({ page }) => {
+test('rejects a mismatched model ID before PUT can affect another model', async ({ page }) => {
   const state = await mockEditableModel(page);
-  await page.route('**/api/slot-manager/slots/7', route => route.fulfill({ json: state.models[2] }));
+  await page.route('**/api/models/model_b', route => route.fulfill({ json: state.models[0] }));
   await page.goto('/');
   await openControlSections(page);
   await pitch(page).press('ArrowRight');
@@ -240,7 +246,7 @@ test('unsupported pitch and missing index remain disabled with an explanation', 
   await mockSession(page);
   await page.goto('/');
   await openControlSections(page);
-  await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2. Test model B' })).toBeVisible();
   await expect(pitch(page)).toBeDisabled();
   await expect(index(page)).toBeDisabled();
   const pitchGroup = page.getByRole('group', { name: 'ピッチ調整', exact: true });

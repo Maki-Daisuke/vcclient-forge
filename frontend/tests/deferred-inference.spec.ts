@@ -17,7 +17,7 @@ test('keeps stopped-only settings in the UI while saving live gains, then applie
   await expect.poll(() => state.writes.length).toBe(1);
   expect(state.config.gpu_device_id_int).toBe(2);
   expect(state.config.extra_frame_sec).toBe(0.68);
-  expect(state.models[0].chunk_sec).toBe(0.3);
+  expect(state.models.find(model => model.id === 'model_b')!.chunk_sec).toBe(0.3);
   const start = page.getByRole('button', { name: '開始', exact: true });
   await expect(start).toBeEnabled();
   await start.click();
@@ -27,7 +27,7 @@ test('keeps stopped-only settings in the UI while saving live gains, then applie
   state.modelGate = null;
   release();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
-  expect(state.models[0].chunk_sec).toBe(1);
+  expect(state.models.find(model => model.id === 'model_b')!.chunk_sec).toBe(1);
   expect(state.config.gpu_device_id_int).toBe(1);
   expect(state.config.extra_frame_sec).toBe(2);
   expect(state.config.audio_input_device_gain).toBe(2.71);
@@ -47,7 +47,7 @@ test('keeps staged edits when saving at start fails', async ({ page }) => {
   state.modelStatus = 200;
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
-  expect(state.models[0].chunk_sec).toBe(1);
+  expect(state.models.find(model => model.id === 'model_b')!.chunk_sec).toBe(1);
 });
 
 test('retains staged configuration after a failed start and applies it on retry', async ({ page }) => {
@@ -90,8 +90,8 @@ test('applies staged settings for multiple models without losing the selected mo
   expect(state.modelWrites).toHaveLength(0);
   await page.getByRole('button', { name: '開始', exact: true }).click();
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
-  expect(state.config.current_slot_index).toBe(2);
-  expect(state.modelWrites.map(write => write.id)).toEqual([2, 7]);
-  expect(state.models.find(model => model.slot_index === 2)).toMatchObject({ chunk_sec: 1, pitch_estimator: 'rmvpe' });
-  expect(state.models.find(model => model.slot_index === 7)).toMatchObject({ chunk_sec: 1 });
+  expect(state.config.model_id).toBe('model_a');
+  expect(state.modelWrites.map(write => write.id)).toEqual(['model_a', 'model_b']);
+  expect(state.models.find(model => model.id === 'model_a')).toMatchObject({ chunk_sec: 1, pitch_estimator: 'rmvpe' });
+  expect(state.models.find(model => model.id === 'model_b')).toMatchObject({ chunk_sec: 1 });
 });

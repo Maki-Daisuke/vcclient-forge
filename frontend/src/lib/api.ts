@@ -68,73 +68,82 @@ function parseSettings(config: Record<string, unknown>): ConfigurationSnapshot {
   };
 }
 
-function modelImage(id: number, value: unknown): string | null {
-  // Backends may serialize Windows paths; static serving uses the slot's basename.
-  const filename = text(value).replaceAll('\\', '/').split('/').at(-1);
-  if (!filename || filename === '.' || filename === '..') return null;
-  return `/model_dir/${id}/${encodeURIComponent(filename)}`;
+function modelImage(id: string, hasIcon: boolean, iconRevision: number): string | null {
+  if (!hasIcon) return null;
+  return `/api/models/${encodeURIComponent(id)}/icon?v=${iconRevision}`;
 }
 
 function parseConfiguration(configuration: unknown): ConfirmedConfiguration {
   const config = object(configuration);
-  if (!Number.isSafeInteger(config.current_slot_index)) invalidResponse();
-  const currentId = config.current_slot_index as number;
-  return { currentModelId: currentId >= 0 ? currentId : null, settings: parseSettings(config) };
+  if (config.model_id !== null && typeof config.model_id !== 'string') invalidResponse();
+  const currentModelId = typeof config.model_id === 'string' && config.model_id.length > 0 ? config.model_id : null;
+  return { currentModelId, settings: parseSettings(config) };
 }
 
-function parseModel(slot: Record<string, unknown>): ModelSummary {
-  if (!Number.isSafeInteger(slot.slot_index) || (slot.slot_index as number) < 0) invalidResponse();
-  const id = slot.slot_index as number;
-  if (typeof slot.voice_changer_type !== 'string') invalidResponse();
-  const type = slot.voice_changer_type;
-  const tags = type === 'RVC' ? [type] : [];
-  if (type === 'RVC') {
-    if (typeof slot.is_onnx !== 'boolean' || typeof slot.is_f0 !== 'boolean') invalidResponse();
-    tags.push(`${slot.is_onnx ? 'onnx' : 'pth'} ${text(slot.version)}`.trim());
-    tags.push(slot.is_f0 ? 'f0' : 'non-f0');
-    const embedder = text(slot.embedder);
-    if (embedder) tags.push(embedder);
-  }
+function parseModel(entry: Record<string, unknown>): ModelSummary {
+  if (typeof entry.id !== 'string' || !entry.id.trim()) invalidResponse();
+  const id = entry.id;
+  if (typeof entry.name !== 'string') invalidResponse();
+  if (
+    typeof entry.supports_f0 !== 'boolean'
+    || typeof entry.has_index !== 'boolean'
+    || typeof entry.has_icon !== 'boolean'
+  ) invalidResponse();
+  const iconRevision = Number.isSafeInteger(entry.icon_revision) && (entry.icon_revision as number) >= 0
+    ? (entry.icon_revision as number) : 0;
+  const version = text(entry.version);
+  const embedder = text(entry.embedder);
+  const tags = [
+    'RVC',
+    version ? `onnx ${version}` : 'onnx',
+    entry.supports_f0 ? 'f0' : 'non-f0',
+    ...(embedder ? [embedder] : []),
+  ];
   return {
     id,
-    name: text(slot.name),
-    imageUrl: modelImage(id, slot.icon_file),
-    status: type === 'RVC' ? 'ready' : type === 'RESERVED_FOR_SAMPLE' ? 'pending' : type === 'BROKEN' ? 'broken' : 'unsupported',
+    name: entry.name,
+    imageUrl: modelImage(id, entry.has_icon, iconRevision),
+    status: 'ready',
     tags,
-    settings: type === 'RVC' ? {
-      supportsPitch: slot.is_f0 === true,
-      hasIndex: text(slot.index_file).trim().length > 0,
-      pitch: numeric(slot.pitch_shift),
-      indexRatio: numeric(slot.index_ratio),
-      pitchEstimator: text(slot.pitch_estimator) || null,
-      embedder: text(slot.embedder) || null,
-      chunkSeconds: numeric(slot.chunk_sec),
-    } : null,
+    settings: {
+      supportsPitch: entry.supports_f0,
+      hasIndex: entry.has_index,
+      pitch: numeric(entry.pitch_shift),
+      indexRatio: numeric(entry.index_ratio),
+      pitchEstimator: text(entry.pitch_estimator) || null,
+      embedder: embedder || null,
+      chunkSeconds: numeric(entry.chunk_sec),
+    },
   };
 }
 
-function parseCatalog(slots: unknown, configuration: unknown): ModelCatalog {
-  if (!Array.isArray(slots)) invalidResponse();
-  const ids = new Set<number>();
+function parseCatalog(modelsPayload: unknown, configuration: unknown): ModelCatalog {
+  if (!Array.isArray(modelsPayload)) invalidResponse();
+  const ids = new Set<string>();
   const models: ModelSummary[] = [];
-  for (const value of slots) {
-    const slot = object(value);
-    if (!Number.isSafeInteger(slot.slot_index) || (slot.slot_index as number) < 0) invalidResponse();
-    const id = slot.slot_index as number;
-    if (ids.has(id)) invalidResponse();
-    ids.add(id);
-    if (slot.voice_changer_type !== null) models.push(parseModel(slot));
+  for (const value of modelsPayload) {
+    const model = parseModel(object(value));
+    if (ids.has(model.id)) invalidResponse();
+    ids.add(model.id);
+    models.push(model);
   }
 
   return {
-    models: models.sort((a, b) => a.id - b.id),
+    models,
     ...parseConfiguration(configuration),
   };
 }
 
 function parseErrorDetail(body: unknown): { detail?: string; backendCode?: string } {
   if (!body || typeof body !== 'object') return {};
-  const detail = (body as Record<string, unknown>).detail;
+  const record = body as Record<string, unknown>;
+  if (typeof record.code === 'string' || typeof record.message === 'string') {
+    return {
+      detail: typeof record.message === 'string' ? record.message : undefined,
+      backendCode: typeof record.code === 'string' ? record.code : undefined,
+    };
+  }
+  const detail = record.detail;
   if (typeof detail === 'string') {
     const nested = parseJsonText(detail);
     if (nested && typeof nested === 'object') {
@@ -176,7 +185,7 @@ async function responseJson(response: Response, signal: AbortSignal): Promise<un
 }
 
 export interface MultipartOptions {
-  method: 'POST' | 'PATCH';
+  method: 'POST' | 'PUT' | 'PATCH';
   url: string;
   body: FormData;
   signal: AbortSignal;
@@ -240,11 +249,11 @@ async function getJson(path: string, signal: AbortSignal): Promise<unknown> {
 }
 
 export async function loadModelCatalog(signal: AbortSignal): Promise<ModelCatalog> {
-  const [slots, configuration] = await Promise.all([
-    getJson('/api/slot-manager/slots?reload=true', signal),
+  const [models, configuration] = await Promise.all([
+    getJson('/api/models', signal),
     getJson(configurationUrl, signal),
   ]);
-  return parseCatalog(slots, configuration);
+  return parseCatalog(models, configuration);
 }
 
 function parseDevices(value: unknown): AudioDevice[] {
@@ -263,24 +272,17 @@ function parseDevices(value: unknown): AudioDevice[] {
 }
 
 export async function loadAudioDevices(signal: AbortSignal, rescan = false): Promise<AudioDevices> {
-  // The rescan resets PortAudio and both backend lists, so request it only once.
-  if (rescan) {
-    const input = await getJson('/api/audio-device-manager/input_devices?reload=true', signal);
-    const output = await getJson('/api/audio-device-manager/output_devices', signal);
-    return { input: parseDevices(input), output: parseDevices(output) };
-  }
-  // Ordinary loads only read the backend's cached lists.
-  const [input, output] = await Promise.all([
-    getJson('/api/audio-device-manager/input_devices', signal),
-    getJson('/api/audio-device-manager/output_devices', signal),
-  ]);
-  return { input: parseDevices(input), output: parseDevices(output) };
+  const payload = rescan
+    ? await responseJson(await fetch('/api/devices/audio/reload', { method: 'POST', signal, cache: 'no-store' }), signal)
+    : await getJson('/api/devices/audio', signal);
+  const response = object(payload);
+  return { input: parseDevices(response.inputs), output: parseDevices(response.outputs) };
 }
 
 export interface ComputeDevice { id: number; name: string }
 
 export async function loadComputeDevices(signal: AbortSignal): Promise<ComputeDevice[]> {
-  const value = await getJson('/api/gpu-device-manager/devices', signal);
+  const value = await getJson('/api/devices/compute', signal);
   if (!Array.isArray(value)) invalidResponse();
   const ids = new Set<number>();
   return value.map(item => {
@@ -294,7 +296,7 @@ export async function loadComputeDevices(signal: AbortSignal): Promise<ComputeDe
 }
 
 const editFields: Record<keyof ConfigurationEdits, string> = {
-  currentModelId: 'current_slot_index', inputMode: 'voice_changer_input_mode', passThrough: 'pass_through', recording: 'recording_started',
+  currentModelId: 'model_id', inputMode: 'voice_changer_input_mode', passThrough: 'pass_through', recording: 'recording_started',
   inputDevice: 'audio_input_device_index', outputDevice: 'audio_output_device_index',
   monitorDevice: 'audio_monitor_device_index',
   inputDeviceRate: 'audio_input_device_sample_rate', outputDeviceRate: 'audio_output_device_sample_rate',
@@ -347,7 +349,7 @@ export async function updateConfiguration(edits: ConfigurationEdits, signal: Abo
     const high = edits.highPassCutoff ?? numeric(config.high_pass_filter_cutoff);
     const low = edits.lowPassCutoff ?? numeric(config.low_pass_filter_cutoff);
     const rates = [numeric(config.input_sample_rate), numeric(voice.input_sample_rate), numeric(voice.output_sample_rate)];
-    if (!Number.isSafeInteger(voice.slot_index) || (voice.slot_index as number) < 0 || voice.slot_index !== config.current_slot_index
+    if (typeof voice.model_id !== 'string' || !voice.model_id || voice.model_id !== config.model_id
       || rates.some(rate => rate === null || rate <= 0) || high === null || low === null
       || high <= 0 || low <= 0 || high >= Math.min(low, rates[0]! * 0.45, rates[1]! * 0.45)) {
       throw new ApiError('invalid_filter');
@@ -369,7 +371,7 @@ export async function updateConfiguration(edits: ConfigurationEdits, signal: Abo
   if (edits.gpuDevice !== undefined && snapshot.currentModelId !== null) {
     const info = object(await getJson('/api/voice-changer-manager/information', signal));
     const voice = object(info.voice_changer_information);
-    if (voice.slot_index !== snapshot.currentModelId || voice.gpu_device_index !== edits.gpuDevice) throw new ApiError('not_applied');
+    if (voice.model_id !== snapshot.currentModelId || voice.gpu_device_index !== edits.gpuDevice) throw new ApiError('not_applied');
   }
   return snapshot;
 }
@@ -381,63 +383,79 @@ export async function operateNative(operation: 'start' | 'stop', signal: AbortSi
   return active;
 }
 
-export async function organizeModels(order: number[], signal: AbortSignal): Promise<void> {
-  const response = await fetch('/api/slot-manager/operation/organize', {
-    method: 'POST', signal, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order }),
+export async function organizeModels(order: string[], signal: AbortSignal): Promise<void> {
+  const response = await fetch('/api/models/order', {
+    method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model_ids: order }),
   });
   await responseJson(response, signal);
 }
 
-export async function deleteModel(id: number, signal: AbortSignal): Promise<void> {
-  if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
-  await responseJson(await fetch(`/api/slot-manager/slots/${id}`, { method: 'DELETE', signal }), signal);
+export async function deleteModel(id: string, signal: AbortSignal): Promise<void> {
+  if (!id.trim()) invalidResponse();
+  const response = await fetch(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE', signal });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const { detail, backendCode } = parseErrorDetail(body);
+    throw new ApiError('http', response.status, detail, backendCode);
+  }
 }
 
-export async function readModel(id: number, signal: AbortSignal): Promise<ModelSummary> {
-  if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
-  const model = parseModel(object(await getJson(`/api/slot-manager/slots/${id}`, signal)));
+export async function readModel(id: string, signal: AbortSignal): Promise<ModelSummary> {
+  if (!id.trim()) invalidResponse();
+  const model = parseModel(object(await getJson(`/api/models/${encodeURIComponent(id)}`, signal)));
   if (model.id !== id || model.status !== 'ready') invalidResponse();
   return model;
 }
 
-export async function confirmPitchEstimator(id: number, pitchEstimator: string, signal: AbortSignal): Promise<void> {
+export async function confirmPitchEstimator(id: string, pitchEstimator: string, signal: AbortSignal): Promise<void> {
   const info = object(await getJson('/api/voice-changer-manager/information', signal));
   const voice = object(info.voice_changer_information);
   const pipeline = object(voice.pipeline_info);
   const estimator = object(pipeline.pitch_estimator_info);
-  if (voice.slot_index !== id || pipeline.slot_index !== id || estimator.pitch_estimator_type !== pitchEstimator) {
+  if (voice.model_id !== id || pipeline.model_id !== id || estimator.pitch_estimator_type !== pitchEstimator) {
     throw new ApiError('not_applied');
   }
 }
 
 export async function updateModelInfo(
-  id: number,
+  id: string,
   updates: { name?: string; icon?: File | null },
   signal: AbortSignal,
 ): Promise<ModelSummary> {
-  const form = new FormData();
-  if (updates.name !== undefined) form.append('name', updates.name);
-  if (updates.icon) form.append('icon_file', updates.icon, updates.icon.name);
-  const result = await sendMultipart({
-    method: 'PATCH',
-    url: `/api/slot-manager/slots/${id}`,
-    body: form,
-    signal,
-  });
-  const model = parseModel(object(result));
+  if (!id.trim()) invalidResponse();
+  let latestRaw: Record<string, unknown> | null = null;
+  if (updates.name !== undefined) {
+    latestRaw = object(await responseJson(await fetch(`/api/models/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: updates.name }),
+    }), signal));
+  }
+  if (updates.icon) {
+    const form = new FormData();
+    form.append('icon_file', updates.icon, updates.icon.name);
+    latestRaw = object(await sendMultipart({
+      method: 'PUT',
+      url: `/api/models/${encodeURIComponent(id)}/icon`,
+      body: form,
+      signal,
+    }));
+  }
+  if (!latestRaw) invalidResponse();
+  const model = parseModel(latestRaw);
   if (model.id !== id) invalidResponse();
   if (updates.name !== undefined && model.name !== updates.name.trim()) throw new ApiError('not_applied');
   if (updates.icon && !model.imageUrl) throw new ApiError('not_applied');
   return model;
 }
 
-export async function updateModelSettings(id: number, edits: ModelEdits, signal: AbortSignal, confirmPipeline = true): Promise<ModelSummary> {
-  if (!Number.isSafeInteger(id) || id < 0) invalidResponse();
+export async function updateModelSettings(id: string, edits: ModelEdits, signal: AbortSignal, confirmPipeline = true): Promise<ModelSummary> {
+  if (!id.trim()) invalidResponse();
   if ((edits.pitchEstimator !== undefined || edits.chunkSeconds !== undefined) && await readNativeActive(signal)) throw new ApiError('active');
-  const url = `/api/slot-manager/slots/${id}`;
-  const slot = object(await getJson(url, signal));
-  const model = parseModel(slot);
+  const url = `/api/models/${encodeURIComponent(id)}`;
+  const model = parseModel(object(await getJson(url, signal)));
   if (model.id !== id || !model.settings) invalidResponse();
   const changes: Record<string, number | string> = {};
   if (edits.pitch !== undefined) {
@@ -456,12 +474,10 @@ export async function updateModelSettings(id: number, edits: ModelEdits, signal:
     if (model.settings.chunkSeconds === null || !Number.isFinite(edits.chunkSeconds) || edits.chunkSeconds < 0.05 || edits.chunkSeconds > 5) invalidResponse();
     changes.chunk_sec = edits.chunkSeconds;
   }
-  // The endpoint consumes a complete RVCSlotInfo and uses its slot_index for persistence.
-  await responseJson(await fetch(url, {
+  const confirmed = object(await responseJson(await fetch(url, {
     method: 'PUT', signal, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...slot, ...changes }),
-  }), signal);
-  const confirmed = object(await getJson(url, signal));
+    body: JSON.stringify(changes),
+  }), signal));
   const result = parseModel(confirmed);
   if (result.id !== id || !result.settings) invalidResponse();
   if (Object.entries(changes).some(([key, value]) => confirmed[key] !== value)) throw new ApiError('not_applied');

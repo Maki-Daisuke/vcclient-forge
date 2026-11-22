@@ -44,6 +44,7 @@ class RVCInferencerInfo(BaseModel):
 
 class PipelineInfo(BaseModel):
     slot_index: int = -1
+    model_id: str | None = None
     input_sample_rate: int = -1
     output_sample_rate: int = -1
     chunk_sec: float = 0.1
@@ -61,6 +62,7 @@ PipelineInfoMember = PipelineInfo | RVCPipelineInfo
 
 class VoiceChangerInformation(BaseModel):
     slot_index: int = -1
+    model_id: str | None = None
     override_embedder: EmbedderType | None = None
     pitch_estimator_type: PitchEstimatorType | None = None
     gpu_device_index: int = -1

@@ -18,7 +18,7 @@ from ...exception import (
 )
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..data_types.data_types import PerformanceData
-from ..data_types.slot_manager_data_types import RVCSlotInfo
+from ..data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
 from ..event_emitter import EventEmitter
 from ..slot_manager.slot_manager import SlotManager
@@ -99,16 +99,19 @@ class VoiceChanger(EventEmitter):
             raise VCClientError(ERROR_CODE_PIPELINE_IS_NOT_INITIALIZED, "Voice changer pipeline is not initialized.")
         return self.vc_pipeline
 
+    def _apply_slot_info(self, slot_info: SlotInfoMember) -> None:
+        pipeline = PipelineManager.get_pipeline(slot_info)
+        self.vc_pipeline = pipeline
+        self.vc_info.voice_changer_type = slot_info.voice_changer_type
+        self.vc_info.vc_input_sample_rate = pipeline.get_input_sample_rate()
+        self.vc_info.vc_output_sample_rate = pipeline.get_output_sample_rate()
+        self.vc_info.pitch_estimator_type = pipeline.get_pitch_estimator_type()
+        self.vc_info.gpu_device_index = pipeline.get_gpu_device_id()
+
     def _update_model(self, slot_index: int) -> None:
         try:
             slot_info = SlotManager.get_instance().get_slot_info(slot_index)
-            pipeline = PipelineManager.get_pipeline(slot_info)
-            self.vc_pipeline = pipeline
-            self.vc_info.voice_changer_type = slot_info.voice_changer_type
-            self.vc_info.vc_input_sample_rate = pipeline.get_input_sample_rate()
-            self.vc_info.vc_output_sample_rate = pipeline.get_output_sample_rate()
-            self.vc_info.pitch_estimator_type = pipeline.get_pitch_estimator_type()
-            self.vc_info.gpu_device_index = pipeline.get_gpu_device_id()
+            self._apply_slot_info(slot_info)
             logger.info(
                 "slot_index Changed: %s, gpu_device_index: %s",
                 self.vc_info.slot_index,
@@ -118,21 +121,77 @@ class VoiceChanger(EventEmitter):
             logger.warning("Failed to update model: %s", e)
             raise VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, f"Failed to update model:{e}")
 
+    def _update_model_by_id(self, model_id: str) -> None:
+        try:
+            from ..model_catalog import get_slot_info_by_model_id
+
+            slot_info = get_slot_info_by_model_id(model_id)
+            if slot_info is None:
+                raise VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, f"Model '{model_id}' not found.")
+            self._apply_slot_info(slot_info)
+            logger.info(
+                "model_id Changed: %s, gpu_device_index: %s",
+                model_id,
+                self.vc_info.gpu_device_index,
+            )
+        except Exception as e:
+            logger.warning("Failed to update model '%s': %s", model_id, e)
+            if isinstance(e, VCClientError):
+                raise
+            raise VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, f"Failed to update model:{e}")
+
     def _check_reload_model_is_required_and_update(self) -> None:
         conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
-        slot_index = conf.current_slot_index
         shape_changed = (
             isinstance(self.vc_pipeline, RVCPipeline)
             and self.vc_pipeline.target_frames != self.vc_pipeline._calculate_target_feats_length()
         )
-        if (
-            self.vc_info.slot_index != slot_index
-            or (
-                self.vc_info.gpu_device_index != conf.gpu_device_id_int
-                and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
-            )
-            or shape_changed
-        ):
+        gpu_changed = (
+            self.vc_info.gpu_device_index != conf.gpu_device_id_int
+            and self.vc_info.gpu_device_index != GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE
+        )
+        target_model_id = getattr(conf, "model_id", None)
+        current_model_id = getattr(self.vc_info, "model_id", None)
+
+        if target_model_id is not None:
+            if current_model_id != target_model_id or gpu_changed or shape_changed or self.vc_pipeline is None:
+                logger.info(
+                    "model_id: %s -> %s, gpu_device_index: %s -> %s",
+                    current_model_id,
+                    target_model_id,
+                    self.vc_info.gpu_device_index,
+                    conf.gpu_device_id_int,
+                )
+                prev_model_id = current_model_id
+                prev_gpu_index = self.vc_info.gpu_device_index
+                try:
+                    self._update_model_by_id(target_model_id)
+                    self.vc_info.model_id = target_model_id
+                    self.vc_info.slot_index = -1
+                    self.vc_info.gpu_device_index = conf.gpu_device_id_int
+                    self._set_io_sample_rate()
+                except Exception as e:
+                    logger.error("Failed to switch model to '%s': %s", target_model_id, e)
+                    self.vc_info.model_id = prev_model_id
+                    self.vc_info.gpu_device_index = prev_gpu_index
+                    if shape_changed and target_model_id == prev_model_id and conf.gpu_device_id_int == prev_gpu_index:
+                        raise
+                    conf.model_id = prev_model_id
+                    ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
+            return None
+
+        slot_index = conf.current_slot_index
+        if slot_index < 0:
+            if current_model_id is not None or self.vc_pipeline is not None:
+                self.vc_pipeline = None
+                self.vc_info.model_id = None
+                self.vc_info.slot_index = -1
+                self.vc_info.voice_changer_type = None
+                self.vc_info.pitch_estimator_type = None
+                self.vc_info.pipeline_info = None
+            return None
+
+        if self.vc_info.slot_index != slot_index or gpu_changed or shape_changed:
             logger.info(
                 "slot_index: %s -> %s, gpu_device_index: %s -> %s",
                 self.vc_info.slot_index,
@@ -145,6 +204,7 @@ class VoiceChanger(EventEmitter):
             try:
                 self._update_model(slot_index)
                 self.vc_info.slot_index = slot_index
+                self.vc_info.model_id = None
                 self.vc_info.gpu_device_index = conf.gpu_device_id_int
                 self._set_io_sample_rate()
             except Exception as e:
@@ -164,9 +224,16 @@ class VoiceChanger(EventEmitter):
         PipelineManager.warmup(pipeline)
 
     def _check_and_update_pitch_estimator(self) -> None:
-        if self.vc_info.slot_index < 0:
+        current_model_id = getattr(self.vc_info, "model_id", None)
+        slot_info: SlotInfoMember | None
+        if current_model_id is not None:
+            from ..model_catalog import get_slot_info_by_model_id
+
+            slot_info = get_slot_info_by_model_id(current_model_id)
+        elif self.vc_info.slot_index >= 0:
+            slot_info = SlotManager.get_instance().get_slot_info(self.vc_info.slot_index)
+        else:
             return None
-        slot_info = SlotManager.get_instance().get_slot_info(self.vc_info.slot_index)
         if not isinstance(slot_info, RVCSlotInfo):
             return None
 
@@ -180,7 +247,7 @@ class VoiceChanger(EventEmitter):
             logger.warning("Input or output sample rate is not set")
             return None
 
-        if self.vc_info.slot_index == -1:
+        if self.vc_info.slot_index == -1 and getattr(self.vc_info, "model_id", None) is None:
             logger.warning("Slot index is not set")
             return None
 

@@ -1,24 +1,41 @@
 import { expect, type Page, type Route } from '@playwright/test';
 
-// Deliberately sparse and unsorted. UI selection must use IDs, not array positions.
+// NanoID models in catalog.json display order.
 export const slots = [
   {
-    slot_index: 7, voice_changer_type: 'RVC', name: 'Test model B',
-    icon_file: 'C:\\old\\portrait #1.png',
-    is_onnx: false, is_f0: false, version: 'v1', embedder: 'hubert_base_l12',
-    pitch_shift: -5, index_ratio: 0.63, pitch_estimator: 'rmvpe', chunk_sec: 0.3,
+    id: 'model_a',
+    name: 'Test model A',
+    sample_rate: 40000,
+    supports_f0: true,
+    has_index: true,
+    embedder: 'hubert_base_japanese_l12',
+    version: 'v2',
+    has_icon: false,
+    icon_revision: 0,
+    pitch_shift: 3,
+    index_ratio: 0.25,
+    chunk_sec: 0.5,
+    pitch_estimator: 'fcpe',
   },
-  { slot_index: 0, voice_changer_type: null },
   {
-    slot_index: 2, voice_changer_type: 'RVC', name: 'Test model A',
-    icon_file: null,
-    is_onnx: true, is_f0: true, version: 'v2', embedder: 'hubert_base_japanese_l12',
-    pitch_shift: 3, index_ratio: 0.25, pitch_estimator: 'fcpe', chunk_sec: 0.5,
+    id: 'model_b',
+    name: 'Test model B',
+    sample_rate: 40000,
+    supports_f0: false,
+    has_index: false,
+    embedder: 'hubert_base_l12',
+    version: 'v1',
+    has_icon: true,
+    icon_revision: 1,
+    pitch_shift: -5,
+    index_ratio: 0.63,
+    chunk_sec: 0.3,
+    pitch_estimator: 'rmvpe',
   },
 ];
 
 export const configuration = {
-  current_slot_index: 7,
+  model_id: 'model_b' as string | null,
   voice_changer_input_mode: 'server',
   audio_input_device_gain: 2.7,
   audio_output_device_gain: 0.65,
@@ -58,23 +75,26 @@ export const outputDevices = [
   { index: 11, name: 'USB speakers', host_api: 'Windows WASAPI' },
 ];
 
-export async function fulfillCatalog(route: Route, data: unknown = slots, currentId = 7) {
+export async function fulfillCatalog(route: Route, data: unknown = slots, currentId: string | null = 'model_b') {
   expect(route.request().method()).toBe('GET');
   const path = new URL(route.request().url()).pathname;
-  if (path === '/api/slot-manager/slots') {
+  if (path === '/api/models') {
     await route.fulfill({ json: data });
   } else if (path === '/api/configuration-manager/configuration') {
-    await route.fulfill({ json: { ...configuration, current_slot_index: currentId } });
-  } else if (path === '/api/gpu-device-manager/devices') {
+    await route.fulfill({ json: { ...configuration, model_id: currentId } });
+  } else if (path === '/api/devices/compute') {
     await route.fulfill({ json: computeDevices });
-  } else if (path === '/api/audio-device-manager/input_devices') {
-    await route.fulfill({ json: inputDevices });
-  } else if (path === '/api/audio-device-manager/output_devices') {
-    await route.fulfill({ json: outputDevices });
+  } else if (path === '/api/devices/audio') {
+    await route.fulfill({ json: { inputs: inputDevices, outputs: outputDevices } });
   } else if (path === '/api/local-voice-changer-interface/information') {
     await route.fulfill({ json: { local_voice_changer_interface_active: false } });
   } else if (path === '/api/voice-changer-manager/information') {
-    await route.fulfill({ json: { voice_changer_information: { slot_index: currentId, input_sample_rate: 48000, output_sample_rate: 48000 } } });
+    await route.fulfill({ json: { voice_changer_information: { model_id: currentId, input_sample_rate: 48000, output_sample_rate: 48000 } } });
+  } else if (/^\/api\/models\/[^/]+\/icon$/.test(path)) {
+    await route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="steelblue"/></svg>',
+    });
   } else {
     throw new Error(`Unexpected API request: ${path}`);
   }
@@ -86,7 +106,7 @@ export async function mockCatalog(page: Page) {
 }
 
 export async function mockModelImages(page: Page) {
-  await page.route('**/model_dir/**', route => route.fulfill({
+  await page.route('**/api/models/*/icon**', route => route.fulfill({
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="steelblue"/></svg>',
   }));

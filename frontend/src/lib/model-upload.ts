@@ -15,13 +15,12 @@ export async function importModel(
   if (await readNativeActive(signal)) throw new ApiError('active');
   const name = model.name.slice(0, -ext.length).trim() || model.name;
   const form = new FormData();
-  form.append('voice_changer_type', 'RVC');
   form.append('name', name);
   form.append('model_file', model, model.name);
   if (index) form.append('index_file', index, index.name);
   await sendMultipart({
     method: 'POST',
-    url: '/api/slot-manager/slots',
+    url: '/api/models',
     body: form,
     signal,
     onProgress: loaded => progress(loaded),

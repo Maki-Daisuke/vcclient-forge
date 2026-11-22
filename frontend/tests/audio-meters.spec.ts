@@ -226,7 +226,7 @@ test('keeps conversion time between measurements when the chunk is longer than t
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.models.find(model => model.slot_index === 7)!.chunk_sec = 5;
+  state.models.find(model => model.id === 'model_b')!.chunk_sec = 5;
   const socket = await mockSocket(page);
   await page.clock.install();
   await page.goto('/');

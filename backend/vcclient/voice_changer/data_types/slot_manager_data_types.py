@@ -33,6 +33,7 @@ class SlotInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
     slot_index: int = -1
+    model_id: str | None = None
     voice_changer_type: VoiceChangerType | None = None
     name: str = ""
     icon_file: Path | None = None

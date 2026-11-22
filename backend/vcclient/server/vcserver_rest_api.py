@@ -24,6 +24,8 @@ from vcclient.server.vcserver_rest_api_configuration_manager import RestAPIConfi
 from vcclient.server.vcserver_rest_api_devices import RestAPIDevices
 from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
 from vcclient.server.vcserver_rest_api_local_voice_changer_interface import RestAPILocalVoiceChangerInterface
+from vcclient.server.vcserver_rest_api_models import RestAPIModels
+from vcclient.server.vcserver_rest_api_settings import RestAPISettings
 from vcclient.server.vcserver_rest_api_slot_manager import RestAPISlotManager
 from vcclient.server.vcserver_rest_api_voice_changer import RestAPIVoiceChanger
 from vcclient.server.vcserver_websocket import WebSocketHub
@@ -167,6 +169,10 @@ def _create_rest_api() -> FastAPI:
 
     rest_devices = RestAPIDevices()
     app_fastapi.include_router(rest_devices.router)
+    rest_models = RestAPIModels()
+    app_fastapi.include_router(rest_models.router)
+    rest_settings = RestAPISettings()
+    app_fastapi.include_router(rest_settings.router)
 
     domain_system_router = APIRouter(route_class=DomainApiRoute)
 

@@ -23,8 +23,14 @@ class AudioDevice(BaseModel):
 
 
 class VoiceChangerConfiguration(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     current_slot_index: int = 0
-    voice_changer_input_mode: VoiceChangerInputMode = "client"
+    model_id: str | None = None
+    voice_changer_input_mode: VoiceChangerInputMode = Field(
+        default="client",
+        validation_alias=AliasChoices("voice_changer_input_mode", "input_mode"),
+    )
     pass_through: bool = False
     recording_started: bool = False
     enable_performance_monitor: bool = True
@@ -37,18 +43,27 @@ class VoiceChangerConfiguration(BaseModel):
     audio_monitor_device_index: int = -1
     wasapi_exclusive_enabled: bool = Field(
         default=False,
-        validation_alias=AliasChoices("wasapi_exclusive_enabled", "wasapi_exclude_emabled"),
+        validation_alias=AliasChoices("wasapi_exclusive_enabled", "wasapi_exclude_emabled", "wasapi_exclusive"),
     )
     audio_input_device_sample_rate: int = -1
     audio_output_device_sample_rate: int = -1
     audio_monitor_device_sample_rate: int = -1
-    audio_input_device_gain: float = 2
-    audio_output_device_gain: float = 1
+    audio_input_device_gain: float = Field(
+        default=2,
+        validation_alias=AliasChoices("audio_input_device_gain", "input_gain"),
+    )
+    audio_output_device_gain: float = Field(
+        default=1,
+        validation_alias=AliasChoices("audio_output_device_gain", "output_gain"),
+    )
     realtime_process_status_enabled: bool = True
     realtime_output_status_enabled: bool = True
     noise_gate: float = -35
     extra_frame_sec: float = 0.5
-    gpu_device_id_int: int = 0
+    gpu_device_id_int: int = Field(
+        default=0,
+        validation_alias=AliasChoices("gpu_device_id_int", "compute_device_id"),
+    )
     input_sample_rate: int = 48000
     output_sample_rate: int = 48000
     monitor_sample_rate: int = 48000

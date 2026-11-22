@@ -117,7 +117,7 @@ test('streams microphone samples over WebSocket and releases the microphone on s
   state.config.output_sample_rate = 48000;
   state.config.voice_changer_input_mode = 'client';
   state.config.realtime_process_status_enabled = true;
-  state.models[0].is_f0 = true;
+  state.models.find(model => model.id === 'model_b')!.supports_f0 = true;
   let packets = 0;
   let statusSocket: WebSocketRoute | undefined;
   await page.routeWebSocket(/\/api\/ws\/audio$/, socket => {
