@@ -378,6 +378,18 @@ def test_model_icon_lifecycle(domain_env: tuple[TestClient, Path, Path]) -> None
     assert del_again.json()["icon_revision"] == 3
 
 
+def test_post_model_validation_error_with_binary_multipart_payload(
+    domain_env: tuple[TestClient, Path, Path],
+) -> None:
+    client, _, _ = domain_env
+    res = client.post(
+        "/api/models",
+        files={"model_file": ("v.onnx", b"\xff\xfe\x00\x81onnx", "application/octet-stream")},
+    )
+    assert res.status_code == 422
+    assert res.json()["code"] == "validation_error"
+
+
 def test_settings_validation_etag_and_no_side_effects(
     domain_env: tuple[TestClient, Path, Path],
     monkeypatch: pytest.MonkeyPatch,
@@ -436,6 +448,7 @@ def test_settings_validation_etag_and_no_side_effects(
 
 def test_voice_changer_uses_model_catalog_nanoid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import json
+    import time
 
     from fastapi.testclient import TestClient
     from onnx import TensorProto, helper
@@ -450,6 +463,8 @@ def test_voice_changer_uses_model_catalog_nanoid(tmp_path: Path, monkeypatch: py
         RVCInferencerInfo,
     )
     from vcclient.voice_changer.model_catalog import model_catalog_manager
+    from vcclient.voice_changer.session_manager import reset_session_state
+    from vcclient.voice_changer.session_manager import session_manager as session_manager_mod
     from vcclient.voice_changer.voice_change_manager.embedders.embedder_manager import EmbedderManager
     from vcclient.voice_changer.voice_change_manager.inferencer.inferencer_manager import InferencerManager
     from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import (
@@ -477,6 +492,9 @@ def test_voice_changer_uses_model_catalog_nanoid(tmp_path: Path, monkeypatch: py
     monkeypatch.setattr(api_common, "_active_model_id_getter", None)
     monkeypatch.setattr(model_catalog_manager, "_cached_model_dir", None)
     monkeypatch.setattr(model_catalog_manager, "_cached_slot_infos", {})
+    cpu_catalog = [DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_type="CPU", name="CPU")]
+    monkeypatch.setattr(session_manager_mod, "get_device_catalog", lambda: cpu_catalog)
+    monkeypatch.setattr(settings_manager, "get_device_catalog", lambda: cpu_catalog)
 
     captured_model_paths: list[Path] = []
     warmup_calls: list[int] = []
@@ -519,6 +537,16 @@ def test_voice_changer_uses_model_catalog_nanoid(tmp_path: Path, monkeypatch: py
     monkeypatch.setattr(InferencerManager, "get_inferencer", classmethod(_fake_get_inferencer))
     monkeypatch.setattr(rvc_pipeline_mod.RVCPipeline, "warmup", lambda self: warmup_calls.append(1))
 
+    def _wait_session_running(client: TestClient) -> dict[str, object]:
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            body = client.get("/api/session").json()
+            if body["status"] != "starting":
+                assert body["status"] == "running", body
+                return body
+            time.sleep(0.01)
+        raise AssertionError("Timed out waiting for session to reach running")
+
     def _make_rvc_onnx_bytes() -> bytes:
         graph = helper.make_graph(
             [helper.make_node("Identity", ["x"], ["y"])],
@@ -539,66 +567,90 @@ def test_voice_changer_uses_model_catalog_nanoid(tmp_path: Path, monkeypatch: py
         )
         return model.SerializeToString()
 
-    onnx_bytes = _make_rvc_onnx_bytes()
-    client = TestClient(get_rest_api())
+    reset_session_state()
+    try:
+        onnx_bytes = _make_rvc_onnx_bytes()
+        with TestClient(get_rest_api()) as client:
+            create_1 = client.post(
+                "/api/models",
+                data={"name": "Model One"},
+                files={"model_file": ("one.onnx", onnx_bytes, "application/octet-stream")},
+            )
+            assert create_1.status_code == 201, create_1.text
+            id1 = create_1.json()["id"]
 
-    create_1 = client.post(
-        "/api/models",
-        data={"name": "Model One"},
-        files={"model_file": ("one.onnx", onnx_bytes, "application/octet-stream")},
-    )
-    assert create_1.status_code == 201, create_1.text
-    id1 = create_1.json()["id"]
+            create_2 = client.post(
+                "/api/models",
+                data={"name": "Model Two"},
+                files={"model_file": ("two.onnx", onnx_bytes, "application/octet-stream")},
+            )
+            assert create_2.status_code == 201, create_2.text
+            id2 = create_2.json()["id"]
 
-    create_2 = client.post(
-        "/api/models",
-        data={"name": "Model Two"},
-        files={"model_file": ("two.onnx", onnx_bytes, "application/octet-stream")},
-    )
-    assert create_2.status_code == 201, create_2.text
-    id2 = create_2.json()["id"]
+            start_1 = client.put("/api/session", json={"model_id": id1, "input_mode": "client", "compute_device_id": 0})
+            assert start_1.status_code == 202, start_1.text
+            _wait_session_running(client)
 
-    base_conf = client.get("/api/configuration-manager/configuration").json()
-    conf_res = client.put("/api/configuration-manager/configuration", json={**base_conf, "model_id": id1})
-    assert conf_res.status_code == 200, conf_res.text
+            vc = VoiceChanger.peek_instance()
+            assert vc is not None
+            assert vc.vc_info.model_id == id1
+            assert vc.vc_pipeline is not None
+            assert getattr(vc.vc_pipeline, "model_id", None) == id1
+            assert len(captured_model_paths) == 1
+            assert captured_model_paths[0].is_file(), f"Missing model path: {captured_model_paths[0]}"
+            assert id1 in str(captured_model_paths[0].parent)
 
-    vc = VoiceChanger.get_instance()
-    vc_info = vc.get_voice_changer_information()
-    assert vc_info.model_id == id1
-    assert vc.vc_pipeline is not None
-    assert getattr(vc.vc_pipeline, "model_id", None) == id1
-    assert len(captured_model_paths) == 1
-    assert captured_model_paths[0].is_file(), f"Missing model path: {captured_model_paths[0]}"
-    assert id1 in str(captured_model_paths[0].parent)
+            # Live parameter updates flow through session snapshot without recreating pipeline
+            live_put = client.put(
+                "/api/session",
+                json={
+                    "model_id": id1,
+                    "input_mode": "client",
+                    "compute_device_id": 0,
+                    "pitch_shift": 5,
+                    "index_ratio": 0.65,
+                },
+            )
+            assert live_put.status_code == 200, live_put.text
+            assert vc.vc_pipeline.slot_info.pitch_shift == 5
+            assert vc.vc_pipeline.slot_info.index_ratio == 0.65
+            assert len(captured_model_paths) == 1
 
-    # Live parameter updates flow through lock-free model_catalog cache without recreating pipeline
-    patch_live = client.put(f"/api/models/{id1}", json={"pitch_shift": 5, "index_ratio": 0.65})
-    assert patch_live.status_code == 200, patch_live.text
-    assert vc.vc_pipeline.slot_info.pitch_shift == 5
-    assert vc.vc_pipeline.slot_info.index_ratio == 0.65
-    assert len(captured_model_paths) == 1
+            # Updating chunk_sec via PUT /api/models/{id} is pure persistence; next session start rebuilds/warms up
+            assert client.delete("/api/session").status_code == 200
+            warmup_before = len(warmup_calls)
+            paths_before_chunk = len(captured_model_paths)
+            patch_chunk = client.put(f"/api/models/{id1}", json={"chunk_sec": 0.8})
+            assert patch_chunk.status_code == 200, patch_chunk.text
+            assert len(warmup_calls) == warmup_before
 
-    # Changing chunk_sec while stopped refreshes pipeline shape/warmup
-    warmup_before = len(warmup_calls)
-    paths_before_chunk = len(captured_model_paths)
-    patch_chunk = client.put(f"/api/models/{id1}", json={"chunk_sec": 0.8})
-    assert patch_chunk.status_code == 200, patch_chunk.text
-    assert len(warmup_calls) > warmup_before
+            restart_1 = client.put(
+                "/api/session",
+                json={"model_id": id1, "input_mode": "client", "compute_device_id": 0, "chunk_sec": 0.8},
+            )
+            assert restart_1.status_code == 202, restart_1.text
+            _wait_session_running(client)
+            assert len(warmup_calls) > warmup_before
+            assert client.delete("/api/session").status_code == 200
 
-    # Switching configuration to second NanoID loads second model
-    switch_res = client.put("/api/configuration-manager/configuration", json={**base_conf, "model_id": id2})
-    assert switch_res.status_code == 200, switch_res.text
-    vc_info_2 = vc.get_voice_changer_information()
-    assert vc_info_2.model_id == id2
-    assert len(captured_model_paths) > paths_before_chunk
-    assert captured_model_paths[-1].is_file(), f"Missing model path: {captured_model_paths[-1]}"
-    assert id2 in str(captured_model_paths[-1].parent)
+            # Switching session to second NanoID loads second model
+            start_2 = client.put("/api/session", json={"model_id": id2, "input_mode": "client", "compute_device_id": 0})
+            assert start_2.status_code == 202, start_2.text
+            _wait_session_running(client)
+            assert vc.vc_info.model_id == id2
+            assert len(captured_model_paths) > paths_before_chunk
+            assert captured_model_paths[-1].is_file(), f"Missing model path: {captured_model_paths[-1]}"
+            assert id2 in str(captured_model_paths[-1].parent)
+            assert client.delete("/api/session").status_code == 200
 
-    # Deleting the currently loaded model while stopped clears configuration and pipeline
-    del_res = client.delete(f"/api/models/{id2}")
-    assert del_res.status_code == 204, del_res.text
-    assert ConfigurationManager.get_instance().voice_changer_configuration.model_id is None
-    assert vc.vc_pipeline is None
+            # Deleting the selected model while stopped clears persisted settings and pipeline
+            assert client.put("/api/settings", json={"model_id": id2}).status_code == 200
+            del_res = client.delete(f"/api/models/{id2}")
+            assert del_res.status_code == 204, del_res.text
+            assert client.get("/api/settings").json()["model_id"] is None
+            assert vc.vc_pipeline is None
+    finally:
+        reset_session_state()
 
 
 def test_user_settings_and_voice_changer_configuration_roundtrip_and_delete_preserves_settings(

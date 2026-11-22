@@ -19,7 +19,7 @@ class CustomFormatter(logging.Formatter):
 class IgnoreConvertRequestFilter(logging.Filter):
     def filter(self, record):
         msg = record.getMessage()
-        return "/vcclient.log" not in msg
+        return "/api/logs" not in msg
 
 
 def _init_logger() -> logging.Logger:

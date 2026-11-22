@@ -222,19 +222,19 @@ def test_device_config_create_session_npu_rvc_fallback() -> None:
         assert providers_rmvpe == ["OpenVINOExecutionProvider", "CPUExecutionProvider"]
 
 
-def test_rest_api_gpu_device_manager_returns_catalog() -> None:
-    """Verify that GET /api/gpu-device-manager/devices returns DeviceConfig catalog."""
+def test_rest_api_compute_devices_returns_catalog() -> None:
+    """Verify that GET /api/devices/compute returns DeviceConfig catalog."""
     from fastapi import FastAPI
     from starlette.testclient import TestClient
 
-    from vcclient.server.vcserver_rest_api_gpu_device_manager import RestAPIGPUDeviceManager
+    from vcclient.server.vcserver_rest_api_devices import RestAPIDevices
 
     app = FastAPI()
-    api = RestAPIGPUDeviceManager()
+    api = RestAPIDevices()
     app.include_router(api.router)
 
     client = TestClient(app)
-    resp = client.get("/api/gpu-device-manager/devices")
+    resp = client.get("/api/devices/compute")
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)

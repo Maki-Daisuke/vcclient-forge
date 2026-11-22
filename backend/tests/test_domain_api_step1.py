@@ -302,9 +302,11 @@ def test_recordings_latest_and_logs_endpoints(
     ok_rec = client.get("/api/recordings/latest")
     assert ok_rec.status_code == 200
     assert ok_rec.headers.get("content-type") == "audio/wav"
+    assert ok_rec.headers.get("cache-control") == "no-store"
     assert ok_rec.content == b"RIFF....WAVE"
 
     ok_log = client.get("/api/logs")
     assert ok_log.status_code == 200
     assert ok_log.headers.get("content-type", "").startswith("text/plain")
+    assert ok_log.headers.get("cache-control") == "no-store"
     assert ok_log.content == b"line1\nline2\n"

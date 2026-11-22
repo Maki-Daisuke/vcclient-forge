@@ -43,8 +43,7 @@ def _enqueue_close(queue: asyncio.Queue[tuple[int, str] | None], signal: tuple[i
 class WebSocketHub:
     """Manages native FastAPI WebSocket endpoints for realtime telemetry and audio streaming."""
 
-    def __init__(self, *, enforce_session: bool = False) -> None:
-        self._enforce_session = enforce_session
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self._status_clients: dict[WebSocket, tuple[asyncio.AbstractEventLoop, asyncio.Queue[str | None]]] = {}
         self._audio_clients: dict[
@@ -117,13 +116,12 @@ class WebSocketHub:
                 self._status_clients.pop(websocket, None)
 
     async def websocket_audio(self, websocket: WebSocket) -> None:
-        if self._enforce_session:
-            from vcclient.voice_changer.session_manager import is_client_session_running
+        from vcclient.voice_changer.session_manager import is_client_session_running
 
-            if not is_client_session_running():
-                await websocket.accept()
-                await websocket.close(code=1008)
-                return
+        if not is_client_session_running():
+            await websocket.accept()
+            await websocket.close(code=1008)
+            return
 
         loop = asyncio.get_running_loop()
         close_queue: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue(maxsize=4)
@@ -195,14 +193,9 @@ class WebSocketHub:
 
                 try:
                     unpacked_data = np.frombuffer(data, dtype="<f4").astype(np.float32, copy=True)
-                    if self._enforce_session:
-                        vc = VoiceChanger.peek_instance()
-                        if vc is None or not vc.is_convert_chunk_bulk_started():
-                            continue
-                    else:
-                        vc = VoiceChanger.get_instance()
-                        if not vc.is_convert_chunk_bulk_started():
-                            vc.start_convert_chunk_bulk()
+                    vc = VoiceChanger.peek_instance()
+                    if vc is None or not vc.is_convert_chunk_bulk_started():
+                        continue
                     converted_np, _ = vc.convert_chunk_bulk(unpacked_data)
                 except Exception as e:
                     logger.error("Error processing audio WebSocket message: %s", e)

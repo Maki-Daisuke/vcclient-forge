@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, Header, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 
-from vcclient.server.api_common import DomainApiError, DomainApiRoute, is_session_active, set_etag_header
+from vcclient.server.api_common import DomainApiError, DomainApiRoute, set_etag_header
 from vcclient.voice_changer.model_catalog import (
     ICON_SUFFIXES,
     Model,
@@ -23,7 +23,6 @@ from vcclient.voice_changer.model_catalog import (
     set_order,
     update_model,
 )
-from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import EmbedderType
 
 _MODEL_SUFFIXES = {".onnx", ".pth"}
@@ -181,10 +180,6 @@ class RestAPIModels:
         if_match: str | None = Header(default=None, alias="If-Match"),
     ) -> Model:
         model, etag = update_model(model_id, payload, if_match=if_match)
-        if not is_session_active() and (payload.pitch_estimator is not None or payload.chunk_sec is not None):
-            voice = VoiceChanger.peek_instance()
-            if voice is not None and voice.vc_pipeline is not None and voice.vc_info.model_id == model_id:
-                voice.check_and_update_pipeline()
         set_etag_header(response, etag)
         return model
 

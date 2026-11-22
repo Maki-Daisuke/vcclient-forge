@@ -171,7 +171,12 @@ class DomainApiRoute(APIRoute):
                     422,
                     "validation_error",
                     "Request validation failed.",
-                    {"errors": jsonable_encoder(exc.errors())},
+                    {
+                        "errors": jsonable_encoder(
+                            exc.errors(),
+                            custom_encoder={bytes: lambda raw: raw.decode("utf-8", errors="replace")},
+                        )
+                    },
                 ).to_response()
             except VCClientError as exc:
                 logger.warning("Domain API VCClientError: %s", exc)

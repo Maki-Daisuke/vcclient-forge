@@ -86,12 +86,3 @@ class VoiceChangerInformation(BaseModel):
     bulk_process_start_flag: bool = False
     recording_start_flag: bool = False
     monitor_enabled: bool = False
-
-
-class VoiceChangerManagerInfo(BaseModel):
-    local_voice_changer_interface_active: bool
-    voice_changer_information: VoiceChangerInformation
-
-
-class LocalVoiceChangerInterfaceInfo(BaseModel):
-    local_voice_changer_interface_active: bool = False

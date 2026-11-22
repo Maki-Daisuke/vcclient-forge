@@ -86,7 +86,7 @@
 
   function isUnsupportedOperation(error: ApiError): boolean {
     if (error.status === 405) return true;
-    return error.status === 404 && (error.backendCode === 'NOT_SUPPORTED' || !error.detail || error.detail === 'Not Found');
+    return error.status === 404 && (error.backendCode === 'not_found' || !error.detail || error.detail === 'Not Found');
   }
 
   function modelName(model: ModelSummary, position?: number) {
