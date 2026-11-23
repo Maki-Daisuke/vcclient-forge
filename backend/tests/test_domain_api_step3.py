@@ -904,3 +904,57 @@ def test_audio_websocket_keeps_session_running_on_unexpected_disconnect(
     state = client.get("/api/session").json()
     assert state["status"] == "running"
     assert state["snapshot"]["recording"] is True
+
+
+def test_audio_device_manager_runs_portaudio_ops_on_dedicated_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vcclient.voice_changer.audio_device_manager import audio_device_manager as adm
+
+    observed_threads: list[int] = []
+
+    def fake_list_device() -> tuple[list[AudioDevice], list[AudioDevice]]:
+        observed_threads.append(threading.get_ident())
+        return ([], [])
+
+    def make_fake_stream(samplerate: float):
+        class _FakeStream:
+            def __init__(self, **_kwargs: object) -> None:
+                observed_threads.append(threading.get_ident())
+                self.samplerate = samplerate
+
+            def __enter__(self) -> _FakeStream:
+                observed_threads.append(threading.get_ident())
+                return self
+
+            def __exit__(self, *_args: object) -> bool:
+                observed_threads.append(threading.get_ident())
+                return False
+
+        return _FakeStream
+
+    monkeypatch.setattr(adm, "_list_device", fake_list_device)
+    monkeypatch.setattr(adm.sd, "InputStream", make_fake_stream(48000.0))
+    monkeypatch.setattr(adm.sd, "OutputStream", make_fake_stream(44100.0))
+    monkeypatch.setattr(adm, "_audio_devices_initialized", False)
+    monkeypatch.setattr(adm, "_audio_input_devices", [])
+    monkeypatch.setattr(adm, "_audio_output_devices", [])
+
+    caller_threads: list[int] = [threading.get_ident()]
+    assert adm.get_audio_input_devices() == []
+    assert adm.get_default_sample_rate(36, "audioinput") == 48000.0
+
+    results: list[object] = []
+
+    def call_from_worker() -> None:
+        caller_threads.append(threading.get_ident())
+        results.append(adm.get_default_sample_rate(27, "audiooutput"))
+        results.append(adm.check_available_sample_rate(36, 48000, "audioinput"))
+        results.append(adm.reload_audio_devices())
+
+    worker = threading.Thread(target=call_from_worker)
+    worker.start()
+    worker.join(timeout=5.0)
+    assert not worker.is_alive()
+
+    assert results == [44100.0, True, ([], [])]
+    assert len(set(observed_threads)) == 1
+    assert observed_threads[0] not in caller_threads
