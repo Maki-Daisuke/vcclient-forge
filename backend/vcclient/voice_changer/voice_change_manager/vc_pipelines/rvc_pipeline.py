@@ -195,10 +195,20 @@ class RVCPipeline(VCPipeline):
 
     def _load_index(self, index_file: Path) -> tuple[faiss.Index, np.ndarray]:
         try:
-            index = faiss.read_index(str(index_file))
+            # Stream via Python file I/O + PyCallbackIOReader because faiss::FileIOReader uses narrow C fopen
+            # and fails on non-ASCII Windows paths, without reading the whole file into memory at once.
+            with Path(index_file).open("rb") as f:
+                # Keep callback_reader referenced alongside buffered_reader; cast because
+                # faiss.__init__.pyi omits PyCallbackIOReader (exported from swigfaiss).
+                callback_reader = cast(
+                    faiss.IOReader,
+                    faiss.PyCallbackIOReader(f.read),  # type: ignore[attr-defined]
+                )
+                buffered_reader = faiss.BufferedIOReader(callback_reader)
+                index = faiss.read_index(buffered_reader)
         except Exception as e:
             logger.error("load index failed. %s", index_file)
-            raise e
+            raise RuntimeError(f"Failed to load index '{index_file}': {e}") from e
         big_npy = index.reconstruct_n(0, index.ntotal)
         return index, big_npy
 
