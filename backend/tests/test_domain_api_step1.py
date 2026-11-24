@@ -195,9 +195,7 @@ def test_compute_auto_select_recommends_without_mutating_config(
     monkeypatch.setattr(manager, "save_voice_changer_configuration", save_spy)
 
     slot = RVCSlotInfo(slot_index=0, model_file=Path("model.onnx"))
-    slot_mgr = MagicMock()
-    slot_mgr.get_slot_info.return_value = slot
-    monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: slot_mgr)
+    monkeypatch.setattr(initializer, "get_probe_slot_info", lambda _preferred=None: slot)
 
     catalog = [_make_device(0, "cpu", "cpu"), _make_device(1, "cuda", "cuda:0")]
     monkeypatch.setattr(initializer, "get_device_catalog", lambda: catalog)
@@ -237,10 +235,7 @@ def test_compute_auto_select_error_envelopes(
     empty_model_dir.mkdir()
     monkeypatch.setattr(voice_changer_const, "ModelDir", empty_model_dir)
 
-    empty_slot_mgr = MagicMock()
-    empty_slot_mgr.get_slot_info.return_value = RVCSlotInfo(slot_index=0, model_file=None)
-    empty_slot_mgr.get_slot_infos.return_value = []
-    monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: empty_slot_mgr)
+    monkeypatch.setattr(initializer, "get_probe_slot_info", lambda _preferred=None: None)
 
     missing_res = client.post("/api/devices/compute/auto-select")
     assert missing_res.status_code == 409
@@ -248,9 +243,7 @@ def test_compute_auto_select_error_envelopes(
     assert conf.gpu_device_id_int == 2  # type: ignore[attr-defined]
 
     valid_slot = RVCSlotInfo(slot_index=0, model_file=Path("model.onnx"))
-    valid_slot_mgr = MagicMock()
-    valid_slot_mgr.get_slot_info.return_value = valid_slot
-    monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: valid_slot_mgr)
+    monkeypatch.setattr(initializer, "get_probe_slot_info", lambda _preferred=None: valid_slot)
     monkeypatch.setattr(initializer, "get_device_catalog", lambda: [_make_device(0, "cpu", "cpu")])
     monkeypatch.setattr(rvc_pipeline, "RVCPipeline", MagicMock(side_effect=RuntimeError("boom")))
 

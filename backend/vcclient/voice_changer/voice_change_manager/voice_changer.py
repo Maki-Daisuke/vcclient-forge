@@ -22,7 +22,6 @@ from ..data_types.data_types import PerformanceData
 from ..data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ..data_types.voice_changer_data_types import VoiceChangerInformation
 from ..event_emitter import EventEmitter
-from ..slot_manager.slot_manager import SlotManager
 from ..voice_changer_const import (
     CROSSFADE_SEC,
     GET_GPU_DEVICE_ID_IS_NOT_AVAILABLE,
@@ -121,19 +120,6 @@ class VoiceChanger(EventEmitter):
         self.vc_info.pitch_estimator_type = pipeline.get_pitch_estimator_type()
         self.vc_info.gpu_device_index = pipeline.get_gpu_device_id()
 
-    def _update_model(self, slot_index: int) -> None:
-        try:
-            slot_info = SlotManager.get_instance().get_slot_info(slot_index)
-            self._apply_slot_info(slot_info)
-            logger.info(
-                "slot_index Changed: %s, gpu_device_index: %s",
-                self.vc_info.slot_index,
-                self.vc_info.gpu_device_index,
-            )
-        except Exception as e:
-            logger.warning("Failed to update model: %s", e)
-            raise VCClientError(ERROR_CODE_MODEL_UPDATE_FAILED, f"Failed to update model:{e}")
-
     def _update_model_by_id(self, model_id: str) -> None:
         try:
             from ..model_catalog import get_slot_info_by_model_id
@@ -193,42 +179,13 @@ class VoiceChanger(EventEmitter):
                     ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
             return None
 
-        slot_index = conf.current_slot_index
-        if slot_index < 0:
-            if current_model_id is not None or self.vc_pipeline is not None:
-                self.vc_pipeline = None
-                self.vc_info.model_id = None
-                self.vc_info.slot_index = -1
-                self.vc_info.voice_changer_type = None
-                self.vc_info.pitch_estimator_type = None
-                self.vc_info.pipeline_info = None
-            return None
-
-        if self.vc_info.slot_index != slot_index or gpu_changed or shape_changed:
-            logger.info(
-                "slot_index: %s -> %s, gpu_device_index: %s -> %s",
-                self.vc_info.slot_index,
-                slot_index,
-                self.vc_info.gpu_device_index,
-                conf.gpu_device_id_int,
-            )
-            prev_slot_index = self.vc_info.slot_index
-            prev_gpu_index = self.vc_info.gpu_device_index
-            try:
-                self._update_model(slot_index)
-                self.vc_info.slot_index = slot_index
-                self.vc_info.model_id = None
-                self.vc_info.gpu_device_index = conf.gpu_device_id_int
-                self._set_io_sample_rate()
-            except Exception as e:
-                logger.error("Failed to switch model to slot %s: %s", slot_index, e)
-                self.vc_info.slot_index = prev_slot_index
-                self.vc_info.gpu_device_index = prev_gpu_index
-                if shape_changed and slot_index == prev_slot_index and conf.gpu_device_id_int == prev_gpu_index:
-                    raise
-                conf.current_slot_index = prev_slot_index
-                ConfigurationManager.get_instance().set_voice_changer_configuration(conf)
-            return None
+        if current_model_id is not None or self.vc_pipeline is not None:
+            self.vc_pipeline = None
+            self.vc_info.model_id = None
+            self.vc_info.slot_index = -1
+            self.vc_info.voice_changer_type = None
+            self.vc_info.pitch_estimator_type = None
+            self.vc_info.pipeline_info = None
         return None
 
     def _set_pitch_estimator(self, pitch_estimator: PitchEstimatorType) -> None:
@@ -238,15 +195,11 @@ class VoiceChanger(EventEmitter):
 
     def _check_and_update_pitch_estimator(self) -> None:
         current_model_id = getattr(self.vc_info, "model_id", None)
-        slot_info: SlotInfoMember | None
-        if current_model_id is not None:
-            from ..model_catalog import get_slot_info_by_model_id
-
-            slot_info = get_slot_info_by_model_id(current_model_id)
-        elif self.vc_info.slot_index >= 0:
-            slot_info = SlotManager.get_instance().get_slot_info(self.vc_info.slot_index)
-        else:
+        if current_model_id is None:
             return None
+        from ..model_catalog import get_slot_info_by_model_id
+
+        slot_info = get_slot_info_by_model_id(current_model_id)
         if not isinstance(slot_info, RVCSlotInfo):
             return None
 

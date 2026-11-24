@@ -18,7 +18,6 @@ from vcclient.logger import logger
 from ...configuration_manager.configuration_manager import ConfigurationManager
 from ...data_types.slot_manager_data_types import RVCSlotInfo, SlotInfoMember
 from ...data_types.voice_changer_data_types import RVCPipelineInfo
-from ...slot_manager.slot_manager import SlotManager
 from ...voice_changer_const import (
     CROSSFADE_SEC,
     SOLA_SEARCH_FRAME_SEC,
@@ -185,12 +184,6 @@ class RVCPipeline(VCPipeline):
                     return info
             except Exception:
                 pass
-        try:
-            legacy_info = SlotManager.get_instance().get_slot_info(self.slot_index)
-            if isinstance(legacy_info, RVCSlotInfo):
-                return legacy_info
-        except Exception:
-            pass
         return self._slot_info
 
     def _load_index(self, index_file: Path) -> tuple[faiss.Index, np.ndarray]:

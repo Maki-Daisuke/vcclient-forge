@@ -35,7 +35,6 @@ from vcclient.app_status import is_app_stopping, stop_app, wait_for_stop
 from vcclient.const import VERSION
 from vcclient.device import reload_device_catalog
 from vcclient.initializer import (
-    _check_and_convert_legacy_pth_models,
     _check_and_download_initial_samples,
     _check_and_download_rvc_modules,
     _select_initial_compute_device,
@@ -45,10 +44,9 @@ from vcclient.server.vcserver import VCServer
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.model_catalog import list_models
-from vcclient.voice_changer.slot_manager.reorder_transaction import ModelTransaction
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir
+from vcclient.voice_changer.voice_changer_const import ConfigFile
 
 
 def start_server(
@@ -70,14 +68,12 @@ def start_server(
     logger.info("VCClient Forge v%s", VERSION)
     print(f"VCClient Forge v{VERSION}", flush=True)
 
-    ModelTransaction(ModelDir, ConfigFile).recover()
     first_start = not ConfigFile.exists()
     if first_start:
         ConfigurationManager.get_instance(defer_initial_save=True)
     _check_and_download_rvc_modules()
-    _check_and_convert_legacy_pth_models()
-    _check_and_download_initial_samples()
     list_models()
+    _check_and_download_initial_samples()
     if is_app_stopping():
         return
 

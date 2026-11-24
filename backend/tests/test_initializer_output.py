@@ -1,6 +1,5 @@
 import io
 import sys
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,9 +25,7 @@ def test_download_progress_supports_cp932_stdout(kind, monkeypatch, tmp_path):
         )
         initializer._check_and_download_rvc_modules()
     else:
-        slot_manager = MagicMock()
-        slot_manager.get_slot_infos.return_value = []
-        monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: slot_manager)
+        monkeypatch.setattr(initializer, "list_models", lambda: [])
         monkeypatch.setattr(
             initializer,
             "download_initial_samples",

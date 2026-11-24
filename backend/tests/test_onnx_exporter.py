@@ -217,50 +217,35 @@ def test_estimate_rvc_model_rejects_pth(dummy_rvc_v2_f0_checkpoint: Path):
     assert exc_info.value.info.code == ERROR_CODE_ESTIMATE_RVC_MODEL_FAILED
 
 
-def test_import_model_auto_converts_pth(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path):
-    """import_model に .pth を渡した際、自動的に .onnx に変換されて .pth が削除されることをテスト"""
-    from vcclient.voice_changer.data_types.slot_manager_data_types import RVCModelImportParam
-    from vcclient.voice_changer.slot_manager.model_importer.model_importer import import_model
-    from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
+def test_import_model_auto_converts_pth(
+    dummy_rvc_v2_f0_checkpoint: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """create_model に .pth を渡した際、自動的に .onnx に変換されて .pth が削除されることをテスト"""
+    from vcclient.voice_changer import voice_changer_const
+    from vcclient.voice_changer.model_catalog import create_model, get_model_entry
 
     model_dir = tmp_path / "models"
-    slot_index = 0
-    import_param = RVCModelImportParam(
-        slot_index=slot_index,
-        name="test_model",
-        voice_changer_type="RVC",
-        model_file=dummy_rvc_v2_f0_checkpoint,
-    )
+    monkeypatch.setattr(voice_changer_const, "ModelDir", model_dir)
 
-    import_model(model_dir, import_param)
+    model, _ = create_model(name="test_model", model_path=dummy_rvc_v2_f0_checkpoint)
+    _, _, entry_dir = get_model_entry(model.id)
 
-    slot_dir = model_dir / str(slot_index)
-    onnx_file = slot_dir / f"{dummy_rvc_v2_f0_checkpoint.stem}.onnx"
-    pth_file = slot_dir / dummy_rvc_v2_f0_checkpoint.name
+    onnx_file = entry_dir / f"{dummy_rvc_v2_f0_checkpoint.stem}.onnx"
+    pth_file = entry_dir / dummy_rvc_v2_f0_checkpoint.name
 
     # .onnx が生成され、元の .pth は削除されていること
     assert onnx_file.exists()
     assert not pth_file.exists()
 
-    # slot_param.json の検証
-    param_file = slot_dir / SLOT_PARAM_FILE
+    # params.json の検証
+    param_file = entry_dir / voice_changer_const.SLOT_PARAM_FILE
     assert param_file.exists()
     data = json.loads(param_file.read_text(encoding="utf-8"))
     assert data["is_onnx"] is True
     assert data["inferencer_type"] == "onnxRVC"
     assert data["model_file"] == onnx_file.name
-
-
-def test_model_import_requires_slot_index_before_creating_directory(tmp_path: Path):
-    from vcclient.exception import ERROR_CODE_IMPORT_MODEL_FAILED, VCClientError
-    from vcclient.voice_changer.data_types.slot_manager_data_types import ModelImportParam
-    from vcclient.voice_changer.slot_manager.model_importer.model_importer import import_model
-
-    with pytest.raises(VCClientError) as error:
-        import_model(tmp_path, ModelImportParam(voice_changer_type="RVC", name="Invalid"))
-
-    assert error.value.info.code == ERROR_CODE_IMPORT_MODEL_FAILED
-    assert list(tmp_path.iterdir()) == []
 
 
 def test_invalid_model_architecture_is_rejected_with_optimization(tmp_path: Path):

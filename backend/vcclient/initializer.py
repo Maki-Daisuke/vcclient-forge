@@ -5,8 +5,6 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
-from tqdm import tqdm
-
 from vcclient.device import DeviceConfig, get_device_catalog
 from vcclient.logger import logger
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
@@ -16,7 +14,6 @@ from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInf
 from vcclient.voice_changer.model_catalog import get_probe_slot_info, list_models
 from vcclient.voice_changer.module_manager import download_rvc_modules, is_rvc_ready
 from vcclient.voice_changer.sample_manager import download_initial_samples
-from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 
 DownloadStatus = TypeVar("DownloadStatus", ModuleDownloadStatus, SampleDownloadStatus)
 
@@ -118,29 +115,13 @@ def _probe_first_working_device(conf: VoiceChangerConfiguration, slot: RVCSlotIn
     raise RuntimeError("No inference device passed the initial pipeline test; see vcclient.log for details.")
 
 
-def _find_auto_select_slot(slot_manager: SlotManager, preferred_slot_index: int) -> RVCSlotInfo:
-    slot = slot_manager.get_slot_info(preferred_slot_index)
-    if isinstance(slot, RVCSlotInfo) and slot.model_file is not None:
-        return slot
-    for candidate in slot_manager.get_slot_infos():
-        if isinstance(candidate, RVCSlotInfo) and candidate.model_file is not None:
-            return candidate
-    catalog_slot = get_probe_slot_info()
-    if catalog_slot is not None:
-        return catalog_slot
-    raise LookupError("No valid RVC model is available for compute device auto-selection.")
-
-
 def recommend_compute_device() -> DeviceConfig:
     """Probe available compute devices against a valid model and return the recommended device without persisting."""
     manager = ConfigurationManager.get_instance()
     conf = manager.get_voice_changer_configuration()
-    if conf.model_id is not None:
-        slot = get_probe_slot_info(conf.model_id)
-        if slot is None:
-            raise LookupError("No valid RVC model is available for compute device auto-selection.")
-    else:
-        slot = _find_auto_select_slot(SlotManager.get_instance(), conf.current_slot_index)
+    slot = get_probe_slot_info(conf.model_id)
+    if slot is None:
+        raise LookupError("No valid RVC model is available for compute device auto-selection.")
 
     original_device_id = conf.gpu_device_id_int
     try:
@@ -156,13 +137,7 @@ def recommend_compute_device() -> DeviceConfig:
 def _select_initial_compute_device() -> bool:
     manager = ConfigurationManager.get_instance()
     conf = manager.get_voice_changer_configuration()
-    slot: RVCSlotInfo | None = get_probe_slot_info(conf.model_id) if conf.model_id is not None else None
-    if slot is None:
-        legacy = SlotManager.get_instance().get_slot_info(conf.current_slot_index)
-        if isinstance(legacy, RVCSlotInfo) and legacy.model_file is not None:
-            slot = legacy
-    if slot is None and conf.model_id is None:
-        slot = get_probe_slot_info()
+    slot = get_probe_slot_info(conf.model_id)
     if slot is None:
         logger.warning("Skipping initial device selection: the initial model is unavailable.")
         print("Initial model is unavailable; automatic device selection skipped.", flush=True)
@@ -184,37 +159,8 @@ def _check_and_download_rvc_modules() -> None:
         print("\nRVC is not ready. Downloading RVC modules. Done.\n", flush=True)
 
 
-def _check_and_convert_legacy_pth_models() -> None:
-    slot_manager = SlotManager.get_instance()
-    legacy_slots = slot_manager.find_legacy_pth_slots()
-    if not legacy_slots:
-        return
-
-    logger.info("Found %d legacy .pth model(s). Converting to ONNX...", len(legacy_slots))
-    print(f"\nFound {len(legacy_slots)} legacy .pth model(s). Converting to ONNX...")
-
-    pbar = tqdm(total=len(legacy_slots), desc="Converting models to ONNX", unit="model")
-    try:
-        for slot_index, pth_path in legacy_slots:
-            pbar.set_postfix_str(f"Slot {slot_index}: {pth_path.stem[:15]}")
-            try:
-                slot_manager.convert_legacy_slot_to_onnx(slot_index, pth_path)
-            except Exception as e:
-                logger.error("Failed to convert slot %s (%s): %s", slot_index, pth_path, e)
-                print(f"\nWarning: Failed to convert slot {slot_index} ({pth_path.name}): {e}")
-            pbar.update(1)
-    finally:
-        pbar.close()
-
-    slot_manager.reload()
-    logger.info("Legacy .pth models conversion done.")
-    print("Legacy .pth models conversion done.\n")
-
-
 def _check_and_download_initial_samples() -> None:
-    slot_manager = SlotManager.get_instance()
-    valid_slot_infos = [x for x in slot_manager.get_slot_infos() if x.voice_changer_type is not None]
-    if len(valid_slot_infos) == 0 and len(list_models()) == 0:
+    if len(list_models()) == 0:
         logger.info("Sample is not ready. Downloading initial samples.")
         print("Sample is not ready. Downloading initial samples (parallel)...", flush=True)
 
