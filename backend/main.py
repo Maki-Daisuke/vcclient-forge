@@ -44,9 +44,10 @@ from vcclient.server.vcserver import VCServer
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.model_catalog import list_models
+from vcclient.voice_changer.slot_manager.legacy_recovery import recover_legacy_model_order
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
-from vcclient.voice_changer.voice_changer_const import ConfigFile
+from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir
 
 
 def start_server(
@@ -68,6 +69,7 @@ def start_server(
     logger.info("VCClient Forge v%s", VERSION)
     print(f"VCClient Forge v{VERSION}", flush=True)
 
+    recover_legacy_model_order(ModelDir, ConfigFile)
     first_start = not ConfigFile.exists()
     if first_start:
         ConfigurationManager.get_instance(defer_initial_save=True)
