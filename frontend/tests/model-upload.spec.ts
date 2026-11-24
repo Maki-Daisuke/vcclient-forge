@@ -1,4 +1,5 @@
 import { expect, test, type Page } from './test-fixtures';
+import { openControlSections } from './catalog-fixtures';
 import { mockSession, readMultipart } from './session-fixtures';
 
 async function trackMultipartUpload(page: Page) {
@@ -125,11 +126,38 @@ test('reports an upload error instead of uncertain when connection drops mid-upl
   await expect(dialog.getByRole('button', { name: 'アップロード', exact: true })).toBeEnabled();
 });
 
-test('does not allow upload while native audio is running', async ({ page }) => {
+test('allows uploading a model while native audio is running', async ({ page }) => {
+  const emitProgress = await trackMultipartUpload(page);
   const state = await mockSession(page);
   state.active = true;
+  const { intercepted, release } = await pauseSlotPost(page, async route => {
+    const form = await readMultipart(route.request());
+    const created = { ...state.models[0], id: 'model_c', name: String(form.get('name')) };
+    state.models.push(created);
+    await route.fulfill({ status: 201, json: created });
+  });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'アップロード', exact: true }).first()).toBeDisabled();
+  await openControlSections(page);
+  await expect(page.getByRole('button', { name: 'アップロード', exact: true }).first()).toBeEnabled();
+  const dialog = await openUpload(page);
+  await dialog.getByLabel('モデルファイルを選択').setInputFiles({ name: 'voice.onnx', mimeType: 'application/octet-stream', buffer: Buffer.from('data') });
+  await dialog.getByRole('button', { name: 'アップロード', exact: true }).click();
+  await intercepted;
+  await emitProgress(4, 4);
+  await expect(dialog.getByRole('status')).toContainText('登録しています');
+  await dialog.getByRole('button', { name: '閉じる', exact: true }).last().click();
+
+  await expect(page.getByRole('button', { name: 'パススルー' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '録音', exact: true })).toBeEnabled();
+  const inputGain = page.getByRole('slider', { name: '入力音量', exact: true });
+  await expect(inputGain).toBeEnabled();
+  await inputGain.press('ArrowRight');
+  await expect.poll(() => state.sessionWrites.length).toBe(1);
+  expect(state.sessionWrites[0].input_gain).toBe(2.71);
+
+  release();
+  await expect(page.getByRole('button', { name: 'voice', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
 });
 
 test('blocks start and changes while registration is running', async ({ page }) => {

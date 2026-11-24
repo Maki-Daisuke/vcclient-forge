@@ -239,3 +239,50 @@ test('hides reload and upload while reordering and restores them on cancel', asy
   await expect(page.getByRole('button', { name: '再読み込み' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'アップロード', exact: true })).toBeEnabled();
 });
+
+test('reorders models while conversion is running', async ({ page }) => {
+  let body: unknown;
+  let saved = false;
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/session') {
+      await route.fulfill({
+        json: {
+          status: 'running',
+          snapshot: {
+            ...configuration,
+            model_id: 'model_b',
+            pitch_shift: -5,
+            index_ratio: 0.63,
+            chunk_sec: 0.3,
+            pitch_estimator: 'rmvpe',
+            pass_through: false,
+            recording: false,
+          },
+          locked_fields: ['model_id'],
+          input_sample_rate: 48000,
+          output_sample_rate: 48000,
+          monitor_sample_rate: null,
+          last_error: null,
+        },
+      });
+    } else if (path === '/api/models/order' && route.request().method() === 'PUT') {
+      body = route.request().postDataJSON();
+      saved = true;
+      await route.fulfill({ json: body });
+    } else if (saved && path === '/api/models') {
+      await route.fulfill({ json: [slots[1], slots[0]] });
+    } else if (saved && path === '/api/settings') {
+      await route.fulfill({ json: { ...configuration, model_id: 'model_b' } });
+    } else await fulfillCatalog(route);
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '並べ替え', exact: true }).click();
+  await page.getByRole('group', { name: 'Test model B' }).dragTo(page.getByRole('group', { name: 'Test model A' }));
+  await page.getByRole('button', { name: '確定', exact: true }).click();
+  await expect.poll(() => body).toEqual({ model_ids: ['model_b', 'model_a'] });
+  await expect(page.locator('.model-cards .model-name')).toHaveText(['Test model B', 'Test model A']);
+  await expect(page.getByRole('heading', { name: '1. Test model B' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+});

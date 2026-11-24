@@ -239,7 +239,7 @@ def test_model_crud_rename_order_and_active_guards(domain_env: tuple[TestClient,
     assert missing_res.status_code == 404
     assert missing_res.json()["code"] == "model_not_found"
 
-    # Parameter updates work even when active; rename and delete fail with 409 model_in_use.
+    # Parameter updates and renaming work even when running; delete fails with 409 model_in_use.
     set_active_model_id_getter(lambda: id1)
 
     param_put = client.put(
@@ -249,11 +249,17 @@ def test_model_crud_rename_order_and_active_guards(domain_env: tuple[TestClient,
     assert param_put.status_code == 200
     assert param_put.json()["pitch_shift"] == 5
     assert param_put.json()["pitch_estimator"] == "fcpe"
-    etag1 = param_put.headers["ETag"]
 
-    rename_blocked = client.put(f"/api/models/{id1}", json={"name": "RenamedWhileActive"})
-    assert rename_blocked.status_code == 409
-    assert rename_blocked.json()["code"] == "model_in_use"
+    rename_active = client.put(f"/api/models/{id1}", json={"name": "RenamedWhileActive"})
+    assert rename_active.status_code == 200
+    assert rename_active.json()["name"] == "RenamedWhileActive"
+    assert (model_dir / f"RenamedWhileActive - {id1}").is_dir()
+    assert not (model_dir / f"First_Model_ - {id1}").exists()
+
+    rename_back = client.put(f"/api/models/{id1}", json={"name": "First<Model>"})
+    assert rename_back.status_code == 200
+    assert (model_dir / f"First_Model_ - {id1}").is_dir()
+    etag1 = rename_back.headers["ETag"]
 
     delete_blocked = client.delete(f"/api/models/{id1}")
     assert delete_blocked.status_code == 409

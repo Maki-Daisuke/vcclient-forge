@@ -131,7 +131,7 @@
         <button
           class:selected={model.id === session.currentModelId}
           class="model-card"
-          disabled={!session.canConfigure || model.status !== 'ready'}
+          disabled={(!reordering && !session.canConfigure) || model.status !== 'ready'}
           aria-disabled={reordering ? 'true' : undefined}
           onclick={() => { if (!reordering) session.selectModel(model.id); }}
           aria-label={modelName(model, position + 1)}
@@ -181,11 +181,10 @@
   {/if}
   <PreviewDialog title={ui.t('forge.edit_model_info')} disabled={!currentModel} showCloseButton={false} preventClose={session.modelInfoSaving} bind:open={editOpen}>
     {#snippet trigger()}<Pencil size={15} />{ui.t('common.model.edit.button')}{/snippet}
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input bind:value={editName} disabled={!session.canConfigure || currentModel?.status !== 'ready'} /></label>
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.bmp" disabled={!session.canConfigure || currentModel?.status !== 'ready'} onchange={event => { editIcon = event.currentTarget.files?.[0] ?? null; }} /></label>
+    <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input bind:value={editName} disabled={!session.canManageModels || currentModel?.status !== 'ready'} /></label>
+    <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.bmp" disabled={!session.canManageModels || currentModel?.status !== 'ready'} onchange={event => { editIcon = event.currentTarget.files?.[0] ?? null; }} /></label>
     {#if iconPreviewUrl}<img class="model-icon-preview" src={iconPreviewUrl} alt={ui.t('common.voice_character_edit_dialog.new_icon')} />{/if}
     {#if !validIcon}<p role="alert">{ui.t('forge.model_icon_invalid')}</p>{/if}
-    {#if !session.modelInfoSaving && session.active === true}<p class="muted">{ui.t('forge.model_edit_stop_first')}</p>{/if}
     {#if session.modelInfoError}<p role="alert">{ui.t('forge.model_info_save_failed')}</p>{/if}
     {#if session.modelInfoSaving}<p role="status">{ui.t('forge.model_info_saving')}</p>{/if}
     {#snippet footer()}
@@ -211,7 +210,7 @@
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <button class="button primary action-primary" disabled={!session.canConfigure || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
+    <button class="button primary action-primary" disabled={!session.canManageModels || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
     <Dialog.Close class="button" disabled={session.modelInfoSaving}>{ui.t('forge.cancel')}</Dialog.Close>
     {/snippet}
   </PreviewDialog>

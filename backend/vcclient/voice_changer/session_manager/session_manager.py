@@ -63,6 +63,13 @@ def get_active_session_model_id() -> str | None:
         return None
 
 
+def get_starting_session_model_id() -> str | None:
+    with _lock:
+        if _status == "starting" and _active_snapshot is not None:
+            return _active_snapshot.model_id
+        return None
+
+
 def is_session_recording_active() -> bool:
     with _lock:
         if _status in ("starting", "running") and _active_snapshot is not None and _active_snapshot.recording:

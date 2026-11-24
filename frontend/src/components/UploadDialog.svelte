@@ -44,13 +44,13 @@
     } finally { if (version === archiveVersion) inspecting = false; }
   }
   async function submit() {
-    if (!valid || !session.canConfigure || inspecting || extracting) return;
+    if (!valid || !session.canManageModels || inspecting || extracting) return;
     if (!archive) { if (model) await session.uploadModel(model, index); return; }
     extracting = true; archiveError = '';
     try {
       const { extractModelArchive } = await import('../lib/model-archive');
       const files = await extractModelArchive(archive, Number(archiveModel), archiveIndex === '' ? null : Number(archiveIndex));
-      if (!session.canConfigure) { archiveError = 'upload_not_ready'; return; }
+      if (!session.canManageModels) { archiveError = 'upload_not_ready'; return; }
       extracting = false;
       await session.uploadModel(files.model, files.index);
     } catch { archiveError = 'upload_zip_extract_failed'; }
@@ -58,7 +58,7 @@
   }
 </script>
 
-<PreviewDialog title={ui.t('common.model_upload.title')} disabled={!session.canConfigure && !session.importing} showCloseButton={false}>
+<PreviewDialog title={ui.t('common.model_upload.title')} disabled={!session.canManageModels && !session.importing} showCloseButton={false}>
   {#snippet trigger()}<Upload size={16} />{ui.t('common.model.upload.button')}{/snippet}
   {#if session.uploadStatus === 'success'}
     <p role="status">{ui.t('forge.upload_success')}</p>
@@ -102,7 +102,7 @@
     {:else if session.uploadError}
       <p role="alert">{ui.t('forge.upload_failed')} {ui.t(`forge.write_error_${session.uploadError.code}`, { status: session.uploadError.status })} {session.uploadError.detail ?? ''}</p>
     {/if}
-    <button class="button primary action-primary" disabled={!valid || !session.canConfigure || inspecting || extracting} onclick={submit}>{ui.t('common.model_upload.upload_button')}</button>
+    <button class="button primary action-primary" disabled={!valid || !session.canManageModels || inspecting || extracting} onclick={submit}>{ui.t('common.model_upload.upload_button')}</button>
   {/if}
 </PreviewDialog>
 <style>

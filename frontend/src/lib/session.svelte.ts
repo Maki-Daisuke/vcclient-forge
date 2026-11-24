@@ -250,21 +250,26 @@ export class NativeSession {
       && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
       && !this.operation && !this.isSaving && !this.dirty;
   }
+  get canManageModels() {
+    return this.catalog.state.status === 'ready' && this.active !== null && !this.starting
+      && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
+      && !this.operation && !this.isSaving && !this.dirty;
+  }
   get canOrganizeModels() {
-    return this.canConfigure && this.stagedConfiguration.currentModelId === undefined && Object.keys(this.stagedModels).length === 0;
+    return this.canManageModels;
   }
   get canDeleteModel() { return this.canConfigure && this.currentModel?.status === 'ready'; }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.starting
-      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+      && !this.operation;
   }
   get canAdjustNoiseGate() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.starting
-      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+      && !this.operation;
   }
   get canAdjustModel() {
-    return this.catalog.state.status === 'ready' && !this.starting && !this.modelInfoSaving && !this.organizing
-      && !this.importing && !this.operation && this.currentModel?.status === 'ready'
+    return this.catalog.state.status === 'ready' && !this.starting && !this.modelInfoSaving
+      && !this.operation && this.currentModel?.status === 'ready'
       && this.draft.currentModelId === undefined
       && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
@@ -326,7 +331,7 @@ export class NativeSession {
     this.modelOperationError = null;
     try {
       await this.request(signal => organizeModels(order, signal), 120_000);
-      await this.reload();
+      await Promise.all([this.catalog.reload(), this.refreshActive()]);
       if (this.catalog.state.status !== 'ready') throw new ApiError('invalid_response');
       return true;
     } catch (error) {
@@ -356,7 +361,7 @@ export class NativeSession {
 
   async saveModelInfo(id: string, name: string, icon: File | null): Promise<boolean> {
     const model = this.currentModel;
-    if (!this.canConfigure || !model || model.id !== id || model.status !== 'ready' || !name.trim()) return false;
+    if (!this.canManageModels || !model || model.id !== id || model.status !== 'ready' || !name.trim()) return false;
     const extension = icon ? /\.(png|jpe?g|webp|gif|avif|bmp)$/i.exec(icon.name)?.[0].toLowerCase() : null;
     if (icon && (!extension || !icon.size || (icon.type && !icon.type.startsWith('image/')))) return false;
     this.modelInfoSaving = true;
@@ -365,7 +370,6 @@ export class NativeSession {
       await this.request(async signal => {
         const { session } = await readSessionState(signal);
         if (session.status === 'starting') throw new ApiError('starting');
-        if (session.status === 'running') throw new ApiError('active');
         const updates: { name?: string; icon?: File } = {};
         if (icon && extension) updates.icon = icon;
         if (name !== model.name) updates.name = name;
@@ -383,7 +387,7 @@ export class NativeSession {
   }
 
   async uploadModel(model: File, index: File | null) {
-    if (!this.canConfigure) return;
+    if (!this.canManageModels) return;
     this.uploadStatus = 'uploading';
     this.uploadError = null;
     this.uploadBytes = 0;
@@ -479,7 +483,7 @@ export class NativeSession {
     const settings = this.settings;
     return this.catalog.state.status === 'ready' && !this.starting && settings?.ioAnalysisEnabled != null
       && settings.processAnalysisEnabled != null && settings.performanceMonitorEnabled != null
-      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+      && !this.operation;
   }
 
   setRealtimeDisplay(enabled: boolean) {
@@ -490,7 +494,7 @@ export class NativeSession {
   get canTogglePassThrough() {
     return this.catalog.state.status === 'ready' && this.active === true && !this.starting
       && this.settings?.inputMode != null && this.settings.passThrough !== null
-      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation;
+      && !this.operation;
   }
 
   togglePassThrough() {
@@ -501,7 +505,7 @@ export class NativeSession {
   get canToggleRecording() {
     const settings = this.settings;
     return this.catalog.state.status === 'ready' && settings?.inputMode != null && !this.starting
-      && !this.modelInfoSaving && !this.organizing && !this.importing && !this.operation && !this.isSaving && !this.dirty
+      && !this.operation && !this.isSaving && !this.dirty
       && this.active !== null;
   }
 

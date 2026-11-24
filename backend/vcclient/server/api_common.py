@@ -120,6 +120,19 @@ def ensure_model_not_in_use(model_id: str, message: str) -> None:
         raise DomainApiError(409, "model_in_use", message, {"model_id": model_id})
 
 
+def is_model_starting(model_id: str) -> bool:
+    """Return True when `model_id` is currently being loaded by a starting session."""
+    from vcclient.voice_changer.session_manager import get_starting_session_model_id
+
+    return get_starting_session_model_id() == model_id
+
+
+def ensure_model_not_starting(model_id: str, message: str) -> None:
+    """Raise DomainApiError(409, 'model_in_use') when `model_id` is in a starting session."""
+    if is_model_starting(model_id):
+        raise DomainApiError(409, "model_in_use", message, {"model_id": model_id})
+
+
 def is_session_active() -> bool:
     """Return True when a conversion session, native audio, or client bulk conversion is active."""
     from vcclient.voice_changer.session_manager import is_session_starting_or_running

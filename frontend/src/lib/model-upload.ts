@@ -14,7 +14,6 @@ export async function importModel(
   }
   const { session } = await readSessionState(signal);
   if (session.status === 'starting') throw new ApiError('starting');
-  if (session.status === 'running') throw new ApiError('active');
   const name = model.name.slice(0, -ext.length).trim() || model.name;
   const form = new FormData();
   form.append('name', name);

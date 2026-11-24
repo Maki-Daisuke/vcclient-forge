@@ -105,7 +105,7 @@ Implemented in [`vcserver_rest_api_models.py`](../backend/vcclient/server/vcserv
 - **`POST /api/models`** (`multipart/form-data`):
   - Fields: `name` (`Form`, non-blank), `model_file` (`File`, `.onnx` or `.pth`), `index_file` (`File | None`, `.index`), `icon_file` (`File | None`, `.png/.jpg/.jpeg/.webp/.gif/.avif/.bmp`), `embedder` (`EmbedderType | None`). `.pth` uploads are converted to ONNX on import. Returns `201 Model` with `ETag`.
 - **`GET /api/models/{model_id}`**: Returns `200 Model` (`ETag`) or `404` (`model_not_found`).
-- **`PUT /api/models/{model_id}`**: Accepts `ModelUpdate` (`name`, `pitch_shift` `[-24..24]`, `index_ratio` `[0.0..1.0]`, `chunk_sec` `[0.05..5.0]`, `pitch_estimator` `"rmvpe" | "fcpe"`). Parameter updates succeed anytime; changing `name` while `model_id` is in an active session returns `409` (`model_in_use`).
+- **`PUT /api/models/{model_id}`**: Accepts `ModelUpdate` (`name`, `pitch_shift` `[-24..24]`, `index_ratio` `[0.0..1.0]`, `chunk_sec` `[0.05..5.0]`, `pitch_estimator` `"rmvpe" | "fcpe"`). Parameter updates and renaming work while `running`; changing `name` while `model_id` is in a `starting` session or directory-locked returns `409` (`model_in_use`).
 - **`DELETE /api/models/{model_id}`**: Removes the model folder and prunes `catalog.json` + matching `settings.model_id`; returns `204`. Returns `409` (`model_in_use`) if active in a session.
 - **`GET /api/models/{model_id}/icon`**: Streams image bytes (`ETag`); returns `404` (`model_not_found` / `icon_not_found`) if missing.
 - **`PUT /api/models/{model_id}/icon`**: Accepts `multipart/form-data` (`icon_file` or `file`) or raw `Content-Type: image/*`, replaces previous icon file, increments `icon_revision`, and returns `200 Model` (`ETag`).

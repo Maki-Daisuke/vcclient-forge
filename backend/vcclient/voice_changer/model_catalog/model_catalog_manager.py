@@ -17,6 +17,7 @@ from vcclient.server.api_common import (
     DomainApiError,
     compute_etag,
     ensure_model_not_in_use,
+    ensure_model_not_starting,
     verify_if_match,
 )
 
@@ -632,9 +633,9 @@ def update_model(
         target_dir = entry_dir
         renamed = False
         if next_name != stored.name:
-            ensure_model_not_in_use(
+            ensure_model_not_starting(
                 model_id,
-                f"Cannot rename model '{model_id}' while it is in use by an active session.",
+                f"Cannot rename model '{model_id}' while session startup is loading it.",
             )
             candidate_dir = _model_dir() / format_model_dirname(next_name, model_id)
             if candidate_dir != entry_dir:
@@ -644,7 +645,15 @@ def update_model(
                         "model_directory_conflict",
                         f"Target directory already exists: {candidate_dir.name}",
                     )
-                entry_dir.rename(candidate_dir)
+                try:
+                    entry_dir.rename(candidate_dir)
+                except PermissionError as exc:
+                    raise DomainApiError(
+                        409,
+                        "model_in_use",
+                        f"Cannot rename model '{model_id}' while its files are in use.",
+                        {"model_id": model_id},
+                    ) from exc
                 target_dir = candidate_dir
                 renamed = True
 

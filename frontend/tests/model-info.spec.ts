@@ -74,13 +74,23 @@ test('keeps the draft and leaves saved model unchanged when update fails', async
   expect(modelB.icon_revision).toBe(beforeRev);
 });
 
-test('does not allow editing while conversion is running', async ({ page }) => {
+test('allows editing model name and icon while conversion is running', async ({ page }) => {
   const state = await mockSession(page);
   state.active = true;
   const editor = await openEditor(page);
-  await expect(editor.getByLabel('名前', { exact: true })).toBeDisabled();
-  await expect(editor.getByLabel('アイコンを選択')).toBeDisabled();
-  await expect(editor.getByText('モデル情報を編集するには、先に音声変換を停止してください。')).toBeVisible();
+  await expect(editor.getByLabel('名前', { exact: true })).toBeEnabled();
+  await expect(editor.getByLabel('アイコンを選択')).toBeEnabled();
+  await expect(editor.getByRole('button', { name: 'モデルを削除' })).toHaveAttribute('aria-disabled', 'true');
+  await editor.getByLabel('名前', { exact: true }).fill('変換中の新しい名前');
+  await editor.getByLabel('アイコンを選択').setInputFiles({ name: 'icon.png', mimeType: 'image/png', buffer: Buffer.from('image') });
+  await editor.getByRole('button', { name: '保存' }).click();
+  await expect(editor).toHaveCount(0);
+  expect(state.modelWrites).toHaveLength(2);
+  expect(state.modelWrites[0].data).toEqual({ name: '変換中の新しい名前' });
+  expect(state.modelWrites[1].data.icon_file).toMatch(/^icon_2_icon\.png$/);
+  await expect(page.getByRole('heading', { name: '2. 変換中の新しい名前' })).toBeVisible();
+  await expect(page.locator('.portrait img')).toHaveAttribute('src', '/api/models/model_b/icon?v=2');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
 });
 
 test('keeps the dialog open while saving', async ({ page }) => {
