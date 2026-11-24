@@ -167,7 +167,7 @@
       {/if}
     </div>
     {#if !currentModel && catalog.state.status === 'ready' && catalog.models.length > 0 && catalog.currentModelId !== null}
-      <p class="model-message">{ui.t('forge.current_model_unavailable', { slot: catalog.currentModelId })}</p>
+      <p class="model-message">{ui.t('forge.current_model_unavailable', { id: catalog.currentModelId })}</p>
     {/if}
   </div>
   <div class="selected-model-controls">

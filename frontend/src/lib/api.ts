@@ -398,15 +398,6 @@ export async function loadComputeDevices(signal: AbortSignal): Promise<ComputeDe
   });
 }
 
-export async function autoSelectComputeDevice(signal: AbortSignal): Promise<number> {
-  const payload = object(await responseJson(await fetch('/api/devices/compute/auto-select', {
-    method: 'POST', signal, cache: 'no-store',
-  }), signal));
-  const id = numeric(payload.compute_device_id);
-  if (id === null) invalidResponse();
-  return id;
-}
-
 const settingsEditFields: Partial<Record<keyof ConfigurationEdits, string>> = {
   currentModelId: 'model_id',
   inputMode: 'input_mode',

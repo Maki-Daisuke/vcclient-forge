@@ -52,7 +52,7 @@ test('empty catalog shows an empty state with no fake models', async ({ page }) 
 test('a missing selected model does not select the first model', async ({ page }) => {
   await page.route('**/api/**', route => fulfillCatalog(route, slots, 'missing_id'));
   await page.goto('/');
-  await expect(page.locator('.model-message')).toContainText('スロット missing_id');
+  await expect(page.locator('.model-message')).toContainText('ID: missing_id');
   await expect(page.locator('.model-card')).toHaveCount(2);
   await expect(page.locator('.model-card[aria-current=true]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '編集', exact: true })).toBeDisabled();
