@@ -8,8 +8,6 @@ from pathlib import Path
 
 if __name__ == "__main__":
     mp.freeze_support()
-    if getattr(sys, "frozen", False):
-        os.chdir(Path(sys.executable).resolve().parent)
 
 # Ensure standard I/O is unbuffered so supervisor processes (like Tauri) receive lines immediately
 os.environ["PYTHONUNBUFFERED"] = "1"
@@ -28,6 +26,32 @@ if sys.stderr and hasattr(sys.stderr, "reconfigure"):
 _here = Path(__file__).parent.resolve()
 if str(_here) not in sys.path:
     sys.path.insert(0, str(_here))
+
+
+def run_export_onnx(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="main export-onnx",
+        description="Convert an RVC PyTorch (.pth) checkpoint to ONNX (.onnx)",
+    )
+    parser.add_argument("input_pth", type=Path, help="Input .pth checkpoint file path")
+    parser.add_argument("output_onnx", type=Path, help="Output .onnx model file path")
+    args = parser.parse_args(argv)
+
+    from vcclient.voice_changer.slot_manager.onnx_exporter import export_pth_to_onnx
+
+    try:
+        export_pth_to_onnx(args.input_pth, args.output_onnx)
+    except Exception as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["export-onnx"]:
+        raise SystemExit(run_export_onnx(sys.argv[2:]))
+    if getattr(sys, "frozen", False):
+        os.chdir(Path(sys.executable).resolve().parent)
 
 import sounddevice as sd
 
@@ -159,6 +183,8 @@ def start_server(
 
 def main():
     mp.freeze_support()
+    if sys.argv[1:2] == ["export-onnx"]:
+        raise SystemExit(run_export_onnx(sys.argv[2:]))
 
     parser = argparse.ArgumentParser(description=f"VCClient {VERSION} (pure-ONNX backend)")
     parser.add_argument("command", nargs="?", default="server", help=argparse.SUPPRESS)
@@ -169,6 +195,8 @@ def main():
     if args.command in ("--help", "-h", "help"):
         parser.print_help()
         sys.exit(0)
+    if args.command != "server":
+        parser.error(f"Unknown command: {args.command}")
 
     start_server(
         host=args.host,

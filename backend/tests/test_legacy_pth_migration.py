@@ -1,70 +1,47 @@
 import json
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
-import torch
 
 from vcclient.voice_changer.model_catalog import get_model_entry, list_models
-from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0
 from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
 
 
-@pytest.fixture
-def dummy_rvc_pth(tmp_path: Path) -> Path:
-    """RVC v2 F0 ありの最小チェックポイント (.pth) を生成する"""
-    config = [
-        1025,  # spec_channels
-        32,  # segment_size
-        192,  # inter_channels
-        192,  # hidden_channels
-        768,  # filter_channels
-        2,  # n_heads
-        2,  # n_layers
-        3,  # kernel_size
-        0.0,  # p_dropout
-        "1",  # resblock
-        [3, 7, 11],  # resblock_kernel_sizes
-        [[1, 3, 5], [1, 3, 5], [1, 3, 5]],  # resblock_dilation_sizes
-        [10, 8, 2, 2],  # upsample_rates
-        512,  # upsample_initial_channel
-        [16, 16, 4, 4],  # upsample_kernel_sizes
-        1,  # spk_embed_dim
-        256,  # gin_channels
-        40000,  # sr
-    ]
+@pytest.fixture(scope="module")
+def dummy_rvc_pth(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """RVC v2 F0 ありの最小チェックポイント (.pth) を独立プロセスで生成する"""
+    pth_path = tmp_path_factory.mktemp("legacy_pth") / "dummy_v2_f0.pth"
+    backend_dir = Path(__file__).resolve().parents[1]
+    script = dedent(
+        f"""
+        import torch
+        from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0
 
-    model = SynthesizerTrnF0(
-        spec_channels=config[0],
-        segment_size=config[1],
-        inter_channels=config[2],
-        hidden_channels=config[3],
-        filter_channels=config[4],
-        n_heads=config[5],
-        n_layers=config[6],
-        kernel_size=config[7],
-        p_dropout=config[8],
-        resblock=config[9],
-        resblock_kernel_sizes=config[10],
-        resblock_dilation_sizes=config[11],
-        upsample_rates=config[12],
-        upsample_initial_channel=config[13],
-        upsample_kernel_sizes=config[14],
-        spk_embed_dim=config[15],
-        gin_channels=config[16],
-        sr=config[17],
-        emb_channels=768,
-        is_half=False,
+        config = [
+            1025, 32, 192, 192, 768, 2, 2, 3, 0.0, "1",
+            [3, 7, 11], [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+            [10, 8, 2, 2], 512, [16, 16, 4, 4], 1, 256, 40000,
+        ]
+        model = SynthesizerTrnF0(
+            spec_channels=config[0], segment_size=config[1], inter_channels=config[2],
+            hidden_channels=config[3], filter_channels=config[4], n_heads=config[5],
+            n_layers=config[6], kernel_size=config[7], p_dropout=config[8], resblock=config[9],
+            resblock_kernel_sizes=config[10], resblock_dilation_sizes=config[11],
+            upsample_rates=config[12], upsample_initial_channel=config[13],
+            upsample_kernel_sizes=config[14], spk_embed_dim=config[15],
+            gin_channels=config[16], sr=config[17], emb_channels=768, is_half=False,
+        )
+        torch.save({{"config": config, "weight": model.state_dict(), "f0": 1, "version": "v2"}}, {str(pth_path)!r})
+        """
     )
-
-    cpt = {
-        "config": config,
-        "weight": model.state_dict(),
-        "f0": 1,
-        "version": "v2",
-    }
-    pth_path = tmp_path / "dummy_v2_f0.pth"
-    torch.save(cpt, pth_path)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(backend_dir), env.get("PYTHONPATH", "")]))
+    subprocess.run([sys.executable, "-c", script], cwd=backend_dir.parent, env=env, check=True, timeout=60)
     return pth_path
 
 

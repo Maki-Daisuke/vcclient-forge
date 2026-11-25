@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import math
 import mimetypes
+import os
 import re
 import secrets
 import shutil
 import string
+import subprocess
+import sys
 import threading
 import uuid
 from pathlib import Path
@@ -25,7 +28,6 @@ from .. import voice_changer_const
 from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..settings_manager import clear_model_id_if_matches
 from ..slot_manager.model_importer.rvc_model_estimator.rvc_model_estimator import estimate_rvc_model
-from ..slot_manager.onnx_exporter import export_pth_to_onnx
 from ..voice_changer_const import EmbedderType, InferencerType
 from .data_types import Model, ModelUpdate, StoredModelParams
 
@@ -251,6 +253,40 @@ def _collect_existing_ids(model_dir: Path) -> set[str]:
             except Exception:
                 pass
     return ids
+
+
+def export_pth_to_onnx(pth_path: Path | str, output_path: Path | str | None = None) -> Path:
+    """Convert a legacy .pth checkpoint to ONNX in an isolated subprocess."""
+    pth_file = Path(pth_path).resolve()
+    out_file = (Path(pth_path).with_suffix(".onnx") if output_path is None else Path(output_path)).resolve()
+
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "export-onnx", str(pth_file), str(out_file)]
+    else:
+        main_py = Path(__file__).resolve().parents[3] / "main.py"
+        cmd = [sys.executable, str(main_py), "export-onnx", str(pth_file), str(out_file)]
+
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
+
+    logger.info("Converting .pth model to ONNX via subprocess: %s -> %s", pth_file, out_file)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        creationflags=creationflags,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(detail or f"export-onnx failed with exit code {result.returncode}")
+    if not out_file.is_file():
+        raise RuntimeError(f"export-onnx completed without creating output file: {out_file}")
+    return out_file
 
 
 def _migrate_single_legacy_slot(

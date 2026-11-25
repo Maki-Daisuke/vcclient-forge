@@ -1,140 +1,79 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+from textwrap import dedent
 
 import numpy as np
 import onnxruntime
 import pytest
-import torch
 
 from vcclient.voice_changer.slot_manager.model_importer.rvc_model_estimator.rvc_model_estimator import (
     estimate_rvc_model,
 )
-from vcclient.voice_changer.slot_manager.onnx_exporter import export_pth_to_onnx
-from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0, SynthesizerTrnNoF0
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+MAIN_PY = BACKEND_DIR / "main.py"
 
 
-@pytest.fixture
-def dummy_rvc_v2_f0_checkpoint(tmp_path: Path) -> Path:
+def _write_dummy_pth(pth_path: Path, *, f0: int, version: str, emb_channels: int) -> Path:
+    """Create a minimal RVC checkpoint in an isolated child process so pytest never imports torch."""
+    model_cls = "SynthesizerTrnF0" if f0 == 1 else "SynthesizerTrnNoF0"
+    script = dedent(
+        f"""
+        import torch
+        from vcclient.voice_changer.slot_manager.onnx_exporter.models import {model_cls}
+
+        config = [
+            1025, 32, 192, 192, 768, 2, 2, 3, 0.0, "1",
+            [3, 7, 11], [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+            [10, 8, 2, 2], 512, [16, 16, 4, 4], 1, 256, 40000,
+        ]
+        model = {model_cls}(
+            spec_channels=config[0], segment_size=config[1], inter_channels=config[2],
+            hidden_channels=config[3], filter_channels=config[4], n_heads=config[5],
+            n_layers=config[6], kernel_size=config[7], p_dropout=config[8], resblock=config[9],
+            resblock_kernel_sizes=config[10], resblock_dilation_sizes=config[11],
+            upsample_rates=config[12], upsample_initial_channel=config[13],
+            upsample_kernel_sizes=config[14], spk_embed_dim=config[15],
+            gin_channels=config[16], sr=config[17], emb_channels={emb_channels},
+        )
+        torch.save({{"config": config, "weight": model.state_dict(), "f0": {f0}, "version": {version!r}}}, {str(pth_path)!r})
+        """
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(BACKEND_DIR), env.get("PYTHONPATH", "")]))
+    subprocess.run([sys.executable, "-c", script], cwd=BACKEND_DIR.parent, env=env, check=True, timeout=60)
+    return pth_path
+
+
+@pytest.fixture(scope="module")
+def dummy_rvc_v2_f0_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """RVC v2 F0 ありの最小チェックポイント (.pth) を生成する"""
-    config = [
-        1025,  # spec_channels
-        32,  # segment_size
-        192,  # inter_channels
-        192,  # hidden_channels
-        768,  # filter_channels
-        2,  # n_heads
-        2,  # n_layers
-        3,  # kernel_size
-        0.0,  # p_dropout
-        "1",  # resblock
-        [3, 7, 11],  # resblock_kernel_sizes
-        [[1, 3, 5], [1, 3, 5], [1, 3, 5]],  # resblock_dilation_sizes
-        [10, 8, 2, 2],  # upsample_rates
-        512,  # upsample_initial_channel
-        [16, 16, 4, 4],  # upsample_kernel_sizes
-        1,  # spk_embed_dim
-        256,  # gin_channels
-        40000,  # sr
-    ]
-
-    model = SynthesizerTrnF0(
-        spec_channels=config[0],
-        segment_size=config[1],
-        inter_channels=config[2],
-        hidden_channels=config[3],
-        filter_channels=config[4],
-        n_heads=config[5],
-        n_layers=config[6],
-        kernel_size=config[7],
-        p_dropout=config[8],
-        resblock=config[9],
-        resblock_kernel_sizes=config[10],
-        resblock_dilation_sizes=config[11],
-        upsample_rates=config[12],
-        upsample_initial_channel=config[13],
-        upsample_kernel_sizes=config[14],
-        spk_embed_dim=config[15],
-        gin_channels=config[16],
-        sr=config[17],
-        emb_channels=768,
-        is_half=False,
-    )
-
-    cpt = {
-        "config": config,
-        "weight": model.state_dict(),
-        "f0": 1,
-        "version": "v2",
-    }
-    pth_path = tmp_path / "dummy_v2_f0.pth"
-    torch.save(cpt, pth_path)
-    return pth_path
+    pth_path = tmp_path_factory.mktemp("exporter_v2_f0") / "dummy_v2_f0.pth"
+    return _write_dummy_pth(pth_path, f0=1, version="v2", emb_channels=768)
 
 
-@pytest.fixture
-def dummy_rvc_v1_nof0_checkpoint(tmp_path: Path) -> Path:
+@pytest.fixture(scope="module")
+def dummy_rvc_v1_nof0_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """RVC v1 F0 なしの最小チェックポイント (.pth) を生成する"""
-    config = [
-        1025,
-        32,
-        192,
-        192,
-        768,
-        2,
-        2,
-        3,
-        0.0,
-        "1",
-        [3, 7, 11],
-        [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
-        [10, 8, 2, 2],
-        512,
-        [16, 16, 4, 4],
-        1,
-        256,
-        40000,
-    ]
-
-    model = SynthesizerTrnNoF0(
-        spec_channels=config[0],
-        segment_size=config[1],
-        inter_channels=config[2],
-        hidden_channels=config[3],
-        filter_channels=config[4],
-        n_heads=config[5],
-        n_layers=config[6],
-        kernel_size=config[7],
-        p_dropout=config[8],
-        resblock=config[9],
-        resblock_kernel_sizes=config[10],
-        resblock_dilation_sizes=config[11],
-        upsample_rates=config[12],
-        upsample_initial_channel=config[13],
-        upsample_kernel_sizes=config[14],
-        spk_embed_dim=config[15],
-        gin_channels=config[16],
-        sr=config[17],
-        emb_channels=256,
-    )
-
-    cpt = {
-        "config": config,
-        "weight": model.state_dict(),
-        "f0": 0,
-        "version": "v1",
-    }
-    pth_path = tmp_path / "dummy_v1_nof0.pth"
-    torch.save(cpt, pth_path)
-    return pth_path
+    pth_path = tmp_path_factory.mktemp("exporter_v1_nof0") / "dummy_v1_nof0.pth"
+    return _write_dummy_pth(pth_path, f0=0, version="v1", emb_channels=256)
 
 
 def test_export_pth_to_onnx_v2_f0(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path):
-    """v2 F0 モデルのエクスポートと推論の整合性をテスト"""
+    """main.py export-onnx サブコマンド経由での v2 F0 モデル変換と推論の整合性をテスト"""
     onnx_path = tmp_path / "dummy_v2_f0.onnx"
-    res_path = export_pth_to_onnx(dummy_rvc_v2_f0_checkpoint, onnx_path)
-    assert res_path == onnx_path
+    result = subprocess.run(
+        [sys.executable, str(MAIN_PY), "export-onnx", str(dummy_rvc_v2_f0_checkpoint), str(onnx_path)],
+        cwd=BACKEND_DIR.parent,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
     assert onnx_path.exists()
     assert onnx_path.stat().st_size > 1000
 
@@ -173,10 +112,17 @@ def test_export_pth_to_onnx_v2_f0(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Pa
 
 
 def test_export_pth_to_onnx_v1_nof0(dummy_rvc_v1_nof0_checkpoint: Path, tmp_path: Path):
-    """v1 noF0 モデルのエクスポートと推論の整合性をテスト"""
+    """main.py export-onnx サブコマンド経由での v1 noF0 モデル変換と推論の整合性をテスト"""
     onnx_path = tmp_path / "dummy_v1_nof0.onnx"
-    res_path = export_pth_to_onnx(dummy_rvc_v1_nof0_checkpoint, onnx_path)
-    assert res_path == onnx_path
+    result = subprocess.run(
+        [sys.executable, str(MAIN_PY), "export-onnx", str(dummy_rvc_v1_nof0_checkpoint), str(onnx_path)],
+        cwd=BACKEND_DIR.parent,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
     assert onnx_path.exists()
 
     # ONNX メタデータの検証
@@ -275,3 +221,78 @@ for label, build in invalid_models.items():
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_process_isolation_server_vs_export_onnx(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path) -> None:
+    """Server imports never load torch, and export-onnx subcommand never loads faiss or sounddevice."""
+    server_probe = dedent(
+        """
+        import sys
+        import main
+        from vcclient.server.vcserver_rest_api import get_rest_api
+
+        get_rest_api()
+        assert "torch" not in sys.modules, "torch was unexpectedly imported by server process"
+        """
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(BACKEND_DIR), env.get("PYTHONPATH", "")]))
+    server_res = subprocess.run(
+        [sys.executable, "-c", server_probe],
+        cwd=BACKEND_DIR.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert server_res.returncode == 0, server_res.stderr
+
+    out_onnx = tmp_path / "isolated_out.onnx"
+    export_probe = dedent(
+        f"""
+        import runpy
+        import sys
+
+        sys.argv = [{str(MAIN_PY)!r}, "export-onnx", {str(dummy_rvc_v2_f0_checkpoint)!r}, {str(out_onnx)!r}]
+        try:
+            runpy.run_path({str(MAIN_PY)!r}, run_name="__main__")
+        except SystemExit as exc:
+            assert exc.code == 0, f"Unexpected exit code: {{exc.code}}"
+        else:
+            raise AssertionError("export-onnx did not exit cleanly")
+
+        assert "torch" in sys.modules
+        assert "faiss" not in sys.modules, "faiss was unexpectedly imported by export-onnx"
+        assert "sounddevice" not in sys.modules, "sounddevice was unexpectedly imported by export-onnx"
+        """
+    )
+    export_res = subprocess.run(
+        [sys.executable, "-c", export_probe],
+        cwd=BACKEND_DIR.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert export_res.returncode == 0, export_res.stderr
+    assert out_onnx.is_file()
+
+
+def test_export_pth_to_onnx_subprocess_error(tmp_path: Path) -> None:
+    """model_catalog_manager.export_pth_to_onnx surfaces child stderr and removes nothing unexpected."""
+    from vcclient.voice_changer.model_catalog.model_catalog_manager import export_pth_to_onnx
+
+    missing_pth = tmp_path / "missing.pth"
+    missing_out = tmp_path / "missing.onnx"
+    with pytest.raises(RuntimeError, match="Model file not found"):
+        export_pth_to_onnx(missing_pth, missing_out)
+    assert not missing_out.exists()
+
+    corrupt_pth = tmp_path / "corrupt.pth"
+    corrupt_out = tmp_path / "corrupt.onnx"
+    corrupt_pth.write_bytes(b"not a torch checkpoint")
+    with pytest.raises(RuntimeError):
+        export_pth_to_onnx(corrupt_pth, corrupt_out)
+    assert not corrupt_out.exists()
