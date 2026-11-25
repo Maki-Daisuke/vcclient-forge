@@ -10,11 +10,13 @@ import shutil
 import string
 import subprocess
 import sys
+import tempfile
 import threading
 import uuid
 from pathlib import Path
 from typing import Any, cast
 
+from vcclient.exception import VCClientError, VCClientErrorInfo
 from vcclient.logger import logger
 from vcclient.server.api_common import (
     DomainApiError,
@@ -255,37 +257,72 @@ def _collect_existing_ids(model_dir: Path) -> set[str]:
     return ids
 
 
-def export_pth_to_onnx(pth_path: Path | str, output_path: Path | str | None = None) -> Path:
+_EXPORT_ONNX_TIMEOUT_SEC = 300.0
+
+
+def _parse_vcclient_error(stderr: str) -> VCClientError | None:
+    for line in reversed(stderr.splitlines()):
+        candidate = line.strip()
+        if not candidate:
+            continue
+        try:
+            info = VCClientErrorInfo.model_validate_json(candidate)
+        except Exception:
+            continue
+        return VCClientError(info.code, detail=info.detail)
+    return None
+
+
+def export_pth_to_onnx(
+    pth_path: Path | str,
+    output_path: Path | str | None = None,
+    *,
+    timeout: float = _EXPORT_ONNX_TIMEOUT_SEC,
+) -> Path:
     """Convert a legacy .pth checkpoint to ONNX in an isolated subprocess."""
     pth_file = Path(pth_path).resolve()
     out_file = (Path(pth_path).with_suffix(".onnx") if output_path is None else Path(output_path)).resolve()
-
-    if getattr(sys, "frozen", False):
-        cmd = [sys.executable, "export-onnx", str(pth_file), str(out_file)]
-    else:
-        main_py = Path(__file__).resolve().parents[3] / "main.py"
-        cmd = [sys.executable, str(main_py), "export-onnx", str(pth_file), str(out_file)]
+    out_file.parent.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
 
-    logger.info("Converting .pth model to ONNX via subprocess: %s -> %s", pth_file, out_file)
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env=env,
-        creationflags=creationflags,
-        check=False,
-    )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        raise RuntimeError(detail or f"export-onnx failed with exit code {result.returncode}")
-    if not out_file.is_file():
-        raise RuntimeError(f"export-onnx completed without creating output file: {out_file}")
+    # Stage subprocess output inside a hidden directory so crashes/timeouts never leave a partial .onnx behind.
+    with tempfile.TemporaryDirectory(dir=out_file.parent, prefix=".export-onnx-") as tmp_dir:
+        staged_out = Path(tmp_dir) / out_file.name
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, "export-onnx", str(pth_file), str(staged_out)]
+        else:
+            main_py = Path(__file__).resolve().parents[3] / "main.py"
+            cmd = [sys.executable, str(main_py), "export-onnx", str(pth_file), str(staged_out)]
+
+        logger.info("Converting .pth model to ONNX via subprocess: %s -> %s", pth_file, out_file)
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                creationflags=creationflags,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"export-onnx timed out after {timeout:g}s") from exc
+
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            if result.returncode == 2:
+                vc_error = _parse_vcclient_error(detail)
+                if vc_error is not None:
+                    raise vc_error
+            raise RuntimeError(detail or f"export-onnx failed with exit code {result.returncode}")
+        if not staged_out.is_file():
+            raise RuntimeError(f"export-onnx completed without creating output file: {out_file}")
+        os.replace(staged_out, out_file)
     return out_file
 
 
@@ -633,6 +670,14 @@ def create_model(
             shutil.rmtree(target_dir, ignore_errors=True)
             if isinstance(exc, DomainApiError):
                 raise
+            if isinstance(exc, VCClientError):
+                detail_msg = exc.info.detail or exc.info.reason
+                raise DomainApiError(
+                    422,
+                    "model_import_failed",
+                    f"Failed to import model: {detail_msg}",
+                    exc.info.model_dump(),
+                ) from exc
             raise DomainApiError(422, "model_import_failed", f"Failed to import model: {exc}") from exc
 
         _upsert_slot_cache_locked(model_dir, stored, target_dir)

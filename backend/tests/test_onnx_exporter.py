@@ -62,6 +62,19 @@ def dummy_rvc_v1_nof0_checkpoint(tmp_path_factory: pytest.TempPathFactory) -> Pa
     return _write_dummy_pth(pth_path, f0=0, version="v1", emb_channels=256)
 
 
+@pytest.fixture(scope="module")
+def invalid_version_pth(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Create a .pth checkpoint with an invalid RVC version in an isolated process."""
+    pth_path = tmp_path_factory.mktemp("invalid_pth") / "invalid.pth"
+    subprocess.run(
+        [sys.executable, "-c", "import sys, torch; torch.save({'version': 'invalid'}, sys.argv[1])", str(pth_path)],
+        cwd=BACKEND_DIR.parent,
+        check=True,
+        timeout=30,
+    )
+    return pth_path
+
+
 def test_export_pth_to_onnx_v2_f0(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path):
     """main.py export-onnx サブコマンド経由での v2 F0 モデル変換と推論の整合性をテスト"""
     onnx_path = tmp_path / "dummy_v2_f0.onnx"
@@ -343,16 +356,9 @@ def test_server_logger_is_initialized_explicitly(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_export_subcommand_reports_validation_error_once(tmp_path: Path) -> None:
-    pth_file = tmp_path / "invalid.pth"
-    subprocess.run(
-        [sys.executable, "-c", "import sys, torch; torch.save({'version': 'invalid'}, sys.argv[1])", str(pth_file)],
-        cwd=tmp_path,
-        check=True,
-        timeout=30,
-    )
+def test_export_subcommand_reports_validation_error_once(invalid_version_pth: Path, tmp_path: Path) -> None:
     result = subprocess.run(
-        [sys.executable, str(MAIN_PY), "export-onnx", str(pth_file), str(tmp_path / "output.onnx")],
+        [sys.executable, str(MAIN_PY), "export-onnx", str(invalid_version_pth), str(tmp_path / "output.onnx")],
         cwd=tmp_path,
         capture_output=True,
         text=True,
@@ -360,6 +366,143 @@ def test_export_subcommand_reports_validation_error_once(tmp_path: Path) -> None
         errors="replace",
         timeout=60,
     )
-    assert result.returncode != 0
+    assert result.returncode == 2
     assert result.stderr.count("Invalid torch version") == 1
     assert not (tmp_path / "vcclient.log").exists()
+
+
+def test_export_pth_to_onnx_preserves_vcclient_error_and_existing_output(
+    invalid_version_pth: Path, tmp_path: Path
+) -> None:
+    from vcclient.exception import ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE, VCClientError
+    from vcclient.voice_changer.model_catalog.model_catalog_manager import export_pth_to_onnx
+
+    out_onnx = tmp_path / "existing.onnx"
+    out_onnx.write_bytes(b"valid-existing-onnx")
+
+    with pytest.raises(VCClientError) as exc_info:
+        export_pth_to_onnx(invalid_version_pth, out_onnx)
+
+    assert exc_info.value.info.code == ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE
+    assert exc_info.value.info.detail == "Invalid torch version: invalid"
+    assert out_onnx.read_bytes() == b"valid-existing-onnx"
+    assert [p.name for p in tmp_path.iterdir()] == ["existing.onnx"]
+
+
+def test_import_invalid_pth_returns_422_and_cleans_up(
+    invalid_version_pth: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from vcclient.exception import ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE
+    from vcclient.server.api_common import set_active_model_id_getter
+    from vcclient.server.vcserver_rest_api import get_rest_api
+    from vcclient.voice_changer import voice_changer_const
+    from vcclient.voice_changer.model_catalog import model_catalog_manager
+
+    model_dir = tmp_path / "model_dir"
+    model_dir.mkdir()
+    monkeypatch.setattr(voice_changer_const, "ModelDir", model_dir)
+    monkeypatch.setattr(voice_changer_const, "ConfigFile", tmp_path / "vc_conf.json")
+    monkeypatch.setattr(model_catalog_manager, "_cached_model_dir", None)
+    monkeypatch.setattr(model_catalog_manager, "_cached_slot_infos", {})
+    set_active_model_id_getter(None)
+    try:
+        with TestClient(get_rest_api()) as client:
+            res = client.post(
+                "/api/models",
+                data={"name": "Invalid PTH"},
+                files={"model_file": ("invalid.pth", invalid_version_pth.read_bytes(), "application/octet-stream")},
+            )
+    finally:
+        set_active_model_id_getter(None)
+
+    assert res.status_code == 422
+    body = res.json()
+    assert body["code"] == "model_import_failed"
+    assert "Invalid torch version: invalid" in body["message"]
+    assert not body["message"].startswith("Failed to import model: {")
+    assert body["details"]["code"] == ERROR_CODE_RVC_INVALID_TORCH_MODEL_VERSION_VALUE
+    assert list(model_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("failure_mode", ["partial_nonzero", "timeout"])
+def test_export_pth_to_onnx_timeout_and_partial_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_mode: str
+) -> None:
+    from vcclient.voice_changer.model_catalog import model_catalog_manager
+
+    pth_file = tmp_path / "dummy.pth"
+    pth_file.write_bytes(b"pth")
+    out_file = tmp_path / "out.onnx"
+    observed_timeouts: list[object] = []
+
+    def fake_run(cmd, **kwargs):
+        observed_timeouts.append(kwargs.get("timeout"))
+        staged = Path(cmd[-1])
+        staged.write_bytes(b"corrupt-partial")
+        if failure_mode == "timeout":
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+        return subprocess.CompletedProcess(cmd, returncode=1, stdout="", stderr="export crashed")
+
+    monkeypatch.setattr(model_catalog_manager.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="timed out" if failure_mode == "timeout" else "export crashed"):
+        model_catalog_manager.export_pth_to_onnx(pth_file, out_file)
+
+    assert observed_timeouts == [300.0]
+    assert not out_file.exists()
+    assert [p.name for p in tmp_path.iterdir()] == ["dummy.pth"]
+
+
+def test_export2onnx_failure_leaves_no_partial_file(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path) -> None:
+    out_file = tmp_path / "out.onnx"
+    script = dedent(
+        f"""
+        import onnx
+        from vcclient.voice_changer.slot_manager.onnx_exporter import export_pth_to_onnx
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("disk full")
+
+        onnx.save = boom
+        export_pth_to_onnx({str(dummy_rvc_v2_f0_checkpoint)!r}, {str(out_file)!r})
+        """
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(BACKEND_DIR), env.get("PYTHONPATH", "")]))
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=BACKEND_DIR.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert not out_file.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("cli_args", [["--help"], ["unknown-subcommand"]])
+def test_cli_non_server_commands_preserve_server_log(tmp_path: Path, cli_args: list[str]) -> None:
+    log_file = tmp_path / "vcclient.log"
+    log_file.write_text("server log\n", encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(MAIN_PY), *cli_args],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=30,
+    )
+    if cli_args == ["--help"]:
+        assert result.returncode == 0, result.stderr
+        assert "VCClient" in result.stdout
+    else:
+        assert result.returncode == 2, result.stderr
+        assert "Unknown command: unknown-subcommand" in result.stderr
+    assert log_file.read_text(encoding="utf-8") == "server log\n"

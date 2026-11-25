@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 import warnings
 from pathlib import Path
 from typing import Any
@@ -20,7 +22,7 @@ from .models import SynthesizerTrnF0, SynthesizerTrnNoF0
 
 
 def extract_metadata_from_checkpoint(cpt: dict[str, Any]) -> dict[str, Any]:
-    """PyTorch チェックポイントからメタデータを解析・抽出する"""
+    """Extract and validate metadata from an RVC PyTorch checkpoint."""
     version = cpt.get("version", "v1") or "v1"
     if version not in ("v1", "v2"):
         logger.error("Invalid torch version: %s", version)
@@ -119,7 +121,7 @@ def export_pth_to_onnx(
     is_half: bool = False,
     device: str = "cpu",
 ) -> Path:
-    """RVC の .pth (PyTorch チェックポイント) を pure-ONNX ランタイム対応の .onnx に変換・保存する。"""
+    """Convert an RVC .pth checkpoint into a pure-ONNX model file."""
     pth_file = Path(pth_path)
     if not pth_file.exists():
         raise FileNotFoundError(f"Model file not found: {pth_file}")
@@ -132,7 +134,7 @@ def export_pth_to_onnx(
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     with warnings.catch_warnings():
-        # PyTorch JIT Tracer / Constant folding などの既知の警告を抑止
+        # Suppress known warnings from PyTorch JIT tracing and constant folding.
         warnings.simplefilter("ignore")
 
         cpt = torch.load(pth_file, map_location="cpu", weights_only=False)
@@ -144,13 +146,13 @@ def export_pth_to_onnx(
 
         dev = torch.device(device)
         if is_half and dev.type != "cuda":
-            # CPU での float16 onnx export は一部オペレータで非対応となる可能性があるため float32 を推奨
+            # Float16 ONNX export on CPU can hit unsupported operators; fall back to float32.
             is_half = False
 
-        # モデル構築
+        # Build synthesizer model
         if "config" in cpt:
             config = cpt["config"]
-            # config の末尾は sr
+            # Last element of config is sample rate (sr)
             model_kwargs = {
                 "spec_channels": config[0],
                 "segment_size": config[1],
@@ -197,7 +199,7 @@ def export_pth_to_onnx(
         if is_half:
             net_g = net_g.half()
 
-        # ダミー入力テンソルの準備
+        # Prepare dummy input tensors for ONNX tracing
         feats_len = 64
         feats = torch.randn(1, feats_len, emb_channels, device=dev, dtype=torch.float16 if is_half else torch.float32)
         p_len = torch.tensor([feats_len], device=dev, dtype=torch.int64)
@@ -231,7 +233,7 @@ def export_pth_to_onnx(
             emb_channels,
         )
 
-        # ONNX エクスポート実行（PyTorch 2.9+ では dynamo=False で TorchScript エクスポーターを指定）
+        # Run ONNX export (specify dynamo=False on PyTorch 2.9+ to use the TorchScript exporter)
         export_kwargs: dict[str, Any] = {
             "input_names": input_names,
             "output_names": output_names,
@@ -240,32 +242,36 @@ def export_pth_to_onnx(
             "opset_version": 17,
             "verbose": False,
         }
-        try:
-            torch.onnx.export(net_g, inputs, str(out_file), dynamo=False, **export_kwargs)
-        except TypeError:
-            torch.onnx.export(net_g, inputs, str(out_file), **export_kwargs)
+        # Write into an isolated directory under out_file.parent so failures leave no partial .onnx behind.
+        with tempfile.TemporaryDirectory(dir=out_file.parent, prefix=".export-onnx-") as tmp_dir:
+            staged_out = Path(tmp_dir) / out_file.name
+            try:
+                torch.onnx.export(net_g, inputs, str(staged_out), dynamo=False, **export_kwargs)
+            except TypeError:
+                torch.onnx.export(net_g, inputs, str(staged_out), **export_kwargs)
 
-        # メタデータ書き込み
-        model_onnx = onnx.load(str(out_file))
+            # Write ONNX metadata
+            model_onnx = onnx.load(str(staged_out))
 
-        # onnxsim 最適化（利用可能な場合）
-        try:
-            import onnxsim
+            # Simplify ONNX graph with onnxsim when available
+            try:
+                import onnxsim
 
-            model_simp, check = onnxsim.simplify(model_onnx)
-            if check:
-                model_onnx = model_simp
-                logger.debug("ONNX model successfully simplified with onnxsim.")
-        except Exception as e:
-            logger.debug("onnxsim simplification skipped: %s", e)
+                model_simp, check = onnxsim.simplify(model_onnx)
+                if check:
+                    model_onnx = model_simp
+                    logger.debug("ONNX model successfully simplified with onnxsim.")
+            except Exception as e:
+                logger.debug("onnxsim simplification skipped: %s", e)
 
-        meta = model_onnx.metadata_props.add()
-        meta.key = "metadata"
-        # model_version は内部管理用なので ONNX メタデータからは除いて標準キーにする
-        export_metadata = {k: v for k, v in metadata.items() if k != "model_version"}
-        meta.value = json.dumps(export_metadata)
+            meta = model_onnx.metadata_props.add()
+            meta.key = "metadata"
+            # Exclude internal model_version key from standard ONNX metadata
+            export_metadata = {k: v for k, v in metadata.items() if k != "model_version"}
+            meta.value = json.dumps(export_metadata)
 
-        onnx.save(model_onnx, str(out_file))
+            onnx.save(model_onnx, str(staged_out))
+            os.replace(staged_out, out_file)
 
     logger.info("Successfully exported ONNX model to %s", out_file)
 

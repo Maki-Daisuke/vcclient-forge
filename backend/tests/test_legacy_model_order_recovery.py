@@ -126,6 +126,7 @@ def test_startup_recovers_before_loading_models(tmp_path: Path, monkeypatch: pyt
     config_file.write_text("{}", encoding="utf-8")
     calls: list[str] = []
     monkeypatch.setattr(main.signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(main, "init_logger", lambda: calls.append("logger"))
     monkeypatch.setattr(main, "ConfigFile", config_file)
     monkeypatch.setattr(main, "recover_legacy_model_order", lambda *_args: calls.append("recover"))
     monkeypatch.setattr(main, "_check_and_download_rvc_modules", lambda: calls.append("modules"))
@@ -134,4 +135,4 @@ def test_startup_recovers_before_loading_models(tmp_path: Path, monkeypatch: pyt
     monkeypatch.setattr(main, "is_app_stopping", lambda: True)
 
     main.start_server()
-    assert calls == ["recover", "modules", "models", "samples"]
+    assert calls == ["logger", "recover", "modules", "models", "samples"]

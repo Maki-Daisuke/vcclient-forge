@@ -28,6 +28,22 @@ if str(_here) not in sys.path:
     sys.path.insert(0, str(_here))
 
 
+def parse_server_args(argv: list[str] | None = None) -> argparse.Namespace:
+    from vcclient.const import VERSION
+
+    parser = argparse.ArgumentParser(description=f"VCClient {VERSION} (pure-ONNX backend)")
+    parser.add_argument("command", nargs="?", default="server", help=argparse.SUPPRESS)
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Binding host address (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=18888, help="Server port (default: 18888)")
+    args = parser.parse_args(argv)
+    if args.command in ("--help", "-h", "help"):
+        parser.print_help()
+        raise SystemExit(0)
+    if args.command != "server":
+        parser.error(f"Unknown command: {args.command}")
+    return args
+
+
 def run_export_onnx(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="main export-onnx",
@@ -37,10 +53,14 @@ def run_export_onnx(argv: list[str]) -> int:
     parser.add_argument("output_onnx", type=Path, help="Output .onnx model file path")
     args = parser.parse_args(argv)
 
+    from vcclient.exception import VCClientError
     from vcclient.voice_changer.slot_manager.onnx_exporter import export_pth_to_onnx
 
     try:
         export_pth_to_onnx(args.input_pth, args.output_onnx)
+    except VCClientError as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return 2
     except Exception as exc:
         print(str(exc), file=sys.stderr, flush=True)
         return 1
@@ -50,11 +70,9 @@ def run_export_onnx(argv: list[str]) -> int:
 if __name__ == "__main__":
     if sys.argv[1:2] == ["export-onnx"]:
         raise SystemExit(run_export_onnx(sys.argv[2:]))
+    parse_server_args(sys.argv[1:])
     if getattr(sys, "frozen", False):
         os.chdir(Path(sys.executable).resolve().parent)
-    from vcclient.logger import init_logger
-
-    init_logger()
 
 import sounddevice as sd
 
@@ -93,6 +111,7 @@ def start_server(
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, handle_shutdown_signal)
 
+    init_logger()
     logger.info("VCClient Forge v%s", VERSION)
     print(f"VCClient Forge v{VERSION}", flush=True)
 
@@ -189,19 +208,8 @@ def main():
     if sys.argv[1:2] == ["export-onnx"]:
         raise SystemExit(run_export_onnx(sys.argv[2:]))
 
-    parser = argparse.ArgumentParser(description=f"VCClient {VERSION} (pure-ONNX backend)")
-    parser.add_argument("command", nargs="?", default="server", help=argparse.SUPPRESS)
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="Binding host address (default: 0.0.0.0)")
-    parser.add_argument("--port", type=int, default=18888, help="Server port (default: 18888)")
-    args: argparse.Namespace = parser.parse_args()
+    args = parse_server_args()
 
-    if args.command in ("--help", "-h", "help"):
-        parser.print_help()
-        sys.exit(0)
-    if args.command != "server":
-        parser.error(f"Unknown command: {args.command}")
-
-    init_logger()
     start_server(
         host=args.host,
         port=args.port,
