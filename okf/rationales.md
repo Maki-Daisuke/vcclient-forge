@@ -85,9 +85,9 @@ Bundling CUDA PyTorch pushed distributions beyond GitHub Releases' 2 GiB per-ass
   - [Core Packaging Breakthroughs](./sub-2gb-portable-distribution-and-packaging.md#2-core-architectural-breakthroughs-for-sub-2gb-packaging)
   - [ONNX Pitch Implementations](./streamlined-pitch-estimation-and-torch-free-pipeline.md#3-onnx-runtime-implementations)
 
-### Why Forge plans to decouple its control API from internal classes and client discipline *(Planned)*
+### Why Forge decoupled its control API from internal classes and client discipline
 
-The inherited control surface in [`api-reference.md`](./api-reference.md) still mirrors internal Python classes (`/api/configuration-manager/*`, `/api/slot-manager/*`, `/api/voice-changer-manager/*`, `/api/local-voice-changer-interface/*`), mixes storage persistence with pipeline rebuilds, and leaves active-state checks, cutoff bounds validation, and write ordering largely to frontend code. In the target architecture, public APIs are designed strictly around voice-conversion domain concepts rather than backend internals or legacy disk formats, and all state transitions, validation, and request serialization are enforced on the server so alternative UIs or uncoordinated callers cannot corrupt the conversion core.
+Previously, the inherited control surface mirrored internal Python classes (`/api/configuration-manager/*`, `/api/slot-manager/*`, `/api/voice-changer-manager/*`, `/api/local-voice-changer-interface/*`), mixed storage persistence with pipeline rebuilds, and left active-state checks, cutoff bounds validation, and write ordering largely to frontend code. Forge replaced those legacy routes with domain-oriented APIs (`/api/session`, `/api/models*`, `/api/settings`, `/api/devices/*`) that isolate disk compatibility (`settings/vc_conf.json`, `model_dir/` migration) and enforce all state transitions, validation, and request serialization on the server.
 
 - Details:
   - [API Boundary Principles](./snapshot-driven-pipeline-and-stateless-control-api.md#3-api-boundary-principles)

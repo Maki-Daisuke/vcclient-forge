@@ -1,19 +1,20 @@
 import io
 import sys
-from unittest.mock import MagicMock
 
 import pytest
 
 from vcclient import initializer
+from vcclient.voice_changer import voice_changer_const
 from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
 from vcclient.voice_changer.data_types.sample_manager_data_types import SampleDownloadStatus
 
 
 @pytest.mark.parametrize("kind", ["modules", "samples"])
-def test_download_progress_supports_cp932_stdout(kind, monkeypatch):
+def test_download_progress_supports_cp932_stdout(kind, monkeypatch, tmp_path):
     output = io.BytesIO()
     stdout = io.TextIOWrapper(output, encoding="cp932", errors="strict", write_through=True)
     monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(voice_changer_const, "ModelDir", tmp_path / "model_dir")
 
     if kind == "modules":
         monkeypatch.setattr(initializer, "is_rvc_ready", lambda: False)
@@ -24,9 +25,7 @@ def test_download_progress_supports_cp932_stdout(kind, monkeypatch):
         )
         initializer._check_and_download_rvc_modules()
     else:
-        slot_manager = MagicMock()
-        slot_manager.get_slot_infos.return_value = []
-        monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: slot_manager)
+        monkeypatch.setattr(initializer, "list_models", lambda: [])
         monkeypatch.setattr(
             initializer,
             "download_initial_samples",

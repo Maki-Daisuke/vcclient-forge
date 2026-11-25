@@ -8,6 +8,12 @@ const clientGainStorageKey = 'vcclient-forge.client-gain.v1';
 const minOutputPrerollSec = 0.02;
 const outputPrerollChunkRatio = 0.1;
 
+export interface ClientStreamCallbacks {
+  onFailure: (error: Error) => void;
+  onSuperseded?: () => void;
+  onClosed?: () => void;
+}
+
 function loadClientGains(): { inputGain: number; outputGain: number } {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(clientGainStorageKey) ?? 'null');
@@ -25,7 +31,11 @@ function loadBrowserAudioOptions(): Record<BrowserAudioOption, boolean> {
     const value: unknown = JSON.parse(localStorage.getItem(browserAudioStorageKey) ?? 'null');
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       const stored = value as Record<string, unknown>;
-      return { echoCancellation: stored.echoCancellation === true, noiseSuppression: stored.noiseSuppression === true, autoGainControl: stored.autoGainControl === true };
+      return {
+        echoCancellation: stored.echoCancellation === true,
+        noiseSuppression: stored.noiseSuppression === true,
+        autoGainControl: stored.autoGainControl === true,
+      };
     }
   } catch { /* Storage may be unavailable or contain invalid data. */ }
   return { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
@@ -60,6 +70,7 @@ export class ClientAudio {
   get autoGainControl() { return this.options.autoGainControl; }
   get inputGain() { return this.gains.inputGain; }
   get outputGain() { return this.gains.outputGain; }
+
   setGain(key: 'inputGain' | 'outputGain', value: number) {
     if (!Number.isFinite(value) || value < 0 || value > 10 || (key === 'inputGain' && this.autoGainControl)) return;
     this.gains = { ...this.gains, [key]: value };
@@ -68,15 +79,18 @@ export class ClientAudio {
     try { localStorage.setItem(clientGainStorageKey, JSON.stringify(this.gains)); }
     catch { /* Keep the current page usable if browser storage is unavailable. */ }
   }
+
   supportsOption(option: BrowserAudioOption) {
     return navigator.mediaDevices?.getSupportedConstraints?.()[option] === true;
   }
+
   setOption(option: BrowserAudioOption, value: boolean) {
     if (value && !this.supportsOption(option)) return;
     this.options = { ...this.options, [option]: value };
     try { localStorage.setItem(browserAudioStorageKey, JSON.stringify(this.options)); }
     catch { /* Keep the current page usable if browser storage is unavailable. */ }
   }
+
   async refreshDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -107,8 +121,11 @@ export class ClientAudio {
     };
   }
 
-  async start(inputRate: number, outputRate: number, onFailure: (error: Error) => void) {
-    if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') throw new Error('Audio capture is unavailable in this browser.');
+  async prepareCapture(inputRate: number): Promise<void> {
+    this.stop();
+    if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') {
+      throw new Error('Audio capture is unavailable in this browser.');
+    }
     if ((this.options.echoCancellation && !this.supportsOption('echoCancellation'))
       || (this.options.noiseSuppression && !this.supportsOption('noiseSuppression'))
       || (this.options.autoGainControl && !this.supportsOption('autoGainControl'))) {
@@ -158,9 +175,26 @@ export class ClientAudio {
       this.outputAnalyser = outputAnalyser;
       outputGainNode.connect(outputAnalyser);
       outputAnalyser.connect(context.destination);
-      const socket = new WebSocket(websocketUrl('/api/ws/audio'));
-      socket.binaryType = 'arraybuffer';
-      this.socket = socket;
+    } catch (error) {
+      this.stop();
+      throw error;
+    }
+  }
+
+  async connectStream(outputRate: number, callbacks: ClientStreamCallbacks): Promise<void> {
+    const context = this.context;
+    const stream = this.stream;
+    const inputGainNode = this.inputGainNode;
+    const outputGainNode = this.outputGainNode;
+    const inputAnalyser = this.inputAnalyser;
+    if (!context || !stream || !inputGainNode || !outputGainNode || !inputAnalyser) {
+      throw new Error('Audio capture is not prepared.');
+    }
+    const generation = this.generation;
+    const socket = new WebSocket(websocketUrl('/api/ws/audio'));
+    socket.binaryType = 'arraybuffer';
+    this.socket = socket;
+    try {
       await new Promise<void>((resolve, reject) => {
         const cleanup = () => {
           clearTimeout(timeout);
@@ -175,17 +209,28 @@ export class ClientAudio {
         }, 10000);
         socket.onopen = () => { cleanup(); resolve(); };
         socket.onerror = () => { cleanup(); reject(new Error('Audio connection failed.')); };
-        socket.onclose = () => { cleanup(); reject(new Error('Audio connection closed.')); };
+        socket.onclose = event => {
+          cleanup();
+          reject(new Error(event.reason || `Audio connection closed (${event.code}).`));
+        };
       });
       if (generation !== this.generation) return;
-      const notifyDisconnect = () => {
+      socket.onclose = event => {
         socket.onerror = null;
         socket.onclose = null;
-        if (generation === this.generation) onFailure(new Error('Audio connection disconnected.'));
+        if (generation !== this.generation) return;
+        if (event.code === 4001) callbacks.onSuperseded?.();
+        else if (event.code === 1000) callbacks.onClosed?.();
+        else callbacks.onFailure(new Error('Audio connection disconnected.'));
       };
-      socket.onclose = notifyDisconnect;
-      socket.onerror = notifyDisconnect;
-      stream.getAudioTracks()[0]?.addEventListener('ended', () => { if (generation === this.generation) onFailure(new Error('Microphone disconnected.')); });
+      socket.onerror = () => {
+        socket.onerror = null;
+        socket.onclose = null;
+        if (generation === this.generation) callbacks.onFailure(new Error('Audio connection failed.'));
+      };
+      stream.getAudioTracks()[0]?.addEventListener('ended', () => {
+        if (generation === this.generation) callbacks.onFailure(new Error('Microphone disconnected.'));
+      });
       socket.onmessage = event => {
         const data = event.data;
         if (generation !== this.generation || !(data instanceof ArrayBuffer) || data.byteLength % 4) return;
@@ -243,6 +288,11 @@ export class ClientAudio {
       this.stop();
       throw error;
     }
+  }
+
+  async start(inputRate: number, outputRate: number, callbacks: ClientStreamCallbacks) {
+    await this.prepareCapture(inputRate);
+    await this.connectStream(outputRate, callbacks);
   }
 
   stop() {

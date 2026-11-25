@@ -1,9 +1,9 @@
+from __future__ import annotations
+
 import re
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
-
-from tqdm import tqdm
 
 from vcclient.device import DeviceConfig, get_device_catalog
 from vcclient.logger import logger
@@ -11,13 +11,14 @@ from vcclient.voice_changer.configuration_manager.configuration_manager import C
 from vcclient.voice_changer.data_types.module_manager_data_types import ModuleDownloadStatus
 from vcclient.voice_changer.data_types.sample_manager_data_types import SampleDownloadStatus
 from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
+from vcclient.voice_changer.model_catalog import get_probe_slot_info, list_models
 from vcclient.voice_changer.module_manager import download_rvc_modules, is_rvc_ready
 from vcclient.voice_changer.sample_manager import download_initial_samples
-from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
 
 DownloadStatus = TypeVar("DownloadStatus", ModuleDownloadStatus, SampleDownloadStatus)
 
 if TYPE_CHECKING:
+    from vcclient.voice_changer.data_types.data_types import VoiceChangerConfiguration
     from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
 
 
@@ -92,16 +93,9 @@ def _verify_device_sessions(pipeline: "RVCPipeline", device: DeviceConfig) -> No
         session.disable_fallback()
 
 
-def _select_initial_compute_device() -> bool:
+def _probe_first_working_device(conf: VoiceChangerConfiguration, slot: RVCSlotInfo) -> DeviceConfig:
+    """Test ranked compute devices against `slot` and return the first device whose pipeline warms up cleanly."""
     from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
-
-    manager = ConfigurationManager.get_instance()
-    conf = manager.get_voice_changer_configuration()
-    slot = SlotManager.get_instance().get_slot_info(conf.current_slot_index)
-    if not isinstance(slot, RVCSlotInfo) or slot.model_file is None:
-        logger.warning("Skipping initial device selection: the initial model is unavailable.")
-        print("Initial model is unavailable; automatic device selection skipped.", flush=True)
-        return False
 
     for device in _initial_device_candidates(get_device_catalog()):
         conf.gpu_device_id_int = device.id
@@ -115,12 +109,44 @@ def _select_initial_compute_device() -> bool:
             logger.warning("Initial device test failed for %s: %s", device.canonical_id, e, exc_info=True)
             print(f"Inference device test failed: {device.name}", flush=True)
             continue
-        logger.info("Initial inference device selected: %s", device.canonical_id)
-        print(f"Inference device selected: {device.name}", flush=True)
-        return True
+        return device
 
     conf.gpu_device_id_int = 0
     raise RuntimeError("No inference device passed the initial pipeline test; see vcclient.log for details.")
+
+
+def recommend_compute_device() -> DeviceConfig:
+    """Probe available compute devices against a valid model and return the recommended device without persisting."""
+    manager = ConfigurationManager.get_instance()
+    conf = manager.get_voice_changer_configuration()
+    slot = get_probe_slot_info(conf.model_id)
+    if slot is None:
+        raise LookupError("No valid RVC model is available for compute device auto-selection.")
+
+    original_device_id = conf.gpu_device_id_int
+    try:
+        device = _probe_first_working_device(conf, slot)
+    finally:
+        conf.gpu_device_id_int = original_device_id
+
+    logger.info("Recommended compute device selected: %s", device.canonical_id)
+    print(f"Inference device selected: {device.name}", flush=True)
+    return device
+
+
+def _select_initial_compute_device() -> bool:
+    manager = ConfigurationManager.get_instance()
+    conf = manager.get_voice_changer_configuration()
+    slot = get_probe_slot_info(conf.model_id)
+    if slot is None:
+        logger.warning("Skipping initial device selection: the initial model is unavailable.")
+        print("Initial model is unavailable; automatic device selection skipped.", flush=True)
+        return False
+
+    device = _probe_first_working_device(conf, slot)
+    logger.info("Initial inference device selected: %s", device.canonical_id)
+    print(f"Inference device selected: {device.name}", flush=True)
+    return True
 
 
 def _check_and_download_rvc_modules() -> None:
@@ -133,37 +159,8 @@ def _check_and_download_rvc_modules() -> None:
         print("\nRVC is not ready. Downloading RVC modules. Done.\n", flush=True)
 
 
-def _check_and_convert_legacy_pth_models() -> None:
-    slot_manager = SlotManager.get_instance()
-    legacy_slots = slot_manager.find_legacy_pth_slots()
-    if not legacy_slots:
-        return
-
-    logger.info("Found %d legacy .pth model(s). Converting to ONNX...", len(legacy_slots))
-    print(f"\nFound {len(legacy_slots)} legacy .pth model(s). Converting to ONNX...")
-
-    pbar = tqdm(total=len(legacy_slots), desc="Converting models to ONNX", unit="model")
-    try:
-        for slot_index, pth_path in legacy_slots:
-            pbar.set_postfix_str(f"Slot {slot_index}: {pth_path.stem[:15]}")
-            try:
-                slot_manager.convert_legacy_slot_to_onnx(slot_index, pth_path)
-            except Exception as e:
-                logger.error("Failed to convert slot %s (%s): %s", slot_index, pth_path, e)
-                print(f"\nWarning: Failed to convert slot {slot_index} ({pth_path.name}): {e}")
-            pbar.update(1)
-    finally:
-        pbar.close()
-
-    slot_manager.reload()
-    logger.info("Legacy .pth models conversion done.")
-    print("Legacy .pth models conversion done.\n")
-
-
 def _check_and_download_initial_samples() -> None:
-    slot_manager = SlotManager.get_instance()
-    valid_slot_infos = [x for x in slot_manager.get_slot_infos() if x.voice_changer_type is not None]
-    if len(valid_slot_infos) == 0:
+    if len(list_models()) == 0:
         logger.info("Sample is not ready. Downloading initial samples.")
         print("Sample is not ready. Downloading initial samples (parallel)...", flush=True)
 

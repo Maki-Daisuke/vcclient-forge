@@ -155,7 +155,11 @@ def test_stop_reports_failure_if_thread_survives_timeout(caplog: pytest.LogCaptu
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("ws_path", ["/api/ws/status", "/api/ws/audio"])
-async def test_stop_disconnects_active_websocket_clients(ws_path: str, caplog: pytest.LogCaptureFixture) -> None:
+async def test_stop_disconnects_active_websocket_clients(
+    ws_path: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    if ws_path == "/api/ws/audio":
+        monkeypatch.setattr("vcclient.voice_changer.session_manager.is_client_session_running", lambda: True)
     server = VCServer(host="127.0.0.1", port=0)
     caplog.set_level(logging.ERROR, logger="asyncio")
     server.start()

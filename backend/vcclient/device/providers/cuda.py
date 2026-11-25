@@ -28,14 +28,14 @@ def setup_cuda_runtime() -> None:
     _cuda_runtime_initialized = True
 
     if sys.platform == "win32":
-        # 1. PyTorch's bundled lib (if CUDA-enabled PyTorch is present)
+        # 1. PyTorch's bundled lib (without importing torch in the pure-ONNX server process)
         try:
-            import torch
-
-            torch_lib = Path(torch.__file__).parent / "lib"
-            if torch_lib.exists():
-                os.add_dll_directory(str(torch_lib))
-                os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
+            spec = importlib.util.find_spec("torch")
+            if spec and spec.submodule_search_locations:
+                torch_lib = Path(list(spec.submodule_search_locations)[0]) / "lib"
+                if torch_lib.exists():
+                    os.add_dll_directory(str(torch_lib))
+                    os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
         except Exception:
             pass
 

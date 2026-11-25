@@ -1,72 +1,47 @@
 import json
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
-import torch
 
-from vcclient.initializer import _check_and_convert_legacy_pth_models
-from vcclient.voice_changer.data_types.slot_manager_data_types import RVCSlotInfo
-from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0
-from vcclient.voice_changer.slot_manager.slot_manager import SlotManager
+from vcclient.voice_changer.model_catalog import get_model_entry, list_models
 from vcclient.voice_changer.voice_changer_const import SLOT_PARAM_FILE
 
 
-@pytest.fixture
-def dummy_rvc_pth(tmp_path: Path) -> Path:
-    """RVC v2 F0 ありの最小チェックポイント (.pth) を生成する"""
-    config = [
-        1025,  # spec_channels
-        32,  # segment_size
-        192,  # inter_channels
-        192,  # hidden_channels
-        768,  # filter_channels
-        2,  # n_heads
-        2,  # n_layers
-        3,  # kernel_size
-        0.0,  # p_dropout
-        "1",  # resblock
-        [3, 7, 11],  # resblock_kernel_sizes
-        [[1, 3, 5], [1, 3, 5], [1, 3, 5]],  # resblock_dilation_sizes
-        [10, 8, 2, 2],  # upsample_rates
-        512,  # upsample_initial_channel
-        [16, 16, 4, 4],  # upsample_kernel_sizes
-        1,  # spk_embed_dim
-        256,  # gin_channels
-        40000,  # sr
-    ]
+@pytest.fixture(scope="module")
+def dummy_rvc_pth(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """RVC v2 F0 ありの最小チェックポイント (.pth) を独立プロセスで生成する"""
+    pth_path = tmp_path_factory.mktemp("legacy_pth") / "dummy_v2_f0.pth"
+    backend_dir = Path(__file__).resolve().parents[1]
+    script = dedent(
+        f"""
+        import torch
+        from vcclient.voice_changer.slot_manager.onnx_exporter.models import SynthesizerTrnF0
 
-    model = SynthesizerTrnF0(
-        spec_channels=config[0],
-        segment_size=config[1],
-        inter_channels=config[2],
-        hidden_channels=config[3],
-        filter_channels=config[4],
-        n_heads=config[5],
-        n_layers=config[6],
-        kernel_size=config[7],
-        p_dropout=config[8],
-        resblock=config[9],
-        resblock_kernel_sizes=config[10],
-        resblock_dilation_sizes=config[11],
-        upsample_rates=config[12],
-        upsample_initial_channel=config[13],
-        upsample_kernel_sizes=config[14],
-        spk_embed_dim=config[15],
-        gin_channels=config[16],
-        sr=config[17],
-        emb_channels=768,
-        is_half=False,
+        config = [
+            1025, 32, 192, 192, 768, 2, 2, 3, 0.0, "1",
+            [3, 7, 11], [[1, 3, 5], [1, 3, 5], [1, 3, 5]],
+            [10, 8, 2, 2], 512, [16, 16, 4, 4], 1, 256, 40000,
+        ]
+        model = SynthesizerTrnF0(
+            spec_channels=config[0], segment_size=config[1], inter_channels=config[2],
+            hidden_channels=config[3], filter_channels=config[4], n_heads=config[5],
+            n_layers=config[6], kernel_size=config[7], p_dropout=config[8], resblock=config[9],
+            resblock_kernel_sizes=config[10], resblock_dilation_sizes=config[11],
+            upsample_rates=config[12], upsample_initial_channel=config[13],
+            upsample_kernel_sizes=config[14], spk_embed_dim=config[15],
+            gin_channels=config[16], sr=config[17], emb_channels=768, is_half=False,
+        )
+        torch.save({{"config": config, "weight": model.state_dict(), "f0": 1, "version": "v2"}}, {str(pth_path)!r})
+        """
     )
-
-    cpt = {
-        "config": config,
-        "weight": model.state_dict(),
-        "f0": 1,
-        "version": "v2",
-    }
-    pth_path = tmp_path / "dummy_v2_f0.pth"
-    torch.save(cpt, pth_path)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(backend_dir), env.get("PYTHONPATH", "")]))
+    subprocess.run([sys.executable, "-c", script], cwd=backend_dir.parent, env=env, check=True, timeout=60)
     return pth_path
 
 
@@ -104,51 +79,43 @@ def test_migration_converts_legacy_pth_slot_with_params_json(dummy_rvc_pth: Path
     }
     (slot_dir / SLOT_PARAM_FILE).write_text(json.dumps(legacy_params, indent=4), encoding="utf-8")
 
-    # ModelDir をモック
-    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
+    # ModelDir / ConfigFile をモック
     monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ConfigFile", tmp_path / "vc_conf.json")
 
-    # SlotManager のシングルトンを再初期化
-    SlotManager._instance = None
-    slot_manager = SlotManager.get_instance()
-
-    # 自動変換を実行
-    _check_and_convert_legacy_pth_models()
+    # model_catalog のスキャンで旧スロットが自動変換・移行されること
+    models = list_models()
+    assert len(models) == 1
+    model, stored, entry_dir = get_model_entry(models[0].id)
 
     # .onnx が生成され、ユーザーの大切な元の .pth も安全に保持されていること
-    expected_onnx = slot_dir / f"{dummy_rvc_pth.stem}.onnx"
+    expected_onnx = entry_dir / f"{dummy_rvc_pth.stem}.onnx"
     assert expected_onnx.exists()
-    assert target_pth.exists()
+    assert (entry_dir / dummy_rvc_pth.name).exists()
 
-    # スロット情報が正しく更新され、ユーザー設定（名前やピッチシフトなど）が引き継がれていること
-    slot_info = slot_manager.get_slot_info(slot_index)
-    assert isinstance(slot_info, RVCSlotInfo)
-    assert slot_info.voice_changer_type == "RVC"
-    assert slot_info.is_onnx is True
-    assert slot_info.inferencer_type == "onnxRVC"
-    assert slot_info.model_file == Path(expected_onnx.name)
-    assert slot_info.name == "My Migrated Character"
-    assert slot_info.pitch_shift == 12
-    assert slot_info.index_ratio == 0.8
-    assert not hasattr(slot_info, "description")
-    assert not hasattr(slot_info, "credit")
-    assert not hasattr(slot_info, "terms_of_use_url")
-    assert not hasattr(slot_info, "protect_ratio")
-    assert not hasattr(slot_info, "speakers")
-    assert not hasattr(slot_info, "deprecated")
-    assert not hasattr(slot_info, "sample_id")
-    dumped = slot_info.model_dump()
-    assert "description" not in dumped
-    assert "credit" not in dumped
-    assert "terms_of_use_url" not in dumped
-    assert "protect_ratio" not in dumped
-    assert "speakers" not in dumped
-    assert "deprecated" not in dumped
-    assert "sample_id" not in dumped
+    # モデル情報が正しく更新され、ユーザー設定（名前やピッチシフトなど）が引き継がれていること
+    assert stored.voice_changer_type == "RVC"
+    assert stored.is_onnx is True
+    assert stored.inferencer_type == "onnxRVC"
+    assert stored.model_file == expected_onnx.name
+    assert model.name == "My Migrated Character"
+    assert model.pitch_shift == 12
+    assert model.index_ratio == 0.8
+    dumped = stored.model_dump()
+    for legacy_key in (
+        "description",
+        "credit",
+        "terms_of_use_url",
+        "protect_ratio",
+        "speakers",
+        "deprecated",
+        "sample_id",
+    ):
+        assert legacy_key not in dumped
 
 
 def test_migration_converts_legacy_pth_slot_without_params_json(dummy_rvc_pth: Path, tmp_path: Path, monkeypatch):
-    """params.json がない、または破損している場合でも、.pth と .index があれば自動で ONNX に変換し params.json を生成することをテスト"""
+    """params.json がない場合でも、.pth と .index があれば自動で ONNX に変換し params.json を生成することをテスト"""
     models_dir = tmp_path / "model_dir"
     slot_index = 5
     slot_dir = models_dir / str(slot_index)
@@ -166,31 +133,29 @@ def test_migration_converts_legacy_pth_slot_without_params_json(dummy_rvc_pth: P
 
     # params.json は意図的に配置しない
 
-    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
     monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ConfigFile", tmp_path / "vc_conf.json")
 
-    SlotManager._instance = None
-    slot_manager = SlotManager.get_instance()
+    models = list_models()
+    assert len(models) == 1
+    model, stored, entry_dir = get_model_entry(models[0].id)
 
-    # 自動変換を実行
-    _check_and_convert_legacy_pth_models()
-
-    expected_onnx = slot_dir / f"{dummy_rvc_pth.stem}.onnx"
+    expected_onnx = entry_dir / f"{dummy_rvc_pth.stem}.onnx"
     assert expected_onnx.exists()
-    assert target_pth.exists()
+    assert (entry_dir / dummy_rvc_pth.name).exists()
 
     # params.json が自動生成され、index と icon も認識されていること
-    slot_info = slot_manager.get_slot_info(slot_index)
-    assert isinstance(slot_info, RVCSlotInfo)
-    assert slot_info.is_onnx is True
-    assert slot_info.inferencer_type == "onnxRVC"
-    assert slot_info.model_file == Path(expected_onnx.name)
-    assert slot_info.index_file == Path(index_file.name)
-    assert slot_info.icon_file == Path(icon_file.name)
+    assert stored.is_onnx is True
+    assert stored.inferencer_type == "onnxRVC"
+    assert stored.model_file == expected_onnx.name
+    assert stored.index_file == index_file.name
+    assert stored.icon_file == icon_file.name
+    assert model.has_index is True
+    assert model.has_icon is True
 
 
-def test_migration_skips_already_converted_slot(dummy_rvc_pth: Path, tmp_path: Path, monkeypatch):
-    """すでに .onnx が存在するスロットは変換処理をスキップすることをテスト"""
+def test_migration_skips_already_converted_slot(tmp_path: Path, monkeypatch):
+    """すでに .onnx が存在するスロットは .pth 変換をスキップして移行されることをテスト"""
     models_dir = tmp_path / "model_dir"
     slot_index = 7
     slot_dir = models_dir / str(slot_index)
@@ -200,27 +165,62 @@ def test_migration_skips_already_converted_slot(dummy_rvc_pth: Path, tmp_path: P
     onnx_file = slot_dir / "my_model.onnx"
     onnx_file.write_bytes(b"dummy onnx content")
 
-    slot_info = RVCSlotInfo(
-        slot_index=slot_index,
-        name="Already ONNX",
-        voice_changer_type="RVC",
-        model_file=Path(onnx_file.name),
-        is_onnx=True,
-        inferencer_type="onnxRVC",
-        sample_rate=40000,
-        is_f0=True,
-    )
-    (slot_dir / SLOT_PARAM_FILE).write_text(slot_info.model_dump_json(indent=4), encoding="utf-8")
+    legacy_params = {
+        "name": "Already ONNX",
+        "voice_changer_type": "RVC",
+        "model_file": onnx_file.name,
+        "is_onnx": True,
+        "inferencer_type": "onnxRVC",
+        "sample_rate": 40000,
+        "is_f0": True,
+        "embedder": "hubert_base_l12",
+    }
+    (slot_dir / SLOT_PARAM_FILE).write_text(json.dumps(legacy_params, indent=4), encoding="utf-8")
 
-    monkeypatch.setattr("vcclient.voice_changer.slot_manager.slot_manager.ModelDir", models_dir)
     monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ConfigFile", tmp_path / "vc_conf.json")
+    monkeypatch.setattr(
+        "vcclient.voice_changer.model_catalog.model_catalog_manager.export_pth_to_onnx",
+        lambda *_args, **_kwargs: pytest.fail("export_pth_to_onnx should not be called"),
+    )
 
-    SlotManager._instance = None
-    slot_manager = SlotManager.get_instance()
+    models = list_models()
+    assert len(models) == 1
+    model, stored, entry_dir = get_model_entry(models[0].id)
+    assert model.name == "Already ONNX"
+    assert stored.model_file == onnx_file.name
+    assert (entry_dir / onnx_file.name).exists()
 
-    # find_legacy_pth_slots が空であること
-    assert slot_manager.find_legacy_pth_slots() == []
 
-    # _check_and_convert_legacy_pth_models が何もしないこと
-    _check_and_convert_legacy_pth_models()
-    assert onnx_file.exists()
+def test_migration_updates_legacy_pth_version_to_exported_onnx_version(
+    dummy_rvc_pth: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure legacy .pth checkpoint version tags (e.g. 'v2') are replaced by the exported ONNX schema version."""
+    models_dir = tmp_path / "model_dir"
+    slot_dir = models_dir / "2"
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    target_pth = slot_dir / dummy_rvc_pth.name
+    shutil.copy(dummy_rvc_pth, target_pth)
+
+    legacy_params = {
+        "voice_changer_type": "RVC",
+        "name": "Legacy PTH With Full Meta",
+        "model_file": target_pth.name,
+        "is_onnx": False,
+        "inferencer_type": "pyTorchRVC",
+        "sample_rate": 40000,
+        "is_f0": True,
+        "embedder": "hubert_base_l12",
+        "version": "v2",
+    }
+    (slot_dir / SLOT_PARAM_FILE).write_text(json.dumps(legacy_params, indent=4), encoding="utf-8")
+
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ConfigFile", tmp_path / "vc_conf.json")
+
+    models = list_models()
+    assert len(models) == 1
+    assert models[0].version == "v2.1"
+    _, stored, _ = get_model_entry(models[0].id)
+    assert stored.version == "v2.1"
+    assert stored.inferencer_type == "onnxRVC"

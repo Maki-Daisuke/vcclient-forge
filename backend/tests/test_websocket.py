@@ -14,12 +14,26 @@ from vcclient.server import vcserver_websocket
 from vcclient.voice_changer.event_emitter import EventEmitter
 
 
+def test_audio_websocket_rejects_without_active_client_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("vcclient.voice_changer.session_manager.is_client_session_running", lambda: False)
+
+    app = FastAPI()
+    hub = vcserver_websocket.WebSocketHub()
+    app.include_router(hub.router)
+
+    with pytest.raises(Exception) as exc_info:
+        with TestClient(app).websocket_connect("/api/ws/audio") as ws:
+            ws.receive_bytes()
+    assert getattr(exc_info.value, "code", None) == 1008
+
+
 def test_audio_websocket_returns_bulk_conversion_to_sender(monkeypatch: pytest.MonkeyPatch) -> None:
     voice = MagicMock()
-    voice.is_convert_chunk_bulk_started.return_value = False
+    voice.is_convert_chunk_bulk_started.return_value = True
     expected_audio = np.array([0.25, -0.5], dtype=np.float32)
     voice.convert_chunk_bulk.return_value = (expected_audio, None)
-    monkeypatch.setattr(vcserver_websocket.VoiceChanger, "get_instance", lambda: voice)
+    monkeypatch.setattr("vcclient.voice_changer.session_manager.is_client_session_running", lambda: True)
+    monkeypatch.setattr(vcserver_websocket.VoiceChanger, "peek_instance", classmethod(lambda cls: voice))
     monkeypatch.setattr(vcserver_websocket.LocalVoiceChangerInterface, "get_instance", EventEmitter)
 
     app = FastAPI()
@@ -31,7 +45,6 @@ def test_audio_websocket_returns_bulk_conversion_to_sender(monkeypatch: pytest.M
         ws.send_bytes(input_audio.tobytes())
         received = ws.receive_bytes()
 
-    voice.start_convert_chunk_bulk.assert_called_once_with()
     np.testing.assert_array_equal(voice.convert_chunk_bulk.call_args.args[0], input_audio)
     assert received == expected_audio.astype("<f4").tobytes()
 
@@ -41,7 +54,8 @@ def test_audio_websocket_without_converted_output_sends_no_response(monkeypatch:
     voice = MagicMock()
     voice.is_convert_chunk_bulk_started.return_value = True
     voice.convert_chunk_bulk.side_effect = [(None, None), (expected_audio, None)]
-    monkeypatch.setattr(vcserver_websocket.VoiceChanger, "get_instance", lambda: voice)
+    monkeypatch.setattr("vcclient.voice_changer.session_manager.is_client_session_running", lambda: True)
+    monkeypatch.setattr(vcserver_websocket.VoiceChanger, "peek_instance", classmethod(lambda cls: voice))
     monkeypatch.setattr(vcserver_websocket.LocalVoiceChangerInterface, "get_instance", EventEmitter)
 
     app = FastAPI()
@@ -55,7 +69,6 @@ def test_audio_websocket_without_converted_output_sends_no_response(monkeypatch:
         ws.send_bytes(second_input.tobytes())
         received = ws.receive_bytes()
 
-    voice.start_convert_chunk_bulk.assert_not_called()
     assert voice.convert_chunk_bulk.call_count == 2
     assert received == expected_audio.astype("<f4").tobytes()
 
@@ -65,7 +78,8 @@ def test_audio_websocket_ignores_unaligned_binary_frame(monkeypatch: pytest.Monk
     voice = MagicMock()
     voice.is_convert_chunk_bulk_started.return_value = True
     voice.convert_chunk_bulk.return_value = (expected_audio, None)
-    monkeypatch.setattr(vcserver_websocket.VoiceChanger, "get_instance", lambda: voice)
+    monkeypatch.setattr("vcclient.voice_changer.session_manager.is_client_session_running", lambda: True)
+    monkeypatch.setattr(vcserver_websocket.VoiceChanger, "peek_instance", classmethod(lambda cls: voice))
     monkeypatch.setattr(vcserver_websocket.LocalVoiceChangerInterface, "get_instance", EventEmitter)
 
     app = FastAPI()

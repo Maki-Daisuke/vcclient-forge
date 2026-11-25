@@ -1,4 +1,5 @@
 import { expect, test, type Page } from './test-fixtures';
+import { openControlSections } from './catalog-fixtures';
 import { mockSession, readMultipart } from './session-fixtures';
 
 async function trackMultipartUpload(page: Page) {
@@ -13,7 +14,7 @@ async function trackMultipartUpload(page: Page) {
     };
     window.XMLHttpRequest = class extends NativeXHR {
       open(method: string, url: string | URL, ...rest: unknown[]) {
-        if (method === 'POST' && String(url) === '/api/slot-manager/slots') uploads.push(this.upload);
+        if (method === 'POST' && String(url) === '/api/models') uploads.push(this.upload);
         return super.open(method, url, ...(rest as [boolean, string?, string?]));
       }
     } as typeof XMLHttpRequest;
@@ -29,7 +30,7 @@ async function pauseSlotPost(page: Page, finish: (route: import('@playwright/tes
   const gate = new Promise<void>(resolve => { release = resolve; });
   let markIntercepted!: () => void;
   const intercepted = new Promise<void>(resolve => { markIntercepted = resolve; });
-  await page.route('**/api/slot-manager/slots', async route => {
+  await page.route('**/api/models', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     markIntercepted();
     await gate;
@@ -45,24 +46,23 @@ async function openUpload(page: Page) {
 
 test('uploads model and optional index in one multipart request and reloads the model list', async ({ page }) => {
   const state = await mockSession(page);
-  const requests: { voiceChangerType: FormDataEntryValue | null; name: FormDataEntryValue | null; modelName: string; modelSize: number; indexName: string | null; indexBytes: string | null }[] = [];
-  await page.route('**/api/slot-manager/slots', async route => {
+  const requests: { name: FormDataEntryValue | null; modelName: string; modelSize: number; indexName: string | null; indexBytes: string | null }[] = [];
+  await page.route('**/api/models', async route => {
     if (route.request().method() !== 'POST') return route.fallback();
     const form = await readMultipart(route.request());
     const modelFile = form.get('model_file') as File;
     const indexFile = form.get('index_file');
     const name = String(form.get('name'));
     requests.push({
-      voiceChangerType: form.get('voice_changer_type'),
       name: form.get('name'),
       modelName: modelFile.name,
       modelSize: modelFile.size,
       indexName: indexFile instanceof File ? indexFile.name : null,
       indexBytes: indexFile instanceof File ? await indexFile.text() : null,
     });
-    const created = { ...state.models[2], slot_index: 3, name };
+    const created = { ...state.models[0], id: 'model_c', name };
     state.models.push(created);
-    await route.fulfill({ json: created });
+    await route.fulfill({ status: 201, json: created });
   });
   await page.goto('/');
   const dialog = await openUpload(page);
@@ -71,7 +71,6 @@ test('uploads model and optional index in one multipart request and reloads the 
   await dialog.getByRole('button', { name: 'アップロード', exact: true }).click();
   await expect(dialog.getByRole('status')).toHaveText('モデルを追加しました。');
   expect(requests).toEqual([{
-    voiceChangerType: 'RVC',
     name: 'voice',
     modelName: 'voice.PTH',
     modelSize: 4 * 1024 * 1024 + 1,
@@ -84,9 +83,9 @@ test('uploads model and optional index in one multipart request and reloads the 
 
 test('reports HTTP error when multipart upload fails', async ({ page }) => {
   await mockSession(page);
-  await page.route('**/api/slot-manager/slots', route => {
+  await page.route('**/api/models', route => {
     if (route.request().method() !== 'POST') return route.fallback();
-    return route.fulfill({ status: 503, json: { detail: 'upload failed' } });
+    return route.fulfill({ status: 503, json: { code: 'internal_error', message: 'upload failed' } });
   });
   await page.goto('/');
   const dialog = await openUpload(page);
@@ -127,11 +126,38 @@ test('reports an upload error instead of uncertain when connection drops mid-upl
   await expect(dialog.getByRole('button', { name: 'アップロード', exact: true })).toBeEnabled();
 });
 
-test('does not allow upload while native audio is running', async ({ page }) => {
+test('allows uploading a model while native audio is running', async ({ page }) => {
+  const emitProgress = await trackMultipartUpload(page);
   const state = await mockSession(page);
   state.active = true;
+  const { intercepted, release } = await pauseSlotPost(page, async route => {
+    const form = await readMultipart(route.request());
+    const created = { ...state.models[0], id: 'model_c', name: String(form.get('name')) };
+    state.models.push(created);
+    await route.fulfill({ status: 201, json: created });
+  });
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'アップロード', exact: true }).first()).toBeDisabled();
+  await openControlSections(page);
+  await expect(page.getByRole('button', { name: 'アップロード', exact: true }).first()).toBeEnabled();
+  const dialog = await openUpload(page);
+  await dialog.getByLabel('モデルファイルを選択').setInputFiles({ name: 'voice.onnx', mimeType: 'application/octet-stream', buffer: Buffer.from('data') });
+  await dialog.getByRole('button', { name: 'アップロード', exact: true }).click();
+  await intercepted;
+  await emitProgress(4, 4);
+  await expect(dialog.getByRole('status')).toContainText('登録しています');
+  await dialog.getByRole('button', { name: '閉じる', exact: true }).last().click();
+
+  await expect(page.getByRole('button', { name: 'パススルー' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '録音', exact: true })).toBeEnabled();
+  const inputGain = page.getByRole('slider', { name: '入力音量', exact: true });
+  await expect(inputGain).toBeEnabled();
+  await inputGain.press('ArrowRight');
+  await expect.poll(() => state.sessionWrites.length).toBe(1);
+  expect(state.sessionWrites[0].input_gain).toBe(2.71);
+
+  release();
+  await expect(page.getByRole('button', { name: 'voice', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
 });
 
 test('blocks start and changes while registration is running', async ({ page }) => {

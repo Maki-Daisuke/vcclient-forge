@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from typing import Any
 
 import numpy as np
@@ -32,13 +33,22 @@ def _enqueue_latest(queue: asyncio.Queue[str | None], payload: str | None) -> No
         pass
 
 
+def _enqueue_close(queue: asyncio.Queue[tuple[int, str] | None], signal: tuple[int, str] | None) -> None:
+    try:
+        queue.put_nowait(signal)
+    except asyncio.QueueFull:
+        pass
+
+
 class WebSocketHub:
     """Manages native FastAPI WebSocket endpoints for realtime telemetry and audio streaming."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._status_clients: dict[WebSocket, tuple[asyncio.AbstractEventLoop, asyncio.Queue[str | None]]] = {}
-        self._audio_clients: set[WebSocket] = set()
+        self._audio_clients: dict[
+            WebSocket, tuple[asyncio.AbstractEventLoop, asyncio.Queue[tuple[int, str] | None], threading.Event]
+        ] = {}
         self.router = APIRouter()
         self.router.add_api_websocket_route("/api/ws/status", self.websocket_status)
         self.router.add_api_websocket_route("/api/ws/audio", self.websocket_audio)
@@ -106,13 +116,72 @@ class WebSocketHub:
                 self._status_clients.pop(websocket, None)
 
     async def websocket_audio(self, websocket: WebSocket) -> None:
-        await websocket.accept()
-        with self._lock:
-            self._audio_clients.add(websocket)
+        from vcclient.voice_changer.session_manager import is_client_session_running
 
+        if not is_client_session_running():
+            await websocket.accept()
+            await websocket.close(code=1008)
+            return
+
+        loop = asyncio.get_running_loop()
+        close_queue: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue(maxsize=4)
+        closed_event = threading.Event()
+        entry = (loop, close_queue, closed_event)
+
+        with self._lock:
+            previous_clients = list(self._audio_clients.values())
+            self._audio_clients.clear()
+            self._audio_clients[websocket] = entry
+
+        for prev_loop, prev_queue, _ in previous_clients:
+            if not prev_loop.is_closed():
+                try:
+                    prev_loop.call_soon_threadsafe(_enqueue_close, prev_queue, (4001, "superseded"))
+                except RuntimeError:
+                    pass
+
+        if previous_clients:
+            deadline = time.monotonic() + 1.0
+            for _, _, prev_closed in previous_clients:
+                while not prev_closed.is_set() and time.monotonic() < deadline:
+                    await asyncio.sleep(0.005)
+            vc_existing = VoiceChanger.peek_instance()
+            if vc_existing is not None:
+                vc_existing.reset_client_stream_buffers()
+
+        await websocket.accept()
+
+        def _cleanup_task[T](task: asyncio.Task[T]) -> None:
+            if not task.done():
+                task.cancel()
+                task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
+            elif not task.cancelled():
+                task.exception()
+
+        close_task = asyncio.create_task(close_queue.get())
         try:
             while True:
-                message = await websocket.receive()
+                receive_task = asyncio.create_task(websocket.receive())
+                try:
+                    done, pending = await asyncio.wait(
+                        {receive_task, close_task},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                except BaseException:
+                    _cleanup_task(receive_task)
+                    raise
+                if close_task in done:
+                    _cleanup_task(receive_task)
+                    signal = close_task.result()
+                    if signal is not None:
+                        close_code, close_reason = signal
+                        try:
+                            await websocket.close(code=close_code, reason=close_reason)
+                        except Exception:
+                            pass
+                    break
+
+                message = receive_task.result()
                 if message["type"] == "websocket.disconnect":
                     break
                 data = message.get("bytes")
@@ -124,9 +193,9 @@ class WebSocketHub:
 
                 try:
                     unpacked_data = np.frombuffer(data, dtype="<f4").astype(np.float32, copy=True)
-                    vc = VoiceChanger.get_instance()
-                    if not vc.is_convert_chunk_bulk_started():
-                        vc.start_convert_chunk_bulk()
+                    vc = VoiceChanger.peek_instance()
+                    if vc is None or not vc.is_convert_chunk_bulk_started():
+                        continue
                     converted_np, _ = vc.convert_chunk_bulk(unpacked_data)
                 except Exception as e:
                     logger.error("Error processing audio WebSocket message: %s", e)
@@ -138,14 +207,37 @@ class WebSocketHub:
         except WebSocketDisconnect, RuntimeError:
             pass
         finally:
+            # Cancel synchronously without awaiting so Starlette TestClient's
+            # disconnect cancel-scope cleanup is never interrupted on exit.
+            _cleanup_task(close_task)
             with self._lock:
-                self._audio_clients.discard(websocket)
+                if self._audio_clients.get(websocket) is entry:
+                    self._audio_clients.pop(websocket, None)
+            closed_event.set()
+
+    def close_audio_clients(self, code: int = 1000, reason: str = "") -> None:
+        with self._lock:
+            entries = list(self._audio_clients.values())
+            self._audio_clients.clear()
+
+        for loop, close_queue, _ in entries:
+            if not loop.is_closed():
+                try:
+                    loop.call_soon_threadsafe(_enqueue_close, close_queue, (code, reason))
+                except RuntimeError:
+                    pass
+
+        deadline = time.monotonic() + 2.0
+        for _, _, closed_event in entries:
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                closed_event.wait(timeout=remaining)
 
     async def close_all(self, code: int = 1001) -> None:
         with self._lock:
             status_entries = list(self._status_clients.items())
             self._status_clients.clear()
-            audio_entries = list(self._audio_clients)
+            audio_entries = list(self._audio_clients.items())
             self._audio_clients.clear()
 
         for websocket, (loop, queue) in status_entries:
@@ -159,8 +251,13 @@ class WebSocketHub:
                 except RuntimeError:
                     pass
 
-        for websocket in audio_entries:
+        for websocket, (loop, close_queue, _) in audio_entries:
             try:
                 await websocket.close(code=code)
             except Exception:
                 pass
+            if not loop.is_closed():
+                try:
+                    loop.call_soon_threadsafe(_enqueue_close, close_queue, None)
+                except RuntimeError:
+                    pass

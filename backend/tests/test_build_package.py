@@ -87,6 +87,7 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert not Path(freeze[0]).is_relative_to(package)
     assert str(tmp_path / "package.json") + ":vcclient" in freeze
     assert "vcclient.server.vcserver_websocket" in freeze
+    assert "vcclient.voice_changer.slot_manager.onnx_exporter" in freeze
     assert "engineio.async_drivers.asgi" not in freeze
     assert ("nvidia.cudnn" in freeze) == (edition == "cuda")
     assert ("nvidia.cu13" in freeze) == (edition == "cuda")
@@ -303,6 +304,24 @@ def test_main_starts_server_with_parsed_arguments(
 
     start_server_mock.assert_called_once()
     assert start_server_mock.call_args.kwargs["port"] == expected_port
+
+
+def test_main_dispatches_export_onnx_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
+    import main as entrypoint
+
+    export_mock = Mock(return_value=0)
+    start_server_mock = Mock()
+    monkeypatch.setattr(entrypoint, "run_export_onnx", export_mock)
+    monkeypatch.setattr(entrypoint, "start_server", start_server_mock)
+    monkeypatch.setattr(entrypoint.mp, "freeze_support", Mock())
+    monkeypatch.setattr(entrypoint.sys, "argv", ["main.exe", "export-onnx", "in.pth", "out.onnx"])
+
+    with pytest.raises(SystemExit) as error:
+        entrypoint.main()
+
+    assert error.value.code == 0
+    export_mock.assert_called_once_with(["in.pth", "out.onnx"])
+    start_server_mock.assert_not_called()
 
 
 def test_const_get_version_reads_package_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

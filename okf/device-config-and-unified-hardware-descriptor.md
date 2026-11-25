@@ -163,9 +163,11 @@ class DeviceConfig(BaseModel):
 
 ---
 
-## 4. UI & API Integration: REST Contract & Frontend Compatibility
+## 4. UI & API Integration: REST Contract & Storage Compatibility
 
-The Catalog Index design originally maintained drop-in compatibility with the bundled legacy frontends (`web_front/`) and continues to serve the Svelte 5 UI (`frontend/`) and REST API clients through the `gpu_device_id_int` configuration field:
+> **Domain API Update**: The Svelte 5 UI (`frontend/`) and REST API now expose the catalog at `GET /api/devices/compute` (`POST /api/devices/compute/reload`, `POST /api/devices/compute/auto-select`) and use `compute_device_id` on `/api/settings` and `/api/session`. `gpu_device_id_int` remains in `settings/vc_conf.json` and is accepted as a Pydantic validation alias; the legacy `/api/gpu-device-manager/devices` and `/api/configuration-manager/configuration` routes described in the historical diagram below have been removed.
+
+Historically, the Catalog Index design maintained drop-in compatibility with the bundled legacy frontends (`web_front/`) and served REST API clients through `gpu_device_id_int`:
 
 ```mermaid
 sequenceDiagram

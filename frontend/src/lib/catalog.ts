@@ -1,7 +1,7 @@
 import type { ConfigurationSnapshot, ModelSettingsSnapshot } from './settings';
 
 export interface ModelSummary {
-  id: number;
+  id: string;
   name: string;
   imageUrl: string | null;
   status: 'ready' | 'pending' | 'broken' | 'unsupported';
@@ -11,8 +11,9 @@ export interface ModelSummary {
 
 export interface ModelCatalog {
   models: ModelSummary[];
-  currentModelId: number | null;
+  currentModelId: string | null;
   settings: ConfigurationSnapshot;
+  settingsEtag: string | null;
 }
 
 export type CatalogLoader = (signal: AbortSignal) => Promise<ModelCatalog>;

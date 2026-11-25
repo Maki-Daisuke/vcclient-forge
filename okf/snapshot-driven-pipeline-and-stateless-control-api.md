@@ -15,15 +15,14 @@ tags:
 
 # Snapshot-Driven Conversion Engine & Decoupled Storage/Device APIs
 
-> **Implementation Status Notice (as of `v2.0.78-forge.0.3.0`)**:
-> This document defines a **planned target architecture** and is **not yet implemented**.
-> The current backend runtime state remains coupled to `ConfigurationManager` (`settings/vc_conf.json`) and `SlotManager` (`model_dir/<slot>/params.json`), `PUT` configuration/slot updates trigger implicit `VoiceChanger.check_and_update_pipeline()` calls without full synchronization against conversion threads, and compute-device auto-selection (`initializer._select_initial_compute_device()`) runs only when `vc_conf.json` is absent on startup.
+> **Implementation Status Notice (Implemented)**:
+> This architecture is **implemented** across `backend/vcclient/voice_changer/session_manager/`, `backend/vcclient/voice_changer/model_catalog/`, `backend/vcclient/voice_changer/settings_manager/`, `backend/vcclient/server/vcserver_rest_api*.py`, `backend/vcclient/server/vcserver_websocket.py`, and the Svelte 5 frontend (`frontend/`). All legacy `/api/*-manager/*`, `/output.wav`, `/vcclient.log`, and raw `/model_dir/` HTTP routes have been removed, while backward compatibility with existing `settings/vc_conf.json` and `model_dir/<slot>/params.json` files is preserved inside the storage and startup-migration layer.
 
 ---
 
 ## 1. Executive Summary
 
-To prepare VCClient Forge for **concurrent hybrid pipelining** and **alternative client UIs**, the backend control layer should be abstracted behind clean voice-conversion domain contracts and decoupled into three independent concerns:
+To prepare VCClient Forge for **concurrent hybrid pipelining** and **alternative client UIs**, the backend control layer is abstracted behind voice-conversion domain contracts and decoupled into three orthogonal concerns:
 
 1. **Snapshot-Driven Conversion Engine**: The conversion backend exposes a declarative REST session resource—**`PUT /api/session`** (engine `run(snapshot)`), **`DELETE /api/session`** (engine `stop()`), and **`GET /api/session`**—rather than reading persisted `settings/` or model catalog files. When stopped, `PUT /api/session` builds and runs the pipeline; while active, calling `PUT /api/session` again either applies live-safe changes atomically or rejects rebuild-requiring changes with `409 Conflict`. The client simply does not call `PUT /api/session` while conversion is intended to stay stopped (only persisting via storage).
 2. **Side-Effect-Free Storage API (Legacy Config Compatibility)**: Persisting `vc_conf.json` and per-slot `params.json` becomes purely a storage service—primarily to preserve configuration-file backward compatibility with earlier versions and portable upgrades—never touching `VoiceChanger`, pipelines, or audio streams.
@@ -33,9 +32,9 @@ Across all three subsystems, two **API boundary principles** govern the contract
 
 ---
 
-## 2. Diagnosis of the Current Architecture
+## 2. Historical Motivation: Pre-Refactor Control Coupling
 
-Inspection of the current codebase reveals six structural couplings that hinder thread safety, API abstraction, alternative UIs, and parallel pipelining:
+Prior to the Domain API refactoring, inspection of the legacy codebase revealed six structural couplings that hindered thread safety, API abstraction, alternative UIs, and parallel pipelining:
 
 ### 2.1 Mixed Responsibilities in Single DTOs
 
@@ -71,7 +70,7 @@ Inspection of the current codebase reveals six structural couplings that hinder 
 ### 2.6 Implementation-Exposed Contracts & Client-Enforced Safety
 
 - **Backend-class URLs and leaked internals**: Route namespaces mirror Python class names (`/api/slot-manager/*`, `/api/configuration-manager/configuration`, `/api/voice-changer-manager/information`, `/api/local-voice-changer-interface/*`, `/api/audio-device-manager/*`, `/api/gpu-device-manager/devices`; see [`api-reference.md`](./api-reference.md)). Schemas expose internal runtime flags (`local_voice_changer_interface_active`, `bulk_process_start_flag`) and ONNX execution structures (`candidate_onnx_providers`, `onnx_providers`).
-- **Directory-coupled model IDs**: Models are identified by mutable disk slot indices (`0..198` under `model_dir/<slot>`), so deletions and drag-and-drop compaction via [`ModelTransaction`](../backend/vcclient/voice_changer/slot_manager/reorder_transaction.py) shift caller-held references.
+- **Directory-coupled model IDs**: Models are identified by mutable disk slot indices (`0..198` under `model_dir/<slot>`), so deletions and drag-and-drop compaction via `ModelTransaction` shift caller-held references.
 - **Safety and ordering workarounds pushed to the UI**: Because `PUT` writes return `null`, omit server-side active guards or sample-rate cutoff validation on key paths, and silently roll back `conf.current_slot_index` on model-load failure ([`voice_changer.py`](../backend/vcclient/voice_changer/voice_change_manager/voice_changer.py)), [`api.ts`](../frontend/src/lib/api.ts) performs pre-checks (`readNativeActive()`, `filterKeys` bounds), preserves unknown fields across full-DTO `PUT` writes followed by readback confirmation, and [`session.svelte.ts`](../frontend/src/lib/session.svelte.ts) orders staged writes (`applyStagedSettings()`) client-side to avoid double rebuilds.
 
 ---
@@ -133,7 +132,7 @@ flowchart TD
    - Recording is controlled by a non-persistent boolean in the session snapshot. Starting with recording enabled starts recording with conversion; while running, changing the value from false to true starts recording and true to false finalizes it. Repeating an unchanged snapshot does not restart or finalize recording again.
    - `DELETE /api/session` stops audio and finalizes any active recording before the session is torn down. The completed recording remains retrievable after the session ends via `GET /api/recordings/latest` (retaining the latest single recording on disk; returning `409 Conflict` with `code: "recording_in_progress"` while recording is active and `404 Not Found` when absent). Empty recordings do not trigger a download in the UI. If client audio fails to start after a session has begun, the client stops the session so recording and other resources are finalized or released.
    - In Client Mode, a newly accepted audio WebSocket replaces and closes the previous audio connection using application-defined WebSocket close code `4001` (reason `"superseded"`), allowing the replaced client to distinguish handoff from an unexpected disconnect (`1006`) and avoid reconnect loops (`DELETE /api/session` closes cleanly with code `1000`). The conversion session and recording continue across this handoff and across an unexpected audio-socket disconnect, allowing a reloaded browser to reconnect. Cleanup from the old connection must not stop the session or close the replacement connection, and stale output from the previous connection must not be played after handoff. Audio not sent while disconnected is not recorded.
-   - The separate `POST /api/voice-changer/operation/start_recording` and `POST /api/voice-changer/operation/stop_recording` endpoints have been removed. Until the session API is implemented, the UI controls recording through `recording_started` in the configuration API; it will migrate to the session snapshot.
+   - Separate `POST /api/voice-changer/operation/start_recording` and `POST /api/voice-changer/operation/stop_recording` endpoints are removed; recording is controlled directly through the non-persistent `recording` boolean on `/api/session`.
 2. **Self-Contained Runtime Snapshot**:
    - The client passes a complete snapshot containing everything needed to configure and run conversion: selected `model_id` (immutable NanoID), model conversion parameters (`pitch_shift`, `index_ratio`, `chunk_sec`, `pitch_estimator`), inference/timing parameters (`compute_device_id`, `extra_frame_sec`), DSP parameters (gains, filters, noise gate, `pass_through`), `recording` state, audio routing (`input_mode`, device IDs, rates, `wasapi_exclusive`, monitor enablement), and telemetry flags (see [Section 5.4](#54-clean-domain-schemas--legacy-field-retirement)). Recording and passthrough state are excluded from persisted configuration and default to off after application startup.
    - `RVCPipeline` and worker threads read **only** from the engine-owned active snapshot—never querying `ConfigurationManager` or `SlotManager.get_slot_info()` during inference. Model catalog metadata (`model_file`, `sample_rate`, `is_f0`, `embedder`, `.index` path) is resolved cleanly from the catalog when constructing a session on stopped `PUT /api/session`.
@@ -181,7 +180,7 @@ sequenceDiagram
   1. **Legacy File Layout & Schema Compatibility**: Existing users and upgraded installations rely on `settings/vc_conf.json` and legacy `model_dir/<slot>/params.json` files migrating/loading cleanly across versions. Retaining backend persistence keeps legacy path migration, default-filling, and old-value normalization isolated inside the storage layer rather than leaking legacy file-format compatibility branches into the snapshot-driven conversion engine or wire DTOs.
   2. **Portable Folder Upgrades**: Users can continue upgrading by copying `settings/` and `model_dir/` from older versions into a new release folder ([`README.txt`](../docs/README.txt)).
   3. **Manual Preference Reset**: Users can reset broken preferences by renaming `settings/` to `settings.bak/` without clearing WebView caches.
-  4. **Model Directory & Catalog Integrity**: Naming each model folder `model_dir/{sanitized_name} - {id}/` and storing display order in `model_dir/catalog.json` keeps per-model defaults (`pitch_shift`, `index_ratio`, `chunk_sec`, etc.) co-located in each model's `params.json` while eliminating [`ModelTransaction`](../backend/vcclient/voice_changer/slot_manager/reorder_transaction.py) numeric folder compaction and `.model-order-transaction/` recovery journals on reorder.
+  4. **Model Directory & Catalog Integrity**: Naming each model folder `model_dir/{sanitized_name} - {id}/` and storing display order in `model_dir/catalog.json` keeps per-model defaults (`pitch_shift`, `index_ratio`, `chunk_sec`, etc.) co-located in each model's `params.json`. New reorders no longer move numbered folders or create `.model-order-transaction/` journals; startup still recovers journals left by older versions.
   5. **Cross-Origin Local Sharing**: Desktop WebView windows and regular browser tabs on the same host share stored presets regardless of port or browser origin.
 - Crucially, reading or writing these storage files (`/api/settings`, `/api/models*`) is **pure persistence**: it **never** triggers pipeline rebuilds, device checks, or audio restarts, leaving the conversion engine coupled only to the active runtime snapshot schema.
 
@@ -194,10 +193,10 @@ sequenceDiagram
 
 ---
 
-## 5. Planned Domain API Specification
+## 5. Domain API Specification
 
-> **Planned Target Specification (Not Yet Implemented)**:
-> This section records the target HTTP and WebSocket API design intended to replace the current `/api/*-manager/*` routes documented in [`api-reference.md`](./api-reference.md).
+> **Implemented Specification ([`api-reference.md`](./api-reference.md))**:
+> This section documents the Domain HTTP and WebSocket API design implemented in `backend/vcclient/server/` to replace all legacy `/api/*-manager/*` routes.
 
 ### 5.1 Common Contract Rules
 
@@ -228,7 +227,7 @@ Representative snake-case error `code` values include: `validation_error`, `etag
 | Models | `GET` | `/api/models` | — | `200` `Model[]` ordered according to `model_dir/catalog.json` |
 | Models | `POST` | `/api/models` | `multipart/form-data` (`.onnx`/`.pth`, optional `.index`, optional icon, metadata) | `201` `Model` (`ETag`); assigns immutable NanoID and creates `model_dir/{sanitized_name} - {id}/` |
 | Models | `GET` | `/api/models/{id}` | — | `200` `Model` (`ETag`); `404` (`model_not_found`) if absent |
-| Models | `PUT` | `/api/models/{id}` | JSON `ModelUpdate` (optional `If-Match`) | `200` `Model` (`ETag`); `409` (`model_in_use`) if `name` changes while `{id}` is active in a `starting`/`running` session; parameter updates allowed anytime (pure persistence) |
+| Models | `PUT` | `/api/models/{id}` | JSON `ModelUpdate` (optional `If-Match`) | `200` `Model` (`ETag`); parameter updates and renaming allowed while `running` (`409` `model_in_use` if `{id}` is in a `starting` session or its directory is locked) |
 | Models | `DELETE` | `/api/models/{id}` | Optional `If-Match` | `204 No Content`; `409` (`model_in_use`) if `{id}` is active in a `starting`/`running` session |
 | Models | `GET` | `/api/models/{id}/icon` | — | `200` image binary (`image/*`); `404` if model or icon absent |
 | Models | `PUT` | `/api/models/{id}/icon` | Image upload (`image/*` or `multipart/form-data`, optional `If-Match`) | `200` `Model` (`ETag`); atomically replaces previous icon file |
@@ -249,10 +248,10 @@ Representative snake-case error `code` values include: `validation_error`, `etag
 ### 5.3 Model Storage Layout, Icon Serving & Legacy Migration
 
 - **Model ID (`NanoID`)**: Each model carries a short URL- and filename-safe alphanumeric NanoID stored as `id` inside `params.json`. Because `id` never changes on rename, reorder, or sibling deletion, client selections and `/api/session` snapshots remain stable.
-- **Human-readable directories (`model_dir/{sanitized_name} - {id}/`)**: Storing models under `{sanitized_name} - {id}` lets users locate models directly in file explorers for backup or sharing without relying on binary model inspection or numeric prefixes. Updating `name` via `PUT /api/models/{id}` renames the directory; renaming or deleting a model currently held by a `starting`/`running` session returns `409 Conflict` (`code: "model_in_use"`) to avoid Windows open file-handle failures.
-- **Catalog file (`model_dir/catalog.json`)**: Stores model ordering (`order: string[]`) and future catalog-level metadata outside individual `params.json` files. On scan, missing IDs are pruned and newly present model folders are appended cleanly, retiring `ModelTransaction` and `.model-order-transaction/` journals.
+- **Human-readable directories (`model_dir/{sanitized_name} - {id}/`)**: Storing models under `{sanitized_name} - {id}` lets users locate models directly in file explorers for backup or sharing without relying on binary model inspection or numeric prefixes. Updating `name` via `PUT /api/models/{id}` renames the directory (allowed while `running`, since loaded weights and FAISS indices are already closed in memory; blocked with `409 Conflict` / `model_in_use` during `starting` or if OS file handles remain locked), while deleting an active model during `starting`/`running` returns `409 Conflict` (`code: "model_in_use"`).
+- **Catalog file (`model_dir/catalog.json`)**: Stores model ordering (`order: string[]`) and future catalog-level metadata outside individual `params.json` files. On scan, missing IDs are pruned and newly present model folders are appended. New reorders do not use the legacy transaction journal.
 - **Icon serving without `/model_dir/` exposure**: Removing the raw `/model_dir/` `StaticFiles` mount and serving icons exclusively through `GET /api/models/{id}/icon` isolates internal filenames, prevents unmediated access to `.onnx`/`.index` artifacts, and pairs with `icon_revision` for cache safety across renames and icon swaps.
-- **Startup legacy migration**: Existing `model_dir/<0..198>/params.json` folders and `settings/vc_conf.json` (`current_slot_index` and legacy spellings) are migrated/adapted inside the storage layer at startup so user assets upgrade cleanly without keeping legacy HTTP routes or schema keys.
+- **Startup legacy migration**: Startup first recovers any interrupted legacy `.model-order-transaction/` before migrating `model_dir/<0..198>/params.json` folders and adapting `settings/vc_conf.json` (`current_slot_index` and legacy spellings). If recovery fails, startup stops before migration so it can be retried without hiding staged models.
 
 ### 5.4 Clean Domain Schemas & Legacy Field Retirement
 
@@ -279,9 +278,9 @@ Wire schemas organize settings around domain concepts rather than legacy class a
 | :--- | :--- |
 | **Single-stream product scope vs. caller safety** | Like the rest of VCClient Forge (see [`implementation-roadmap.md`](./implementation-roadmap.md)), the application targets **single-user local audio** (one active input stream and conversion session at a time; multi-tenant hosting and collaborative multi-tab UI conflict resolution are out of scope). However, **core invariants never depend on caller obedience**: concurrent, rapid, or out-of-order requests from any UI or multiple clients are serialized or rejected (`4xx`/`409`) server-side without corrupting worker or storage state. |
 | **Page reloads & UI sync** | Because the engine holds no permanent config file dependency, it must still keep the *currently active runtime snapshot* in memory and expose it via `GET /api/session` so reconnecting UIs accurately reflect running audio. |
-| **Model identification & reordering** | Public APIs identify models by immutable NanoIDs stored in `params.json`, with directories named `model_dir/{sanitized_name} - {id}/` and display order persisted in `model_dir/catalog.json`. Reordering via `PUT /api/models/order` writes only `catalog.json` without moving folders and is therefore safe while `running`, whereas renaming or deleting a model actively used by a `starting` or `running` session returns `409 Conflict` (`model_in_use`), retiring `ModelTransaction` numeric folder compaction. |
+| **Model identification & reordering** | Public APIs identify models by immutable NanoIDs stored in `params.json`, with directories named `model_dir/{sanitized_name} - {id}/` and display order persisted in `model_dir/catalog.json`. Reordering via `PUT /api/models/order` writes only `catalog.json` without moving folders and is safe while `running`; renaming via `PUT /api/models/{id}` is also safe while `running` (blocked with `409 Conflict` / `model_in_use` only during `starting` or directory lock), whereas deleting a model actively used by a `starting` or `running` session returns `409 Conflict` (`model_in_use`), retiring `ModelTransaction` numeric folder compaction. |
 | **First-launch out-of-box UX** | Startup bootstrap (`main.py` or first UI connection) must still ensure a verified compute device recommendation is populated when no user preference exists yet. |
-| **Incremental migration path** | Because `desktop/` does not call `/api/*` directly, in-repo API consumers are limited to `frontend/` and tests. Legacy `/api/*-manager/*` HTTP routes (`/api/configuration-manager/configuration`, `/api/slot-manager/slots/{index}`, etc.) will be phased out or replaced cleanly alongside updating the Svelte UI and test suite, keeping backward compatibility strictly at the disk storage layer (`settings/vc_conf.json` and startup migration of `model_dir/<slot>/params.json`). |
+| **Legacy route retirement** | Because `desktop/` does not call `/api/*` directly, all in-repo API consumers live in `frontend/` and `backend/tests/`. Legacy `/api/*-manager/*`, `/output.wav`, `/vcclient.log`, and raw `/model_dir/` HTTP routes have been removed alongside migrating the Svelte UI and test suite, keeping backward compatibility strictly at the disk storage layer (`settings/vc_conf.json` and startup migration of `model_dir/<slot>/params.json`). |
 
 ---
 

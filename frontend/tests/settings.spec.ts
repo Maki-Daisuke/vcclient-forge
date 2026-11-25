@@ -5,10 +5,10 @@ test('positions chunk and extra durations on logarithmic sliders', async ({ page
   const chunkValue = Math.sqrt(0.05);
   const extraValue = Math.sqrt(0.01 * 2);
   await mockCatalog(page);
-  await page.route(/\/api\/slot-manager\/slots(?:\?|$)/, route =>
-    fulfillCatalog(route, slots.map(slot => slot.slot_index === 7 ? { ...slot, chunk_sec: chunkValue } : slot)),
+  await page.route(/\/api\/models(?:\?|$)/, route =>
+    fulfillCatalog(route, slots.map(slot => slot.id === 'model_b' ? { ...slot, chunk_sec: chunkValue } : slot)),
   );
-  await page.route('**/api/configuration-manager/configuration', route =>
+  await page.route('**/api/settings', route =>
     route.fulfill({ json: { ...configuration, extra_frame_sec: extraValue } }),
   );
   await page.goto('/');
@@ -32,10 +32,10 @@ test('positions chunk and extra durations on logarithmic sliders', async ({ page
 
 test('clamps and flags out-of-range chunk and extra durations', async ({ page }) => {
   await mockCatalog(page);
-  await page.route(/\/api\/slot-manager\/slots(?:\?|$)/, route =>
-    fulfillCatalog(route, slots.map(slot => slot.slot_index === 7 ? { ...slot, chunk_sec: 7 } : slot)),
+  await page.route(/\/api\/models(?:\?|$)/, route =>
+    fulfillCatalog(route, slots.map(slot => slot.id === 'model_b' ? { ...slot, chunk_sec: 7 } : slot)),
   );
-  await page.route('**/api/configuration-manager/configuration', route =>
+  await page.route('**/api/settings', route =>
     route.fulfill({ json: { ...configuration, extra_frame_sec: 5 } }),
   );
   await page.goto('/');
@@ -104,8 +104,8 @@ test('reload reflects changed configuration and the newly selected model', async
   await page.goto('/');
   await openControlSections(page);
   await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '2.7');
-  await page.route('**/api/configuration-manager/configuration', route => route.fulfill({
-    json: { ...configuration, current_slot_index: 2, voice_changer_input_mode: 'client', audio_input_device_gain: 4.2 },
+  await page.route('**/api/settings', route => route.fulfill({
+    json: { ...configuration, model_id: 'model_a', input_mode: 'client', input_gain: 4.2 },
   }));
   await page.getByRole('button', { name: '再読み込み', exact: true }).click();
   // Client Mode uses its own local gain instead of the backend's server-mode gain.
@@ -117,10 +117,10 @@ test('reload reflects changed configuration and the newly selected model', async
 
 test('missing fields show unknown values rather than sample defaults', async ({ page }) => {
   await mockCatalog(page);
-  await page.route('**/api/configuration-manager/configuration', route => route.fulfill({ json: { current_slot_index: 7 } }));
+  await page.route('**/api/settings', route => route.fulfill({ json: { model_id: 'model_b' } }));
   await page.goto('/');
   await openControlSections(page);
-  await expect(page.getByRole('heading', { name: '8. Test model B' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '2. Test model B' })).toBeVisible();
   await expect(page.locator('.range-field').filter({ hasText: '入力音量' }).locator('output')).toHaveText('—');
   await expect(page.getByRole('combobox', { name: '優先デバイス', exact: true })).toContainText('—');
   await expect(page.getByRole('checkbox', { name: 'ハイパスフィルタを有効にする' })).toHaveJSProperty('indeterminate', true);
@@ -129,7 +129,7 @@ test('missing fields show unknown values rather than sample defaults', async ({ 
 test('failed reload clears settings and does not leave previous gains visible', async ({ page }) => {
   let online = true;
   await page.route('**/api/**', route => online ? fulfillCatalog(route) : route.abort('connectionrefused'));
-  await page.route('**/model_dir/**', route => route.fulfill({ status: 404 }));
+  await page.route('**/api/models/*/icon**', route => route.fulfill({ status: 404 }));
   await page.goto('/');
   await openControlSections(page);
   await expect(page.getByRole('slider', { name: '入力音量', exact: true })).toHaveAttribute('aria-valuenow', '2.7');
@@ -142,7 +142,7 @@ test('failed reload clears settings and does not leave previous gains visible', 
 
 test('invalid setting types are rejected rather than coerced', async ({ page }) => {
   await mockCatalog(page);
-  await page.route('**/api/configuration-manager/configuration', route => route.fulfill({
+  await page.route('**/api/settings', route => route.fulfill({
     json: { ...configuration, enable_high_pass_filter: 'false' },
   }));
   await page.goto('/');

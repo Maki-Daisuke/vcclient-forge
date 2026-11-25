@@ -72,13 +72,13 @@ test('uses fresh device rates for independent input and output buffer histories'
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.config.output_sample_rate = 48000;
+  state.outputSampleRate = 48000;
   const socket = await mockSocket(page);
   await page.goto('/');
   await expect.poll(() => Boolean(socket())).toBe(true);
   // The actual device rates can differ from the values loaded before audio starts.
-  state.config.input_sample_rate = 44100;
-  state.config.output_sample_rate = 32000;
+  state.inputSampleRate = 44100;
+  state.outputSampleRate = 32000;
   sendEvent(socket()!, 'realtime_output_status', { inputRms: 0.1, outputRms: 0.2, outputBufferSize: 3200, realtimeOutputStatusSendIntervalSec: 0.2 });
   sendEvent(socket()!, 'realtime_process_status', { inputBufferSize: 8820 });
   const metrics = page.locator('.performance dl > div');
@@ -226,7 +226,7 @@ test('keeps conversion time between measurements when the chunk is longer than t
   const state = await mockSession(page);
   state.active = true;
   state.config.realtime_process_status_enabled = true;
-  state.models.find(model => model.slot_index === 7)!.chunk_sec = 5;
+  state.models.find(model => model.id === 'model_b')!.chunk_sec = 5;
   const socket = await mockSocket(page);
   await page.clock.install();
   await page.goto('/');

@@ -16,7 +16,7 @@
     loading = manual || !loaded;
     controller = new AbortController();
     try {
-      const response = await fetch('/vcclient.log', { cache: 'no-store', signal: controller.signal });
+      const response = await fetch('/api/logs', { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const next = await response.text();
       if (controller.signal.aborted) return;

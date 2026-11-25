@@ -117,16 +117,25 @@ def test_configuration_ignores_legacy_removed_fields(tmp_path, monkeypatch):
     assert cm.voice_changer_configuration.wasapi_exclusive_enabled is True
 
 
-def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
-    """Verify FastAPI PUT /api/configuration-manager/configuration accepts payloads containing removed fields."""
+def test_api_put_settings_accepts_legacy_removed_fields(tmp_path, monkeypatch):
+    """Verify FastAPI PUT /api/settings accepts payloads containing removed fields."""
     from starlette.testclient import TestClient
 
     from vcclient.server.vcserver_rest_api import get_rest_api
+    from vcclient.voice_changer import voice_changer_const
+
+    test_conf_path = tmp_path / "vc_conf.json"
+    monkeypatch.setattr(voice_changer_const, "ConfigFile", test_conf_path)
+    monkeypatch.setattr(
+        "vcclient.voice_changer.configuration_manager.configuration_manager.ConfigFile",
+        str(test_conf_path),
+    )
+    monkeypatch.setattr(ConfigurationManager, "_instance", None)
 
     app = get_rest_api()
     test_client = TestClient(app)
 
-    get_res = test_client.get("/api/configuration-manager/configuration")
+    get_res = test_client.get("/api/settings")
     assert get_res.status_code == 200
     config_dict = get_res.json()
     assert "crossfade_sec" not in config_dict
@@ -140,7 +149,7 @@ def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
     assert "wasapi_exclude_emabled" not in config_dict
     assert "wasapi_exclusive_enabled" in config_dict
 
-    # Simulate legacy client sending removed fields in PUT
+    # Simulate legacy payload sending removed fields and legacy spelling in PUT
     config_dict["crossfade_sec"] = 0.052
     config_dict["sio_broadcast"] = True
     config_dict["audio_monitor_device_gain"] = 0.75
@@ -151,5 +160,6 @@ def test_api_put_configuration_accepts_legacy_removed_fields(client=None):
     config_dict["realtime_output_status_send_interval_sec"] = 0.5
     config_dict.pop("wasapi_exclusive_enabled")
     config_dict["wasapi_exclude_emabled"] = False
-    put_res = test_client.put("/api/configuration-manager/configuration", json=config_dict)
+    put_res = test_client.put("/api/settings", json=config_dict)
     assert put_res.status_code == 200
+    assert put_res.json()["wasapi_exclusive_enabled"] is False

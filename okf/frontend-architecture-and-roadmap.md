@@ -228,7 +228,7 @@ Type checks (`npm run check:frontend`), frontend builds, and Playwright browser 
 (`npm run test:frontend`, isolated from the live backend via `frontend/tests/test-fixtures.ts`)
 run in CI on Windows, Linux, and macOS via `npm test` (see `frontend/README.md`).
 
-The log viewer fetches `/vcclient.log` on request with 2-second auto-refresh without
+The log viewer fetches `/api/logs` on request with 2-second auto-refresh without
 mounting another audio session, and the Wails desktop host (`window.vcclientForge.openLogWindow`)
 opens it in a dedicated log window.
 

@@ -8,8 +8,6 @@ from pathlib import Path
 
 if __name__ == "__main__":
     mp.freeze_support()
-    if getattr(sys, "frozen", False):
-        os.chdir(Path(sys.executable).resolve().parent)
 
 # Ensure standard I/O is unbuffered so supervisor processes (like Tauri) receive lines immediately
 os.environ["PYTHONUNBUFFERED"] = "1"
@@ -29,22 +27,69 @@ _here = Path(__file__).parent.resolve()
 if str(_here) not in sys.path:
     sys.path.insert(0, str(_here))
 
+
+def parse_server_args(argv: list[str] | None = None) -> argparse.Namespace:
+    from vcclient.const import VERSION
+
+    parser = argparse.ArgumentParser(description=f"VCClient {VERSION} (pure-ONNX backend)")
+    parser.add_argument("command", nargs="?", default="server", help=argparse.SUPPRESS)
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Binding host address (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=18888, help="Server port (default: 18888)")
+    args = parser.parse_args(argv)
+    if args.command in ("--help", "-h", "help"):
+        parser.print_help()
+        raise SystemExit(0)
+    if args.command != "server":
+        parser.error(f"Unknown command: {args.command}")
+    return args
+
+
+def run_export_onnx(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="main export-onnx",
+        description="Convert an RVC PyTorch (.pth) checkpoint to ONNX (.onnx)",
+    )
+    parser.add_argument("input_pth", type=Path, help="Input .pth checkpoint file path")
+    parser.add_argument("output_onnx", type=Path, help="Output .onnx model file path")
+    args = parser.parse_args(argv)
+
+    from vcclient.exception import VCClientError
+    from vcclient.voice_changer.slot_manager.onnx_exporter import export_pth_to_onnx
+
+    try:
+        export_pth_to_onnx(args.input_pth, args.output_onnx)
+    except VCClientError as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return 2
+    except Exception as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["export-onnx"]:
+        raise SystemExit(run_export_onnx(sys.argv[2:]))
+    parse_server_args(sys.argv[1:])
+    if getattr(sys, "frozen", False):
+        os.chdir(Path(sys.executable).resolve().parent)
+
 import sounddevice as sd
 
 from vcclient.app_status import is_app_stopping, stop_app, wait_for_stop
 from vcclient.const import VERSION
 from vcclient.device import reload_device_catalog
 from vcclient.initializer import (
-    _check_and_convert_legacy_pth_models,
     _check_and_download_initial_samples,
     _check_and_download_rvc_modules,
     _select_initial_compute_device,
 )
-from vcclient.logger import logger
+from vcclient.logger import init_logger, logger
 from vcclient.server.vcserver import VCServer
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
-from vcclient.voice_changer.slot_manager.reorder_transaction import ModelTransaction
+from vcclient.voice_changer.model_catalog import list_models
+from vcclient.voice_changer.slot_manager.legacy_recovery import recover_legacy_model_order
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir
@@ -66,15 +111,16 @@ def start_server(
     if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, handle_shutdown_signal)
 
+    init_logger()
     logger.info("VCClient Forge v%s", VERSION)
     print(f"VCClient Forge v{VERSION}", flush=True)
 
-    ModelTransaction(ModelDir, ConfigFile).recover()
+    recover_legacy_model_order(ModelDir, ConfigFile)
     first_start = not ConfigFile.exists()
     if first_start:
         ConfigurationManager.get_instance(defer_initial_save=True)
     _check_and_download_rvc_modules()
-    _check_and_convert_legacy_pth_models()
+    list_models()
     _check_and_download_initial_samples()
     if is_app_stopping():
         return
@@ -107,14 +153,18 @@ def start_server(
     print("-" * 50, flush=True)
     print("Please press Ctrl+C once to exit vcclient.", flush=True)
 
+    from vcclient.voice_changer.session_manager import is_session_starting_or_running
+    from vcclient.voice_changer.session_manager.session_manager import report_audio_failure
+
     err_msg = ""
     while not is_app_stopping():
         try:
             conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
             local_voice_changer_interface = LocalVoiceChangerInterface.get_instance()
-            if conf.voice_changer_input_mode == "server":
-                if local_voice_changer_interface.local_voice_changer_enabled is True:
-                    local_voice_changer_interface.run()
+            if local_voice_changer_interface.local_voice_changer_enabled is True and (
+                conf.voice_changer_input_mode == "server" or is_session_starting_or_running()
+            ):
+                local_voice_changer_interface.run()
             if is_app_stopping():
                 break
             wait_for_stop(0.3)
@@ -132,12 +182,14 @@ def start_server(
             print(err_msg)
             print(f" {wasapi_not_supported_msg} ")
             local_voice_changer_interface.stop()
+            report_audio_failure(e)
             time.sleep(1)
         except Exception as e:
             err_msg = f"Error:{e}"
             logger.error("Runtime error: %s", e, exc_info=True)
             print(err_msg)
             local_voice_changer_interface.stop()
+            report_audio_failure(e)
             time.sleep(1)
 
     print("terminate vcclient... (press Ctrl+C again to force exit)", flush=True)
@@ -153,16 +205,10 @@ def start_server(
 
 def main():
     mp.freeze_support()
+    if sys.argv[1:2] == ["export-onnx"]:
+        raise SystemExit(run_export_onnx(sys.argv[2:]))
 
-    parser = argparse.ArgumentParser(description=f"VCClient {VERSION} (pure-ONNX backend)")
-    parser.add_argument("command", nargs="?", default="server", help=argparse.SUPPRESS)
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="Binding host address (default: 0.0.0.0)")
-    parser.add_argument("--port", type=int, default=18888, help="Server port (default: 18888)")
-    args: argparse.Namespace = parser.parse_args()
-
-    if args.command in ("--help", "-h", "help"):
-        parser.print_help()
-        sys.exit(0)
+    args = parse_server_args()
 
     start_server(
         host=args.host,

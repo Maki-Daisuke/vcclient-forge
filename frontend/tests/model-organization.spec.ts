@@ -8,14 +8,14 @@ test('deletes the selected model after confirmation and clears the selection', a
   let body: unknown;
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/slot-manager/slots/7' && route.request().method() === 'DELETE') {
+    if (path === '/api/models/model_b' && route.request().method() === 'DELETE') {
       body = { method: route.request().method(), path };
       deleted = true;
-      await route.fulfill({ json: { current_slot_index: -1 } });
-    } else if (deleted && path === '/api/slot-manager/slots') {
-      await route.fulfill({ json: [{ ...slots[2], slot_index: 0 }] });
-    } else if (deleted && path === '/api/configuration-manager/configuration') {
-      await route.fulfill({ json: { ...configuration, current_slot_index: -1 } });
+      await route.fulfill({ status: 204 });
+    } else if (deleted && path === '/api/models') {
+      await route.fulfill({ json: [slots[0]] });
+    } else if (deleted && path === '/api/settings') {
+      await route.fulfill({ json: { ...configuration, model_id: null } });
     } else await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -39,27 +39,27 @@ test('deletes the selected model after confirmation and clears the selection', a
   expect(deleteBox!.x).toBeLessThan(cancelBox!.x);
   await deleteButton.click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  expect(body).toEqual({ method: 'DELETE', path: '/api/slot-manager/slots/7' });
+  expect(body).toEqual({ method: 'DELETE', path: '/api/models/model_b' });
   await expect(page.getByRole('heading', { name: /Test model B/ })).toHaveCount(0);
 });
 
 test('deletes consecutive models without starting conversion', async ({ page }) => {
-  let models = [{ ...slots[0] }, { ...slots[2] }];
-  let selected = 7;
-  const deleted: number[] = [];
+  let models = [{ ...slots[0] }, { ...slots[1] }];
+  let selected: string | null = 'model_b';
+  const deleted: string[] = [];
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    const match = path.match(/^\/api\/slot-manager\/slots\/(\d+)$/);
+    const match = path.match(/^\/api\/models\/([^/]+)$/);
     if (match && route.request().method() === 'DELETE') {
-      const id = Number(match[1]);
+      const id = decodeURIComponent(match[1]);
       deleted.push(id);
-      models = models.filter(model => model.slot_index !== id).map((model, index) => ({ ...model, slot_index: index }));
-      selected = -1;
-      await route.fulfill({ json: { current_slot_index: -1 } });
-    } else if (path === '/api/slot-manager/slots') {
+      models = models.filter(model => model.id !== id);
+      selected = null;
+      await route.fulfill({ status: 204 });
+    } else if (path === '/api/models') {
       await route.fulfill({ json: models });
-    } else if (path === '/api/configuration-manager/configuration') {
-      await route.fulfill({ json: { ...configuration, current_slot_index: selected } });
+    } else if (path === '/api/settings') {
+      await route.fulfill({ json: { ...configuration, model_id: selected } });
     } else await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -72,7 +72,7 @@ test('deletes consecutive models without starting conversion', async ({ page }) 
   await expect(page.getByRole('button', { name: 'モデルを削除' })).not.toHaveAttribute('aria-disabled', 'true');
   await page.getByRole('button', { name: 'モデルを削除' }).click();
   await page.getByRole('dialog', { name: 'このモデルを削除しますか？' }).getByRole('button', { name: '削除', exact: true }).click();
-  await expect.poll(() => deleted).toEqual([7, 0]);
+  await expect.poll(() => deleted).toEqual(['model_b', 'model_a']);
 });
 
 test('reloads models and configuration after a failed deletion', async ({ page }) => {
@@ -81,12 +81,12 @@ test('reloads models and configuration after a failed deletion', async ({ page }
   let reloadedConfiguration = false;
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/slot-manager/slots/7' && route.request().method() === 'DELETE') {
+    if (path === '/api/models/model_b' && route.request().method() === 'DELETE') {
       failed = true;
-      await route.fulfill({ status: 500, json: { detail: 'Delete failed' } });
+      await route.fulfill({ status: 500, json: { code: 'internal_error', message: 'Delete failed' } });
     } else {
-      if (failed && path === '/api/slot-manager/slots') reloadedSlots = true;
-      if (failed && path === '/api/configuration-manager/configuration') reloadedConfiguration = true;
+      if (failed && path === '/api/models') reloadedSlots = true;
+      if (failed && path === '/api/settings') reloadedConfiguration = true;
       await fulfillCatalog(route);
     }
   });
@@ -99,13 +99,13 @@ test('reloads models and configuration after a failed deletion', async ({ page }
   await expect(page.getByRole('button', { name: 'Test model B', exact: true })).toBeVisible();
 });
 
-test('does not report a missing slot 404 as needing a backend restart', async ({ page }) => {
+test('does not report a missing model 404 as needing a backend restart', async ({ page }) => {
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/slot-manager/slots/7' && route.request().method() === 'DELETE') {
+    if (path === '/api/models/model_b' && route.request().method() === 'DELETE') {
       await route.fulfill({
         status: 404,
-        json: { detail: JSON.stringify({ code: 'ERR_HTTP_EXCEPTION', message: 'Model does not exist' }) },
+        json: { code: 'model_not_found', message: 'Model does not exist' },
       });
     } else await fulfillCatalog(route);
   });
@@ -121,7 +121,7 @@ test('does not report a missing slot 404 as needing a backend restart', async ({
 test('explains when deleting requires restarting an older backend returning 405', async ({ page }) => {
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/slot-manager/slots/7' && route.request().method() === 'DELETE') {
+    if (path === '/api/models/model_b' && route.request().method() === 'DELETE') {
       await route.fulfill({ status: 405, json: { detail: 'Method Not Allowed' } });
     } else await fulfillCatalog(route);
   });
@@ -134,8 +134,8 @@ test('explains when deleting requires restarting an older backend returning 405'
 
 test('does not show stale reorder errors inside the delete confirmation dialog', async ({ page }) => {
   await page.route('**/api/**', async route => {
-    if (new URL(route.request().url()).pathname === '/api/slot-manager/operation/organize') {
-      await route.fulfill({ status: 500, json: { detail: 'Organize failed' } });
+    if (new URL(route.request().url()).pathname === '/api/models/order') {
+      await route.fulfill({ status: 500, json: { code: 'internal_error', message: 'Organize failed' } });
     } else await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -152,8 +152,27 @@ test('does not show stale reorder errors inside the delete confirmation dialog',
 
 test('explains why deleting is unavailable during conversion', async ({ page }) => {
   await page.route('**/api/**', async route => {
-    if (new URL(route.request().url()).pathname === '/api/local-voice-changer-interface/information') {
-      await route.fulfill({ json: { local_voice_changer_interface_active: true } });
+    if (new URL(route.request().url()).pathname === '/api/session') {
+      await route.fulfill({
+        json: {
+          status: 'running',
+          snapshot: {
+            ...configuration,
+            model_id: 'model_b',
+            pitch_shift: -5,
+            index_ratio: 0.63,
+            chunk_sec: 0.3,
+            pitch_estimator: 'rmvpe',
+            pass_through: false,
+            recording: false,
+          },
+          locked_fields: ['model_id'],
+          input_sample_rate: 48000,
+          output_sample_rate: 48000,
+          monitor_sample_rate: null,
+          last_error: null,
+        },
+      });
     } else await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -171,14 +190,14 @@ test('reorders models with drag and commits the displayed order', async ({ page 
   let saved = false;
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
-    if (path === '/api/slot-manager/operation/organize') {
+    if (path === '/api/models/order' && route.request().method() === 'PUT') {
       body = route.request().postDataJSON();
       saved = true;
-      await route.fulfill({ json: { current_slot_index: 0 } });
-    } else if (saved && path === '/api/slot-manager/slots') {
-      await route.fulfill({ json: [{ ...slots[0], slot_index: 0 }, { ...slots[2], slot_index: 1 }] });
-    } else if (saved && path === '/api/configuration-manager/configuration') {
-      await route.fulfill({ json: { ...configuration, current_slot_index: 0 } });
+      await route.fulfill({ json: body });
+    } else if (saved && path === '/api/models') {
+      await route.fulfill({ json: [slots[1], slots[0]] });
+    } else if (saved && path === '/api/settings') {
+      await route.fulfill({ json: { ...configuration, model_id: 'model_b' } });
     } else await fulfillCatalog(route);
   });
   await page.goto('/');
@@ -187,7 +206,7 @@ test('reorders models with drag and commits the displayed order', async ({ page 
   await expect(page.locator('.reorder-hint')).toHaveText('ドラッグ＆ドロップで並び替えたら確定を押してください');
   await page.getByRole('group', { name: 'Test model B' }).dragTo(page.getByRole('group', { name: 'Test model A' }));
   await page.getByRole('button', { name: '確定', exact: true }).click();
-  await expect.poll(() => body).toEqual({ order: [7, 2] });
+  await expect.poll(() => body).toEqual({ model_ids: ['model_b', 'model_a'] });
   await expect(page.locator('.model-cards .model-name')).toHaveText(['Test model B', 'Test model A']);
   await expect(page.getByRole('heading', { name: '1. Test model B' })).toBeVisible();
   await expect(page.locator('.reorder-hint')).toHaveCount(0);
@@ -197,7 +216,7 @@ test('reorders models with drag and commits the displayed order', async ({ page 
 
 test('explains when the running backend needs a restart', async ({ page }) => {
   await page.route('**/api/**', async route => {
-    if (new URL(route.request().url()).pathname === '/api/slot-manager/operation/organize') {
+    if (new URL(route.request().url()).pathname === '/api/models/order') {
       await route.fulfill({ status: 404, json: { detail: 'Not Found' } });
     } else await fulfillCatalog(route);
   });
@@ -219,4 +238,51 @@ test('hides reload and upload while reordering and restores them on cancel', asy
   await page.getByRole('button', { name: 'キャンセル', exact: true }).click();
   await expect(page.getByRole('button', { name: '再読み込み' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'アップロード', exact: true })).toBeEnabled();
+});
+
+test('reorders models while conversion is running', async ({ page }) => {
+  let body: unknown;
+  let saved = false;
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/session') {
+      await route.fulfill({
+        json: {
+          status: 'running',
+          snapshot: {
+            ...configuration,
+            model_id: 'model_b',
+            pitch_shift: -5,
+            index_ratio: 0.63,
+            chunk_sec: 0.3,
+            pitch_estimator: 'rmvpe',
+            pass_through: false,
+            recording: false,
+          },
+          locked_fields: ['model_id'],
+          input_sample_rate: 48000,
+          output_sample_rate: 48000,
+          monitor_sample_rate: null,
+          last_error: null,
+        },
+      });
+    } else if (path === '/api/models/order' && route.request().method() === 'PUT') {
+      body = route.request().postDataJSON();
+      saved = true;
+      await route.fulfill({ json: body });
+    } else if (saved && path === '/api/models') {
+      await route.fulfill({ json: [slots[1], slots[0]] });
+    } else if (saved && path === '/api/settings') {
+      await route.fulfill({ json: { ...configuration, model_id: 'model_b' } });
+    } else await fulfillCatalog(route);
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '並べ替え', exact: true }).click();
+  await page.getByRole('group', { name: 'Test model B' }).dragTo(page.getByRole('group', { name: 'Test model A' }));
+  await page.getByRole('button', { name: '確定', exact: true }).click();
+  await expect.poll(() => body).toEqual({ model_ids: ['model_b', 'model_a'] });
+  await expect(page.locator('.model-cards .model-name')).toHaveText(['Test model B', 'Test model A']);
+  await expect(page.getByRole('heading', { name: '1. Test model B' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
 });

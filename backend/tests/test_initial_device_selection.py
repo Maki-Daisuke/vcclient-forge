@@ -50,10 +50,12 @@ def test_first_start_tries_next_device_before_saving(monkeypatch):
     config = VoiceChangerConfiguration()
     manager = MagicMock()
     manager.get_voice_changer_configuration.return_value = config
-    slot_manager = MagicMock()
-    slot_manager.get_slot_info.return_value = RVCSlotInfo(slot_index=0, model_file="model.onnx")
     monkeypatch.setattr(initializer.ConfigurationManager, "get_instance", lambda: manager)
-    monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: slot_manager)
+    monkeypatch.setattr(
+        initializer,
+        "get_probe_slot_info",
+        lambda _preferred=None: RVCSlotInfo(slot_index=-1, model_id="model_1", model_file="model.onnx"),
+    )
     monkeypatch.setattr(
         initializer,
         "get_device_catalog",
@@ -85,10 +87,12 @@ def test_all_device_failures_do_not_save(monkeypatch):
     config = VoiceChangerConfiguration()
     manager = MagicMock()
     manager.get_voice_changer_configuration.return_value = config
-    slot_manager = MagicMock()
-    slot_manager.get_slot_info.return_value = RVCSlotInfo(slot_index=0, model_file="model.onnx")
     monkeypatch.setattr(initializer.ConfigurationManager, "get_instance", lambda: manager)
-    monkeypatch.setattr(initializer.SlotManager, "get_instance", lambda: slot_manager)
+    monkeypatch.setattr(
+        initializer,
+        "get_probe_slot_info",
+        lambda _preferred=None: RVCSlotInfo(slot_index=-1, model_id="model_1", model_file="model.onnx"),
+    )
     monkeypatch.setattr(initializer, "get_device_catalog", lambda: [device(0, "cpu", device_type="CPU")])
     monkeypatch.setattr(rvc_pipeline, "RVCPipeline", MagicMock(side_effect=RuntimeError("failure")))
     with pytest.raises(RuntimeError, match="No inference device"):

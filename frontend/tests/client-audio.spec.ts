@@ -12,7 +12,7 @@ test('shows the audio mode when device settings are collapsed', async ({ page })
   await section.locator('summary').click();
   await expect(badge).toBeHidden();
   await section.getByText('クライアントモード', { exact: true }).click();
-  expect(state.config.voice_changer_input_mode).toBe('server');
+  expect(state.config.input_mode).toBe('server');
   await section.locator('summary').click();
   await expect(badge).toBeVisible();
   await expect(badge).toHaveText('クライアントモード');
@@ -44,7 +44,7 @@ test('shows automatic gain in the volume section only in client mode', async ({ 
   await expect(volume.getByRole('slider', { name: '入力音量' })).toBeEnabled();
   await page.getByText('クライアントモード', { exact: true }).click();
   await expect(volume.getByRole('slider', { name: '入力音量' })).toHaveAttribute('aria-valuenow', '1.01');
-  expect(state.config.voice_changer_input_mode).toBe('server');
+  expect(state.config.input_mode).toBe('server');
   await page.reload();
   await openControlSections(page);
   await page.getByText('クライアントモード', { exact: true }).click();
@@ -53,7 +53,7 @@ test('shows automatic gain in the volume section only in client mode', async ({ 
 
 test('switches to client mode and reports a denied microphone without starting audio', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.output_sample_rate = 48000;
+  state.outputSampleRate = 48000;
   await page.addInitScript(() => {
     Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
       value: () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError')),
@@ -62,7 +62,7 @@ test('switches to client mode and reports a denied microphone without starting a
   await page.goto('/');
   await openControlSections(page);
   await page.getByText('クライアントモード', { exact: true }).click();
-  expect(state.config.voice_changer_input_mode).toBe('server');
+  expect(state.config.input_mode).toBe('server');
   await expect(page.getByRole('button', { name: 'デバイス再検出' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'デバイス再検出' }).locator('..')).toHaveCSS('justify-content', 'flex-end');
   await page.getByRole('button', { name: '開始', exact: true }).click();
@@ -73,8 +73,8 @@ test('switches to client mode and reports a denied microphone without starting a
 
 test('applies client gains before capture and playback and updates them while running', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
-  state.config.output_sample_rate = 48000;
+  state.config.input_mode = 'client';
+  state.outputSampleRate = 48000;
   await page.routeWebSocket(/\/api\/ws\/audio$/, () => {});
   await page.addInitScript(() => {
     const original = AudioContext.prototype.createGain;
@@ -114,10 +114,10 @@ test('applies client gains before capture and playback and updates them while ru
 
 test('streams microphone samples over WebSocket and releases the microphone on stop', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.output_sample_rate = 48000;
-  state.config.voice_changer_input_mode = 'client';
+  state.outputSampleRate = 48000;
+  state.config.input_mode = 'client';
   state.config.realtime_process_status_enabled = true;
-  state.models[0].is_f0 = true;
+  state.models.find(model => model.id === 'model_b')!.supports_f0 = true;
   let packets = 0;
   let statusSocket: WebSocketRoute | undefined;
   await page.routeWebSocket(/\/api\/ws\/audio$/, socket => {
@@ -217,7 +217,7 @@ test('streams microphone samples over WebSocket and releases the microphone on s
   const passthrough = page.getByRole('button', { name: 'パススルー' });
   await passthrough.click();
   await page.getByRole('dialog', { name: 'パススルーを有効にしますか？' }).getByRole('button', { name: '有効化' }).click();
-  await expect.poll(() => state.config.pass_through).toBe(true);
+  await expect.poll(() => state.passThrough).toBe(true);
   await expect(passthrough).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => Boolean(statusSocket)).toBe(true);
   statusSocket!.send(JSON.stringify({ type: 'realtime_process_status', data: { inputBufferSize: 4800, elapsedTime: 0.05 } }));
@@ -251,7 +251,7 @@ test('streams microphone samples over WebSocket and releases the microphone on s
 
 test('disables processing options that the browser does not support', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.addInitScript(() => {
     Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({}) });
   });
@@ -264,8 +264,8 @@ test('disables processing options that the browser does not support', async ({ p
 
 test('reports failure and releases the microphone if automatic gain control is not applied', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
-  state.config.output_sample_rate = 48000;
+  state.config.input_mode = 'client';
+  state.outputSampleRate = 48000;
   await page.addInitScript(() => {
     const audio = new AudioContext();
     const destination = audio.createMediaStreamDestination();
@@ -285,7 +285,7 @@ test('reports failure and releases the microphone if automatic gain control is n
 
 test('allows disabling a saved processing option if browser support is lost', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.addInitScript(() => {
     localStorage.setItem('vcclient-forge.browser-audio.v1', JSON.stringify({ autoGainControl: true }));
     Object.defineProperty(navigator.mediaDevices, 'getSupportedConstraints', { value: () => ({}) });
@@ -296,4 +296,114 @@ test('allows disabling a saved processing option if browser support is lost', as
   await expect(autoGain).toBeChecked();
   await autoGain.uncheck();
   await expect(autoGain).toBeDisabled();
+});
+
+test('releases local capture without stopping the backend session when superseded (4001)', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.input_mode = 'client';
+  state.outputSampleRate = 48000;
+  let audioSocket: WebSocketRoute | undefined;
+  await page.routeWebSocket(/\/api\/ws\/audio$/, socket => { audioSocket = socket; });
+  await page.addInitScript(() => {
+    const audio = new AudioContext();
+    const destination = audio.createMediaStreamDestination();
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => destination.stream });
+    (window as unknown as { testStream: MediaStream }).testStream = destination.stream;
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
+  await expect.poll(() => Boolean(audioSocket)).toBe(true);
+  await audioSocket!.close({ code: 4001, reason: 'superseded' });
+  await expect(page.getByRole('status').filter({ hasText: '別の接続がクライアント音声を引き継いだため' })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { testStream: MediaStream }).testStream.getTracks()[0].readyState)).toBe('ended');
+  expect(state.operations).toEqual(['start']);
+  expect(state.active).toBe(true);
+});
+
+test('reconnects audio to the running client session after reload without stopping recording', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.input_mode = 'client';
+  state.active = true;
+  state.recording = true;
+  let connections = 0;
+  await page.routeWebSocket(/\/api\/ws\/audio$/, () => { connections++; });
+  await page.addInitScript(() => {
+    AudioContext.prototype.resume = async function () {};
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => {
+      const audio = new AudioContext();
+      return audio.createMediaStreamDestination().stream;
+    } });
+  });
+  await page.goto('/');
+  await expect.poll(() => connections).toBe(1);
+  await page.reload();
+  await expect.poll(() => connections).toBe(2);
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  expect(state.active).toBe(true);
+  expect(state.recording).toBe(true);
+  expect(state.operations).toEqual([]);
+  expect(state.sessionWrites).toEqual([]);
+});
+
+test('reports reconnect failure without stopping the running session', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.input_mode = 'client';
+  state.active = true;
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+      value: () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError')),
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('alert')).toContainText('マイクの許可');
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeEnabled();
+  expect(state.active).toBe(true);
+  expect(state.operations).toEqual([]);
+  await page.getByRole('button', { name: '停止', exact: true }).click();
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeEnabled();
+  expect(state.operations).toEqual(['stop']);
+});
+
+test('reconnects when a session finishes starting after the page loads', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.input_mode = 'client';
+  state.starting = true;
+  let connections = 0;
+  await page.routeWebSocket(/\/api\/ws\/audio$/, () => { connections++; });
+  await page.addInitScript(() => {
+    AudioContext.prototype.resume = async function () {};
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: async () => {
+      const audio = new AudioContext();
+      return audio.createMediaStreamDestination().stream;
+    } });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('status').filter({ hasText: 'ウォームアップ中' })).toBeVisible();
+  state.active = true;
+  await expect.poll(() => connections).toBe(1);
+  expect(state.operations).toEqual([]);
+});
+
+test('does not reconnect after stopping while microphone permission is pending', async ({ page }) => {
+  const state = await mockSession(page);
+  state.config.input_mode = 'client';
+  state.active = true;
+  let connections = 0;
+  await page.routeWebSocket(/\/api\/ws\/audio$/, () => { connections++; });
+  await page.addInitScript(() => {
+    const audio = new AudioContext();
+    const stream = audio.createMediaStreamDestination().stream;
+    (window as unknown as { pendingStream: MediaStream }).pendingStream = stream;
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { value: () => new Promise<MediaStream>(resolve => {
+      (window as unknown as { allowMicrophone: () => void }).allowMicrophone = () => resolve(stream);
+    }) });
+  });
+  await page.goto('/');
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { allowMicrophone?: () => void }).allowMicrophone)).toBe('function');
+  await page.getByRole('button', { name: '停止', exact: true }).click();
+  await page.evaluate(() => (window as unknown as { allowMicrophone: () => void }).allowMicrophone());
+  await expect.poll(() => page.evaluate(() => (window as unknown as { pendingStream: MediaStream }).pendingStream.getTracks()[0].readyState)).toBe('ended');
+  expect(connections).toBe(0);
+  expect(state.operations).toEqual(['stop']);
 });

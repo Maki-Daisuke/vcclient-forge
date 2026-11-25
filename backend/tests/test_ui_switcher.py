@@ -37,13 +37,14 @@ def test_log_responses_are_not_cached(tmp_path: Path, monkeypatch):
     app = vcserver_rest_api._create_rest_api()
     client = TestClient(app)
 
-    response = client.get("/vcclient.log")
+    response = client.get("/api/logs")
     assert response.status_code == 200
     assert response.text == "test log"
     assert response.headers["content-type"].startswith("text/plain")
     assert response.headers["cache-control"] == "no-store"
 
     log_path.unlink()
-    missing = client.get("/vcclient.log")
+    missing = client.get("/api/logs")
     assert missing.status_code == 404
+    assert missing.json()["code"] == "log_not_found"
     assert missing.headers["cache-control"] == "no-store"

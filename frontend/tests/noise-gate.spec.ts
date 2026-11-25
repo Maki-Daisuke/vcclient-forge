@@ -68,7 +68,7 @@ test('missing noise-gate configuration remains unknown and disabled', async ({ p
 
 test('updates the noise gate in Client Mode', async ({ page }) => {
   const state = await mockSession(page);
-  state.config.voice_changer_input_mode = 'client';
+  state.config.input_mode = 'client';
   await page.goto('/');
   await openControlSections(page);
   const gate = await openNoiseGate(page);

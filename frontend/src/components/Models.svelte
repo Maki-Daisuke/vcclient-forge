@@ -18,17 +18,18 @@
   const session = useSession();
   const currentModel = $derived(session.currentModel);
   let editOpen = $state(false);
-  let editModelId = $state<number | null>(null);
+  let editModelId = $state<string | null>(null);
   let editName = $state('');
   let editIcon = $state<File | null>(null);
   let iconPreviewUrl = $state<string | null>(null);
   let confirmOpen = $state(false);
   let reordering = $state(false);
-  let order = $state<number[]>([]);
+  let order = $state<string[]>([]);
   let dragged = $state<number | null>(null);
   const displayedModels = $derived(reordering
     ? order.map(id => catalog.models.find(model => model.id === id)).filter((model): model is ModelSummary => model !== undefined)
     : catalog.models);
+  const selectedPosition = $derived(currentModel ? displayedModels.findIndex(model => model.id === currentModel.id) : -1);
   const deleteReason = $derived(session.active === true ? ui.t('forge.delete_stop_first') : ui.t('forge.model_operation_wait'));
   const validIcon = $derived(!editIcon || (editIcon.size > 0 && /\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(editIcon.name)
     && (!editIcon.type || editIcon.type.startsWith('image/'))));
@@ -85,11 +86,11 @@
 
   function isUnsupportedOperation(error: ApiError): boolean {
     if (error.status === 405) return true;
-    return error.status === 404 && (error.backendCode === 'NOT_SUPPORTED' || !error.detail || error.detail === 'Not Found');
+    return error.status === 404 && (error.backendCode === 'not_found' || !error.detail || error.detail === 'Not Found');
   }
 
-  function modelName(model: ModelSummary) {
-    return model.name || ui.t('common.model_editor.slot', { number: model.id + 1 });
+  function modelName(model: ModelSummary, position?: number) {
+    return model.name || (position !== undefined ? ui.t('common.model_editor.slot', { number: position }) : model.id);
   }
 </script>
 
@@ -122,25 +123,25 @@
         <Tooltip.Trigger>
         {#snippet child({ props })}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex: The disabled model card's explanation must be keyboard accessible. -->
-        <div {...props} class="model-card-wrapper" class:draggable-model={reordering} class:selection-blocked={session.active === true && model.status === 'ready' && !reordering} draggable={reordering} role="group" aria-label={modelName(model)} tabindex={session.active === true && model.status === 'ready' && !reordering ? 0 : -1}
-          ondragstart={(event) => { if (reordering) { dragged = position; event.dataTransfer?.setData('text/plain', String(model.id)); } }}
+        <div {...props} class="model-card-wrapper" class:draggable-model={reordering} class:selection-blocked={session.active === true && model.status === 'ready' && !reordering} draggable={reordering} role="group" aria-label={modelName(model, position + 1)} tabindex={session.active === true && model.status === 'ready' && !reordering ? 0 : -1}
+          ondragstart={(event) => { if (reordering) { dragged = position; event.dataTransfer?.setData('text/plain', model.id); } }}
           ondragend={() => dragged = null}
           ondragover={(event) => { if (reordering) event.preventDefault(); }}
           ondrop={(event) => { event.preventDefault(); if (reordering && dragged !== null) moveModel(dragged, position); dragged = null; }}>
         <button
           class:selected={model.id === session.currentModelId}
           class="model-card"
-          disabled={!session.canConfigure || model.status !== 'ready'}
+          disabled={(!reordering && !session.canConfigure) || model.status !== 'ready'}
           aria-disabled={reordering ? 'true' : undefined}
           onclick={() => { if (!reordering) session.selectModel(model.id); }}
-          aria-label={modelName(model)}
+          aria-label={modelName(model, position + 1)}
           aria-current={model.id === session.currentModelId ? 'true' : undefined}
           aria-busy={!session.error && session.draft.currentModelId === model.id}
         >
-          <span class="slot-number">{model.id + 1}</span>
+          <span class="slot-number">{position + 1}</span>
           {#if !session.error && session.draft.currentModelId === model.id}<span class="model-pending"><PendingIndicator /></span>{/if}
           <ModelImage src={model.imageUrl} />
-          <span class="model-name" title={modelName(model)}>{modelName(model)}</span>
+          <span class="model-name" title={modelName(model, position + 1)}>{modelName(model, position + 1)}</span>
           {#if model.status !== 'ready'}
             <span class="tag">{ui.t(`forge.model_status_${model.status}`)}</span>
           {/if}
@@ -160,18 +161,18 @@
   <div class="selected-model-info">
     <div class="portrait">
       {#if currentModel}
-        <ModelImage src={currentModel.imageUrl} alt={modelName(currentModel)} />
+        <ModelImage src={currentModel.imageUrl} alt={modelName(currentModel, selectedPosition + 1)} />
       {:else}
         <span class="muted">{ui.t('common.model.not_selected')}</span>
       {/if}
     </div>
     {#if !currentModel && catalog.state.status === 'ready' && catalog.models.length > 0 && catalog.currentModelId !== null}
-      <p class="model-message">{ui.t('forge.current_model_unavailable', { slot: catalog.currentModelId + 1 })}</p>
+      <p class="model-message">{ui.t('forge.current_model_unavailable', { id: catalog.currentModelId })}</p>
     {/if}
   </div>
   <div class="selected-model-controls">
 <div class="model-heading">
-  <h2>{currentModel ? `${currentModel.id + 1}. ${modelName(currentModel)}` : ui.t('common.model.not_selected')}</h2>
+  <h2>{currentModel ? `${selectedPosition + 1}. ${modelName(currentModel, selectedPosition + 1)}` : ui.t('common.model.not_selected')}</h2>
   {#if currentModel}
     <div class="tags">
       {#each currentModel.tags as tag}<span class="tag">{tag}</span>{/each}
@@ -180,11 +181,10 @@
   {/if}
   <PreviewDialog title={ui.t('forge.edit_model_info')} disabled={!currentModel} showCloseButton={false} preventClose={session.modelInfoSaving} bind:open={editOpen}>
     {#snippet trigger()}<Pencil size={15} />{ui.t('common.model.edit.button')}{/snippet}
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input bind:value={editName} disabled={!session.canConfigure || currentModel?.status !== 'ready'} /></label>
-    <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.bmp" disabled={!session.canConfigure || currentModel?.status !== 'ready'} onchange={event => { editIcon = event.currentTarget.files?.[0] ?? null; }} /></label>
+    <label class="select-field"><span>{ui.t('common.voice_character_editor.name')}</span><input bind:value={editName} disabled={!session.canManageModels || currentModel?.status !== 'ready'} /></label>
+    <label class="select-field"><span>{ui.t('common.voice_character_editor.select_icon')}</span><input type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.avif,.bmp" disabled={!session.canManageModels || currentModel?.status !== 'ready'} onchange={event => { editIcon = event.currentTarget.files?.[0] ?? null; }} /></label>
     {#if iconPreviewUrl}<img class="model-icon-preview" src={iconPreviewUrl} alt={ui.t('common.voice_character_edit_dialog.new_icon')} />{/if}
     {#if !validIcon}<p role="alert">{ui.t('forge.model_icon_invalid')}</p>{/if}
-    {#if !session.modelInfoSaving && session.active === true}<p class="muted">{ui.t('forge.model_edit_stop_first')}</p>{/if}
     {#if session.modelInfoError}<p role="alert">{ui.t('forge.model_info_save_failed')}</p>{/if}
     {#if session.modelInfoSaving}<p role="status">{ui.t('forge.model_info_saving')}</p>{/if}
     {#snippet footer()}
@@ -210,7 +210,7 @@
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <button class="button primary action-primary" disabled={!session.canConfigure || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
+    <button class="button primary action-primary" disabled={!session.canManageModels || currentModel?.status !== 'ready' || !editChanged || !editName.trim() || !validIcon} onclick={saveModelInfo}>{ui.t('common.voice_character_editor.save')}</button>
     <Dialog.Close class="button" disabled={session.modelInfoSaving}>{ui.t('forge.cancel')}</Dialog.Close>
     {/snippet}
   </PreviewDialog>

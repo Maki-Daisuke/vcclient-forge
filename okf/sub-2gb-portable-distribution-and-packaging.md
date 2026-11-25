@@ -74,6 +74,7 @@ PyTorch is retained strictly as an offline utility for the automatic `.pth` ➡ 
 
 - PyTorch is pinned to its **CPU-only build (`torch==2.*+cpu`)**, requiring only ~118 MB.
 - Heavy companion libraries (`torchaudio`, `torchfcpe`, `torchvision`) are removed.
+- The server process never imports PyTorch; `.pth` conversion runs in an isolated `main export-onnx` CLI subprocess so PyTorch's bundled OpenMP runtime (`libomp`) does not conflict with FAISS in the server process and exporter memory is released when conversion completes.
 
 ### 3. Surgical NVIDIA Dependency Selection
 

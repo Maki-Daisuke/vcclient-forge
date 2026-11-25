@@ -103,8 +103,8 @@ uv sync --project backend --extra standard  # Or cuda
 npm start
 ```
 
-Vite proxies `/api` (including WebSocket connections), `/model_dir`, `/output.wav`, and `/vcclient.log` to
-`http://127.0.0.1:18888`. To use another backend, set `VCCLIENT_BACKEND_URL`
+Vite proxies `/api` (including WebSocket connections) to `http://127.0.0.1:18888`.
+To use another backend, set `VCCLIENT_BACKEND_URL`
 before starting Vite. For example, in PowerShell:
 
 ```powershell
@@ -248,7 +248,7 @@ Static type analysis is powered by [mypy](https://mypy.readthedocs.io/) configur
 
 ```bash
 # Run type checks across configured modules
-npm run typecheck
+npm run typecheck:backend
 
 # Or directly via uv:
 uv run --project backend mypy --config-file backend/pyproject.toml
