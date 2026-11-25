@@ -6,7 +6,7 @@ from vcclient.device import DeviceConfig, get_device
 from vcclient.logger import logger
 from vcclient.voice_changer.data_types.voice_changer_data_types import RVCInferencerInfo
 
-from .rvc_inferencer import RVCInferencer
+from .rvc_inferencer import RVCInferencer, extract_onnx_audio_output
 
 
 class RVCInferencerOnnxF0(RVCInferencer):
@@ -111,18 +111,7 @@ class RVCInferencerOnnxF0(RVCInferencer):
                     },
                 )
 
-            if (
-                self.inferencer_type_version == "v3.0"
-                or self.inferencer_type_version == "v2.1"
-                or self.inferencer_type_version == "v2.2"
-                or self.inferencer_type_version == "v1.1"
-            ):
-                res = audio1[0]
-                return res
-            else:
-                res = np.array(audio1)[0][0, 0]
-                res = np.clip(res, -1, 1)
-                return res
+            return extract_onnx_audio_output(audio1[0])
         except Exception as e:
             raise RuntimeError(f"Exeption in {self.__class__.__name__}", e)
 

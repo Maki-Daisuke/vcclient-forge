@@ -348,6 +348,7 @@ def _migrate_single_legacy_slot(
 
     onnx_name = _existing_file_name(slot_dir, raw_params.get("model_file"), "*.onnx")
     onnx_path: Path | None = slot_dir / onnx_name if onnx_name and onnx_name.endswith(".onnx") else None
+    converted_from_pth = onnx_path is None
 
     if onnx_path is None:
         pth_name = _existing_file_name(slot_dir, raw_params.get("model_file"), "*.pth")
@@ -366,14 +367,15 @@ def _migrate_single_legacy_slot(
         and isinstance(raw_params.get("is_f0"), bool)
         and embedder is not None
     )
-    if not has_estimated_meta:
-        estimated = estimate_rvc_model(onnx_path)
-        is_f0 = estimated.is_f0
-        sample_rate_val = estimated.sample_rate
-        inferencer_type = estimated.inferencer_type
-        embedder_val: EmbedderType = embedder or estimated.embedder
-        version_val = str(raw_params.get("version") or estimated.version)
-    else:
+    # Legacy .pth params.json files store checkpoint version tags (e.g. "v2") rather than ONNX schema versions.
+    is_legacy_pth_params = (
+        converted_from_pth
+        or raw_params.get("is_onnx") is False
+        or str(raw_params.get("model_file") or "").lower().endswith(".pth")
+    )
+    estimated = estimate_rvc_model(onnx_path) if (not has_estimated_meta or is_legacy_pth_params) else None
+
+    if has_estimated_meta:
         assert isinstance(sample_rate, int)
         assert embedder is not None
         is_f0 = bool(raw_params["is_f0"])
@@ -385,7 +387,20 @@ def _migrate_single_legacy_slot(
             inferencer_type = "onnxRVCNono"
         else:
             inferencer_type = "onnxRVC" if is_f0 else "onnxRVCNono"
-        embedder_val = embedder
+        embedder_val: EmbedderType = embedder
+    else:
+        assert estimated is not None
+        is_f0 = estimated.is_f0
+        sample_rate_val = estimated.sample_rate
+        inferencer_type = estimated.inferencer_type
+        embedder_val = embedder or estimated.embedder
+
+    if is_legacy_pth_params:
+        assert estimated is not None
+        version_val = estimated.version
+    elif estimated is not None:
+        version_val = str(raw_params.get("version") or estimated.version)
+    else:
         version_val = str(raw_params.get("version") or "")
 
     name = str(raw_params.get("name") or "").strip() or onnx_path.stem

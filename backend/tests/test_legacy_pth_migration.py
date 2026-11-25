@@ -190,3 +190,37 @@ def test_migration_skips_already_converted_slot(tmp_path: Path, monkeypatch):
     assert model.name == "Already ONNX"
     assert stored.model_file == onnx_file.name
     assert (entry_dir / onnx_file.name).exists()
+
+
+def test_migration_updates_legacy_pth_version_to_exported_onnx_version(
+    dummy_rvc_pth: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure legacy .pth checkpoint version tags (e.g. 'v2') are replaced by the exported ONNX schema version."""
+    models_dir = tmp_path / "model_dir"
+    slot_dir = models_dir / "2"
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    target_pth = slot_dir / dummy_rvc_pth.name
+    shutil.copy(dummy_rvc_pth, target_pth)
+
+    legacy_params = {
+        "voice_changer_type": "RVC",
+        "name": "Legacy PTH With Full Meta",
+        "model_file": target_pth.name,
+        "is_onnx": False,
+        "inferencer_type": "pyTorchRVC",
+        "sample_rate": 40000,
+        "is_f0": True,
+        "embedder": "hubert_base_l12",
+        "version": "v2",
+    }
+    (slot_dir / SLOT_PARAM_FILE).write_text(json.dumps(legacy_params, indent=4), encoding="utf-8")
+
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ModelDir", models_dir)
+    monkeypatch.setattr("vcclient.voice_changer.voice_changer_const.ConfigFile", tmp_path / "vc_conf.json")
+
+    models = list_models()
+    assert len(models) == 1
+    assert models[0].version == "v2.1"
+    _, stored, _ = get_model_entry(models[0].id)
+    assert stored.version == "v2.1"
+    assert stored.inferencer_type == "onnxRVC"
