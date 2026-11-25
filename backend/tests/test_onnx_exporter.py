@@ -296,3 +296,70 @@ def test_export_pth_to_onnx_subprocess_error(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError):
         export_pth_to_onnx(corrupt_pth, corrupt_out)
     assert not corrupt_out.exists()
+
+
+@pytest.mark.parametrize("success", [True, False])
+def test_export_subcommand_preserves_server_log(
+    dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path, success: bool
+) -> None:
+    log_file = tmp_path / "vcclient.log"
+    log_file.write_text("server log\n", encoding="utf-8")
+    pth_file = dummy_rvc_v2_f0_checkpoint if success else tmp_path / "missing.pth"
+    result = subprocess.run(
+        [sys.executable, str(MAIN_PY), "export-onnx", str(pth_file), str(tmp_path / "output.onnx")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
+    assert (result.returncode == 0) is success, result.stderr
+    assert log_file.read_text(encoding="utf-8") == "server log\n"
+    if not success:
+        assert result.stderr.count("Model file not found") == 1
+
+
+def test_server_logger_is_initialized_explicitly(tmp_path: Path) -> None:
+    script = dedent(
+        """
+        from pathlib import Path
+        from vcclient.logger import init_logger, logger
+
+        log_file = Path('vcclient.log')
+        assert not log_file.exists()
+        init_logger()
+        init_logger()
+        logger.warning('test message')
+        assert log_file.read_text(encoding='utf-8').count('test message') == 1
+        """
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(BACKEND_DIR), env.get("PYTHONPATH", "")]))
+    result = subprocess.run(
+        [sys.executable, "-c", script], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_export_subcommand_reports_validation_error_once(tmp_path: Path) -> None:
+    pth_file = tmp_path / "invalid.pth"
+    subprocess.run(
+        [sys.executable, "-c", "import sys, torch; torch.save({'version': 'invalid'}, sys.argv[1])", str(pth_file)],
+        cwd=tmp_path,
+        check=True,
+        timeout=30,
+    )
+    result = subprocess.run(
+        [sys.executable, str(MAIN_PY), "export-onnx", str(pth_file), str(tmp_path / "output.onnx")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert result.stderr.count("Invalid torch version") == 1
+    assert not (tmp_path / "vcclient.log").exists()

@@ -52,6 +52,9 @@ if __name__ == "__main__":
         raise SystemExit(run_export_onnx(sys.argv[2:]))
     if getattr(sys, "frozen", False):
         os.chdir(Path(sys.executable).resolve().parent)
+    from vcclient.logger import init_logger
+
+    init_logger()
 
 import sounddevice as sd
 
@@ -63,7 +66,7 @@ from vcclient.initializer import (
     _check_and_download_rvc_modules,
     _select_initial_compute_device,
 )
-from vcclient.logger import logger
+from vcclient.logger import init_logger, logger
 from vcclient.server.vcserver import VCServer
 from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
@@ -198,6 +201,7 @@ def main():
     if args.command != "server":
         parser.error(f"Unknown command: {args.command}")
 
+    init_logger()
     start_server(
         host=args.host,
         port=args.port,

@@ -22,11 +22,20 @@ class IgnoreConvertRequestFilter(logging.Filter):
         return "/api/logs" not in msg
 
 
-def _init_logger() -> logging.Logger:
+logger: logging.Logger = logging.getLogger(LOGGER_NAME)
+logger.addHandler(logging.NullHandler())
+_initialized = False
+
+
+def init_logger() -> None:
+    global _initialized
+    if _initialized:
+        return
+
     level_str = os.environ.get("LOG_LEVEL", os.environ.get("VCCLIENT_LOG_LEVEL", "WARNING")).upper()
     level = getattr(logging, level_str, logging.WARNING)
 
-    log = logging.getLogger(LOGGER_NAME)
+    log = logger
     log.setLevel(level)
     log.propagate = False
 
@@ -56,7 +65,4 @@ def _init_logger() -> logging.Logger:
         sub_logger.addHandler(file_handler)
 
     logging.getLogger("uvicorn.access").addFilter(IgnoreConvertRequestFilter())
-    return log
-
-
-logger: logging.Logger = _init_logger()
+    _initialized = True
