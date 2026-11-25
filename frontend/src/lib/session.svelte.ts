@@ -1,5 +1,6 @@
 import { getContext, setContext } from 'svelte';
 import {
+  autoSelectComputeDevice,
   deleteModel,
   loadAudioDevices,
   organizeModels,
@@ -173,6 +174,8 @@ export class NativeSession {
   operationError = $state<ApiError | null>(null);
   deviceRescanning = $state(false);
   deviceRescanError = $state(false);
+  computeSelecting = $state(false);
+  computeSelectError = $state<ApiError | null>(null);
   devicesNeedingSelection = $state<DeviceKey[]>([]);
   private timer: ReturnType<typeof setTimeout> | undefined;
   private poll: ReturnType<typeof setTimeout> | undefined;
@@ -242,17 +245,17 @@ export class NativeSession {
   get dirty() { return Object.keys(this.draft).length > 0 || this.modelDraft !== null; }
   get importing() { return this.uploadStatus === 'uploading' || this.uploadStatus === 'registering'; }
   get canReload() {
-    return !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
+    return !this.computeSelecting && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
       && !this.isSaving && !this.operation && !this.starting && !this.dirty && this.catalog.state.status !== 'loading';
   }
   get canConfigure() {
     return this.catalog.state.status === 'ready' && this.active === false && !this.starting
-      && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
+      && !this.computeSelecting && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
       && !this.operation && !this.isSaving && !this.dirty;
   }
   get canManageModels() {
     return this.catalog.state.status === 'ready' && this.active !== null && !this.starting
-      && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
+      && !this.computeSelecting && !this.deviceRescanning && !this.modelInfoSaving && !this.organizing && !this.importing
       && !this.operation && !this.isSaving && !this.dirty;
   }
   get canOrganizeModels() {
@@ -261,15 +264,15 @@ export class NativeSession {
   get canDeleteModel() { return this.canConfigure && this.currentModel?.status === 'ready'; }
   get canAdjustGain() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.starting
-      && !this.operation;
+      && !this.computeSelecting && !this.operation;
   }
   get canAdjustNoiseGate() {
     return this.catalog.state.status === 'ready' && this.settings?.inputMode != null && !this.starting
-      && !this.operation;
+      && !this.computeSelecting && !this.operation;
   }
   get canAdjustModel() {
     return this.catalog.state.status === 'ready' && !this.starting && !this.modelInfoSaving
-      && !this.operation && this.currentModel?.status === 'ready'
+      && !this.computeSelecting && !this.operation && this.currentModel?.status === 'ready'
       && this.draft.currentModelId === undefined
       && (this.modelDraft === null || this.modelDraft.id === this.currentModelId);
   }
@@ -278,6 +281,7 @@ export class NativeSession {
   }
 
   get startBlockReason() {
+    if (this.computeSelecting) return 'compute_selecting';
     if (this.importing || this.organizing || this.modelInfoSaving || this.deviceRescanning) return 'saving';
     if (this.operation || this.starting) return 'operation';
     if (this.catalog.state.status === 'loading') return 'loading';
@@ -416,7 +420,7 @@ export class NativeSession {
   }
 
   async reload() {
-    if (this.disposed || this.deviceRescanning || this.isSaving || this.operation || this.dirty) return;
+    if (this.disposed || this.computeSelecting || this.deviceRescanning || this.isSaving || this.operation || this.dirty) return;
     this.saved = false;
     this.error = null;
     this.operationError = null;
@@ -483,7 +487,7 @@ export class NativeSession {
     const settings = this.settings;
     return this.catalog.state.status === 'ready' && !this.starting && settings?.ioAnalysisEnabled != null
       && settings.processAnalysisEnabled != null && settings.performanceMonitorEnabled != null
-      && !this.operation;
+      && !this.computeSelecting && !this.operation;
   }
 
   setRealtimeDisplay(enabled: boolean) {
@@ -505,7 +509,7 @@ export class NativeSession {
   get canToggleRecording() {
     const settings = this.settings;
     return this.catalog.state.status === 'ready' && settings?.inputMode != null && !this.starting
-      && !this.operation && !this.isSaving && !this.dirty
+      && !this.computeSelecting && !this.operation && !this.isSaving && !this.dirty
       && this.active !== null;
   }
 
@@ -564,6 +568,23 @@ export class NativeSession {
       || devices.status !== 'ready' || !Number.isSafeInteger(id) || !devices.devices.some(device => device.id === id)
       || id === this.settings.gpuDevice) return;
     this.edit({ gpuDevice: id }, true);
+  }
+
+  async autoSelectComputeDevice() {
+    if (!this.canConfigure || !this.settings?.inputMode || this.catalog.computeDeviceState.status !== 'ready') return;
+    this.computeSelecting = true;
+    this.computeSelectError = null;
+    try {
+      const device = await this.request(signal => autoSelectComputeDevice(signal), 180_000);
+      if (this.disposed) return;
+      const state = this.catalog.computeDeviceState;
+      if (state.status !== 'ready' || !state.devices.some(item => item.id === device.id)) throw new ApiError('invalid_response');
+      this.edit({ gpuDevice: device.id }, true);
+    } catch (error) {
+      if (!this.disposed) this.computeSelectError = this.apiError(error);
+    } finally {
+      this.computeSelecting = false;
+    }
   }
 
   async rescanAudioDevices() {

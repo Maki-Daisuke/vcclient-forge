@@ -384,6 +384,16 @@ export async function loadAudioDevices(signal: AbortSignal, rescan = false): Pro
 
 export interface ComputeDevice { id: number; name: string }
 
+export async function autoSelectComputeDevice(signal: AbortSignal): Promise<ComputeDevice> {
+  const response = object(await responseJson(await fetch('/api/devices/compute/auto-select', {
+    method: 'POST', signal, cache: 'no-store',
+  }), signal));
+  const device = object(response.device);
+  if (!Number.isSafeInteger(response.compute_device_id) || (response.compute_device_id as number) < 0
+    || response.compute_device_id !== device.id || typeof device.name !== 'string' || !device.name.trim()) invalidResponse();
+  return { id: response.compute_device_id as number, name: device.name as string };
+}
+
 export async function loadComputeDevices(signal: AbortSignal): Promise<ComputeDevice[]> {
   const value = await getJson('/api/devices/compute', signal);
   if (!Array.isArray(value)) invalidResponse();

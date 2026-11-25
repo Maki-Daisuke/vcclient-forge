@@ -32,7 +32,56 @@ test('cannot change compute device while audio is active', async ({ page }) => {
   const select = await openInference(page);
   await expect(select).toHaveValue('2');
   await expect(select).toBeDisabled();
+  await expect(page.getByRole('button', { name: '自動選択' })).toBeDisabled();
   expect(state.writes).toHaveLength(0);
+});
+
+test('auto-selects a device and saves it when starting', async ({ page }) => {
+  const state = await mockSession(page);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/devices/compute/auto-select', async route => {
+    expect(route.request().method()).toBe('POST');
+    await pending;
+    await route.fulfill({ json: { compute_device_id: 1, device: { id: 1, name: '[CUDA] NVIDIA Test GPU' } } });
+  });
+  const select = await openInference(page);
+  await page.getByRole('button', { name: '自動選択' }).click();
+  await expect(page.getByRole('button', { name: 'デバイスを確認中…' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'デバイスを確認中…' }).locator('.pending-spinner')).toBeVisible();
+  await expect(select).toBeDisabled();
+  await expect(page.getByRole('button', { name: '開始', exact: true })).toBeDisabled();
+  release();
+  await expect(select).toHaveValue('1');
+  await expect(page.getByRole('button', { name: '自動選択' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '自動選択' }).locator('.pending-spinner')).toHaveCount(0);
+  expect(state.writes).toHaveLength(0);
+  await page.getByRole('button', { name: '開始', exact: true }).click();
+  await expect.poll(() => state.sessionWrites.length).toBe(1);
+  expect(state.writes[0].compute_device_id).toBe(1);
+  expect(state.sessionWrites[0].compute_device_id).toBe(1);
+});
+
+test('keeps the previous selection when auto-selection fails', async ({ page }) => {
+  const state = await mockSession(page);
+  await page.route('**/api/devices/compute/auto-select', route => route.fulfill({ status: 500 }));
+  const select = await openInference(page);
+  await page.getByRole('button', { name: '自動選択' }).click();
+  await expect(page.getByRole('alert')).toContainText('自動選択できませんでした');
+  await expect(select).toHaveValue('2');
+  await expect(page.getByRole('button', { name: '自動選択' })).toBeEnabled();
+  expect(state.writes).toHaveLength(0);
+});
+
+test('rejects an auto-selection response for an unknown device', async ({ page }) => {
+  await mockSession(page);
+  await page.route('**/api/devices/compute/auto-select', route => route.fulfill({
+    json: { compute_device_id: 99, device: { id: 99, name: 'Unknown device' } },
+  }));
+  const select = await openInference(page);
+  await page.getByRole('button', { name: '自動選択' }).click();
+  await expect(page.getByRole('alert')).toContainText('自動選択できませんでした');
+  await expect(select).toHaveValue('2');
 });
 
 test('shows an unavailable list without hiding other settings', async ({ page }) => {
