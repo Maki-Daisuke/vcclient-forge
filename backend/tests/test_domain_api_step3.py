@@ -176,6 +176,18 @@ def session_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[tu
         "get_default_sample_rate",
         lambda idx, kind: 44100.0 if idx == 3 else 48000.0,
     )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.local_voice_changer_interface.get_audio_input_device",
+        lambda idx: in_dev if idx == 1 else None,
+    )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.local_voice_changer_interface.get_audio_output_device",
+        lambda idx: out_dev if idx == 2 else (mon_dev if idx == 3 else None),
+    )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.local_voice_changer_interface.get_default_sample_rate",
+        lambda idx, kind: 44100.0 if idx == 3 else 48000.0,
+    )
 
     session_manager.reset_session_state()
 
@@ -1085,3 +1097,51 @@ def test_rvc_pipeline_reset_buffers_clears_streaming_state() -> None:
     assert np.all(pipeline.feature_buffer == 0.0)
     assert pipeline.is_gate_open is True
     assert pipeline.noise_gate_below_threshold_samples == 0
+
+
+def test_session_releases_webgpu_pipeline_before_rebuilding(
+    session_env: tuple[TestClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, id1, _id2 = session_env
+    webgpu_devices = [
+        DeviceConfig(id=0, canonical_id="cpu", provider="cpu", device_index=0, device_type="CPU", name="CPU"),
+        DeviceConfig(
+            id=1,
+            canonical_id="webgpu:0",
+            provider="webgpu",
+            device_index=0,
+            device_type="GPU",
+            name="[WebGPU] GPU 0",
+        ),
+        DeviceConfig(
+            id=2,
+            canonical_id="webgpu:1",
+            provider="webgpu",
+            device_index=1,
+            device_type="GPU",
+            name="[WebGPU] GPU 1",
+        ),
+    ]
+    monkeypatch.setattr(session_manager_mod, "get_device_catalog", lambda: webgpu_devices)
+
+    seen_old_pipeline_during_build: list[object | None] = []
+
+    def fake_get_pipeline(cls, slot_info, *, device=None, extra_frame_sec=None, snapshot_getter=None):
+        vc = VoiceChanger.peek_instance()
+        seen_old_pipeline_during_build.append(vc.vc_pipeline if vc is not None else None)
+        pipe = _DummyPipeline(slot_info, snapshot_getter=snapshot_getter, extra_frame_sec=extra_frame_sec)
+        pipe.device = webgpu_devices[int(device or 0)]  # type: ignore[attr-defined]
+        return pipe
+
+    monkeypatch.setattr(PipelineManager, "get_pipeline", classmethod(fake_get_pipeline))
+
+    assert client.put("/api/session", json={"model_id": id1, "compute_device_id": 1}).status_code == 202
+    _wait_for_status(client, "running")
+    assert client.delete("/api/session").status_code == 200
+
+    assert client.put("/api/session", json={"model_id": id1, "compute_device_id": 2}).status_code == 202
+    _wait_for_status(client, "running")
+
+    # On rebuild after a WebGPU session, the previous pipeline must already be cleared before get_pipeline runs.
+    assert seen_old_pipeline_during_build == [None, None]

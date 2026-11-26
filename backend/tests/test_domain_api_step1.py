@@ -9,6 +9,7 @@ from fastapi import Response
 from starlette.testclient import TestClient
 
 from vcclient.device import DeviceConfig
+from vcclient.exception import ERROR_CODE_LOCAL_AUDIO_DEVICE_QUERY_FAILED, VCClientError
 from vcclient.server import vcserver_rest_api, vcserver_rest_api_devices
 from vcclient.server.api_common import (
     DomainApiError,
@@ -128,6 +129,32 @@ def test_audio_device_cache_marks_initialized_even_when_empty(monkeypatch: pytes
     assert audio_device_manager.get_audio_input_devices() == []
     assert audio_device_manager.get_audio_output_devices() == []
     assert calls == 1
+
+
+def test_audio_device_query_failure_is_cached_until_reload(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+    mic = AudioDevice(kind="audioinput", index=1, name="Mic", host_api="ALSA")
+
+    def fake_list() -> tuple[list[AudioDevice], list[AudioDevice]]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise VCClientError(ERROR_CODE_LOCAL_AUDIO_DEVICE_QUERY_FAILED, detail="no sound server")
+        return ([mic], [])
+
+    monkeypatch.setattr(audio_device_manager, "_audio_devices_initialized", False)
+    monkeypatch.setattr(audio_device_manager, "_audio_devices_error", None)
+    monkeypatch.setattr(audio_device_manager, "_list_device", fake_list)
+
+    for _ in range(2):
+        with pytest.raises(VCClientError, match="no sound server"):
+            audio_device_manager.get_audio_input_devices()
+    assert audio_device_manager.get_audio_input_device(1) is None
+    assert calls == 1
+
+    assert audio_device_manager.reload_audio_devices() == ([mic], [])
+    assert audio_device_manager.get_audio_input_device(1) == mic
+    assert calls == 2
 
 
 @pytest.mark.parametrize("active_mode", ["local_enabled", "stream_running", "bulk_started"])

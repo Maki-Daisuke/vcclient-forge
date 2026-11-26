@@ -74,11 +74,10 @@ if __name__ == "__main__":
     if getattr(sys, "frozen", False):
         os.chdir(Path(sys.executable).resolve().parent)
 
-import sounddevice as sd
-
 from vcclient.app_status import is_app_stopping, stop_app, wait_for_stop
 from vcclient.const import VERSION
 from vcclient.device import reload_device_catalog
+from vcclient.exception import VCClientError
 from vcclient.initializer import (
     _check_and_download_initial_samples,
     _check_and_download_rvc_modules,
@@ -90,6 +89,7 @@ from vcclient.voice_changer.audio_device_manager import reload_audio_devices
 from vcclient.voice_changer.configuration_manager.configuration_manager import ConfigurationManager
 from vcclient.voice_changer.model_catalog import list_models
 from vcclient.voice_changer.slot_manager.legacy_recovery import recover_legacy_model_order
+from vcclient.voice_changer.sounddevice_loader import is_port_audio_error
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from vcclient.voice_changer.voice_change_manager.voice_changer import VoiceChanger
 from vcclient.voice_changer.voice_changer_const import ConfigFile, ModelDir
@@ -126,7 +126,10 @@ def start_server(
         return
 
     reload_device_catalog()
-    reload_audio_devices()
+    try:
+        reload_audio_devices()
+    except VCClientError as e:
+        logger.warning("Audio devices are unavailable; local audio I/O is disabled until reloaded: %s", e)
     if first_start and _select_initial_compute_device():
         ConfigurationManager.get_instance().save_voice_changer_configuration()
 
@@ -171,23 +174,21 @@ def start_server(
         except KeyboardInterrupt:
             err_msg = "KeyboardInterrupt"
             break
-        except sd.PortAudioError as e:
-            err_msg = f"sound device error:{e}"
-            logger.error("sound device error: %s", e, exc_info=True)
-            wasapi_not_supported_msg = (
-                "If you are using WASAPI or ASIO, your device might not be compatible with it. "
-                "Please try using MME instead."
-            )
-            logger.error(wasapi_not_supported_msg)
-            print(err_msg)
-            print(f" {wasapi_not_supported_msg} ")
-            local_voice_changer_interface.stop()
-            report_audio_failure(e)
-            time.sleep(1)
         except Exception as e:
-            err_msg = f"Error:{e}"
-            logger.error("Runtime error: %s", e, exc_info=True)
-            print(err_msg)
+            if is_port_audio_error(e):
+                err_msg = f"sound device error:{e}"
+                logger.error("sound device error: %s", e, exc_info=True)
+                wasapi_not_supported_msg = (
+                    "If you are using WASAPI or ASIO, your device might not be compatible with it. "
+                    "Please try using MME instead."
+                )
+                logger.error(wasapi_not_supported_msg)
+                print(err_msg)
+                print(f" {wasapi_not_supported_msg} ")
+            else:
+                err_msg = f"Error:{e}"
+                logger.error("Runtime error: %s", e, exc_info=True)
+                print(err_msg)
             local_voice_changer_interface.stop()
             report_audio_failure(e)
             time.sleep(1)

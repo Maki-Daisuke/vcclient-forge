@@ -18,6 +18,7 @@ def test_real_audio_device_discovery_and_probing() -> None:
         """
         from concurrent.futures import ThreadPoolExecutor
 
+        from vcclient.exception import VCClientError
         from vcclient.voice_changer.audio_device_manager import (
             check_available_sample_rate,
             get_audio_input_devices,
@@ -26,7 +27,11 @@ def test_real_audio_device_discovery_and_probing() -> None:
             reload_audio_devices,
         )
 
-        inputs, outputs = reload_audio_devices()
+        try:
+            inputs, outputs = reload_audio_devices()
+        except VCClientError as exc:
+            print(f"Audio backend unavailable: {exc}")
+            raise SystemExit(77)
         if not inputs or not outputs:
             print(f"Audio devices unavailable: {len(inputs)} inputs, {len(outputs)} outputs")
             raise SystemExit(77)

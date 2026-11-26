@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import math
 import threading
 import weakref
@@ -375,6 +376,7 @@ def _run_startup(
         pipeline_key = _build_pipeline_cache_key(snapshot, slot_info, catalog[snapshot.compute_device_id])
 
     cached_pipeline: VCPipeline | None = None
+    release_webgpu_before_rebuild = False
     with _lock:
         if _generation != gen or _status != "starting":
             return
@@ -388,6 +390,18 @@ def _run_startup(
             and _pipeline_cache_ref() is vc_existing.vc_pipeline
         ):
             cached_pipeline = vc_existing.vc_pipeline
+        elif (
+            vc_existing is not None
+            and vc_existing.vc_pipeline is not None
+            and getattr(getattr(vc_existing.vc_pipeline, "device", None), "provider", None) == "webgpu"
+        ):
+            # Release any active WebGPU pipeline before creating a replacement because WebGpuContext
+            # is a per-process singleton tied to live sessions.
+            vc_existing.vc_pipeline = None
+            _clear_pipeline_cache_locked()
+            release_webgpu_before_rebuild = True
+    if release_webgpu_before_rebuild:
+        gc.collect()
 
     try:
         if cached_pipeline is not None:

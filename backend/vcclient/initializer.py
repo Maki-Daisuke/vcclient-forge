@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import re
 import time
 from collections.abc import Callable
@@ -56,20 +57,25 @@ def _download_progress(label_for_id: Callable[[str], str]) -> Callable[[list[Dow
 
 
 def _initial_device_candidates(devices: list[DeviceConfig]) -> list[DeviceConfig]:
-    def priority(device: DeviceConfig) -> tuple[int, int]:
+    # Discrete GPUs outrank integrated ones; within a tier, OpenVINO's tuned kernels beat DirectML and generic Vulkan.
+    gpu_rank = {"openvino": 0, "directml": 1, "webgpu": 2}
+
+    def priority(device: DeviceConfig) -> tuple[int, int, int]:
         if device.provider == "cuda" and device.device_type == "GPU":
-            return (0, -device.device_index)
+            return (0, 0, -device.device_index)
         if device.provider == "coreml" and device.metadata.get("compute_units") == "ALL":
-            return (1, -device.device_index)
-        if device.provider == "openvino" and device.device_type == "GPU":
-            ov_device = str(device.metadata.get("ov_device", ""))
-            match = re.fullmatch(r"GPU\.(\d+)", ov_device, re.IGNORECASE)
-            return (2, -int(match.group(1)) if match else -device.device_index)
-        if device.provider == "directml" and device.device_type == "GPU":
-            return (3, -device.device_index)
+            return (1, 0, -device.device_index)
+        if device.provider in gpu_rank and device.device_type == "GPU":
+            index = -device.device_index
+            if device.provider == "openvino":
+                match = re.fullmatch(r"GPU\.(\d+)", str(device.metadata.get("ov_device", "")), re.IGNORECASE)
+                index = -int(match.group(1)) if match else index
+            elif device.provider == "webgpu":
+                index = device.device_index
+            return (2 if device.metadata.get("discrete") else 3, gpu_rank[device.provider], index)
         if device.provider == "cpu":
-            return (4, 0)
-        return (5, 0)
+            return (4, 0, 0)
+        return (5, 0, 0)
 
     return sorted((device for device in devices if priority(device)[0] < 5), key=priority)
 
@@ -81,6 +87,7 @@ def _verify_device_sessions(pipeline: "RVCPipeline", device: DeviceConfig) -> No
         "coreml": "CoreMLExecutionProvider",
         "openvino": "OpenVINOExecutionProvider",
         "directml": "DmlExecutionProvider",
+        "webgpu": "WebGpuExecutionProvider",
     }[device.provider]
     sessions = [
         getattr(component, "onnx_session") for component in (pipeline.pitch_estimator, pipeline.embedder, pipeline.rvc)
@@ -100,16 +107,20 @@ def _probe_first_working_device(conf: VoiceChangerConfiguration, slot: RVCSlotIn
     for device in _initial_device_candidates(get_device_catalog()):
         conf.gpu_device_id_int = device.id
         print(f"Testing inference device: {device.name}", flush=True)
+        pipeline: RVCPipeline | None = None
         try:
             pipeline = RVCPipeline(slot)
             _verify_device_sessions(pipeline, device)
             pipeline.warmup()
             _verify_device_sessions(pipeline, device)
+            return device
         except Exception as e:
             logger.warning("Initial device test failed for %s: %s", device.canonical_id, e, exc_info=True)
             print(f"Inference device test failed: {device.name}", flush=True)
-            continue
-        return device
+        # Collect only after leaving `except`: the live traceback keeps the failed pipeline's sessions alive,
+        # and WebGPU cannot switch adapters while any session from the previous one remains.
+        pipeline = None
+        gc.collect()
 
     conf.gpu_device_id_int = 0
     raise RuntimeError("No inference device passed the initial pipeline test; see vcclient.log for details.")
