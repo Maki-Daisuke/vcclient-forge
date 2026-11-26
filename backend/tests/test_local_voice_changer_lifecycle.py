@@ -1,5 +1,7 @@
+import threading
 from threading import Event, Thread
 
+from vcclient.voice_changer.audio_device_manager import run_on_audio_device_thread
 from vcclient.voice_changer.voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 
 
@@ -32,4 +34,17 @@ def test_run_reports_stream_until_launch_returns(monkeypatch):
         release.set()
         worker.join(5)
     assert not worker.is_alive()
+    assert not interface.stream_running
+
+
+def test_run_launches_converter_on_audio_device_thread(monkeypatch):
+    interface = LocalVoiceChangerInterface()
+    interface.local_voice_changer_enabled = True
+    worker_ident = run_on_audio_device_thread(threading.get_ident)
+    launch_threads: list[int] = []
+    monkeypatch.setattr(interface, "setup", lambda: None)
+    monkeypatch.setattr(interface, "launch_converter", lambda: launch_threads.append(threading.get_ident()))
+    interface.run()
+    assert worker_ident != threading.get_ident()
+    assert launch_threads == [worker_ident]
     assert not interface.stream_running

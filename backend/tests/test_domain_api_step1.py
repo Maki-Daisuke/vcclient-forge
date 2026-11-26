@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -155,6 +156,33 @@ def test_audio_device_query_failure_is_cached_until_reload(monkeypatch: pytest.M
     assert audio_device_manager.reload_audio_devices() == ([mic], [])
     assert audio_device_manager.get_audio_input_device(1) == mic
     assert calls == 2
+
+
+def test_audio_device_cached_reads_do_not_block_on_worker(monkeypatch: pytest.MonkeyPatch) -> None:
+    mic = AudioDevice(kind="audioinput", index=1, name="Mic", host_api="WASAPI")
+    monkeypatch.setattr(audio_device_manager, "_audio_devices_initialized", True)
+    monkeypatch.setattr(audio_device_manager, "_audio_devices_error", None)
+    monkeypatch.setattr(audio_device_manager, "_audio_input_devices", [mic])
+    monkeypatch.setattr(audio_device_manager, "_audio_output_devices", [])
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def occupy_worker() -> None:
+        started.set()
+        release.wait(5.0)
+
+    blocker = threading.Thread(target=lambda: audio_device_manager.run_on_audio_device_thread(occupy_worker))
+    blocker.start()
+    try:
+        assert started.wait(2.0)
+        assert audio_device_manager.get_audio_input_devices() == [mic]
+        assert audio_device_manager.get_audio_input_device(1) == mic
+        assert audio_device_manager.get_audio_output_devices() == []
+    finally:
+        release.set()
+        blocker.join(timeout=5.0)
+    assert not blocker.is_alive()
 
 
 @pytest.mark.parametrize("active_mode", ["local_enabled", "stream_running", "bulk_started"])

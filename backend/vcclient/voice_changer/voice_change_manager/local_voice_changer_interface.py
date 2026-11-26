@@ -18,6 +18,7 @@ from ..audio_device_manager import (
     get_audio_input_device,
     get_audio_output_device,
     get_default_sample_rate,
+    run_on_audio_device_thread,
 )
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..event_emitter import EventEmitter
@@ -195,7 +196,8 @@ class LocalVoiceChangerInterface(EventEmitter):
                 self.stream_running = False
                 raise
         try:
-            self.launch_converter()
+            # Open and start PortAudio streams on the worker thread that initialized PortAudio (Windows COM/WASAPI).
+            run_on_audio_device_thread(self.launch_converter)
         finally:
             with self.lifecycle_lock:
                 self.stream_running = False

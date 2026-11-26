@@ -42,8 +42,8 @@ def _ensure_worker_thread() -> threading.Thread:
         return _worker_thread
 
 
-def _run_on_audio_device_thread[T](task: Callable[[], T]) -> T:
-    """Run all PortAudio device enumeration and probing sequentially on one dedicated thread."""
+def run_on_audio_device_thread[T](task: Callable[[], T]) -> T:
+    """Run all PortAudio work (device enumeration, probing, and the local converter streams) sequentially on one dedicated thread, so every PortAudio call uses the thread that initialized PortAudio (and its COM apartment on Windows)."""
     worker = _ensure_worker_thread()
     if threading.current_thread() is worker:
         return task()
@@ -93,7 +93,7 @@ def _list_device() -> tuple[list[AudioDevice], list[AudioDevice]]:
 
         return (audio_input_devices, audio_output_devices)
 
-    return _run_on_audio_device_thread(_do_list)
+    return run_on_audio_device_thread(_do_list)
 
 
 def _probe_stream_sample_rate(
@@ -117,7 +117,7 @@ def _probe_stream_sample_rate(
         with stream_cls(**kwargs) as stream:
             return float(stream.samplerate)
 
-    return _run_on_audio_device_thread(_probe)
+    return run_on_audio_device_thread(_probe)
 
 
 def _check_sample_rate(device_id: int, desired_sampling_rate: int, type: AudioDeviceType) -> bool:
@@ -138,6 +138,7 @@ def _get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
         return -1
 
 
+_audio_devices_lock = threading.Lock()
 _audio_input_devices: list[AudioDevice] = []
 _audio_output_devices: list[AudioDevice] = []
 _audio_devices_initialized: bool = False
@@ -149,33 +150,37 @@ def reload_audio_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
     def _reload() -> tuple[list[AudioDevice], list[AudioDevice]]:
         global _audio_input_devices, _audio_output_devices, _audio_devices_initialized, _audio_devices_error
         logger.info("Reloading Audio Device info")
-        _audio_devices_initialized = True
         try:
-            (_audio_input_devices, _audio_output_devices) = _list_device()
+            input_devices, output_devices = _list_device()
         except VCClientError as e:
-            _audio_input_devices, _audio_output_devices = [], []
-            _audio_devices_error = e
+            with _audio_devices_lock:
+                _audio_input_devices, _audio_output_devices = [], []
+                _audio_devices_initialized = True
+                _audio_devices_error = e
             raise
-        _audio_devices_error = None
-        logger.info("Audio(input): %s", _audio_input_devices)
-        logger.info("Audio(output): %s", _audio_output_devices)
-        return (_audio_input_devices, _audio_output_devices)
+        with _audio_devices_lock:
+            _audio_input_devices, _audio_output_devices = input_devices, output_devices
+            _audio_devices_initialized = True
+            _audio_devices_error = None
+        logger.info("Audio(input): %s", input_devices)
+        logger.info("Audio(output): %s", output_devices)
+        return (input_devices, output_devices)
 
-    return _run_on_audio_device_thread(_reload)
+    return run_on_audio_device_thread(_reload)
 
 
 def _get_cached_devices(*, raise_error: bool) -> tuple[list[AudioDevice], list[AudioDevice]]:
-    def _get() -> tuple[list[AudioDevice], list[AudioDevice]]:
-        if not _audio_devices_initialized:
-            try:
-                reload_audio_devices()
-            except VCClientError:
-                pass
+    with _audio_devices_lock:
+        initialized = _audio_devices_initialized
+    if not initialized:
+        try:
+            reload_audio_devices()
+        except VCClientError:
+            pass
+    with _audio_devices_lock:
         if raise_error and _audio_devices_error is not None:
             raise VCClientError(_audio_devices_error.info.code, detail=_audio_devices_error.info.detail)
         return (_audio_input_devices, _audio_output_devices)
-
-    return _run_on_audio_device_thread(_get)
 
 
 def get_audio_input_devices() -> list[AudioDevice]:

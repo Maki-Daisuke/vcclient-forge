@@ -6,6 +6,7 @@ from .audio_device_manager import (
     get_audio_output_devices,
     get_default_sample_rate,
     reload_audio_devices,
+    run_on_audio_device_thread,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "get_audio_output_devices",
     "get_default_sample_rate",
     "reload_audio_devices",
+    "run_on_audio_device_thread",
 ]
