@@ -3,8 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from vcclient.device import DeviceConfig, get_device_catalog, reload_device_catalog
-from vcclient.initializer import recommend_compute_device
+from vcclient.device import DeviceConfig, get_device_catalog, recommend_compute_device, reload_device_catalog
 from vcclient.server.api_common import DomainApiError, DomainApiRoute, ensure_session_stopped
 from vcclient.voice_changer.audio_device_manager import (
     get_audio_input_devices,

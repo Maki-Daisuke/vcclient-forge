@@ -17,6 +17,7 @@ from .device_manager import (
     is_webgpu_available,
     reload_device_catalog,
 )
+from .device_selector import recommend_compute_device
 from .openvino_patch import (
     patch_rmvpe_model_for_openvino,
     patch_rvc_model_for_openvino,
@@ -38,6 +39,7 @@ __all__ = [
     "patch_rvc_model_for_coreml",
     "patch_rvc_model_for_openvino",
     "providers",
+    "recommend_compute_device",
     "reload_device_catalog",
     "setup_runtime_env",
 ]

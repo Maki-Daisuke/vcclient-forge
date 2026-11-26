@@ -76,12 +76,11 @@ if __name__ == "__main__":
 
 from vcclient.app_status import is_app_stopping, stop_app, wait_for_stop
 from vcclient.const import VERSION
-from vcclient.device import reload_device_catalog
+from vcclient.device import recommend_compute_device, reload_device_catalog
 from vcclient.exception import VCClientError
 from vcclient.initializer import (
     _check_and_download_initial_samples,
     _check_and_download_rvc_modules,
-    _select_initial_compute_device,
 )
 from vcclient.logger import init_logger, logger
 from vcclient.server.vcserver import VCServer
@@ -130,8 +129,16 @@ def start_server(
         reload_audio_devices()
     except VCClientError as e:
         logger.warning("Audio devices are unavailable; local audio I/O is disabled until reloaded: %s", e)
-    if first_start and _select_initial_compute_device():
-        ConfigurationManager.get_instance().save_voice_changer_configuration()
+    if first_start:
+        try:
+            selected_device = recommend_compute_device()
+        except LookupError:
+            logger.warning("Skipping initial device selection: the initial model is unavailable.")
+            print("Initial model is unavailable; automatic device selection skipped.", flush=True)
+        else:
+            conf = ConfigurationManager.get_instance().get_voice_changer_configuration()
+            conf.gpu_device_id_int = selected_device.id
+            ConfigurationManager.get_instance().save_voice_changer_configuration()
 
     vcserver = VCServer(
         host=host,

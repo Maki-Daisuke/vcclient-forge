@@ -212,7 +212,7 @@ def test_compute_auto_select_recommends_without_mutating_config(
     stopped_session: tuple[LocalVoiceChangerInterface, object],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from vcclient import initializer
+    from vcclient.device import device_selector
 
     _, conf = stopped_session
     monkeypatch.setattr(conf, "gpu_device_id_int", 0)
@@ -222,10 +222,10 @@ def test_compute_auto_select_recommends_without_mutating_config(
     monkeypatch.setattr(manager, "save_voice_changer_configuration", save_spy)
 
     slot = RVCSlotInfo(slot_index=0, model_file=Path("model.onnx"))
-    monkeypatch.setattr(initializer, "get_probe_slot_info", lambda _preferred=None: slot)
+    monkeypatch.setattr(device_selector, "_get_probe_slot", lambda _preferred=None: slot)
 
     catalog = [_make_device(0, "cpu", "cpu"), _make_device(1, "cuda", "cuda:0")]
-    monkeypatch.setattr(initializer, "get_device_catalog", lambda: catalog)
+    monkeypatch.setattr(device_selector, "get_device_catalog", lambda: catalog)
 
     probed_ids: list[int] = []
 
@@ -234,7 +234,7 @@ def test_compute_auto_select_recommends_without_mutating_config(
         return MagicMock()
 
     monkeypatch.setattr(rvc_pipeline, "RVCPipeline", fake_pipeline)
-    monkeypatch.setattr(initializer, "_verify_device_sessions", lambda _p, _d: None)
+    monkeypatch.setattr(device_selector, "_verify_device_sessions", lambda _p, _d: None)
 
     res = client.post("/api/devices/compute/auto-select")
     assert res.status_code == 200
@@ -252,7 +252,7 @@ def test_compute_auto_select_error_envelopes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from vcclient import initializer
+    from vcclient.device import device_selector
     from vcclient.voice_changer import voice_changer_const
 
     _, conf = stopped_session
@@ -262,7 +262,7 @@ def test_compute_auto_select_error_envelopes(
     empty_model_dir.mkdir()
     monkeypatch.setattr(voice_changer_const, "ModelDir", empty_model_dir)
 
-    monkeypatch.setattr(initializer, "get_probe_slot_info", lambda _preferred=None: None)
+    monkeypatch.setattr(device_selector, "_get_probe_slot", lambda _preferred=None: None)
 
     missing_res = client.post("/api/devices/compute/auto-select")
     assert missing_res.status_code == 409
@@ -270,8 +270,8 @@ def test_compute_auto_select_error_envelopes(
     assert conf.gpu_device_id_int == 2  # type: ignore[attr-defined]
 
     valid_slot = RVCSlotInfo(slot_index=0, model_file=Path("model.onnx"))
-    monkeypatch.setattr(initializer, "get_probe_slot_info", lambda _preferred=None: valid_slot)
-    monkeypatch.setattr(initializer, "get_device_catalog", lambda: [_make_device(0, "cpu", "cpu")])
+    monkeypatch.setattr(device_selector, "_get_probe_slot", lambda _preferred=None: valid_slot)
+    monkeypatch.setattr(device_selector, "get_device_catalog", lambda: [_make_device(0, "cpu", "cpu")])
     monkeypatch.setattr(rvc_pipeline, "RVCPipeline", MagicMock(side_effect=RuntimeError("boom")))
 
     fail_res = client.post("/api/devices/compute/auto-select")
