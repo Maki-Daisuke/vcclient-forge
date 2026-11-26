@@ -64,6 +64,7 @@ When exploring the codebase, searching text, or inspecting files via terminal co
 ### 2. Audio Processing Hot Path
 
 - Audio callbacks in `local_voice_changer_interface.py` run on real-time PortAudio threads.
+- All PortAudio operations—device enumeration, sample-rate probing, and opening/running local converter streams (`launch_converter`)—must execute on the single dedicated `audio-device-worker` thread (`run_on_audio_device_thread` in `audio_device_manager.py`) so every stream shares the thread/COM context that called `Pa_Initialize()`. Initialized device cache lookups must read under a lock without queuing on `audio-device-worker` while conversion is running.
 - Keep memory allocations inside callbacks and the conversion loop to the absolute minimum. No unnecessary copying, zero eagerly formatted debug strings, and no blocking I/O on audio threads.
 - Crossfade and SOLA overlap-add algorithms in `crossfade_processor.py` manage seamless chunk stitching.
 
