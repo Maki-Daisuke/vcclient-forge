@@ -7,12 +7,12 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
-import sounddevice as sd
 
 from vcclient.logger import logger
 
 from ...exception import ERROR_CODE_LOCAL_AUDIO_DEVICE_QUERY_FAILED, VCClientError
 from ..data_types.data_types import AudioDevice
+from ..sounddevice_loader import sounddevice as sd
 from ..voice_changer_const import AudioDeviceType
 
 _worker_init_lock = threading.Lock()
@@ -141,14 +141,22 @@ def _get_default_sample_rate(device_id: int, type: AudioDeviceType) -> float:
 _audio_input_devices: list[AudioDevice] = []
 _audio_output_devices: list[AudioDevice] = []
 _audio_devices_initialized: bool = False
+# A failed query is cached too, so PortAudio is retried only by an explicit reload.
+_audio_devices_error: VCClientError | None = None
 
 
 def reload_audio_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
     def _reload() -> tuple[list[AudioDevice], list[AudioDevice]]:
-        global _audio_input_devices, _audio_output_devices, _audio_devices_initialized
+        global _audio_input_devices, _audio_output_devices, _audio_devices_initialized, _audio_devices_error
         logger.info("Reloading Audio Device info")
-        (_audio_input_devices, _audio_output_devices) = _list_device()
         _audio_devices_initialized = True
+        try:
+            (_audio_input_devices, _audio_output_devices) = _list_device()
+        except VCClientError as e:
+            _audio_input_devices, _audio_output_devices = [], []
+            _audio_devices_error = e
+            raise
+        _audio_devices_error = None
         logger.info("Audio(input): %s", _audio_input_devices)
         logger.info("Audio(output): %s", _audio_output_devices)
         return (_audio_input_devices, _audio_output_devices)
@@ -156,32 +164,37 @@ def reload_audio_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
     return _run_on_audio_device_thread(_reload)
 
 
-def _get_cached_devices() -> tuple[list[AudioDevice], list[AudioDevice]]:
+def _get_cached_devices(*, raise_error: bool) -> tuple[list[AudioDevice], list[AudioDevice]]:
     def _get() -> tuple[list[AudioDevice], list[AudioDevice]]:
         if not _audio_devices_initialized:
-            reload_audio_devices()
+            try:
+                reload_audio_devices()
+            except VCClientError:
+                pass
+        if raise_error and _audio_devices_error is not None:
+            raise VCClientError(_audio_devices_error.info.code, detail=_audio_devices_error.info.detail)
         return (_audio_input_devices, _audio_output_devices)
 
     return _run_on_audio_device_thread(_get)
 
 
 def get_audio_input_devices() -> list[AudioDevice]:
-    return _get_cached_devices()[0]
+    return _get_cached_devices(raise_error=True)[0]
 
 
 def get_audio_input_device(index: int) -> AudioDevice | None:
-    for d in get_audio_input_devices():
+    for d in _get_cached_devices(raise_error=False)[0]:
         if d.index == index:
             return d
     return None
 
 
 def get_audio_output_devices() -> list[AudioDevice]:
-    return _get_cached_devices()[1]
+    return _get_cached_devices(raise_error=True)[1]
 
 
 def get_audio_output_device(index: int) -> AudioDevice | None:
-    for d in get_audio_output_devices():
+    for d in _get_cached_devices(raise_error=False)[1]:
         if d.index == index:
             return d
     return None

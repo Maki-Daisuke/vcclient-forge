@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from queue import Empty, Queue
 from threading import RLock
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import sounddevice as sd
 
 from vcclient.app_status import is_app_stopping, wait_for_stop
 from vcclient.logger import logger
@@ -22,8 +21,12 @@ from ..audio_device_manager import (
 )
 from ..configuration_manager.configuration_manager import ConfigurationManager
 from ..event_emitter import EventEmitter
+from ..sounddevice_loader import sounddevice as sd
 from ..voice_changer_const import REALTIME_OUTPUT_STATUS_SEND_INTERVAL_SEC
 from .voice_changer import VoiceChanger
+
+if TYPE_CHECKING:
+    import sounddevice as sd_types
 
 local_voice_changer_callback_chunk_sec = 0.01
 local_voice_changer_loop_interval_sec = 0.2
@@ -48,9 +51,9 @@ class LocalVoiceChangerInterface(EventEmitter):
     input_block_size: int
     output_block_size: int
     monitor_block_size: int
-    input_extra_settings: sd.WasapiSettings | None
-    output_extra_settings: sd.WasapiSettings | None
-    monitor_extra_settings: sd.WasapiSettings | None
+    input_extra_settings: sd_types.WasapiSettings | None
+    output_extra_settings: sd_types.WasapiSettings | None
+    monitor_extra_settings: sd_types.WasapiSettings | None
 
     @classmethod
     def get_instance(cls) -> LocalVoiceChangerInterface:
@@ -386,7 +389,7 @@ class LocalVoiceChangerInterface(EventEmitter):
                             )
         logger.info("Local Voice Changer main thread stopped")
 
-    def audio_input_callback(self, indata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
+    def audio_input_callback(self, indata: np.ndarray, frames: int, times: Any, status: sd_types.CallbackFlags) -> None:
         cfg, is_session = self._get_active_config()
         gain = cfg.input_gain if is_session else cfg.audio_input_device_gain
         try:
@@ -412,7 +415,9 @@ class LocalVoiceChangerInterface(EventEmitter):
         except Exception as e:
             logger.error("audio input callback ex: %s", e, exc_info=True)
 
-    def audio_output_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
+    def audio_output_callback(
+        self, outdata: np.ndarray, frames: int, times: Any, status: sd_types.CallbackFlags
+    ) -> None:
         cfg, is_session = self._get_active_config()
         gain = cfg.output_gain if is_session else cfg.audio_output_device_gain
         try:
@@ -458,7 +463,9 @@ class LocalVoiceChangerInterface(EventEmitter):
                     self.calculate_and_send_realtime_output_status()
                     self.process_call_counter = 0
 
-    def audio_monitor_callback(self, outdata: np.ndarray, frames: int, times: Any, status: sd.CallbackFlags) -> None:
+    def audio_monitor_callback(
+        self, outdata: np.ndarray, frames: int, times: Any, status: sd_types.CallbackFlags
+    ) -> None:
         cfg, is_session = self._get_active_config()
         gain = cfg.output_gain if is_session else cfg.audio_output_device_gain
         try:

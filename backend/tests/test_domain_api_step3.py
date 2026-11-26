@@ -176,6 +176,18 @@ def session_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[tu
         "get_default_sample_rate",
         lambda idx, kind: 44100.0 if idx == 3 else 48000.0,
     )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.local_voice_changer_interface.get_audio_input_device",
+        lambda idx: in_dev if idx == 1 else None,
+    )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.local_voice_changer_interface.get_audio_output_device",
+        lambda idx: out_dev if idx == 2 else (mon_dev if idx == 3 else None),
+    )
+    monkeypatch.setattr(
+        "vcclient.voice_changer.voice_change_manager.local_voice_changer_interface.get_default_sample_rate",
+        lambda idx, kind: 44100.0 if idx == 3 else 48000.0,
+    )
 
     session_manager.reset_session_state()
 

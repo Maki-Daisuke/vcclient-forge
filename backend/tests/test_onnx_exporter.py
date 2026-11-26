@@ -237,7 +237,7 @@ for label, build in invalid_models.items():
 
 
 def test_process_isolation_server_vs_export_onnx(dummy_rvc_v2_f0_checkpoint: Path, tmp_path: Path) -> None:
-    """Server imports never load torch, and export-onnx subcommand never loads faiss or sounddevice."""
+    """Server imports never load torch or sounddevice; export-onnx never loads faiss or sounddevice."""
     server_probe = dedent(
         """
         import sys
@@ -246,6 +246,7 @@ def test_process_isolation_server_vs_export_onnx(dummy_rvc_v2_f0_checkpoint: Pat
 
         get_rest_api()
         assert "torch" not in sys.modules, "torch was unexpectedly imported by server process"
+        assert "sounddevice" not in sys.modules, "sounddevice was unexpectedly imported by server process"
         """
     )
     env = os.environ.copy()
