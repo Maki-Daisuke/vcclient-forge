@@ -61,6 +61,7 @@ def reload_device_catalog() -> list[DeviceConfig]:
                     device_type="GPU",
                     name=g.name,
                     adapter_ram=g.adapter_ram,
+                    metadata={"discrete": g.discrete},
                 )
             )
     elif system == "Darwin":
@@ -104,22 +105,10 @@ def reload_device_catalog() -> list[DeviceConfig]:
             logger.warning("OpenVINO detection failed: %s", e)
 
     # 5. WebGPU (Linux Vulkan: AMD / Intel / NVIDIA)
-    if system == "Linux" and is_webgpu_available():
+    if system == "Linux":
         try:
-            webgpu_devices = providers.webgpu.detect_webgpu_devices()
-            for dev in webgpu_devices:
-                catalog.append(
-                    DeviceConfig(
-                        id=len(catalog),
-                        canonical_id=dev.canonical_id,
-                        provider="webgpu",
-                        device_index=dev.device_index,
-                        device_type=dev.device_type,
-                        name=dev.name,
-                        adapter_ram=dev.adapter_ram,
-                        metadata=dev.metadata,
-                    )
-                )
+            for dev in providers.webgpu.detect_webgpu_devices():
+                catalog.append(dev.model_copy(update={"id": len(catalog)}))
         except Exception as e:
             logger.warning("WebGPU detection failed: %s", e)
 

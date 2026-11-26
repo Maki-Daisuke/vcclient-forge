@@ -40,6 +40,48 @@ def test_initial_candidate_order_and_unsupported_devices():
     assert [item.id for item in initializer._initial_device_candidates(devices)] == [9, 8, 7, 4, 3, 2, 1, 11, 10, 0]
 
 
+def test_discrete_gpus_outrank_integrated_gpus_across_providers():
+    devices = [
+        device(1, "openvino", 0, metadata={"ov_device": "GPU.0"}),
+        device(2, "webgpu", 0, metadata={"discrete": True}),
+        device(3, "directml", 0, metadata={"discrete": True}),
+        device(4, "openvino", 1, metadata={"ov_device": "GPU.1", "discrete": True}),
+    ]
+    assert [item.id for item in initializer._initial_device_candidates(devices)] == [4, 3, 2, 1]
+
+
+def test_failed_pipeline_is_collected_before_next_device(monkeypatch):
+    import weakref
+
+    class CyclicPipeline:
+        def __init__(self):
+            self.self_ref = self
+
+        def warmup(self):
+            raise RuntimeError("device failed")
+
+    refs = []
+
+    def probe(slot):
+        assert all(ref() is None for ref in refs)
+        pipeline = CyclicPipeline()
+        refs.append(weakref.ref(pipeline))
+        return pipeline
+
+    monkeypatch.setattr(
+        initializer,
+        "get_device_catalog",
+        lambda: [device(0, "cpu", device_type="CPU"), device(1, "webgpu", 0), device(2, "webgpu", 1)],
+    )
+    monkeypatch.setattr(rvc_pipeline, "RVCPipeline", probe)
+    monkeypatch.setattr(initializer, "_verify_device_sessions", lambda *_: None)
+    # pytest's log capture would retain exc_info tracebacks, which keep failed pipelines alive.
+    monkeypatch.setattr(initializer.logger, "warning", lambda *_, **__: None)
+    with pytest.raises(RuntimeError, match="No inference device"):
+        initializer._probe_first_working_device(VoiceChangerConfiguration(), MagicMock())
+    assert len(refs) == 3
+
+
 def test_openvino_priority_uses_device_number_not_enumeration_order():
     devices = [
         device(1, "openvino", 0, metadata={"ov_device": "GPU.1"}),

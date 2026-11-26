@@ -118,11 +118,12 @@ class DeviceConfig(BaseModel):
             return self._fallback_to_cpu("CoreMLExecutionProvider")
 
         if self.provider == "webgpu":
-            from .providers.webgpu import is_webgpu_available, resolve_webgpu_device_provider
+            from .providers.webgpu import is_webgpu_available
 
             if not is_webgpu_available():
                 return self._fallback_to_cpu("WebGpuExecutionProvider")
-            return resolve_webgpu_device_provider(self)
+            # Options are bound via add_provider_for_devices in configure_webgpu_session_options.
+            return ["WebGpuExecutionProvider", "CPUExecutionProvider"], [{}, {}]
 
         from .providers.cpu import resolve_cpu_provider
 

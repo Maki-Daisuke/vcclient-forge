@@ -183,6 +183,18 @@ def resolve_openvino_device_provider(
     return (["OpenVINOExecutionProvider", "CPUExecutionProvider"], [options, {}])
 
 
+def _is_discrete_gpu(hw_device: Any) -> bool:
+    """Windows exposes DXGI `Discrete`; on Linux match the PCI IDs against Vulkan's device type."""
+    meta = getattr(hw_device, "metadata", None) or {}
+    if "Discrete" in meta:
+        return meta["Discrete"] == "1"
+    if sys.platform != "linux" or hw_device is None:
+        return False
+    from .webgpu import is_vulkan_discrete_gpu
+
+    return is_vulkan_discrete_gpu(hw_device.vendor_id, hw_device.device_id)
+
+
 def detect_openvino_devices() -> list[DeviceConfig]:
     """Detect available OpenVINO devices (GPU, NPU) and return DeviceConfig templates."""
     if not is_openvino_available() or not hasattr(onnxruntime, "get_ep_devices"):
@@ -216,7 +228,7 @@ def detect_openvino_devices() -> list[DeviceConfig]:
                     device_index=gpu_count,
                     device_type="GPU",
                     name=name,
-                    metadata={"ov_device": ov_dev or f"GPU.{gpu_count}"},
+                    metadata={"ov_device": ov_dev or f"GPU.{gpu_count}", "discrete": _is_discrete_gpu(dev)},
                 )
             )
             gpu_count += 1

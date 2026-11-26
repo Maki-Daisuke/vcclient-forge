@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import functools
 import os
 import platform
-from pathlib import Path
 from typing import Any
 
 import onnxruntime
@@ -117,11 +117,6 @@ def setup_webgpu_runtime() -> None:
     try:
         import onnxruntime_ep_webgpu as webgpu_ep
 
-        pkg_dir = Path(webgpu_ep.__file__).parent
-        if platform.system() == "Linux":
-            existing = os.environ.get("LD_LIBRARY_PATH", "")
-            os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([str(pkg_dir)] + ([existing] if existing else []))
-
         if hasattr(onnxruntime, "register_execution_provider_library"):
             lib_path = webgpu_ep.get_library_path()
             ep_name = webgpu_ep.get_ep_name()
@@ -135,16 +130,7 @@ def setup_webgpu_runtime() -> None:
 def is_webgpu_available() -> bool:
     """Check if WebGpuExecutionProvider is registered and available."""
     setup_webgpu_runtime()
-    if "WebGpuExecutionProvider" in onnxruntime.get_available_providers():
-        return True
-    if hasattr(onnxruntime, "get_ep_devices"):
-        try:
-            for d in onnxruntime.get_ep_devices():
-                if getattr(d, "ep_name", "") == "WebGpuExecutionProvider":
-                    return True
-        except Exception:
-            pass
-    return False
+    return find_webgpu_ep_device() is not None
 
 
 def find_webgpu_ep_device() -> Any | None:
@@ -160,7 +146,8 @@ def find_webgpu_ep_device() -> Any | None:
     return None
 
 
-def _enumerate_vulkan_physical_devices() -> list[dict[str, Any]]:
+@functools.cache
+def enumerate_vulkan_physical_devices() -> list[dict[str, Any]]:
     """Query Vulkan physical devices via libvulkan.so.1 without spawning external CLI tools."""
     lib_name = ctypes.util.find_library("vulkan") or "libvulkan.so.1"
     try:
@@ -239,14 +226,24 @@ def _enumerate_vulkan_physical_devices() -> list[dict[str, Any]]:
     return devices
 
 
+def is_vulkan_discrete_gpu(vendor_id: int, device_id: int) -> bool:
+    """Return whether Vulkan reports the PCI vendor/device pair as a discrete GPU."""
+    return any(
+        d["vendor_id"] == vendor_id
+        and d["vk_device_id"] == device_id
+        and d["vk_device_type"] == _VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+        for d in enumerate_vulkan_physical_devices()
+    )
+
+
 def detect_webgpu_devices() -> list[DeviceConfig]:
     """Detect available Linux Vulkan GPUs usable via WebGpuExecutionProvider."""
     if platform.system() != "Linux":
         return []
-    if not is_webgpu_available() or find_webgpu_ep_device() is None:
+    if not is_webgpu_available():
         return []
 
-    raw_devices = _enumerate_vulkan_physical_devices()
+    raw_devices = enumerate_vulkan_physical_devices()
     if not raw_devices:
         return []
 
@@ -276,6 +273,7 @@ def detect_webgpu_devices() -> list[DeviceConfig]:
                 adapter_ram=dev["vram_bytes"],
                 metadata={
                     "adapter_index": adapter_index,
+                    "discrete": vk_type == _VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
                     "vulkan_device_type": _VK_DEVICE_TYPE_NAMES.get(vk_type, "UNKNOWN"),
                     "vendor_id": f"0x{dev['vendor_id']:04x}",
                     "vk_device_id": f"0x{dev['vk_device_id']:04x}",
@@ -299,13 +297,3 @@ def configure_webgpu_session_options(
             }
             so.add_provider_for_devices([target_dev], opts)
             logger.info("Bound WebGPU EP device: %s (adapterIndex=%s)", device.name, device.device_index)
-
-
-def resolve_webgpu_device_provider(
-    device: DeviceConfig,
-) -> tuple[list[str], list[dict[str, Any]]]:
-    """Resolve fallback WebGPU provider list and options for a DeviceConfig."""
-    return (
-        ["WebGpuExecutionProvider", "CPUExecutionProvider"],
-        [{"adapterIndex": str(device.device_index), "powerPreference": "high-performance"}, {}],
-    )

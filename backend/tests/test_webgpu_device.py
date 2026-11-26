@@ -7,13 +7,13 @@ import pytest
 
 from vcclient.device.data_types import DeviceConfig
 from vcclient.device.device_manager import find_webgpu_ep_device, reload_device_catalog
+from vcclient.device.providers.openvino import _is_discrete_gpu
 from vcclient.device.providers.webgpu import (
     _VK_PHYSICAL_DEVICE_TYPE_CPU,
     _VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
     _VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
     configure_webgpu_session_options,
     detect_webgpu_devices,
-    resolve_webgpu_device_provider,
 )
 
 
@@ -51,7 +51,7 @@ def test_detect_webgpu_devices_orders_and_filters_software(monkeypatch: pytest.M
         },
     ]
     monkeypatch.setattr(
-        "vcclient.device.providers.webgpu._enumerate_vulkan_physical_devices",
+        "vcclient.device.providers.webgpu.enumerate_vulkan_physical_devices",
         lambda: raw_vulkan,
     )
 
@@ -62,6 +62,13 @@ def test_detect_webgpu_devices_orders_and_filters_software(monkeypatch: pytest.M
     ]
     assert devices[0].metadata["vulkan_device_type"] == "DISCRETE_GPU"
     assert devices[0].metadata["vendor_id"] == "0x1002"
+    assert [d.metadata["discrete"] for d in devices] == [True, False]
+
+    # OpenVINO GPUs on Linux learn discreteness by matching PCI IDs against Vulkan.
+    monkeypatch.setattr("sys.platform", "linux")
+    assert _is_discrete_gpu(SimpleNamespace(metadata={}, vendor_id=0x1002, device_id=0x744C))
+    assert not _is_discrete_gpu(SimpleNamespace(metadata={}, vendor_id=0x1002, device_id=0x150E))
+    assert _is_discrete_gpu(SimpleNamespace(metadata={"Discrete": "1"}, vendor_id=0, device_id=0))
 
     # Opt-in env exposes software renderer at the end with matching Dawn adapterIndex=2.
     monkeypatch.setenv("VCCLIENT_WEBGPU_ALLOW_SOFTWARE", "1")
@@ -89,8 +96,6 @@ def test_webgpu_provider_resolution_and_session_options(monkeypatch: pytest.Monk
     monkeypatch.setattr("vcclient.device.providers.webgpu.is_webgpu_available", lambda: True)
     providers, opts = dev._resolve_provider()
     assert providers == ["WebGpuExecutionProvider", "CPUExecutionProvider"]
-    assert opts == [{"adapterIndex": "1", "powerPreference": "high-performance"}, {}]
-    assert resolve_webgpu_device_provider(dev) == (providers, opts)
 
     monkeypatch.setattr("vcclient.device.providers.webgpu.is_webgpu_available", lambda: False)
     fb_providers, _ = dev._resolve_provider()

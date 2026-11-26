@@ -103,6 +103,7 @@ def detect_windows_gpus() -> list[GPUInfo]:
                             device_id=str(adapter_idx),
                             adapter_ram=vram,
                             device_id_int=adapter_idx,
+                            discrete=meta.get("Discrete") == "1",
                         )
                     )
                 if gpu_list:
