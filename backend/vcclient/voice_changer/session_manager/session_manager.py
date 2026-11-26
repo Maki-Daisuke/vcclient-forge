@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 import threading
+import weakref
 from typing import Any
 
-from vcclient.device import get_device_catalog
+from vcclient.device import DeviceConfig, get_device_catalog
 from vcclient.exception import VCClientError
 from vcclient.logger import logger
 from vcclient.server.api_common import ApiErrorResponse, DomainApiError, compute_etag, verify_if_match
@@ -19,6 +20,7 @@ from ..data_types.slot_manager_data_types import RVCSlotInfo
 from ..model_catalog import get_slot_info_by_model_id
 from ..voice_change_manager.local_voice_changer_interface import LocalVoiceChangerInterface
 from ..voice_change_manager.vc_pipelines.pipeline_manager import PipelineManager
+from ..voice_change_manager.vc_pipelines.vc_pipeline import VCPipeline
 from ..voice_change_manager.voice_changer import VoiceChanger
 from ..voice_changer_const import AudioDeviceType
 from .data_types import LOCKED_SESSION_FIELDS, SessionSnapshot, SessionState, SessionStatus
@@ -33,6 +35,8 @@ _last_error: ApiErrorResponse | None = None
 _generation: int = 0
 _startup_thread: threading.Thread | None = None
 _ws_hub: Any = None
+_pipeline_cache_key: tuple[Any, ...] | None = None
+_pipeline_cache_ref: weakref.ref[VCPipeline] | None = None
 
 
 def set_websocket_hub(hub: Any) -> None:
@@ -311,6 +315,40 @@ def _error_from_exception(exc: Exception) -> ApiErrorResponse:
     )
 
 
+def _build_pipeline_cache_key(
+    snapshot: SessionSnapshot,
+    slot_info: RVCSlotInfo,
+    device: DeviceConfig,
+) -> tuple[Any, ...]:
+    """Return a cache key covering all inputs that shape the constructed VCPipeline."""
+    return (
+        snapshot.model_id,
+        slot_info.voice_changer_type,
+        str(slot_info.model_file) if slot_info.model_file is not None else None,
+        str(slot_info.index_file) if slot_info.index_file is not None else None,
+        slot_info.name,
+        slot_info.sample_rate,
+        slot_info.inferencer_type,
+        slot_info.version,
+        slot_info.embedder,
+        slot_info.is_f0,
+        float(snapshot.chunk_sec),
+        float(snapshot.extra_frame_sec),
+        snapshot.pitch_estimator,
+        device.id,
+        device.canonical_id,
+        device.provider,
+        device.device_index,
+        tuple(sorted(device.metadata.items())),
+    )
+
+
+def _clear_pipeline_cache_locked() -> None:
+    global _pipeline_cache_key, _pipeline_cache_ref
+    _pipeline_cache_key = None
+    _pipeline_cache_ref = None
+
+
 def _run_startup(
     gen: int,
     snapshot: SessionSnapshot,
@@ -320,6 +358,7 @@ def _run_startup(
     monitor_sr: int | None,
 ) -> None:
     global _status, _active_snapshot, _input_sample_rate, _output_sample_rate, _monitor_sample_rate, _last_error
+    global _pipeline_cache_key, _pipeline_cache_ref
 
     launch_slot = slot_info.model_copy(
         update={
@@ -330,13 +369,42 @@ def _run_startup(
         }
     )
 
+    catalog = get_device_catalog()
+    pipeline_key: tuple[Any, ...] | None = None
+    if 0 <= snapshot.compute_device_id < len(catalog):
+        pipeline_key = _build_pipeline_cache_key(snapshot, slot_info, catalog[snapshot.compute_device_id])
+
+    cached_pipeline: VCPipeline | None = None
+    with _lock:
+        if _generation != gen or _status != "starting":
+            return
+        vc_existing = VoiceChanger.peek_instance()
+        if (
+            pipeline_key is not None
+            and vc_existing is not None
+            and vc_existing.vc_pipeline is not None
+            and _pipeline_cache_key == pipeline_key
+            and _pipeline_cache_ref is not None
+            and _pipeline_cache_ref() is vc_existing.vc_pipeline
+        ):
+            cached_pipeline = vc_existing.vc_pipeline
+
     try:
-        pipeline = PipelineManager.get_pipeline(
-            launch_slot,
-            device=snapshot.compute_device_id,
-            extra_frame_sec=snapshot.extra_frame_sec,
-            snapshot_getter=get_active_snapshot,
-        )
+        if cached_pipeline is not None:
+            logger.info(
+                "Reusing existing VC pipeline for model '%s' on compute device %s.",
+                snapshot.model_id,
+                snapshot.compute_device_id,
+            )
+            cached_pipeline.reset_buffers()
+            pipeline = cached_pipeline
+        else:
+            pipeline = PipelineManager.get_pipeline(
+                launch_slot,
+                device=snapshot.compute_device_id,
+                extra_frame_sec=snapshot.extra_frame_sec,
+                snapshot_getter=get_active_snapshot,
+            )
     except Exception as exc:
         logger.error("Session startup failed during pipeline creation: %s", exc, exc_info=True)
         with _lock:
@@ -345,6 +413,7 @@ def _run_startup(
                 if vc_existing is not None:
                     vc_existing.clear_session_snapshot()
                     vc_existing.vc_pipeline = None
+                _clear_pipeline_cache_locked()
                 _status = "stopped"
                 _active_snapshot = None
                 _input_sample_rate = None
@@ -393,6 +462,7 @@ def _run_startup(
             vc.output_record = []
             vc.clear_session_snapshot()
             vc.vc_pipeline = None
+            _clear_pipeline_cache_locked()
             vc.vc_info.model_id = None
             vc.vc_info.slot_index = -1
             vc.vc_info.pipeline_info = None
@@ -403,6 +473,9 @@ def _run_startup(
             _monitor_sample_rate = None
             _last_error = _error_from_exception(exc)
             return
+
+        _pipeline_cache_key = pipeline_key
+        _pipeline_cache_ref = weakref.ref(pipeline)
 
         if snapshot.input_mode == "server":
             # The main audio loop reports readiness once all streams are open.
@@ -452,6 +525,7 @@ def report_audio_failure(exc: Exception) -> None:
                     vc.output_record = []
             vc.clear_session_snapshot()
             vc.vc_pipeline = None
+            _clear_pipeline_cache_locked()
             vc.vc_info.model_id = None
             vc.vc_info.slot_index = -1
             vc.vc_info.pipeline_info = None
@@ -592,6 +666,7 @@ def reset_session_state() -> None:
         _output_sample_rate = None
         _monitor_sample_rate = None
         _last_error = None
+        _clear_pipeline_cache_locked()
 
     if thread is not None and thread.is_alive():
         thread.join(timeout=2.0)

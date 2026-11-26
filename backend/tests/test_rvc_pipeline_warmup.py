@@ -28,7 +28,7 @@ def mock_rvc_pipeline():
     pipeline.onnx_upscaler = MagicMock()
     pipeline.pitch_estimator = MagicMock()
     pipeline.index_data = None
-    pipeline._reset_buffers()
+    pipeline.reset_buffers()
     return pipeline
 
 

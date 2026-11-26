@@ -113,9 +113,10 @@ class RVCPipeline(VCPipeline):
         else:
             embedder_dim_size = 768
         self.onnx_upscaler = self.make_onnx_upscaler(embedder_dim_size, self.device)
-        self._reset_buffers()
+        self.reset_buffers()
 
-    def _reset_buffers(self) -> None:
+    def reset_buffers(self) -> None:
+        """Reset streaming audio, pitch, feature, and noise-gate buffers."""
         self.audio_buffer = np.zeros([16384], dtype=float)
         self.pitchf_buffer = np.zeros([1, 1], dtype=np.float64)
         embedder_type = getattr(self.slot_info, "embedder", "hubert_base_l12")
@@ -158,7 +159,7 @@ class RVCPipeline(VCPipeline):
             self.run(dummy_audio, real_crossfade_sec=real_crossfade_sec)
             logger.info("RVCPipeline warmup complete.")
         finally:
-            self._reset_buffers()
+            self.reset_buffers()
 
     @property
     def slot_info(self) -> RVCSlotInfo:

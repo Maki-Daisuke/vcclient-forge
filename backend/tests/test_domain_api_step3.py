@@ -60,6 +60,10 @@ class _DummyPipeline(VCPipeline):
         self._snapshot_getter = snapshot_getter
         self._fixed_extra_frame_sec = extra_frame_sec
         self.observed_runs: list[dict[str, object]] = []
+        self.reset_count = 0
+
+    def reset_buffers(self) -> None:
+        self.reset_count += 1
 
     def get_input_sample_rate(self) -> int:
         return 16000
@@ -958,3 +962,126 @@ def test_audio_device_manager_runs_portaudio_ops_on_dedicated_thread(monkeypatch
     assert results == [44100.0, True, ([], [])]
     assert len(set(observed_threads)) == 1
     assert observed_threads[0] not in caller_threads
+
+
+@pytest.mark.parametrize(
+    ("override_key", "override_value", "expected_builds"),
+    [
+        (None, None, 1),
+        ("pitch_shift", 5, 1),
+        ("input_gain", 1.5, 1),
+        ("noise_gate", -50.0, 1),
+        ("chunk_sec", 0.8, 2),
+        ("extra_frame_sec", 0.7, 2),
+        ("pitch_estimator", "fcpe", 2),
+        ("compute_device_id", 1, 2),
+    ],
+)
+def test_session_reuses_pipeline_only_when_pipeline_settings_match(
+    session_env: tuple[TestClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    override_key: str | None,
+    override_value: object,
+    expected_builds: int,
+) -> None:
+    client, id1, _id2 = session_env
+    created_pipelines: list[_DummyPipeline] = []
+
+    def fake_get_pipeline(cls, slot_info, *, device=None, extra_frame_sec=None, snapshot_getter=None):
+        pipe = _DummyPipeline(slot_info, snapshot_getter=snapshot_getter, extra_frame_sec=extra_frame_sec)
+        created_pipelines.append(pipe)
+        return pipe
+
+    monkeypatch.setattr(PipelineManager, "get_pipeline", classmethod(fake_get_pipeline))
+
+    base_snapshot: dict[str, object] = {
+        "model_id": id1,
+        "input_mode": "client",
+        "chunk_sec": 0.5,
+        "extra_frame_sec": 0.5,
+        "pitch_estimator": "rmvpe",
+        "compute_device_id": 0,
+        "pitch_shift": 0,
+        "input_gain": 2.0,
+        "noise_gate": -35.0,
+    }
+    assert client.put("/api/session", json=base_snapshot).status_code == 202
+    _wait_for_status(client, "running")
+    assert client.delete("/api/session").status_code == 200
+
+    next_snapshot = dict(base_snapshot)
+    if override_key is not None:
+        next_snapshot[override_key] = override_value
+
+    assert client.put("/api/session", json=next_snapshot).status_code == 202
+    _wait_for_status(client, "running")
+    assert len(created_pipelines) == expected_builds
+    if expected_builds == 1:
+        assert created_pipelines[0].reset_count == 1
+    else:
+        assert created_pipelines[0].reset_count == 0
+        assert created_pipelines[1].reset_count == 0
+
+
+def test_session_rebuilds_pipeline_when_model_changes_or_pipeline_cleared(
+    session_env: tuple[TestClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, id1, id2 = session_env
+    created_pipelines: list[_DummyPipeline] = []
+
+    def fake_get_pipeline(cls, slot_info, *, device=None, extra_frame_sec=None, snapshot_getter=None):
+        pipe = _DummyPipeline(slot_info, snapshot_getter=snapshot_getter, extra_frame_sec=extra_frame_sec)
+        created_pipelines.append(pipe)
+        return pipe
+
+    monkeypatch.setattr(PipelineManager, "get_pipeline", classmethod(fake_get_pipeline))
+
+    snap = {"model_id": id1, "input_mode": "client"}
+    assert client.put("/api/session", json=snap).status_code == 202
+    _wait_for_status(client, "running")
+    assert client.delete("/api/session").status_code == 200
+
+    # Renaming the model directory invalidates the cached pipeline paths/name
+    assert client.put(f"/api/models/{id1}", json={"name": "Alpha Renamed"}).status_code == 200
+    assert client.put("/api/session", json=snap).status_code == 202
+    _wait_for_status(client, "running")
+    assert len(created_pipelines) == 2
+    assert client.delete("/api/session").status_code == 200
+
+    # Switching model_id rebuilds
+    assert client.put("/api/session", json={"model_id": id2, "input_mode": "client"}).status_code == 202
+    _wait_for_status(client, "running")
+    assert len(created_pipelines) == 3
+    assert client.delete("/api/session").status_code == 200
+
+    # Clearing vc.vc_pipeline externally while stopped prevents stale reuse
+    vc = VoiceChanger.peek_instance()
+    assert vc is not None
+    vc.vc_pipeline = None
+    assert client.put("/api/session", json={"model_id": id2, "input_mode": "client"}).status_code == 202
+    _wait_for_status(client, "running")
+    assert len(created_pipelines) == 4
+
+
+def test_rvc_pipeline_reset_buffers_clears_streaming_state() -> None:
+    from vcclient.voice_changer.voice_change_manager.vc_pipelines.rvc_pipeline import RVCPipeline
+
+    pipeline = RVCPipeline.__new__(RVCPipeline)
+    pipeline._slot_info = RVCSlotInfo(slot_index=0, model_id="m1", name="m1", embedder="hubert_base_l12")
+    pipeline._snapshot_getter = None
+    pipeline.model_id = "m1"
+    pipeline.audio_buffer = np.ones(16384, dtype=float)
+    pipeline.pitchf_buffer = np.ones((1, 8), dtype=np.float64)
+    pipeline.feature_buffer = np.ones((1, 8, 768), dtype=np.float64)
+    pipeline.is_gate_open = False
+    pipeline.noise_gate_below_threshold_samples = 3200
+
+    pipeline.reset_buffers()
+
+    assert np.all(pipeline.audio_buffer == 0.0)
+    assert pipeline.pitchf_buffer is not None
+    assert np.all(pipeline.pitchf_buffer == 0.0)
+    assert np.all(pipeline.feature_buffer == 0.0)
+    assert pipeline.is_gate_open is True
+    assert pipeline.noise_gate_below_threshold_samples == 0

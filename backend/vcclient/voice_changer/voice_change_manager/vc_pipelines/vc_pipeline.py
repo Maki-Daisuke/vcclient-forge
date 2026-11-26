@@ -50,3 +50,7 @@ class VCPipeline(ABC):
     @abstractmethod
     def run(self, audio: np.ndarray, real_crossfade_sec: float) -> np.ndarray:
         pass
+
+    def reset_buffers(self) -> None:
+        """Reset internal streaming state before reusing the pipeline for a new session."""
+        return None
