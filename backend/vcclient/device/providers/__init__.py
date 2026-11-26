@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import coreml, cpu, cuda, directml, openvino
+from . import coreml, cpu, cuda, directml, openvino, webgpu
 
 __all__ = [
     "coreml",
@@ -8,4 +8,5 @@ __all__ = [
     "cuda",
     "directml",
     "openvino",
+    "webgpu",
 ]

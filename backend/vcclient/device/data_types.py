@@ -15,6 +15,7 @@ ExecutionProviderType = Literal[
     "directml",
     "openvino",
     "coreml",
+    "webgpu",
 ]
 
 DeviceType = Literal["CPU", "GPU", "NPU"]
@@ -116,6 +117,13 @@ class DeviceConfig(BaseModel):
                 )
             return self._fallback_to_cpu("CoreMLExecutionProvider")
 
+        if self.provider == "webgpu":
+            from .providers.webgpu import is_webgpu_available, resolve_webgpu_device_provider
+
+            if not is_webgpu_available():
+                return self._fallback_to_cpu("WebGpuExecutionProvider")
+            return resolve_webgpu_device_provider(self)
+
         from .providers.cpu import resolve_cpu_provider
 
         return resolve_cpu_provider()
@@ -135,6 +143,10 @@ class DeviceConfig(BaseModel):
             from .providers.openvino import configure_openvino_session_options
 
             configure_openvino_session_options(so, device=self)
+        elif self.provider == "webgpu":
+            from .providers.webgpu import configure_webgpu_session_options
+
+            configure_webgpu_session_options(so, device=self)
         return so
 
     def create_session(

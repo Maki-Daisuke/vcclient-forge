@@ -116,6 +116,7 @@ ExecutionProviderType = Literal[
     "directml",
     "openvino",
     "coreml",
+    "webgpu",
 ]
 
 DeviceType = Literal["CPU", "GPU", "NPU"]

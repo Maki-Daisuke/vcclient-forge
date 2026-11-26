@@ -9,10 +9,12 @@ from .coreml_patch import (
 from .data_types import DeviceConfig
 from .device_manager import (
     find_openvino_ep_device,
+    find_webgpu_ep_device,
     get_device,
     get_device_catalog,
     is_cuda_available,
     is_openvino_available,
+    is_webgpu_available,
     reload_device_catalog,
 )
 from .openvino_patch import (
@@ -26,10 +28,12 @@ __all__ = [
     "DeviceConfig",
     "calculate_target_feats_length",
     "find_openvino_ep_device",
+    "find_webgpu_ep_device",
     "get_device",
     "get_device_catalog",
     "is_cuda_available",
     "is_openvino_available",
+    "is_webgpu_available",
     "patch_rmvpe_model_for_openvino",
     "patch_rvc_model_for_coreml",
     "patch_rvc_model_for_openvino",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import re
 import time
 from collections.abc import Callable
@@ -67,11 +68,13 @@ def _initial_device_candidates(devices: list[DeviceConfig]) -> list[DeviceConfig
             return (2, -int(match.group(1)) if match else -device.device_index)
         if device.provider == "directml" and device.device_type == "GPU":
             return (3, -device.device_index)
+        if device.provider == "webgpu" and device.device_type == "GPU":
+            return (4, device.device_index)
         if device.provider == "cpu":
-            return (4, 0)
-        return (5, 0)
+            return (5, 0)
+        return (6, 0)
 
-    return sorted((device for device in devices if priority(device)[0] < 5), key=priority)
+    return sorted((device for device in devices if priority(device)[0] < 6), key=priority)
 
 
 def _verify_device_sessions(pipeline: "RVCPipeline", device: DeviceConfig) -> None:
@@ -81,6 +84,7 @@ def _verify_device_sessions(pipeline: "RVCPipeline", device: DeviceConfig) -> No
         "coreml": "CoreMLExecutionProvider",
         "openvino": "OpenVINOExecutionProvider",
         "directml": "DmlExecutionProvider",
+        "webgpu": "WebGpuExecutionProvider",
     }[device.provider]
     sessions = [
         getattr(component, "onnx_session") for component in (pipeline.pitch_estimator, pipeline.embedder, pipeline.rvc)
@@ -100,6 +104,7 @@ def _probe_first_working_device(conf: VoiceChangerConfiguration, slot: RVCSlotIn
     for device in _initial_device_candidates(get_device_catalog()):
         conf.gpu_device_id_int = device.id
         print(f"Testing inference device: {device.name}", flush=True)
+        pipeline: RVCPipeline | None = None
         try:
             pipeline = RVCPipeline(slot)
             _verify_device_sessions(pipeline, device)
@@ -108,6 +113,9 @@ def _probe_first_working_device(conf: VoiceChangerConfiguration, slot: RVCSlotIn
         except Exception as e:
             logger.warning("Initial device test failed for %s: %s", device.canonical_id, e, exc_info=True)
             print(f"Inference device test failed: {device.name}", flush=True)
+            pipeline = None
+            if device.provider == "webgpu":
+                gc.collect()
             continue
         return device
 

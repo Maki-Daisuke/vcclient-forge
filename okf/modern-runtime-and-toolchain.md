@@ -33,8 +33,8 @@ Forge inherits Python from upstream `w-okada/voice-changer`, and keeps the audio
 VCClient Forge prioritizes high-performance, lightweight pure-ONNX inference:
 
 - **ONNX Runtime GPU**: Uses the CUDA execution provider with unified CUDA 13 (`nvidia-cublas`, `nvidia-cudnn-cu13`, `nvidia-cufft`, `nvidia-cuda-runtime`, `nvidia-curand`) across Windows x64, Linux x64, and Linux ARM64 selected by the project's `cuda` extra.
-- **Transparent Hardware Acceleration Runtime Hook**: [`runtime_env.py`](../backend/vcclient/device/runtime_env.py) delegates to [`vcclient.device.providers`](../backend/vcclient/device/providers/) (`cuda.py`, `openvino.py`, `directml.py`, `coreml.py`) to locate and preload CUDA/cuDNN runtime libraries and register OpenVINO Execution Provider plugins via `os.add_dll_directory`, `onnxruntime.preload_dlls`, and `onnxruntime.register_execution_provider_library`, avoiding manual system-wide CUDA or OpenVINO installations.
-- **Hardware Backends**: Supports CUDA, OpenVINO (CPU/GPU/NPU), DirectML (Windows), CoreML (macOS), and CPU (`CPUExecutionProvider`).
+- **Transparent Hardware Acceleration Runtime Hook**: [`runtime_env.py`](../backend/vcclient/device/runtime_env.py) delegates to [`vcclient.device.providers`](../backend/vcclient/device/providers/) (`cuda.py`, `openvino.py`, `directml.py`, `coreml.py`, `webgpu.py`) to locate and preload CUDA/cuDNN runtime libraries and register OpenVINO and Linux WebGPU Execution Provider plugins via `os.add_dll_directory`, `onnxruntime.preload_dlls`, and `onnxruntime.register_execution_provider_library`, avoiding manual system-wide CUDA or OpenVINO installations.
+- **Hardware Backends**: Supports CUDA, OpenVINO (CPU/GPU/NPU), DirectML (Windows), CoreML (macOS), Linux WebGPU over Vulkan (`onnxruntime-ep-webgpu`, requiring system `libvulkan.so.1` and a Vulkan GPU driver), and CPU (`CPUExecutionProvider`).
 
 ## 4. Hybrid Task Runner via `package.json`
 

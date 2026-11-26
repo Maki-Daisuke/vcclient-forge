@@ -93,6 +93,29 @@ def test_backend_freezes_isolated_environment(tmp_path: Path, monkeypatch: pytes
     assert ("nvidia.cu13" in freeze) == (edition == "cuda")
 
 
+def test_linux_webgpu_plugin_is_collected_when_present(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    builder = load_builder()
+    monkeypatch.setattr(builder, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
+
+    plugin_dir = builder.get_build_dir("standard", "3.14") / ".venv/lib/python3.14/site-packages/onnxruntime_ep_webgpu"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    commands: list[list[str]] = []
+
+    def fake_run(cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+        commands.append(cmd)
+        if "PyInstaller" in cmd:
+            frozen = Path(cmd[cmd.index("--distpath") + 1]) / "main"
+            (frozen / "_internal").mkdir(parents=True)
+            (frozen / "_internal/libonnxruntime_providers_webgpu.so").write_bytes(b"so")
+            (frozen / "main").write_bytes(b"backend")
+
+    monkeypatch.setattr(builder, "run_cmd", fake_run)
+    builder.freeze_backend("standard")
+    freeze = next(cmd for cmd in commands if "PyInstaller" in cmd)
+    assert "onnxruntime_ep_webgpu" in freeze
+
+
 def test_linux_cuda_bundles_nvidia_wheel_binaries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     builder = load_builder()
     for arch in ("x86_64", "aarch64"):

@@ -1,3 +1,4 @@
+import gc
 import threading
 import time
 from queue import Empty, Queue
@@ -112,6 +113,12 @@ class VoiceChanger(EventEmitter):
         return self.vc_pipeline
 
     def _apply_slot_info(self, slot_info: SlotInfoMember) -> None:
+        if (
+            self.vc_pipeline is not None
+            and getattr(getattr(self.vc_pipeline, "device", None), "provider", None) == "webgpu"
+        ):
+            self.vc_pipeline = None
+            gc.collect()
         pipeline = PipelineManager.get_pipeline(slot_info)
         self.vc_pipeline = pipeline
         self.vc_info.voice_changer_type = slot_info.voice_changer_type

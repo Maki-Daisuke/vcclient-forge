@@ -36,6 +36,13 @@ def has_openvino_plugin(runtime_dir: Path) -> bool:
     return False
 
 
+def has_webgpu_plugin(runtime_dir: Path) -> bool:
+    for d in runtime_dir.rglob("site-packages/onnxruntime_ep_webgpu"):
+        if d.is_dir():
+            return True
+    return False
+
+
 def collect_nvidia_binary_args(runtime_dir: Path) -> list[str]:
     found: list[tuple[str, str]] = []
     for nvidia_dir in sorted(runtime_dir.rglob("site-packages/nvidia")):
@@ -179,6 +186,8 @@ def freeze_backend(edition: str, python_version: str = "3.14") -> Path:
         freeze_command.extend(collect_nvidia_binary_args(runtime_dir))
     if has_openvino_plugin(runtime_dir):
         freeze_command.extend(["--collect-all", "onnxruntime_ep_openvino"])
+    if has_webgpu_plugin(runtime_dir):
+        freeze_command.extend(["--collect-all", "onnxruntime_ep_webgpu"])
     freeze_command.append(str(backend_dir / "main.py"))
     run_cmd(freeze_command, cwd=PROJECT_ROOT, env=env)
     frozen = build_dir / "dist" / "main"
