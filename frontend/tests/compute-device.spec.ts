@@ -21,6 +21,7 @@ test('lists compute devices and saves the selection on start', async ({ page }) 
   await expect.poll(() => state.writes.length).toBeGreaterThanOrEqual(1);
   expect(state.writes[0].compute_device_id).toBe(1);
   expect(state.writes[0].future_setting).toEqual({ keep: [1, 2] });
+  await expect.poll(() => state.sessionWrites.length).toBeGreaterThanOrEqual(1);
   expect(state.sessionWrites[0].compute_device_id).toBe(1);
   await expect(select).toHaveValue('1');
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible();
