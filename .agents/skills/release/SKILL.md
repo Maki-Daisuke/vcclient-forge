@@ -28,7 +28,7 @@ Follow this runbook sequentially when preparing or publishing a VCClient Forge r
 
 VCClient Forge versions follow `2.0.78-forge.<major>.<minor>.<patch>` with matching Git tags `v2.0.78-forge.<major>.<minor>.<patch>`.
 
-1. If the user has not chosen the next `<version>`, ask before editing version files.
+1. Audit compatibility impact before confirming `<version>` (even if the user proposed one): check whether commits since `<prev-tag>` introduce irreversible data/layout changes (e.g., `model_dir` or `settings` incompatible with downgrades), major API overhauls, or significant new features, and confirm `<minor>` vs `<patch>` before editing manifests or tagging.
 2. Confirm `v<version>` does not already exist (`git tag -l "v<version>"`).
 3. Update all **4** version manifests to the exact `<version>` (no leading `v`):
    - `package.json`: `"version"` (also read at runtime by `backend/vcclient/const.py`, Vite `__APP_VERSION__` in `frontend/vite.config.ts`, and `scripts/build_package.py`)
@@ -68,8 +68,8 @@ npm run test:frontend
    git commit -m "chore(release): bump version to <version>"
    ```
    (`.githooks/pre-commit` enforces `npm run format:check` and `gofmt -l desktop`.)
-2. After user approval to push the branch (`git push origin forge`), verify `.github/workflows/ci.yml` passes across `ubuntu-24.04`, `windows-latest`, `macos-latest`, and `self-hosted-linux-arm64`.
-3. *(Optional pre-tag dry run)*: Trigger `.github/workflows/release.yml` via `workflow_dispatch` on the branch (`gh workflow run release.yml --ref forge`) to validate all 7 builds without publishing a GitHub Release.
+2. After user approval to push the branch (`git push origin forge`), verify `.github/workflows/ci.yml` passes across `ubuntu-24.04`, `ubuntu-26.04`, `windows-latest`, `macos-latest`, and `self-hosted-linux-arm64`.
+3. *(Optional pre-tag dry run)*: Trigger `.github/workflows/release.yml` via `workflow_dispatch` on the branch (`gh workflow run release.yml --ref forge -R Maki-Daisuke/vcclient-forge`) to validate all 7 builds without publishing a GitHub Release. Always pass `-R Maki-Daisuke/vcclient-forge` to `gh` commands because the default repository context can point to upstream `w-okada/voice-changer`.
 
 ## 5. Tag, Trigger Release Build & Draft Release Notes
 
@@ -90,9 +90,11 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which builds, runs 
 **While the release workflow runs**, draft the release notes and present them to the user for review and wordsmithing so copy edits happen concurrently with the build:
 
 - Ground the draft in `git log <prev-tag>..v<version>` and verified specs in `README.md` / `docs/README*.txt` (supported hardware, CUDA 13.x / driver R580+ notice, upgrade/migration steps, and known caveats) without unverified claims.
+- Order Highlights by user-visible impact (lead with the headline user-facing feature rather than internal refactors) and group capabilities enabled by the same underlying change together instead of creating fragmented sections.
+- Describe routine bug fixes by user-visible outcome (skip low-level internal implementation details), while explicitly calling out runtime prerequisites (e.g., drivers/system loaders), OS-specific root causes users encounter, and one-way/irreversible data migrations with backup guidance.
 - Include the final changelog link (`.../compare/<prev-tag>...v<version>`).
 
 ## 6. Post-Build Verification & Finalize Release
 
 1. Confirm all 7 matrix jobs in `.github/workflows/release.yml` succeed and all 7 `.7z` archives appear under Release `v<version>`.
-2. After the workflow succeeds and the user approves the finalized release notes, update the GitHub Release body (e.g., via `gh release edit v<version>`).
+2. After the workflow succeeds and the user approves the finalized release notes, update the GitHub Release body (e.g., via `gh release edit v<version> -R Maki-Daisuke/vcclient-forge --notes-file <path>`).
