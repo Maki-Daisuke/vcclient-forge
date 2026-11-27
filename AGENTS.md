@@ -32,6 +32,8 @@ Always run commands from the repository root. Backend Python dependencies and to
 | Run single test file     | `uv run --project backend pytest backend/tests/test_pipeline_slot_sync.py` |
 | Run desktop tests        | `npm run test:desktop` (or `cd desktop && go test .`)                      |
 
+- **Full-stack E2E (`frontend/tests/fullstack.spec.ts`)**: Always launch unmodified `backend/main.py` against real `modules/` and `model_dir/` (no backend wrappers, monkeypatches, or synthetic ONNX models), and use Chromium's `--use-fake-device-for-media-stream` / `--use-fake-ui-for-media-stream` flags rather than JS-monkeypatching `navigator.mediaDevices`.
+
 ### Formatting & Linting
 
 | Task                  | Command                     |
