@@ -16,6 +16,6 @@ export default defineConfig(({ mode }) => {
     base: './',
     server: { proxy },
     preview: { proxy },
-    build: { outDir: 'preview-dist', manifest: true },
+    build: { outDir: 'dist', manifest: true },
   };
 });

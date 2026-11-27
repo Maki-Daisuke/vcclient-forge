@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -22,6 +22,20 @@ const testsDir = import.meta.dirname;
 const repoRoot = path.resolve(testsDir, '..', '..');
 const backendDir = path.join(repoRoot, 'backend');
 const backendMain = path.join(backendDir, 'main.py');
+const venvPython = process.platform === 'win32'
+  ? path.join(backendDir, '.venv', 'Scripts', 'python.exe')
+  : path.join(backendDir, '.venv', 'bin', 'python');
+
+function missingBackendDependencies(): string[] {
+  if (!fs.existsSync(venvPython)) return ['backend/.venv'];
+  const probe = spawnSync(venvPython, ['-c',
+    'import importlib.util, json; print(json.dumps([name for name in ("pydantic", "fastapi", "onnxruntime", "numpy", "onnx", "torch", "faiss", "sounddevice") if importlib.util.find_spec(name) is None]))',
+  ], { encoding: 'utf-8', timeout: 30_000 });
+  if (probe.error || probe.status !== 0) {
+    throw new Error(`Failed to check backend dependencies: ${probe.error?.message ?? probe.stderr}`);
+  }
+  return JSON.parse(probe.stdout) as string[];
+}
 
 function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -66,15 +80,6 @@ function prepareIsolatedWorkdir(workdir: string): void {
   // Share downloaded real RVC ONNX modules in repoRoot without mutating developer settings.
   linkDir(repoModules, path.join(workdir, 'modules'));
 
-  // When running test:frontend on a fresh checkout without build:frontend, playwright.config.ts builds
-  // frontend/preview-dist; expose it at workdir/frontend/dist so server_const.py's cwd fallback serves it.
-  const repoFrontendDist = path.join(repoRoot, 'frontend', 'dist');
-  const repoPreviewDist = path.join(repoRoot, 'frontend', 'preview-dist');
-  if (!fs.existsSync(path.join(repoFrontendDist, 'index.html')) && fs.existsSync(path.join(repoPreviewDist, 'index.html'))) {
-    fs.mkdirSync(path.join(workdir, 'frontend'), { recursive: true });
-    linkDir(repoPreviewDist, path.join(workdir, 'frontend', 'dist'));
-  }
-
   const repoModelDir = path.join(repoRoot, 'model_dir');
   fs.mkdirSync(repoModelDir, { recursive: true });
   const modelDirs = listModelDirs(repoModelDir);
@@ -97,9 +102,6 @@ function prepareIsolatedWorkdir(workdir: string): void {
 }
 
 function resolvePythonCommand(port: number): { command: string; args: string[] } {
-  const venvPython = process.platform === 'win32'
-    ? path.join(backendDir, '.venv', 'Scripts', 'python.exe')
-    : path.join(backendDir, '.venv', 'bin', 'python');
   if (fs.existsSync(venvPython)) {
     return { command: venvPython, args: [backendMain, '--host', '127.0.0.1', '--port', String(port)] };
   }
@@ -203,6 +205,15 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('full-stack UI + real backend/main.py', () => {
   let backend: StartedBackend;
+
+  test.beforeAll(() => {
+    const missing = missingBackendDependencies();
+    if (missing.length > 0) {
+      const reason = `Backend dependencies are not installed (${missing.join(', ')}). Run npm run build:backend -- --edition <edition>.`;
+      console.warn(`[full-stack] Skipping tests: ${reason}`);
+      test.skip(true, reason);
+    }
+  });
 
   test.beforeEach(async ({}, testInfo) => {
     const coldAssets = isColdAssetState();

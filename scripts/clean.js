@@ -16,7 +16,6 @@ const targets = [
   "backend/.venv",
   ".venv",
   "frontend/dist",
-  "frontend/preview-dist",
   "frontend/test-results",
   "frontend/playwright-report",
   "modules",

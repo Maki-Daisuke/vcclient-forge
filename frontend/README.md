@@ -11,7 +11,7 @@ Run commands from the repository root:
 npm --prefix frontend ci
 npm run dev:frontend
 npm run check:frontend
-npm run build:frontend:preview
+npm run build:frontend
 npm run test:frontend
 ```
 
@@ -22,9 +22,9 @@ $env:VCCLIENT_BACKEND_URL = 'http://127.0.0.1:18889'
 npm run dev:frontend
 ```
 
-`npm run build:frontend` builds the production SPA into `frontend/dist`, served by FastAPI for desktop and portable packages. Standalone preview builds go to `frontend/preview-dist`.
+`npm run build:frontend` builds the SPA into `frontend/dist`, served by FastAPI for desktop and portable packages and by Vite preview for browser tests.
 
-Playwright browser checks (`npm run test:frontend`, or `PLAYWRIGHT_CHANNEL=msedge`) mock all `/api/*` HTTP requests and WebSocket connections via `frontend/tests/` fixtures without opening native audio hardware.
+Most Playwright browser checks (`npm run test:frontend`, or `PLAYWRIGHT_CHANNEL=msedge`) mock backend requests. The full-stack tests start the real backend and are skipped if its dependencies are not installed. Prepare them with `npm run build:backend -- --edition cuda` (or `standard`). The tests also use real PortAudio devices when available.
 
 ## Backend API Integration
 

@@ -85,8 +85,7 @@ With desktop packaging and hardware sub-model benchmarking established, active d
 - **Appearance scaffold implemented (2026-11-06)**: `frontend/` has a standalone
   Svelte 5/Vite preview of the v2.1.4 layout using Bits UI, sample data, disabled
   backend controls, navigable dialogs, themes, and the 13 community translation
-  dictionaries. This initial scaffold built to `frontend/preview-dist`; later
-  milestones connected the backend and switched production `frontend/dist` to Svelte.
+  dictionaries. Later milestones connected the backend and switched production `frontend/dist` to Svelte.
 
 - **Read-only model integration implemented (2026-11-06)**: The new UI loads
   stored slots and the configured current slot via GET. A validated API adapter
