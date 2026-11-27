@@ -53,6 +53,17 @@ jobs:
       - name: Install dependencies (Standard + Dev)
         run: uv sync --project backend --extra standard --extra dev --python 3.14
 
+      - name: Cache RVC modules and initial sample models
+        uses: actions/cache@v5
+        with:
+          path: |
+            modules
+            model_dir
+          key: rvc-e2e-assets-v1-${{ hashFiles('backend/vcclient/voice_changer/module_manager/module_manager.py', 'backend/vcclient/voice_changer/sample_manager/sample_manager.py') }}
+          restore-keys: |
+            rvc-e2e-assets-v1-
+          enableCrossOsArchive: true
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
