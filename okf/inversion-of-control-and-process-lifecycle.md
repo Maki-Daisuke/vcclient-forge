@@ -110,17 +110,15 @@ With control inverted, user interactions become intuitive and single-action:
 - **What happens**:
   1. The script initiates background browser opening (`xdg-open`, `open`, or `start http://127.0.0.1:18888/`).
   2. The script executes the backend executable (`exec "$SCRIPT_DIR/main" "$@"`).
-  3. The browser opens the UI as soon as the server begins listening.
+  3. The launcher opens the browser at the default URL. If the backend is still initializing, reload the page once the server is ready.
 
 ### Developers / Advanced Automation
 - **Action**: `uv run --project backend python backend/main.py [--host 0.0.0.0] [--port 18888]`
 - Standard CLI argument parsing (`argparse`) with zero external dependency overhead.
 
-### Remote Server / Headless Container Deployments
-- **Action**: `python backend/main.py --host 0.0.0.0 --port 18888` (or executing the compiled `main` binary directly in a headless Linux/VM container).
-- **Zero Maintenance Overhead for Secondary Use Cases**:
-  In legacy versions, running on a headless server required users to navigate unwanted browser-spawning logic, suppress client launchers with flags (`--launch_client=False`), and handle broken stdin monitoring loops.
-  With the backend stripped down to a dedicated HTTP/WebSocket server, remote users simply run the process like any standard web daemon. While remote server workflows are not Forge's primary focus (Forge prioritizes ultra-low-latency local real-time conversion), enforcing strict separation of concerns naturally supports remote deployments **without the team expending ongoing maintenance effort or adding remote-specific glue code**.
+### Headless Linux
+
+Run the packaged `./main` or the source backend directly. Use Client Mode to handle audio on the client when the server has no local audio devices. See [remote desktop access](./remote-backend-tcp-proxy-architecture.md) for the desktop proxy option.
 
 ---
 

@@ -18,7 +18,7 @@ tags:
 
 ## Executive Summary
 
-VCClient Forge introduces a transparent **Client-Side TCP Proxy (`--remote <host:port>`)** in its desktop host ([`desktop/proxy.go`](file:///C:/Users/Daisu/voice-changer/desktop/proxy.go)), changing how remote server setups satisfy modern WebAudio security requirements.
+VCClient Forge introduces a transparent **Client-Side TCP Proxy (`--remote <host:port>`)** in its desktop host ([`desktop/proxy.go`](../desktop/proxy.go)), changing how remote server setups satisfy modern WebAudio security requirements.
 
 Historically, running real-time voice conversion on a dedicated remote machine (e.g., a powerful GPU desktop or home server in the local network) while capturing audio from a lightweight client laptop hit a practical barrier: **the WebAudio Secure Context requirement**. Modern browser engines (Chromium/WebView2, WebKit, Gecko) mandate that sensitive hardware APIs—specifically microphone capture via `navigator.mediaDevices.getUserMedia` and low-latency audio processing in `AudioWorklet`—must execute exclusively within a **Secure Context** (`https://*` or `http://localhost` / `http://127.0.0.1`). Accessing a plain HTTP remote server (such as `http://192.168.1.50:18888`) across a local area network causes the browser to disable microphone access immediately.
 
@@ -26,7 +26,7 @@ To circumvent this, upstream `w-okada/voice-changer` introduced dedicated server
 
 VCClient Forge addresses this by solving the problem on the client side: **a lightweight TCP proxy in the desktop host**. When launched with `--remote <host:port>` (or `-r`), the desktop host bypasses local backend process startup, establishes a local TCP listener on `127.0.0.1:18888`, and bi-directionally streams all traffic to the designated remote server.
 
-Because the embedded Webview loads `http://127.0.0.1:18888`, the browser treats the session as a Secure Context. WebAudio and microphone capture work without certificates or browser security warnings, implemented in about 120 lines of Go.
+Because the embedded Webview loads `http://127.0.0.1:18888`, the browser treats the session as a Secure Context. This satisfies the browser's local secure-context requirement for microphone and AudioWorklet access. The TCP connection to the backend does not add encryption or authentication; use a trusted private network or an encrypted tunnel.
 
 This design is a direct manifestation of VCClient Forge's core philosophy:
 
@@ -147,7 +147,7 @@ Because the proxy operates at Layer 4 (raw TCP) rather than Layer 7 (HTTP revers
 
 ### 4. Implementation Economy
 
-The entire proxy in [`desktop/proxy.go`](desktop/proxy.go) is about 120 lines, including argument parsing and the readiness probe. The per-connection forwarding core is only this:
+The entire proxy in [`desktop/proxy.go`](../desktop/proxy.go) is about 120 lines, including argument parsing and the readiness probe. The per-connection forwarding core is only this:
 
 ```go
 func proxyConnection(src net.Conn, target string) {

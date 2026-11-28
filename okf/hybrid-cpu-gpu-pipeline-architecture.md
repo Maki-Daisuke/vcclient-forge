@@ -10,7 +10,7 @@ description: "Analysis of PCIe transfer latencies, micro-benchmark measurements,
 > **Planning update**: The hybrid pipeline remains a candidate, and Boost Mode
 > is also open for a controlled comparison on different hardware. The component
 > measurements below do not establish the winner of an end-to-end comparison;
-> see the [implementation roadmap](./implementation-roadmap.md#9-optimize-inference-evaluate-hybrid-pipelining-and-boost-mode).
+> see the [implementation roadmap](./implementation-roadmap.md#4-evaluate-inference-optimizations).
 
 > **Summary**: Direct micro-benchmarks reveal that physical PCIe DMA transfers (16–160 KB) take tens of microseconds (16–86 μs across AMD and NVIDIA architectures), which does not materially impact real-time latency budgets. Small neural models (ContentVec, RMVPE) execute efficiently on modern multi-core CPUs (~19–32 ms total), with sequential operators in RMVPE executing faster on CPU than on GPU due to kernel dispatch overhead at batch=1. Meanwhile, the HiFi-GAN vocoder (156 convolutional layers) is internal VRAM-bandwidth bound. Rather than consolidating the entire pipeline into a monolithic ONNX graph ("Boost Mode"), a **concurrent hybrid pipeline** (CPU-based preprocessing overlapped with dedicated vocoder synthesis) avoids operator-fusion complexity, prevents vendor-specific reduction issues, and operates within real-time streaming constraints.
 
@@ -165,33 +165,12 @@ Upstream investigation revealed that Microsoft and AMD officially deprecated and
 
 Consequently, Forge explicitly **abandons standalone ROCm support**:
 * Attempting to maintain a custom ROCm build imposes fragile host dependencies (~30 GB ROCm SDKs) without upstream maintenance.
-* Linux AMD users are instead directed to the bit-exact multi-threaded CPU pipeline or the upcoming WebGPU backend.
+* Linux AMD users are instead directed to the CPU provider or experimental WebGPU on Linux.
 
-### 6.2 Production Platform Strategy (Two-Tier Distribution)
-| Platform | Target Edition | Primary Acceleration Path | Support Tier | Latency Profile & Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Windows (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | **Tier 1 (First-Class)** | Native CUDA/cuDNN stack (TF32 Tensor Core enabled on Ampere+); optimal throughput; OpenVINO hybrid baseline included. |
-| **Windows (Intel Arc / iGPU)** | `standard` | `OpenVINOExecutionProvider` (Level Zero) | Tier 2 (Best Effort) | Verified on Lunar Lake Core Ultra 7 (Xe2 Arc GPU); in-memory 4D ONNX patch applied. |
-| **Windows (AMD / Generic)** | `standard` | `DmlExecutionProvider` (DirectX 12) | Tier 2 (Best Effort) | Official Microsoft/AMD path; immune to Wave32 reduction issues. |
-| **macOS (Apple Silicon)** | `standard` | `CoreMLExecutionProvider` | Tier 2 (Best Effort) | Verified on M2; NeuralNetwork format targeting ANE and Metal GPU. |
-| **Linux (NVIDIA)** | `cuda` | `CUDAExecutionProvider` | Tier 2 (Best Effort) | Stable Linux CUDA stack; OpenVINO hybrid baseline included. |
-| **Linux (AMD / Intel / Generic)** | `standard` | `OpenVINOExecutionProvider` / `CPUExecutionProvider` (AVX2 / AVX-512) | Tier 2 / Tier 0 Baseline | High-performance CPU MLAS execution or Intel GPU offload; no driver lock-in. |
+### 6.2 Production Platform Strategy
 
-### 6.3 Pipelining Evolution (Next Steps)
-1. **Concurrent Producer-Consumer Decoupling**:
-   - Decouple feature extraction (`ContentVec`, `RMVPE`, `FAISS`) into a background producer worker feeding a bounded double-buffered queue.
-   - The inference worker pops prepared feature tensors and executes neural vocoder synthesis concurrently, overlapping the ~23–30 ms preparation latency.
-2. **Next-Generation Lightweight Vocoders (Vocos / iSTFT)**:
-   - Evaluate modern vocoders (such as Vocos) that replace HiFi-GAN's 156 Conv1D layers with lightweight ConvNeXt blocks and an inverse Short-Time Fourier Transform (iSTFT) synthesis head.
-   - Reduces the VRAM memory stall impact and shortens chunk conversion latency to <20 ms on modern multi-core CPUs and consumer GPUs.
-3. **Hardware Backends: Native Direct APIs vs. Universal Abstraction (WebGPU / Vulkan)**:
-   - While WebGPU (`--edition webgpu`) provides a universal, driver-independent GPU backend across operating systems, empirical evidence (e.g., RTX 4090 executing significantly slower under DirectML than native CUDA) confirms that **native vendor APIs (`CUDA` on NVIDIA, `CoreML` on Apple Silicon) remain indispensable**.
-   - Universal abstraction layers (DirectML, WebGPU/Dawn) must translate compute shaders through intermediate representations (HLSL/WGSL), which prevents full utilization of vendor-proprietary micro-architectures (such as NVIDIA Tensor Core cuDNN fused kernels or Apple Neural Engine / ANE coprocessors).
-   - Therefore, Forge adopts a tiered support and backend strategy aligned with its Windows-first philosophy:
-     - **Tier 1 (First-Class Citizen)**: Windows x64 + NVIDIA CUDA (`CUDAExecutionProvider`). Leverages native CUDA and cuDNN runtimes (with automatic TF32 Tensor Core acceleration on Ampere+ GPUs) for optimal throughput and minimal latency. The primary target officially supported and validated for portable distributions.
-     - **Tier 0 (Ubiquitous Baseline)**: Multi-threaded CPU (`CPUExecutionProvider` on AVX2 / AVX-512 / NEON). Guarantees bit-exact, driverless fallback across every client platform.
-     - **Tier 2 (Best-Effort Hardware Adapters)**: Extended hardware acceleration maintained on a best-effort basis:
-       - Windows DirectML (AMD Radeon / DirectX 12)
-       - Intel OpenVINO (Windows & Linux: Arc GPU, iGPU, and NPU via Level Zero / oneDNN)
-       - macOS Apple Silicon CoreML (Apple Neural Engine & Metal GPU via NeuralNetwork format)
-       - Linux NVIDIA CUDA (Linux x64 and ARM64)
+Forge distributes `standard` and `cuda` packages. Linux users can select experimental WebGPU over Vulkan in either edition. See the [provider matrix](./npu-cpu-hardware-acceleration-and-universal-distribution.md#54-consolidated-production-edition-matrix). Each conversion pipeline still selects one compute target.
+
+### 6.3 Pipelining Evolution
+
+The [implementation roadmap](./implementation-roadmap.md#4-evaluate-inference-optimizations) tracks device-stage overlap, comparison with a single ONNX graph, and lightweight vocoder trials. The component measurements above provide a baseline for those experiments.

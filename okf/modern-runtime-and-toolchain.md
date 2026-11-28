@@ -50,7 +50,7 @@ To bridge developer experience between the Node.js/Web frontend ecosystem and Py
 | `npm run format:check`   | Check backend Python formatting without modifying      | `uv run --project backend ruff format --check backend`              |
 | `npm run clean`          | Clean build artifacts, venv, and caches                | `node scripts/clean.js`                                             |
 | `npm run build`          | Invoke frontend, desktop, and backend npm tasks        | `node scripts/build.js`                                             |
-| `npm run build:frontend` | Build production Svelte 5 assets                       | `npm --prefix frontend run build -- --outDir dist`                  |
+| `npm run build:frontend` | Build production Svelte 5 assets                       | `npm --prefix frontend run build`                  |
 | `npm run test:frontend`  | Run Playwright browser tests                           | `npm --prefix frontend test`                                        |
 | `npm run build:backend`  | Sync backend dependencies for target edition           | `uv run --no-project --python 3.14 python scripts/build_backend.py` |
 | `npm run package`        | Freeze backend (onedir) and package standalone archive | `uv run --no-project --python 3.14 python scripts/build_package.py` |

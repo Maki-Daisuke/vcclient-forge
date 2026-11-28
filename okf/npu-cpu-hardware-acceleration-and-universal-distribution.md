@@ -99,7 +99,7 @@ _(Note on Latency Budget vs. Analysis Window: The 256 ms audio window, or 4096 s
    - Forge adopts fixed-size chunking (Roadmap Item 3) not because NPUs strictly prohibit dynamic shapes, but to guarantee bounded, deterministic inference times without runtime re-compilation spikes.
 3. **Memory Bandwidth Considerations for Synthesis**:
    - While 10–55 TOPS provides ample compute for sequential feature extraction (ContentVec) and pitch estimation, running the standard FP32 HiFi-GAN vocoder involves extensive convolutional layer sweeps that demand high memory bandwidth. Discrete GPUs with dedicated VRAM (e.g., RTX 4090 at 1008 GB/s) excel at this workload.
-   - On NPUs sharing system LPDDR5X bandwidth (85–130 GB/s), running the full FP32 HiFi-GAN vocoder under 12 ms is constrained by memory sweep speed, highlighting the strategic necessity of lightweight vocoders (DDSP / Streamable vocoders in Roadmap Item 9).
+   - On NPUs sharing system LPDDR5X bandwidth (85–130 GB/s), running the full FP32 HiFi-GAN vocoder under 12 ms is constrained by memory sweep speed, highlighting the strategic necessity of lightweight vocoders (DDSP / streamable vocoders in the implementation roadmap).
 4. **Ecosystem & Toolchain Divergence**:
    - DirectML does not currently provide an official, verified execution path for AMD NPUs in ONNX Runtime; AMD's official tooling centers on `VitisAIExecutionProvider` (part of Ryzen AI Software). Intel NPUs, by contrast, are officially supported via OpenVINO.
 
@@ -249,7 +249,7 @@ Executing RVC on OpenVINO GPU uncovered two compiler barriers:
 
 1. **Auto-FP16 Type Mismatch**: Default auto-FP16 conversion caused element type mismatch between FP32 `ScatterNDUpdate` and FP16 `Gather`. Resolved by configuring `load_config` strictly as a device-keyed dictionary (`{"GPU": {"EXECUTION_MODE_HINT": "ACCURACY"}}`).
 2. **3D Interpolate Barrier (`linear_onnx`)**: Intel GPU's `interpolate.cpp` strictly rejects 3D tensors for linear interpolation (`Check 'inputRank == 2 || inputRank == 4 || inputRank == 5' failed`). RVC's SineGen expands pitch along a 3D tensor `[batch, channel, time]`.
-   - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, yields bit-exact numerical parity (diff `< 2.4e-7`), and unblocks OpenVINO GPU synthesis (**36.45 ms**).
+   - **In-Memory 4D Graph Surgery**: At model load, Forge inspects the ONNX protobuf and injects an `Unsqueeze` (dim 2) before SineGen `Resize` and a `Squeeze` immediately after, updating `scales` to 4D (`[1, 1, 1, upp]`). This in-memory transformation runs in **< 10 ms**, produced a numerical difference below `2.4e-7` in the measured comparison, and unblocks OpenVINO GPU synthesis (**36.45 ms**).
 
 #### 2.3.5 Dynamic Plugin Session Factory Contract (`DeviceConfig.create_session`)
 
@@ -286,19 +286,13 @@ During end-to-end audio validation, voice conversion produced a distorted, whisp
    - Because the input to `Clip_1` is `ArgMax + 5 >= 5`, `min = 0` is mathematically unconstraining and exact.
    - When loaded under OpenVINO GPU, `RMVPEOnnxPitchEstimator` achieves pitch estimation parity with CPU (`301.18 Hz` mean vs CPU `301.18 Hz`, max diff `< 0.002 Hz`), and end-to-end vocoder synthesis matches CPU frequency band energy within 0.8%, completely eliminating the whisper distortion.
 
-#### 2.3.7 Optimal Real-Time Deployment Matrices
+#### 2.3.7 Candidate Stage Combinations
 
-With in-memory 4D graph surgery, OpenVINO GPU delivers lower latency than DirectML on Intel Arc graphics across both Windows and Linux, while DirectML provides a cross-vendor DirectX 12 fallback on Windows:
-
-| Target Deployment               | Front-End (Pitch + Features)          | Back-End (Vocoder Synthesis)          | Total Latency | Key Benefit                      |
-| :------------------------------ | :------------------------------------ | :------------------------------------ | :------------ | :------------------------------- |
-| **Windows / Linux (OpenVINO)**  | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | OpenVINO GPU (36.5 ms <sup>\*1</sup>) | **~41–46 ms** | Lowest latency on Intel Arc GPU  |
-| **Windows (DirectML Fallback)** | OpenVINO GPU (4.3 ms) or NPU (9.6 ms) | DirectML EP (47.8 ms)                 | **~52–57 ms** | Cross-vendor DirectX 12 GPU path |
-| **Low-Power / Headless**        | OpenVINO NPU (9.6–10.6 ms)            | CPU EP (87.2 ms)                      | **~97–98 ms** | No GPU load                      |
+The component timings above can guide experiments with separate analysis and synthesis targets. Adding component timings estimates serial inference cost for the measured inputs. End-to-end audio latency also includes buffering, capture, playback, and any cross-device handoff. See the [inference roadmap](./implementation-roadmap.md#4-evaluate-inference-optimizations).
 
 #### 2.3.8 Working Design Hypothesis: Minimal Two-Stage Dispatch Heuristic
 
-Building upon the empirical telemetry, Forge formulates a streamlined, two-stage hardware dispatch hypothesis for future pipeline routing (Roadmap Item 9 / Hybrid Phase 5):
+Building upon the empirical telemetry, Forge formulates a streamlined, two-stage hardware dispatch hypothesis for future pipeline routing:
 
 1. **Back-End (Vocoder Synthesis / RVC)**:
    - **Rule**: If a GPU is present, allocate to **GPU** (CUDA > OpenVINO GPU with 4D patch > DirectML); otherwise, fall back to **CPU**.
@@ -307,27 +301,14 @@ Building upon the empirical telemetry, Forge formulates a streamlined, two-stage
    - **Rule**: If a client NPU is present, allocate to **NPU** (`OpenVINO NPU`); otherwise, fall back to **CPU** (or dedicated GPU if unconstrained).
    - **Rationale**: Acoustic front-end tasks require ~9.5 ms on NPU within a ~2–5 W silicon envelope. Offloading front-end processing to NPU completely decouples audio intonation tracking from 3D gaming/OBS GPU queues and avoids CPU thermal throttling.
 
-_(Status: Working architectural design hypothesis to be validated during the backend pipeline decoupling milestone in Roadmap Item 9)._
+_(Status: Working architectural design hypothesis to be validated during [inference optimization experiments](./implementation-roadmap.md#4-evaluate-inference-optimizations))._
 
 #### 2.3.9 Profiling Telemetry: DirectML Micro-Operator Overhead vs. OpenVINO Fused Subgraph
 
-Detailed profiling traces recorded with `misc/profile_model.py` (analyzed via Chrome Tracing JSON telemetry) isolate the architectural mechanism causing the latency divergence between DirectML and OpenVINO on identical hardware (Intel Arc 140V GPU and AI Boost NPU 4000):
+The ONNX Runtime traces from this Lunar Lake test report provider assignments and host-side spans:
 
-##### DirectML Kernel Dispatch & Fence Stalls (Arc 140V GPU: ~80 ms)
-
-Evaluating `rmvpe.onnx` under DirectML assigns **255 nodes to `DmlExecutionProvider`** (dispatched as Direct3D 12 compute shaders) and 19 shape/indexing nodes to `CPUExecutionProvider` (total 274 graph nodes):
-
-1. **Host-to-Device Command Submission**: CPU-side command list recording (`SequentialExecutor::Execute`) completes in **8.63 ms** (mean across steady-state runs 2–5).
-2. **GPU Execution and Synchronization Stalls**: Following CPU command recording, the host thread blocks in `WaitForSingleObject` for **~72 ms** waiting for GPU command queue completion and memory readback (steady-state total inference: 79.38–82.31 ms).
-3. **Micro-Kernel Serialization**: 5 `ConvTranspose` nodes and 1 `GRU` node account for the bulk of execution time. At batch size 1 and sequence length 4,096, individual kernel launches have low arithmetic intensity, resulting in GPU pipeline under-utilization and command-boundary barrier overhead across 255 separate dispatches.
-
-##### OpenVINO NPU Whole-Graph Fusion (AI Boost NPU: 5.43 ms)
-
-In contrast, OpenVINO compiles the entire RMVPE computation graph into a **single fused execution node** (`OpenVINOExecutionProvider: 1 node`):
-
-1. **Elimination of Intermediate Host-Device Roundtrips**: All intermediate activations across STFT, 2D CNN, and recurrent layers remain mapped directly within on-chip scratchpad SRAM.
-2. **Deterministic Steady-State Latency**: Initial cold-start compilation takes 10.63 ms, after which steady-state execution completes in **5.43 ms** (with a recorded minimum of **3.22 ms**).
-3. **Thermal and Queue Isolation**: Executing pitch estimation in 5.43 ms on the ~2–5 W NPU block eliminates competition with 3D rendering queues on the Arc GPU while keeping host CPU utilization minimal.
+- **DirectML**: The trace reports 255 nodes assigned to DirectML and 19 to CPU. The mean `SequentialExecutor::Execute` span for runs 2–5 was 8.63 ms. The corresponding `model_run` spans ranged from 79.38 to 82.31 ms. These spans do not attribute the difference to a specific fence, copy, or GPU kernel.
+- **OpenVINO**: The run requested the NPU and the trace reports one OpenVINO node. The reported steady-state time was 5.43 ms. A fused node in ONNX Runtime identifies the execution provider boundary. Physical device placement and memory use require separate device telemetry.
 
 ### 2.4 Apple Silicon (M-Series): CoreML Execution Provider, Graph Partitioning Barriers, and Two-Tier Static Shape Architecture
 
@@ -389,13 +370,13 @@ flowchart TD
     B --> C{"total_samples ≤ 16,384 ?"}
     
     C -- "YES (Real-Time Voice: ≤ 0.34–0.41s)" --> D["Tier 1: Peak Performance Engine<br/>• In-memory Static Shape<br/>• ModelFormat: MLProgram<br/>★ 98% GPU/ANE Native Execution<br/>★ Minimal Partitions (~9)<br/>★ Sub-100ms Latency"]
-    C -- "NO (Batch / Long Chunk: > 0.41s)" --> E["Tier 2: Robust Fallback Engine<br/>• Dynamic Shape<br/>• ModelFormat: NeuralNetwork<br/>★ Zero Memory Limit Crashes<br/>★ Continuous Arbitrary-Duration Conversion"]
+    C -- "NO (Batch / Long Chunk: > 0.41s)" --> E["Tier 2: Robust Fallback Engine<br/>• Dynamic Shape<br/>• ModelFormat: NeuralNetwork<br/>Dynamic-shape fallback"]
 ```
 
 1. **Tier 1 (Peak Real-Time Performance: $\le 16,384$ output samples)**:
    Typical real-time voice conversion targets low latency with 0.20–0.30s chunks. Adding crossfade (0.05–0.10s) yields $\le 0.40$s total window, fitting comfortably within the 16,384 limit. Applying in-memory static shape surgery with `MLProgram` executes 98% of the model natively on Metal GPU / ANE with minimal submodel overhead.
 2. **Tier 2 (Robust Fallback: $> 16,384$ output samples)**:
-   For oversized chunks (e.g., 0.5–1.0s) or offline batch conversion, the pipeline gracefully routes to the existing `NeuralNetwork` dynamic-shape provider. While partitioned, it guarantees crash-free execution without memory limit terminations.
+   For oversized chunks (e.g., 0.5–1.0s), the runtime uses the dynamic `NeuralNetwork` format. A static-shape patch failure also falls back to this format. Provider partitioning and runtime failures can still occur.
 
 ---
 
@@ -431,7 +412,7 @@ These mechanisms introduce maintenance fragmentation, slow down startup, and fai
 
 ### 4.2 Target Strategy & Current Implementation: In-Band, Framework-Native Detection
 
-The `vcclient.device.providers` modules (`cuda.py`, `openvino.py`, `directml.py`, `coreml.py`) use ONNX Runtime provider enumeration where available and retain platform-specific subprocesses for device discovery or metadata:
+The `vcclient.device.providers` modules (`cuda.py`, `openvino.py`, `directml.py`, `coreml.py`, `webgpu.py`) use ONNX Runtime provider enumeration where available and retain platform-specific subprocesses for device discovery or metadata:
 
 1. **Provider & Device Enumeration via `ort.get_ep_devices()` (Implemented for OpenVINO and DirectML)**:
    - OpenVINO (`openvino.py`) and DirectML (`directml.py`) query `ort.get_ep_devices()` first to enumerate accelerator devices natively via ONNX Runtime; DirectML falls back to PowerShell CIM (`Win32_VideoController`) only if `get_ep_devices()` returns no adapters. Legacy Linux `lspci` probing has been removed.
@@ -448,7 +429,7 @@ The `vcclient.device.providers` modules (`cuda.py`, `openvino.py`, `directml.py`
 
 ---
 
-## 5. Architectural Roadmap: Layered Platform Baselines and Two-Tier Distribution
+## 5. Distribution Architecture: Layered Platform Baselines and Two-Tier Distribution
 
 ### 5.1 Historical Fragmented Baseline
 
@@ -471,58 +452,18 @@ In the Python ONNX Runtime ecosystem, Execution Providers fall into three distin
 1. **Monolithic In-Tree Runtimes (Mutually Exclusive via pip)**:
    - Packages such as `onnxruntime`, `onnxruntime-gpu`, and `onnxruntime-directml` each distribute full, standalone builds of the C++ engine.
    - Crucially, they install into the **identical Python package namespace** (`site-packages/onnxruntime`) and overwrite the core native bindings (`_pybind_state.pyd` on Windows, `_pybind_state.so` on Linux) and engine DLLs.
-   - Consequently, attempting to `pip install` both `onnxruntime-gpu` and `onnxruntime-directml` in a standard Python environment causes binary corruption and symbol mismatch. Coexistence within a single wheel is only possible through custom C++ source builds (`--use_cuda --use_dml`), which imposes an unsustainable CI and maintenance burden that violates Forge's philosophy (_"Less code and less documentation is the ultimate virtue"_).
+   - Consequently, attempting to `pip install` both `onnxruntime-gpu` and `onnxruntime-directml` in a standard Python environment can overwrite files from the other runtime and leave an inconsistent installation. Coexistence within a single wheel is only possible through custom C++ source builds (`--use_cuda --use_dml`), which imposes an unsustainable CI and maintenance burden that violates Forge's philosophy (_"Less code and less documentation is the ultimate virtue"_).
 2. **Out-of-Tree Modular Plugins (Cleanly Composable)**:
    - In contrast, packages like `onnxruntime-ep-openvino` are engineered as official, modular out-of-tree plugins.
    - The plugin installs into its own dedicated namespace and dynamically registers its Level Zero / oneDNN execution provider into the host ONNX Runtime session at runtime.
-   - This allows OpenVINO to attach seamlessly to **either** `onnxruntime-directml` (in Standard editions) or `onnxruntime-gpu` (in CUDA editions) using official PyPI wheels without binary collisions or custom builds.
+   - This allows OpenVINO to register with the compatible host runtime used in the respective edition, **either** `onnxruntime-directml` (in Standard editions) or `onnxruntime-gpu` (in CUDA editions) using official PyPI wheels without binary collisions or custom builds.
 3. **Unpackaged Execution Providers (Excluded from Baseline)**:
    - Execution providers that lack official pre-compiled PyPI wheels—such as `ACLExecutionProvider` (Arm Compute Library)—require local source compilation and manual C++ dependency linking.
    - In strict adherence to Forge's core principle of leveraging existing upstream ecosystems and minimizing self-maintained toolchains, unpackaged EPs are excluded from baseline distributions. Expansion to new hardware backends is strictly gated on the upstream availability of official plugin wheels.
 
-#### Secondary Footprint Validation
+### 5.3 Platform Baselines
 
-Because the modular OpenVINO plugin is compact (~50–80 MB compressed) and DirectML adds only ~20–25 MB:
-
-- The **Universal Edition** (`onnxruntime-directml` + OpenVINO plugin) creates a single lightweight (~100 MB non-CUDA stack) release covering all non-NVIDIA systems.
-- The **CUDA Edition** (`onnxruntime-gpu` + OpenVINO plugin) enables Intel hybrid NPU/iGPU offloading alongside NVIDIA dGPU vocoder synthesis with a negligible archive delta (~75 MB), well within GitHub Releases' 2.00 GiB asset ceiling.
-
-Thus, **wheel coexistence boundaries—not arbitrary size targets—naturally dictate Forge's two-tier distribution architecture**.
-
-### 5.3 The Platform Baseline Concept (Production Packaging Architecture)
-
-Forge's distribution establishes non-CUDA components as **permanent platform baselines** across all operating systems:
-
-```mermaid
-flowchart TD
-    subgraph Baselines["Platform Baselines (Permanent Foundations)"]
-        B_x64["x64 Platform Baseline<br/>(OpenVINO Plugin + CPU AVX-512)"]
-        B_LinA["Linux ARM64 Baseline<br/>(CPU NEON / SVE)"]
-        B_Mac["macOS ARM64 Baseline<br/>(CoreML ANE/Metal + CPU NEON)"]
-    end
-
-    B_x64 --> Win_Std["win / x64 / standard<br/>(+ DirectML)"]
-    B_x64 --> Win_CUDA["win / x64 / cuda<br/>(+ CUDA Runtime)"]
-
-    B_x64 --> LinX_Std["linux / x64 / standard"]
-    B_x64 --> LinX_CUDA["linux / x64 / cuda<br/>(+ CUDA Runtime)"]
-
-    B_LinA --> LinA_Std["linux / arm64 / standard"]
-    B_LinA --> LinA_CUDA["linux / arm64 / cuda<br/>(+ DGX Spark / GB10 CUDA)"]
-
-    B_Mac --> Mac_Std["mac / arm64 / standard"]
-```
-
-1. **x64 Platform Baseline (Linux & Windows)**:
-   Includes `CPUExecutionProvider` and `OpenVINOExecutionProvider`. Provides hardware-accelerated inference across Intel CPUs, Iris Xe / Arc integrated graphics, Intel Arc discrete GPUs (A-Series / Battlemage B-Series), and Intel AI Boost NPUs via oneDNN and Level Zero.
-2. **Windows Graphics Tiering**:
-   - **Standard Edition**: Adds `DmlExecutionProvider` to the x64 baseline, providing DirectX 12 hardware acceleration across AMD Radeon discrete and integrated GPUs (RDNA architecture), Intel graphics, and non-CUDA systems.
-   - **CUDA Edition**: Layers native NVIDIA CUDA runtime libraries on top of the x64 baseline, delivering maximum Tensor Core performance for GeForce and RTX hardware while retaining OpenVINO for hybrid Intel offloading.
-3. **Linux ARM64 Platform Baseline**:
-   Includes standard `CPUExecutionProvider` leveraging Arm NEON and SVE/SVE2 vector optimizations natively integrated into ONNX Runtime's MLAS engine. While specialized libraries such as `ACLExecutionProvider` (Arm Compute Library) exist, Microsoft does not distribute official pre-compiled PyPI wheels for ACL. In strict adherence to Forge's core architectural principle—_leveraging existing upstream ecosystems and minimizing custom maintenance overhead_—Forge deliberately avoids requiring custom C++ builds of ONNX Runtime. Additional Execution Providers will only be integrated as out-of-tree plugins with official PyPI package distribution.
-   For accelerated GPU workflows, the **`linux / arm64 / cuda`** edition specifically targets modern personal AI supercomputers such as the **NVIDIA DGX Spark (powered by the GB10 Grace Blackwell Superchip)** and Grace-Blackwell/Grace-Hopper workstation platforms. In this architecture, the 20-core Grace Arm CPU and the 1 PFLOPS Blackwell GPU share unified system memory (128GB UMA connected via NVLink-C2C), executing native CUDA 13 kernels with near-zero transfer overhead.
-4. **macOS ARM64 Platform Baseline**:
-   Bundles `CoreMLExecutionProvider`, which automatically delegates computation between the Apple Neural Engine (ANE) and Metal GPU, backed by NEON/Accelerate CPU execution.
+Forge uses separate `standard` and `cuda` builds. The Windows standard build uses the DirectML ONNX Runtime wheel; CUDA builds use the GPU wheel. OpenVINO is packaged as a plugin for Windows and Linux x64, and the WebGPU plugin is included in both Linux editions on x64 and ARM64. Linux WebGPU is experimental and requires a working Vulkan driver and system loader. macOS uses the CoreML provider in the Apple Silicon build.
 
 ### 5.4 Consolidated Production Edition Matrix
 
@@ -532,24 +473,10 @@ Forge organizes distribution packages into a clean, hierarchical matrix across O
 | :---------- | :----------- | :--------- | :---------------------------- | :------------------------------------------------------------------------------------------ | :--------------------- |
 | **Windows** | `x64`        | `standard` | `OpenVINO`, `DirectML`, `CPU` | Non-NVIDIA systems (AMD Radeon/Ryzen, Intel Arc/Core/Ultra, CPU-only) & NVIDIA DML fallback | `win-x64-standard`     |
 | **Windows** | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU` | NVIDIA hardware (GeForce / RTX desktops & hybrid laptops)                                   | `win-x64-cuda`         |
-| **Linux**   | `x64`        | `standard` | `OpenVINO`, `CPU`             | Non-NVIDIA systems (AMD / Intel CPU, Intel Arc/iGPU, cloud VMs)                             | `linux-x64-standard`   |
-| **Linux**   | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `CPU` | NVIDIA hardware (desktop and server workstations)                                           | `linux-x64-cuda`       |
-| **Linux**   | `arm64`      | `standard` | `CPU` (NEON/SVE)              | Non-NVIDIA ARM64 systems (RPi 5, RK3588, ARM servers)                                       | `linux-arm64-standard` |
-| **Linux**   | `arm64`      | `cuda`     | **`CUDA`**, `CPU` (NEON/SVE)  | NVIDIA hardware (DGX Spark / GB10 Grace Blackwell, GPU cloud)                               | `linux-arm64-cuda`     |
+| **Linux**   | `x64`        | `standard` | `OpenVINO`, `WebGPU`, `CPU`   | AMD / Intel GPUs and CPU-only systems                             | `linux-x64-standard`   |
+| **Linux**   | `x64`        | `cuda`     | **`CUDA`**, `OpenVINO`, `WebGPU`, `CPU` | NVIDIA hardware (desktop and server workstations)                                           | `linux-x64-cuda`       |
+| **Linux**   | `arm64`      | `standard` | `WebGPU`, `CPU`            | ARM64 systems with Vulkan-capable GPUs or CPU inference                                       | `linux-arm64-standard` |
+| **Linux**   | `arm64`      | `cuda`     | **`CUDA`**, `WebGPU`, `CPU` | NVIDIA hardware (e.g. DGX Spark)                               | `linux-arm64-cuda`     |
 | **macOS**   | `arm64`      | `standard` | `CoreML`, `CPU` (NEON)        | Apple Silicon (M1/M2/M3/M4: ANE + Metal GPU)                                                | `mac-arm64-standard`   |
 
-### 5.5 Architectural Advantages of the Bundled Baselines
-
-1. **Hybrid Multi-Device Offloading on Modern Laptops**:
-   Modern laptops frequently combine an Intel Core Ultra or AMD Ryzen AI processor with an NVIDIA discrete GPU. By bundling OpenVINO into the CUDA Edition:
-   - Pitch estimation (RMVPE / FCPE) or feature extraction (ContentVec) can be dispatched to the integrated Intel NPU or iGPU (via OpenVINO) or CPU (via AVX-512).
-   - Synthesis (HiFi-GAN vocoding) runs simultaneously on the discrete NVIDIA GPU (via CUDA).
-   - If OpenVINO were stripped from the CUDA edition, NVIDIA laptop users would lose access to their integrated Intel NPU/GPU hardware.
-2. **Unified Device Management Codebase**:
-   In VCClient Forge, backend initialization (`device_manager.py`) registers the full platform provider stack uniformly across all installations. Edition detection does not require fragile conditional imports or guard statements; if CUDA is present, it is prioritized for vocoder synthesis while maintaining baseline providers.
-3. **Negligible Packaging Footprint Impact**:
-   Bundling OpenVINO adds only ~50–80 MB compressed to the distribution. The standalone archive growth remains well below the 2.00 GiB release asset threshold.
-4. **Elimination of User Confusion**:
-   Users with NVIDIA laptops no longer need to decide between a "CUDA edition" and an "OpenVINO edition" to test battery-saving NPU execution. The CUDA edition is a superset that contains all baseline capabilities.
-5. **Standard Edition Safety Net for NVIDIA Users**:
-   Because `DmlExecutionProvider` is included in the Windows Standard Edition baseline, any NVIDIA user who inadvertently downloads `win-x64-standard` (or selects it intentionally) automatically runs GPU-accelerated inference via DirectX 12. GPU acceleration degrades gracefully rather than dropping precipitously to CPU execution.
+The table describes what the build includes. Device discovery and execution depend on the host driver and model. The selected compute target applies to the inference pipeline as a whole. Availability of both CUDA and OpenVINO in the same package allows switching targets; per-stage CPU/NPU preparation and GPU synthesis remain [experiments](./implementation-roadmap.md#4-evaluate-inference-optimizations).

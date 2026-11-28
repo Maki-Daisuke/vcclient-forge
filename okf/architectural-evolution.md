@@ -47,7 +47,7 @@ Forge established an immediately intuitive, modern full-stack architecture that 
 ### 4.1. Fully Decoupled `backend/`
 * **Package Modernization**: Renamed legacy `vcclient_dev` to clean `vcclient` and consolidated all Python code under `backend/`.
 * **Isolated uv Environment**: `pyproject.toml`, `uv.lock`, and standalone `.venv` reside directly inside `backend/`, cleanly decoupling backend Python dependencies from root task runners.
-* **Deterministic Static Asset Resolution**: `vcclient.server.server_const.get_frontend_path()` resolves `frontend/dist` via relative anchors from `__file__`, ensuring identical asset resolution both in local development and inside portable distribution zips.
+* **Where the backend serves the built UI from**: `vcclient.server.server_const.get_frontend_path()` resolves `frontend/dist` via relative anchors from `__file__`, ensuring identical asset resolution both in local development and inside extracted portable packages.
 
 ### 4.2. Svelte Frontend Deployment
 
@@ -55,7 +55,7 @@ The Svelte/Vite UI in `frontend/` replaces the legacy frontend. `npm run build:f
 builds it into `frontend/dist`, which FastAPI serves and the portable distribution
 includes. Vite's manifest is used to validate the built assets during packaging.
 The previous `client/` source and `web_front/` bundles have been removed; retained
-translations and the placeholder image are in `frontend/src/`.
+translations and the placeholder image are in `frontend/src/`. The current HTTP and WebSocket contracts are documented in the [API reference](./api-reference.md).
 
 ## 5. Pruning the Legacy CUI Layer
 

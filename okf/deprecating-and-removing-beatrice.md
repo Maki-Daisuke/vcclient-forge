@@ -102,7 +102,7 @@ Rather than dividing attention across divergent architectures, VCClient Forge fo
 
 1. **Backend Pruning** [Completed]:
    - Removed `simple_beatrice.py` and `beatricev2_pipeline.py`.
-   - Pruned Beatrice data models and branch logic from `slot_manager.py`, `slot_manager_data_types.py`, and `pipeline_manager.py`.
+   - Removed Beatrice-specific metadata and dispatch from model storage and pipeline creation. Forge now uses the RVC model catalog.
 2. **Frontend Pruning** [Completed]:
    - Replaced legacy `web_front/` with the RVC-only Svelte 5 UI (`frontend/`), omitting Beatrice-specific components, SVG assets, and conditional branches (only unused legacy translation keys remain inside the preserved `frontend/src/lib/i18n/*/translation.json` dictionaries).
 3. **Verification** [Completed]:

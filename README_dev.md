@@ -20,7 +20,7 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast, deterministic Pytho
    ```
 
 2. **[Node.js](https://nodejs.org/) & npm**: Unified task runner and workspace management.
-   * Node.js v24+ (v26 LTS recommended).
+   * Node.js 26 is used in CI.
    * Verified via `node -v` and `npm -v`.
 
 3. **[7-Zip](https://www.7-zip.org/) (`7z`)**: Required for creating ultra-compact standalone `.7z` distributions.
@@ -53,7 +53,7 @@ cd vcclient-forge
 npm run setup:dev -- --edition cuda  # Or --edition standard (the default)
 
 # Choose ONE edition matching your development/testing target:
-npm run build -- --edition standard  # Universal edition (Intel OpenVINO, AMD/Windows DirectML, Apple CoreML, CPU)
+npm run build -- --edition standard  # See README.md for the platform-specific providers
 npm run build -- --edition cuda      # NVIDIA Turing or newer (CUDA 13.x / cuDNN 9)
 ```
 
@@ -61,7 +61,7 @@ npm run build -- --edition cuda      # NVIDIA Turing or newer (CUDA 13.x / cuDNN
 * `npm run setup:dev` installs the locked root, Svelte frontend, and desktop frontend npm dependencies, downloads Go modules, and synchronizes backend dependencies for the selected edition. It does not install system prerequisites such as Node.js, uv, Go, Wails, or Linux system libraries.
 * `npm run build -- --edition <edition>` selects the hardware edition (`standard` or `cuda`). `npm run build:frontend`, `npm run build:desktop`, and `npm run build:backend -- --edition <edition>` build individual components; `build:backend` synchronizes backend dependencies for the specified edition.
 * Python 3.14 is automatically downloaded, isolated, and pinned via `.python-version`.
-* The locked dependencies (`backend/uv.lock`) guarantee an identical environment across machines.
+* The lockfile (`backend/uv.lock`) records dependency versions for supported platforms and editions.
 * Advanced: You can also synchronize the Python backend directly using `uv sync --project backend --extra <edition>`.
 
 ---
@@ -81,7 +81,7 @@ Once launched, the Web UI is served at:
 http://localhost:18888/
 ```
 
-Initial model assets are downloaded into `model_dir/` upon the first startup.
+On startup Forge downloads missing RVC modules into `modules/` and fetches sample models when the model catalog is empty.
 
 ### Svelte Frontend Development
 
@@ -103,7 +103,7 @@ uv sync --project backend --extra standard  # Or cuda
 npm start
 ```
 
-Vite proxies `/api` (including WebSocket connections) to `http://127.0.0.1:18888`.
+In development and preview, Vite proxies `/api` (including WebSocket connections) to `http://127.0.0.1:18888`.
 To use another backend, set `VCCLIENT_BACKEND_URL`
 before starting Vite. For example, in PowerShell:
 
@@ -116,16 +116,9 @@ The UI reads and updates the backend configuration and models; changes made in
 the development UI affect the backend it connects to. Client Mode also requires
 browser microphone permission for audio capture.
 
-To check types and build the standalone preview:
-
-```bash
-npm run check:frontend
-npm run build:frontend:preview
-```
-
-The preview build goes to `frontend/preview-dist`; `npm --prefix frontend run preview`
-serves it. `npm run build:frontend` builds the UI in `frontend/dist`,
-which is served by the backend and included in desktop distributions.
+Run `npm run check:frontend` to check types and `npm run build:frontend` to
+build `frontend/dist`. The backend serves that directory, packaging includes it,
+and `npm --prefix frontend run preview` serves it through Vite.
 
 For browser tests, install Playwright's Chromium once and run:
 
@@ -134,11 +127,16 @@ npm --prefix frontend exec -- playwright install chromium
 npm run test:frontend
 ```
 
-These tests use mocked APIs and start a preview server on port 5174, which must be
-free. Alternatively, set `PLAYWRIGHT_CHANNEL` to `msedge` or `chrome` to use an
-installed browser. `npm test` runs frontend type checks and Playwright tests as well
-(skipping Playwright locally if neither Playwright's Chromium nor `PLAYWRIGHT_CHANNEL` is
-available). See [frontend/README.md](frontend/README.md) for the UI's current behavior and implementation details.
+Playwright builds the UI and starts Vite preview on port 5174 by default. Set
+`PLAYWRIGHT_PORT` if the port is in use, or `PLAYWRIGHT_CHANNEL` to `msedge` or
+`chrome` to use an installed browser. Most checks mock API calls. The full-stack
+checks start `backend/main.py` with real RVC modules and models and use
+Chromium's fake media device for browser capture. They skip when backend
+dependencies are missing. Run `npm run build:backend -- --edition standard`
+(or `cuda`) to install them. The native audio case also requires suitable
+PortAudio input and output devices.
+
+See the [frontend architecture](okf/frontend-architecture-and-roadmap.md) for the source layout and API integration.
 
 ### Desktop Host (Wails v3)
 
@@ -152,15 +150,16 @@ uv sync --project backend --extra standard   # Or cuda; choose one hardware edit
 npm run dev:desktop
 ```
 
-Wails embeds `desktop/frontend/dist`, displays startup status/logs via `@xterm/xterm`, and launches the local Python virtual environment (`backend/.venv/Scripts/python.exe` on Windows, `backend/.venv/bin/python` on Linux/macOS) directly. It waits for the readiness sentinel from its own backend before navigating to `http://127.0.0.1:18888/`; the UI is Python-served. Closing the window terminates its child process tree cleanly.
+In development, the host uses the Python interpreter in `backend/.venv`.
+See the [desktop host architecture](okf/migrating-desktop-host-from-tauri-to-wails.md#current-desktop-host) for startup, navigation, and WebView behavior.
 
-`npm run test:desktop` tests the bootstrap states, builds the Vite frontend, and runs `go test .` inside `desktop/`. `npm run build:desktop` builds only the desktop executable (`desktop/bin/vcclient-forge.exe` on Windows, `desktop/bin/vcclient-forge` on Linux/macOS), not a complete Python distribution.
+`npm run test:desktop` builds the bootstrap UI and runs the desktop Go tests. To run the Go tests directly after building the bootstrap UI, use `go -C desktop test -v ./...`. `npm run build:desktop` produces the desktop executable (`desktop/bin/vcclient-forge.exe` on Windows, `desktop/bin/vcclient-forge` on Linux/macOS).
 
 ---
 
 ## 3. Building Standalone Portable Packages
 
-Build commands are defined once in `package.json`. `npm run build` uses `scripts/build.js` to invoke `build:frontend`, `build:desktop`, and `build:backend` in order, forwarding edition/version arguments to the backend task. `scripts/build_backend.py` synchronizes backend dependencies for the target edition during development. Standalone distribution packaging is handled by `npm run package` (via `scripts/build_package.py`), which freezes the backend with PyInstaller **onedir** mode, validates prerequisites, bundles desktop/frontend assets, and optionally archives the package:
+Build commands are defined once in `package.json`. `npm run build` uses `scripts/build.js` to invoke `build:frontend`, `build:desktop`, and `build:backend` in order, forwarding `--edition` to the backend task. `scripts/build_backend.py` synchronizes backend dependencies for the target edition during development. Standalone distribution packaging is handled by `npm run package` (via `scripts/build_package.py`), which freezes the backend with PyInstaller **onedir** mode, validates prerequisites, bundles desktop/frontend assets, and optionally archives the package:
 
 ```bash
 # Build all components, then package the SAME edition:
@@ -185,25 +184,26 @@ Packages always include the compiled desktop binary (`desktop/bin/vcclient-forge
 
 Build environments and PyInstaller analysis files live under `build/packaging/<platform>_<edition>_<python>/`. PyInstaller and its hooks are locked in the backend's `build` dependency group, separate from production and development dependencies. Build on each target operating system; PyInstaller does not cross-compile these distributions.
 
-Archives are created as `dist/vcclient_<platform>_<edition>_v<VERSION>.7z` on all supported platforms:
+Archives are created as `dist/vcclient-<os>-<arch>-<edition>-v<VERSION>.7z` on all supported platforms:
 
 The version comes from the root `package.json`'s `version` field. An optional leading `v` is removed before constructing the name so the filename contains only one `v` prefix.
 
 ```text
-vcclient_<platform>_<edition>_v<VERSION>/
+vcclient-<os>-<arch>-<edition>-v<VERSION>/
    vcclient-forge(.exe)     # Desktop host executable (vcclient-forge.exe on Windows, vcclient-forge on Linux/macOS)
    main(.exe)               # Frozen backend executable (main.exe on Windows, main on Linux/macOS)
    _internal/               # Python, stdlib, extension modules, shared libraries
-   frontend/dist/           # Web UI and license listings
+   frontend/dist/           # Web UI and license notices
    modules/                 # Downloaded inference modules (initially empty)
    model_dir/               # User models (initially empty)
-   start.bat / start.sh
-   README.md / LICENSE
+   start.bat / start.sh    # Backend launchers
+   MacStart.command        # macOS desktop launcher
+   README.md / README.txt / README_ja.txt / LICENSE
 ```
 
 End users extract the **entire directory** and launch `vcclient-forge.exe` (Windows) or `./vcclient-forge` (Linux/macOS), without installing Python or CUDA toolkits. Backend-only entry points (`main.exe` / `main`, `start.bat`, or `start.sh`) remain available. Frozen startup sets the working directory to the executable's directory, keeping downloaded models, settings, and logs beside the executable, outside `_internal`. The launchers run only the bundled backend (`main.exe` on Windows, `main` on Linux/macOS); developers use `npm start`.
 
-Existing package folders and archives are never overwritten: use a new `--output-dir` for another build. Archive creation fails when the result is 2 GiB or larger. The Windows CUDA onedir archive measured on 2026-10-19 is **1,318,130,525 bytes (1.228 GiB)**, including Python and the selected CUDA libraries.
+Existing package folders and archives are never overwritten: use a new `--output-dir` for another build. Archive creation fails when the result is 2 GiB or larger. As a historical reference, the Windows CUDA onedir archive measured on 2026-10-19 is **1,318,130,525 bytes (1.228 GiB)**, including Python and the selected CUDA libraries.
 
 For an import/startup check without starting a server or downloading models, use `main.exe --help` (`./main --help` on Linux/macOS). Real-time audio conversion has been verified on physical hardware across Windows (NVIDIA CUDA, Intel Arc GPU via OpenVINO, AMD via DirectML, and AVX-512 CPU) and macOS (Apple Silicon M2 via CoreML).
 
@@ -239,7 +239,7 @@ Test coverage includes:
 * Graceful shutdown and WebSocket connection/disconnection lifecycle.
 * REST API endpoints and unsupported-route handling.
 * Web frontend static file delivery (`/`).
-* In-place ONNX export and pitch estimation pipelines (RMVPE, FCPE).
+* Isolated `export-onnx` conversion and pitch estimation pipelines (RMVPE, FCPE).
 * Desktop bootstrap IPC, retry lifecycle, and navigation security.
 
 ### Static Type Checking
@@ -256,7 +256,7 @@ uv run --project backend mypy --config-file backend/pyproject.toml
 
 ### Linting & Formatting
 
-Code formatting and linting are powered by [Ruff](https://docs.astral.sh/ruff/) configured via `backend/pyproject.toml` (targeting Python 3.14):
+Backend formatting and linting are powered by [Ruff](https://docs.astral.sh/ruff/) configured via `backend/pyproject.toml` (targeting Python 3.14):
 
 ```bash
 # Check for lint issues
@@ -270,6 +270,7 @@ npm run format
 
 # Verify formatting without modifying files
 npm run format:check
+gofmt -l desktop
 ```
 
 ---
@@ -278,7 +279,7 @@ npm run format:check
 
 Continuous integration and automated release workflows are configured in `.github/workflows/`:
 
-* **`ci.yml`**: Runs Ruff linting, Ruff/Go formatting checks, the unified `npm test` suite (frontend checks, Playwright Chromium browser tests, backend `mypy`/`pytest`, and desktop Go tests), and the desktop build on pushes and pull requests. The main matrix covers Ubuntu, Windows, and macOS; the CUDA job runs `npm run test:backend` on a self-hosted Linux ARM64 runner.
+* **`ci.yml`**: Runs Ruff linting, Ruff/Go formatting checks, the unified `npm test` suite (frontend checks, Playwright Chromium browser tests, backend `mypy`/`pytest`, and desktop Go tests), and the desktop build on pushes and pull requests. The main matrix covers Ubuntu 24.04, Ubuntu 26.04, Windows, and macOS; the CUDA job runs `npm run test:backend` on a self-hosted Linux ARM64 runner.
 * **`release.yml`**: Builds portable packages for all matrix editions when a version tag (`v*`) is pushed, attaching the archives to GitHub Releases. It can also be started manually from the GitHub Actions **Release Builds** page by selecting a branch, or with `gh workflow run release.yml --ref forge`. A branch run uploads the packages as workflow artifacts without publishing a release; artifacts are retained for seven days.
 
 ---
@@ -307,12 +308,11 @@ vcclient-forge/
 │   └── frontend/               # Embedded bootstrap UI (Vite + TypeScript + xterm.js)
 ├── frontend/                   # Frontend workspace
 │   └── dist/                   # Built Web UI assets (.gitignored)
-├── tests/                      # Node.js test suite for desktop bootstrap & build orchestration
 ├── okf/                        # Open Knowledge Format architectural documentation
 ├── scripts/
 │   ├── build.js                # Invokes component npm tasks without duplicating their commands
-│   ├── build_backend.py        # Builds backend artifacts with PyInstaller
-│   ├── build_package.py        # Validates and packages existing artifacts (sub-2GB target)
+│   ├── build_backend.py        # Synchronizes backend dependencies for the selected edition
+│   ├── build_package.py        # Freezes the backend and packages all components (under 2 GiB)
 │   ├── clean.js                # Workspace cleaning script
 │   └── test.js                 # Runs frontend, backend, and desktop test suites for npm test
 ├── package.json                # Root task runner (npm start, npm test, etc.)

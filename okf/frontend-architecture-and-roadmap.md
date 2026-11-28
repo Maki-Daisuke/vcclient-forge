@@ -11,230 +11,31 @@ timestamp: 2026-10-18T06:30:00Z
 
 **Transport decision (2026-11-19):** Replace Socket.IO (`python-socketio` and `socket.io-client`) with two purpose-specific native FastAPI WebSocket endpoints (`/api/ws/status` for realtime telemetry JSON frames and `/api/ws/audio` for raw `<f4` binary PCM audio streaming). This reverses the earlier 2026-11-09 decision to retain Socket.IO once old `web_front/` client compatibility was formally dropped, removing unneeded framing/tuple-packing overhead, `asyncio.run()` per-thread emissions, and third-party socket dependencies. The historical 2026-11-09 echo benchmark measurements below are preserved for reference.
 
-## Deployment Assumptions
+## Current deployment
 
-**Current deployment:** `npm run build:frontend` builds the Svelte UI to `frontend/dist`. The backend serves it at `/`, and portable packages include this build. Legacy `client/` and `web_front/` directories have been removed. The dated milestones below describe the historical migration.
+`npm run build:frontend` builds the Svelte UI into `frontend/dist`. FastAPI serves it at `/` and portable packages include the same build. Wails supervises the backend and navigates to this UI. The Svelte UI replaced the legacy `client/` source and `web_front/` bundle.
 
-### Appearance Preview Baseline (2026-11-06)
+The UI uses Svelte 5 and TypeScript with a layout based on v2.1.4. Bits UI provides sliders and accessible dialogs, with standard HTML controls where suitable.
 
-The initial `frontend/` scaffold was a standalone Svelte 5 + TypeScript + Vite appearance
-preview inspired by the tracked v2.1.4 layout. Exact pixel matching is not a
-goal; maintainable components take priority. Bits UI provides sliders and
-accessible, nested dialogs; simple controls use standard HTML. Model/audio
-controls and settings fields were disabled, while dialog navigation, collapsible
-sections, language selection, and light/dark themes work locally.
+### Frontend API integration
 
-The initial scaffold used immutable sample data; current settings now come from
-the existing GET responses described below. Per-app Svelte
-context owns language/theme state and an i18next instance; all 13 original
-community dictionaries are imported from their tracked upstream location with
-English fallback and Arabic RTL. Added preview messages are translated into
-Japanese and English. The initial scaffold used sample model data; the read-only
-model integration below replaced it. Later milestones connected Server Mode
-controls, settings writes, and browser microphone access, followed by migration to native WebSocket endpoints (`/api/ws/status` and `/api/ws/audio`).
+- [Model catalog](../frontend/src/lib/catalog.svelte.ts) and [upload](../frontend/src/lib/model-upload.ts) use NanoID model IDs. Icon URLs include the icon revision. Dropped ZIP files are unpacked in the browser before uploading model and index files. Uploads, reordering, and display edits can run during conversion. The backend protects the active model from deletion.
+- [Session state](../frontend/src/lib/session.svelte.ts) and the [API client](../frontend/src/lib/api.ts) coordinate persisted settings, device discovery, and active conversion. Device auto-selection recommends a target while stopped, and the UI stages the choice for Start. The client polls session state during startup, serializes live edits with a 100 ms throttle, and stops through `DELETE /api/session`, which finalizes an active recording.
+- [Client audio](../frontend/src/lib/client-audio.svelte.ts) uses `AudioWorklet` and sends float32 mono PCM over `/api/ws/audio`. Reloading the UI can reconnect to an active Client Mode session. When a connection is superseded (`4001`), the previous client releases capture and the backend session continues.
+- [Server Mode meters](../frontend/src/lib/audio-meters.svelte.ts) read `/api/ws/status`. Client Mode meters use Web Audio `AnalyserNode`s. The UI downloads the latest recording from `/api/recordings/latest`, and the [log viewer](../frontend/src/components/LogWindow.svelte) polls `/api/logs`.
+- [UI preferences](../frontend/src/lib/ui.svelte.ts) and [browser audio settings](../frontend/src/lib/client-audio.svelte.ts) use local storage with fallbacks when storage is unavailable.
 
-### Read-Only Model Integration (2026-11-06)
+See the [developer guide](../README_dev.md#svelte-frontend-development) for commands and the [API reference](./api-reference.md) for request and response formats.
 
-The development UI now reads `/api/slot-manager/slots` and
-`/api/configuration-manager/configuration` using `frontend/src/lib/api.ts`.
-The adapter validates the fields it consumes and maps them to display types in
-`catalog.ts`; components do not depend on backend DTOs or fetch directly.
-Per-app `catalog.svelte.ts` state owns loading/ready/error, an 8-second timeout,
-cancellation on replacement/unmount, manual retry, and current-model lookup by
-slot ID. Failed refreshes clear prior data; no sample-model fallback is used.
+### Audio controls and defaults
 
-Both requests must succeed before publishing a catalog. There is no server
-revision/snapshot guarantee across the two GETs; automatic polling and event
-subscriptions are not yet implemented. The model cards, manager, selected-model
-heading/description, and portrait consume this state. Empty slots are filtered,
-pending/broken slots are labeled, missing selected IDs are not replaced by the
-first model, and broken portrait URLs fall back to the upstream placeholder.
-Counts represent returned occupied slots, not an assumed backend capacity.
+- **Shared output gain in Server Mode.** The main and monitor output callbacks both use the same output gain. The UI exposes one output volume control for both. See the [native audio callbacks](../backend/vcclient/voice_changer/voice_change_manager/local_voice_changer_interface.py).
+- **WASAPI shared mode from the UI.** If WASAPI exclusive mode was saved in an older configuration, the UI shows a notice and clears the setting on Start. It sends `wasapi_exclusive_enabled: false` when starting a native session. A failed settings update blocks startup. See the [browser regression test](../frontend/tests/wasapi.spec.ts).
+- **Browser microphone processing in Client Mode.** Echo cancellation, noise suppression, and automatic gain control default to off. The UI stores the user's selections in browser local storage and applies them when opening the microphone. See the [browser audio handler](../frontend/src/lib/client-audio.svelte.ts).
 
-Vite dev/preview proxies `/api` and `/model_dir` to the backend on loopback port
-18888, overridable via `VCCLIENT_BACKEND_URL`. Production packaging still uses
-the legacy UI. Browser tests intercept API responses and exercise sparse IDs,
-selection, partial failures, retry, malformed data, timeout, and image fallback
-alongside the existing appearance checks. Model selection/editing and all audio
-and settings writes remain disabled.
+### Hands-on checks during the Svelte migration
 
-### Read-Only Settings Display (2026-11-06)
-
-The existing catalog/configuration GET pair also supplies the configuration
-snapshot in `frontend/src/lib/settings.ts`. Input/output/monitor gains, mode,
-native device/GPU IDs, filters,
-cutoffs, noise gate, extra context, and analysis switches now populate
-the controls. Selected-model pitch/index/estimator/embedder/chunk settings are
-mapped from the slot response. Missing fields remain null and display `—` or an
-indeterminate checkbox, rather than sample defaults. Browser-only preferences
-are not fetched yet. Reload updates these values;
-failed loads clear them. All setting controls remain disabled.
-
-Native audio device names/hosts are resolved by ID from the existing
-`/api/audio-device-manager/input_devices` and `output_devices` GETs. The monitor
-uses the output list. Device loading/error state is independent of the catalog,
-so slow or failed lists do not hide current settings. Missing IDs and failed
-lists display the configured ID and status, never an arbitrary fallback device.
-Mount and Reload read cached lists without requesting a PortAudio rescan.
-
-No backend API changes or setting writes were part of the read-only milestone.
-The native-controls implementation below builds on it using the existing full
-configuration GET/PUT contract.
-
-### Native Controls and Live Gain Updates (2026-11-06)
-
-`frontend/src/lib/session.svelte.ts` now coordinates per-app drafts and confirmed
-settings. Model cards and native input/output/monitor selectors are enabled while
-stopped. A changed device uses Auto sample rate. Server Mode can be selected from
-Audio Devices; existing native start/stop POSTs and information GET are connected.
-Runtime polling runs every two seconds without Socket.IO. The returned enable
-flag does not guarantee a healthy stream or audible output; live meters are still
-unavailable. The current native monitor callback uses output gain, so the UI shows
-that linkage rather than enabling an ineffective independent monitor slider.
-
-Input/output gain sends the latest edit at 100 ms intervals while dragging, with
-immediate flush on pointer/key release or focus loss. Requests are serialized and
-coalesced; an acknowledgement cannot overwrite newer draft values. Every write
-GETs fresh full configuration, merges only edits, PUTs the full DTO, and GETs the
-result to detect failures including silent model rollback. Failed saves retain
-drafts for explicit retry/discard. Start waits for confirmed settings; Stop queues
-behind the in-flight write. Writes/operations have a 30-second timeout, and a lost
-response is reported as uncertain rather than automatically retried. The existing
-API cannot provide atomic conflict resolution against another controlling client.
-
-Backend code and APIs are unchanged. Browser tests mock the API to exercise the
-control sequence, preservation, coalescing, stale acknowledgements, and failures.
-All 41 browser checks passed. The user confirmed native audio playback from the
-new UI on 2026-11-06; perceived gain latency and longer sessions remain to be
-validated. Each configuration PUT still persists the settings file; separating
-live application from disk persistence remains backend roadmap work. Playback
-confirmation alone does not establish all of Step 1's native-conversion exit criteria.
-
-### Live Pitch and Index Controls (2026-11-06)
-
-The selected RVC model's pitch and index sliders now use existing slot GET/PUT/GET
-requests. Each write merges only edits into the latest complete slot DTO and
-checks its ID and readback values. Per-slot drafts share the native session's
-100 ms throttle, completion flush, serialized requests, and explicit retry/discard.
-Configuration and model writes alternate when both are pending; acknowledgements
-clear only matching draft values. Selection/reload/start wait for pending edits,
-and Stop waits for the active write. Catalog updates replace only the confirmed
-slot. Unsupported pitch models and models without an index file show disabled
-controls with explanations. Backend code is unchanged, including its per-write
-`params.json` persistence. All 49 browser checks passed using mocked APIs;
-the existing slot GET and UI values were also checked against the real backend
-with a simulated selection in the browser. Live slot PUT and on-device pitch/index
-listening validation are still pending.
-
-### Main Control Sections (2026-11-06)
-
-The selected model's portrait, details, and voice controls appear inside the model list.
-The remaining controls are organized as Audio Devices, Volume, Noise Suppression,
-and Inference, each using native expandable details. Output/monitor volume uses one slider;
-RMVPE/FCPE pitch estimator selection is available while server audio is stopped.
-The Passthrough button writes the existing configuration and confirms the result;
-it can be toggled during server audio. Live audio verification remains pending.
-WASAPI exclusive mode and device sample-rate controls are not displayed in the new UI.
-Before starting native audio, the UI disables the saved exclusive-mode setting using
-the existing API. Previously saved device sample rates remain in use until the device
-changes; changing it resets the rate to Auto.
-The chunk and Extra frame logarithmic sliders are adjustable while audio is stopped
-in either mode. Chunk belongs to the selected model; Extra frame is a shared
-configuration setting. Crossfade duration is determined by the backend.
-Stopped-only settings are held in the frontend until Start; live controls continue
-to save independently. On Start, the UI saves pending model and configuration
-settings using the existing APIs and displays a warmup status. Each API write can
-rebuild the pipeline, so applying both types of changes may rebuild more than once.
-Pending settings have not been persisted and may be lost on page reload or exit.
-
-Restricting GPU/compute-device and chunk-size changes to stopped audio marks a deliberate
-departure from upstream `w-okada/voice-changer`, which allowed modifying them mid-conversion
-with immediate application. From an accelerator standpoint, switching devices or changing
-chunk size reconstructs the pipeline and alters tensor shapes. Because GPUs and NPUs pack
-fixed workloads across large parallel arrays of small compute units, changing chunk size
-forces device runtimes to recompile execution programs—which can introduce multi-second
-(and sometimes tens of seconds under compilers such as OpenVINO) stalls while recalculating
-schedules—whereas a compiled fixed shape runs quickly once initialized. In addition, allowing
-live variable-length chunks restricts future static-shape optimizations and breaks or
-fragments execution on accelerators that require static shapes (such as OpenVINO NPU and
-CoreML `MLProgram`). Forge trades upstream's mid-stream structural switching convenience
-for responsive live controls, uninterrupted conversion once running, and static-shape
-hardware acceleration.
-
-For a new configuration, the model chunk defaults to 0.5 seconds and Extra to 0.5 seconds;
-the noise gate defaults to −35 dB, and the high-pass (100 Hz) and low-pass (12000 Hz) filters
-are enabled. The default input mode is Client Mode. Browser automatic gain control, noise
-suppression, and echo cancellation start disabled. The UI uses the first supported browser
-language on first launch, falling back to English; a saved language takes precedence.
-Recording in both modes uses the existing configuration API. It can be armed before
-audio starts; stopping audio saves the take and returns to the armed state. Passthrough
-can be toggled while recording. The UI downloads a nonempty WAV and reports empty audio.
-Backend recordings use fixed paths and may overwrite earlier recordings; real audio
-testing of Client Mode recording has been confirmed (`frontend/README.md`).
-Preferred inference-device selection reads the existing compute-device catalog and saves
-the selected ID through the existing configuration API while audio is stopped in either mode.
-The UI checks the saved configuration and the reported pipeline device ID when a model is selected.
-This does not verify the actual execution providers. The user confirmed switching
-with the live backend; conversion after switching has not yet been confirmed.
-Client audio uses `/api/ws/audio`; sample-rate edits remain unavailable.
-Advanced Settings provides one Realtime Display switch for both backend analysis
-notifications and Client Mode meter sampling. It enables the performance monitor
-when switched on, retains existing notification intervals, and shows mixed legacy
-settings as indeterminate. Changes use the existing configuration API.
-Model upload uses a single multipart `POST /api/slot-manager/slots` request
-(accepting `.pth` and `.onnx` model files plus optional index and optional icon)
-instead of chunked uploads; server-side temporary files are cleaned up per
-request, and native audio must be stopped (enforced by both the UI and backend
-`409` checks). The user confirmed a real model upload;
-the tested model format and index presence were not specified. ZIP selection and
-drag and drop extract chosen files in the browser; the user confirmed a ZIP import
-and subsequent voice conversion.
-Client Mode Only exposes browser echo cancellation, noise suppression and automatic
-gain control; selections are stored locally and applied on audio start. The user
-confirmed all three with a real microphone.
-Save errors appear in a persistent bottom-right notification with retry and discard actions;
-successful saves do not show notifications. The Svelte UI is now the production frontend;
-the legacy frontend has been removed.
-
-### Filter Controls
-
-High/low-pass switches and cutoffs can be edited in both Server Mode and Client Mode with a usable
-model selected. Before using the
-existing full-configuration PUT, the frontend reads current configuration and
-voice-changer information, and rejects mismatched model IDs, unavailable sample rates or invalid cutoff
-combinations. This avoids sending the checked invalid combinations to a backend
-that persists configuration before regenerating filter coefficients. Concurrent
-changes by another client are not atomic with that check. The common slider only
-emits edits for user interaction, preventing out-of-range loaded values from
-being silently clamped and saved. Browser tests mock backend writes; real-backend
-GET values were also checked in the UI.
-
-### Noise-Gate Control
-
-The Noise Suppression section provides an enable checkbox (saving `-100` dB when unchecked)
-and a noise-gate threshold slider over `−100` to `0` dB in `1` dB steps in both Server Mode and Client Mode.
-The existing pipeline bypasses the gate at `−100` dB or below. Its configuration edits share the
-gain/model coordinator and use the existing full-configuration GET/PUT/GET flow.
-To recover backend settings, stop the backend and rename the `settings` directory;
-the next startup creates new defaults. Model-specific settings and browser preferences
-are stored separately. See the bundled quick-start guide for recovery instructions.
-
-### Production Build, CI, and Desktop Log Integration
-
-`npm run build:frontend` builds the Svelte 5 UI directly into `frontend/dist` for
-the FastAPI backend, Wails desktop startup, and portable packaging (`npm run package`).
-Legacy `web_front/` and `client/` directories have been removed.
-Type checks (`npm run check:frontend`), frontend builds, and Playwright browser tests
-(`npm run test:frontend`, isolated from the live backend via `frontend/tests/test-fixtures.ts`)
-run in CI on Windows, Linux, and macOS via `npm test` (see `frontend/README.md`).
-
-The log viewer fetches `/api/logs` on request with 2-second auto-refresh without
-mounting another audio session, and the Wails desktop host (`window.vcclientForge.openLogWindow`)
-opens it in a dedicated log window.
-
-Forge is a **local, single-user application with one active audio client**, packaged primarily with Wails v3. Users are responsible for operating it on a trusted machine/network. Multi-user hosting, application-level authentication, and per-client inference-session management are not goals of this roadmap. Server Mode and Client Mode are alternative input modes.
-
-The Wails application connects to the loopback backend using local HTTP/WebSocket; a public HTTPS deployment is not required for the desktop workflow. Configure WebView2 and OS audio permissions for this local integration. When an optional remote browser captures microphone audio for Client Mode, it requires a secure context and user permission to access the microphone. Tailscale Serve can provide HTTPS/WSS, as described in the [remote-access notes](./deprecating-and-removing-ngrok.md). A browser that only controls Server Mode does not capture audio locally, so this microphone-access requirement does not apply to that workflow.
+During the migration, hands-on checks covered native audio playback, importing a model from a ZIP and converting audio with it, and using browser echo cancellation, noise suppression, and automatic gain control with a real microphone. These observations apply to the builds used during the migration. See the [v0.4.0 migration record](https://github.com/Maki-Daisuke/vcclient-forge/blob/v2.0.78-forge.0.4.0/okf/frontend-architecture-and-roadmap.md).
 
 ## 1. Anatomy of the Legacy Frontend Bottlenecks
 
@@ -322,7 +123,7 @@ uv run --project backend --with aiohttp python misc/benchmark_audio_echo.py --co
 
 These results include each client library's scheduling and encoding, not just
 protocol framing. They do not measure a browser/Wails client, real audio or
-the current Socket.IO conversion handler, and do not establish end-to-end audio
+the former Socket.IO conversion handler, and do not establish end-to-end audio
 latency or behavior under inference load. While Socket.IO was briefly retained in 2026-11-09, the project finalized the transition to direct FastAPI WebSockets on 2026-11-19 once legacy UI/client compatibility was dropped.
 
 ### Tailscale Binary Echo Experiment (2026-11-09)
@@ -357,8 +158,8 @@ processing; they are not measurements of actual browser audio or inference.
 In [`vcserver_websocket.py`](../backend/vcclient/server/vcserver_websocket.py), Socket.IO and `python-engineio` have been removed in favor of two purpose-separated native FastAPI WebSocket endpoints mounted under `/api/`:
 
 - **`/api/ws/status`** (Server -> Client JSON text frames): `AudioMeters` subscribes to `{"type": "realtime_output_status" | "realtime_process_status", "data": {...}}` single-encoded JSON messages, avoiding double `JSON.parse` overhead. Events from worker/audio threads are scheduled cleanly onto the FastAPI/Uvicorn asyncio loop via `call_soon_threadsafe` into a bounded drop-oldest queue, and `AudioMeters` uses a 1-second reconnect timer on unexpected disconnect while active.
-- **`/api/ws/audio`** (Client <-> Server raw `<f4` float32 binary PCM): `ClientAudio` streams `Float32Array` chunks directly via `WebSocket.send()` without timestamp/bulk wrapper metadata or `struct.pack`/`struct.unpack` tuple expansion. The backend uses `np.frombuffer(..., dtype="<f4")`, bulk conversion (`VoiceChanger.convert_chunk_bulk`), and returns raw converted `<f4` bytes when output is ready (`on_failure` triggers if disconnected unexpectedly).
-- Both endpoints share Vite's `/api` dev/preview proxy (`ws: true`), Playwright's `/api/` mocking guards, and `VCServer.stop()`'s `WebSocketHub.close_all()` shutdown sweep. Device permissions, sample rates, buffering, and real-device behavior retain their existing constraints (a partial input chunk remains in the backend across worker restarts).
+- **`/api/ws/audio`** (Client <-> Server raw `<f4` float32 binary PCM): `ClientAudio` streams `Float32Array` chunks directly via `WebSocket.send()` without timestamp/bulk wrapper metadata or `struct.pack`/`struct.unpack` tuple expansion. The backend reads PCM into NumPy, submits it for bulk conversion, and sends converted PCM back to the browser.
+- Both endpoints share Vite's `/api` dev/preview proxy (`ws: true`), Playwright's `/api/` mocking guards, and `VCServer.stop()`'s `WebSocketHub.close_all()` shutdown sweep. The server resets browser stream buffers when a new socket replaces an existing one. See the [WebSocket contract](./api-reference.md#9-websocket-endpoints-apiws).
 
 ---
 
@@ -413,7 +214,7 @@ The shared frontend settings model gives components one consistent view, but dis
 
 ---
 
-## 5. Preserving 100% of Community i18n Translation Assets
+## 5. Community Translation Assets
 
 VCClient has accumulated translations across **13 languages** (`ar`, `de`, `el`, `en`, `es`, `fr`, `it`, `ja`, `ko`, `la`, `ms`, `ru`, `zh`), created by community contributors over several years.
 
@@ -423,78 +224,9 @@ Inspection of `web_front/assets/i18n/*/translation.json` demonstrated that:
 
 - The translation assets are **pure key-value JSON dictionaries** (e.g., `"model_slot_edit": "編集"`).
 - Upstream used `react-i18next`, which is merely a thin React adapter around the framework-agnostic **`i18next`** core engine.
-- **Preserve the assets and semantics**: Reuse `i18next` core through a Svelte adapter/store first, preserving existing keys and text. A different translation engine requires explicit validation or conversion of interpolation, pluralization, fallback, and namespace behavior; JSON import alone does not guarantee compatibility.
+- Forge imports the dictionaries through its [Svelte UI state](../frontend/src/lib/ui.svelte.ts) and uses English fallback.
 - **Completed asset migration**: All 13 community translation dictionaries and required image/license assets were moved into `frontend/src/` (`frontend/src/lib/i18n/*/translation.json`) before removing `web_front/`.
 
----
+## Remaining work
 
-## 6. The UI Rebirth & Migration Roadmap
-
-Forge executed the UI migration in three stages and has now replaced `web_front/` in production. The Svelte 5 UI supports Server Mode (native audio), Socket.IO telemetry notifications, and Client Mode (browser audio over Socket.IO, including confirmed Client Mode recording). Remaining desktop/mode polish and mixed native/browser routing remain roadmap work.
-
-```mermaid
-flowchart TD
-   subgraph S1["Step 1: Minimal Server Mode UI"]
-      FE["Svelte 5 + Vite UI"]
-      FE -->|"REST controls"| B1["FastAPI + Native Audio"]
-    end
-
-   subgraph S2["Step 2: Socket.IO Notifications"]
-      EVT["Existing Socket.IO: Performance and State"]
-    end
-
-   subgraph S3["Step 3: Add Client Mode"]
-      SIO["Socket.IO audio + AudioWorklet"]
-      SIO --> MODES["Server Mode or Client Mode"]
-    end
-
-   S1 --> S2 --> S3
-   WAILS["Wails v3 Host: Server Mode first"] -.-> FE
-   WAILS -.->|"Supervised Subprocess"| B1
-```
-
-### Step 1: Minimal Svelte 5 UI for Server Mode
-
-- Scaffold `frontend/src` with Svelte 5 + Vite. Implement native input/output device selection, model selection, conversion start/stop, and core settings through REST.
-- Client Mode and live Socket.IO notifications are subsequent steps. Native audio provides the working conversion path for this step.
-- Use optimistic local settings with serialized/coalesced writes, generation-aware acknowledgements, and failure recovery from the start.
-- Move community translations and required image/license assets into the new source tree using `i18next`; validate language coverage and RTL behavior before removing the old assets.
-- Point root build scripts (`npm run build:frontend`) to `vite build` outputting to `frontend/dist`.
-- **Acceptance**: The new UI controls Server Mode end to end. Performance notifications are connected in Step 2; new-UI Client Mode parity is not an acceptance requirement for this step.
-
-### Step 2: Socket.IO Notifications
-
-- Input/output RMS meters are connected in the Svelte preview using the existing
-  `/test` Socket.IO `data` event while Server Mode audio is active and analysis
-  is enabled. Disconnection and stale data clear the display; browser tests
-  simulate the transport. Values and bars were also checked in the UI against
-  a live backend during conversion, and the user confirmed the meters displayed.
-  Callback overhead has not been measured. Input and output buffer values and
-  history use the existing process and output notifications independently, with
-  current backend sample rates. Both values and graph lines were also observed
-  in the UI against a live backend during conversion. Conversion time displays
-  the latest sampled chunk duration and clears on stale data or stop. A live
-  backend notification was observed in the UI.
-- Connect the new UI's remaining performance metrics and state handling to existing Socket.IO notifications.
-- Verify delivery, reconnect behavior, native conversion, settings/model/device changes, and server startup/shutdown. Review dispatch from audio callbacks separately.
-- Retain Socket.IO as the transport; API contracts may change as unused legacy functionality is removed. The legacy `web_front/` UI has been retired.
-- **Acceptance**: The Svelte 5 UI displays native-audio notifications correctly using the current Socket.IO events.
-
-### Step 3: Incremental Socket.IO Client Mode
-
-- Add Web Audio capture/playback to the new UI using the existing Socket.IO audio API and a common inference path.
-- Validate sample-rate/channel handling, buffering, overload/disconnect recovery, and exclusive selection between native Server Mode and Client Mode while preserving the API contract.
-- Verify Wails WebView2 audio permissions and optional browser access through Tailscale Serve. Desktop packaging is already established with Wails v3.
-- **Acceptance**: The new UI supports Client Mode through Socket.IO with validated buffering and recovery.
-
-### Desktop Packaging: Transitioning from Tauri v2 to Wails v3 [Completed]
-
-**Historical Context (2026-10-19)**: The project initially prototyped a desktop baseline using Tauri v2 to avoid Electron's runtime overhead and preserve size budget under GitHub Releases' 2 GiB limit.
-
-**Architectural Decision & Completion (2026-10-25)**: The desktop host migration from Tauri v2 (Rust) to Wails v3 (Go) with Vite, TypeScript, and xterm.js has been completed (commit `b260979`). Removing `src-tauri/` eliminated **2,846 lines of net boilerplate**, sped up daily iteration by **~5× (~3–5s vs ~15–30s)**, and eliminated the requirement for MSVC C++ build tools on Windows. See the detailed record in **[Migrating Desktop Host from Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md)**.
-
-Key rationale:
-1. **The Desktop Wrapper is Functionally Thin**: Because neural inference (ONNX Runtime) and audio streaming (WASAPI) run in Python, and UI execution runs in WebView2, the host process merely supervises subprocess lifecycle and navigation. The marginal runtime memory difference between Rust and Go is negligible.
-2. **Elimination of Build & Toolchain Friction**: Wails v3 compiles in seconds rather than minutes, removes Tauri's extensive permission/capability configuration overhead, and compiles cleanly on Windows without CGO or MSVC build toolchains.
-3. **Declarative Hook Injection (`WebviewWindowOptions.JS`)**: Wails v3 allows injecting pre-execution scripts directly into the window context, providing external link delegation (`window.open`), the log window bridge (`window.vcclientForge.openLogWindow`), and the macOS WebKit default audio output sink polyfill in user space without low-level COM/event interception.
-4. **Asset Preservation**: All unbuffered bootstrap UI assets (HTML/CSS/JS) developed for Tauri are directly embedded into the Wails binary via standard `//go:embed`.
+See the [implementation roadmap](./implementation-roadmap.md) for sustained streaming validation and evaluation of mixed native/browser routing.

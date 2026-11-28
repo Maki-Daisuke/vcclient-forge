@@ -329,7 +329,7 @@ flowchart LR
 ### Phase 3: Concurrent Hybrid Pipeline (CPU Prep + GPU Vocoder)
 
 - Formally decouple CPU preparation (ContentVec, RMVPE/FCPE, FAISS retrieval) from GPU vocoder synthesis via a bounded double-buffered queue.
-- Replaces former monolithic graph fusion (Phases 3–6 in earlier planning) based on hardware benchmarks demonstrating 2.3× faster RMVPE execution on CPU and negligible (37.2 μs) DMA transfer overhead.
+- Compare with the single-graph experiment. RMVPE and transfer microbenchmarks motivate the split but only cover the measured hardware and workload.
 - Intermediate features (ContentVec embeddings + quantized F0) are transferred to GPU memory via pinned buffers and IO Binding.
 - **Acceptance**: $T_{\text{effective}} = \max(T_{\text{prep\_CPU}}, T_{\text{synth\_GPU}})$ verified under live audio streaming with underrun rates at or below baseline.
 
@@ -345,14 +345,14 @@ flowchart LR
 
 The operational foundation is a **one-way stream pipeline around the inference worker**: lightweight input submission, worker-owned fixed-length processing, and direct output publication with bounded buffer age and discontinuity recovery.
 
-Following empirical benchmarks on modern hardware, the optimization strategy centers on **Concurrent Hybrid Pipelining**:
+The component benchmarks motivate a **proposed concurrent hybrid pipeline**:
 1. **CPU Preparation**: ContentVec, RMVPE, and FAISS run concurrently on host CPU where small-kernel execution is faster (RMVPE 7.35 ms CPU vs 16.91 ms GPU) and retrieval requires no custom ONNX operators.
 2. **GPU Synthesis**: HiFi-GAN vocoder executes on GPU with IO Binding where parallel compute provides substantial acceleration (11.71 ms GPU vs 145.43 ms CPU).
-3. **Double Buffering**: Host and device stages overlap across consecutive chunks, reducing effective inference time to the maximum of the two stages while incurring less than 0.05 ms of PCIe transfer overhead.
+3. **Double Buffering**: Host and device stages overlap across consecutive chunks, with the slower stage setting the ideal steady-state throughput. Measure coordination and transfer overhead and the end-to-end latency of each chunk.
 
 Monolithic graph fusion and ONNX-native feature retrieval remain conditional
 experiments to compare against this architecture; the existing component
 benchmarks do not establish an end-to-end winner. See the [implementation
-roadmap](./implementation-roadmap.md#9-optimize-inference-evaluate-hybrid-pipelining-and-boost-mode).
+roadmap](./implementation-roadmap.md#4-evaluate-inference-optimizations).
 
 Reference constraints: [CUDA EP / CUDA Graphs](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#using-cuda-graphs-preview), [DirectML session options](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html#configuration-options), and [TensorRT dynamic-shape profiles](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#explicit-shape-range-for-dynamic-shape-input).

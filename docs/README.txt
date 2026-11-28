@@ -53,7 +53,7 @@ Ubuntu Linux
 [Requirements & Dependencies]
 
 - OS: Ubuntu 24.04 LTS or newer (glibc >= 2.39)
-- Required system packages:
+- For the desktop app and local (Server Mode) audio:
 
   sudo apt-get update && sudo apt-get install -y libportaudio2 libwebkitgtk-6.0-4 7zip
 
@@ -63,24 +63,33 @@ Execute "./vcclient-forge" in Terminal.
 
 [Web Browser Mode]
 
-Execute "./start.sh" in Terminal.
-Your default browser will automatically open at:
-http://localhost:18888/
+Execute "./start.sh" in Terminal. On a desktop, your default browser
+opens at http://localhost:18888/. On a headless server, start "./main"
+and connect from a browser using your remote access setup. Browser
+(Client Mode) audio does not require an audio server on the backend host.
+
+[Experimental WebGPU acceleration on Linux]
+
+Requires a working Vulkan GPU driver and the Vulkan loader (libvulkan.so.1).
+On Ubuntu the loader is provided by "libvulkan1". While stopped, select
+a [WebGPU] device in Settings or run automatic device selection.
 
 ----------------------------------------------------------------------
-2. Migrating from w-okada VC (v2.0.78)
+2. Upgrading from an Older Forge Release or w-okada VC v2.0.78
 ----------------------------------------------------------------------
 
-To transfer your existing models and settings, simply copy the
-"settings" and "model_dir" folders from your original v2.0.78
-directory into this folder.
+Quit the old app and back up its "settings" and "model_dir" folders.
+Copy them into the freshly extracted Forge folder before first launch.
+Forge migrates numeric model folders to a NanoID layout with catalog.json.
+Older versions cannot read the migrated layout. To roll back, use the
+original installation or restore both backups.
 
 ----------------------------------------------------------------------
 3. Initial Setup Note
 ----------------------------------------------------------------------
 
-On first launch, essential AI modules (ContentVec, pitch estimators, etc.)
-along with sample RVC voice models will be downloaded automatically.
+On startup, Forge downloads missing RVC modules (ContentVec, pitch
+estimators, etc.) and fetches sample voices if the model catalog is empty.
 This initial download may take several minutes depending on your network
 connection, so please be patient and wait until it completes.
 

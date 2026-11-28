@@ -98,7 +98,7 @@ Rather than standard Deflate compression used in `.zip`, VCClient Forge standard
 A virtual environment is not a portable Python installation: its `python.exe` can still depend on a base installation outside the package. Forge therefore uses `uv` only to prepare isolated edition-specific **build environments**, and PyInstaller to collect the actual interpreter, standard library, application modules, and native dependencies.
 
 - **Onedir layout**: `main.exe` (or `main`) sits next to `_internal/`. Unlike `onefile`, startup does not unpack the multi-gigabyte runtime into a temporary directory.
-- **Explicit dynamic dependencies**: Collect the Uvicorn implementations, Engine.IO ASGI driver, dynamically loaded server module, and CUDA edition's `nvidia` packages and shared libraries. Existing PyInstaller hooks collect scientific/audio dependencies.
+- **Explicit dynamic dependencies**: Collect Uvicorn submodules, platform-specific OpenVINO and WebGPU plugins when present, and the CUDA edition's `nvidia` packages and shared libraries. Existing PyInstaller hooks collect scientific/audio dependencies.
 - **External writable data**: Frontend assets, models, downloaded inference modules, settings, and logs live beside the executable. Frozen startup uses this location regardless of the caller's working directory.
 - **Reproducibility and preservation**: PyInstaller is locked in a separate `build` dependency group. Existing package directories and archives are not overwritten; another build uses a new output directory.
 

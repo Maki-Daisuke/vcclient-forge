@@ -51,7 +51,7 @@ Narrowing scope strictly to live voice communication unlocks design choices that
 - Details:
   - [Pruning Upstream Sub-Projects](./architectural-evolution.md#2-anatomy-of-the-upstream-chimera-monorepo)
   - [Silence-Skip Output Draining](./server-first-architecture-and-static-pipeline-roadmap.md#331-silence-skip-underrun-mechanism-and-relative-preroll-cushion)
-  - [README Project Goals](../README.md#project-goals-still-on-our-way)
+  - [Project Goals](../README.md#project-goals)
 
 ---
 
@@ -75,15 +75,23 @@ Because audio I/O and neural inference stay in Python and UI renders inside the 
 
 - Details:
   - [Migrating Tauri to Wails v3](./migrating-desktop-host-from-tauri-to-wails.md#2-technical-evaluation-key-friction-points-with-tauri-v2)
-  - [Desktop README](../desktop/README.md#role--architecture)
+  - [Current Desktop Host](./migrating-desktop-host-from-tauri-to-wails.md#current-desktop-host)
 
 ### Why Forge removed PyTorch from real-time inference
 
-Bundling CUDA PyTorch pushed distributions beyond GitHub Releases' 2 GiB per-asset limit, forcing external Hugging Face hosting and exposing users to heavy runtime dependency conflicts. Running real-time inference exclusively on ONNX Runtime and NumPy removes that runtime footprint and keeps standalone packages well under 2 GiB, while retaining lightweight CPU-only PyTorch solely for one-time model conversion on import where real-time latency does not apply.
+Using ONNX Runtime and NumPy for real-time inference removes the need to ship CUDA PyTorch and helps keep standalone packages under the 2 GiB per-asset limit. CPU-only PyTorch remains available for exporting legacy RVC `.pth` models to ONNX during import. Forge uses RMVPE by default for compatibility with existing RVC workflows and keeps FCPE as an alternative.
 
 - Details:
   - [Core Packaging Breakthroughs](./sub-2gb-portable-distribution-and-packaging.md#2-core-architectural-breakthroughs-for-sub-2gb-packaging)
   - [ONNX Pitch Implementations](./streamlined-pitch-estimation-and-torch-free-pipeline.md#3-onnx-runtime-implementations)
+
+### Why Forge locks dependencies and ships standalone archives
+
+Forge uses `uv` and a lockfile to record Python dependency versions for each supported platform and edition. PyInstaller packages the Python runtime alongside the desktop launcher and Web UI, so the release can run after extraction without a separate Python installation. Forge uses `.7z` compression to help fit the packaged runtime within the release asset limit.
+
+- Details:
+  - [Modern Runtime and Toolchain](./modern-runtime-and-toolchain.md)
+  - [Portable Distribution and Packaging](./sub-2gb-portable-distribution-and-packaging.md)
 
 ### Why Forge decoupled its control API from internal classes and client discipline
 
@@ -114,6 +122,5 @@ Unlike upstream `w-okada/voice-changer`—which allowed changing GPU devices and
 3. **Staging until Start**: Once compiled for a chosen shape, inference runs quickly. Holding edits locally while stopped lets users adjust multiple settings before paying compilation cost once at Start—an intentional engineering tradeoff sacrificing mid-stream reconfiguration convenience for higher accelerator efficiency and runtime stability.
 
 - Details:
-  - [Main Control Sections](./frontend-architecture-and-roadmap.md#main-control-sections-2026-11-06)
+  - [Frontend API Integration](./frontend-architecture-and-roadmap.md#frontend-api-integration)
   - [Why Fixed-Length Chunks Are the Design Choice](./server-first-architecture-and-static-pipeline-roadmap.md#22-why-fixed-length-inference-chunks-are-the-design-choice)
-  - [Forge UI Reference](../frontend/README.md#forge-ui)

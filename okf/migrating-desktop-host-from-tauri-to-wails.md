@@ -16,6 +16,14 @@ tags:
 
 # Migrating Desktop Host from Tauri to Wails v3: Pragmatic Process Management over Unnecessary Complexity
 
+This document records the Tauri-to-Wails migration. Build and test commands are in the [developer guide](../README_dev.md#desktop-host-wails-v3).
+
+## Current desktop host
+
+- Wails embeds the Vite bootstrap UI from `desktop/frontend/dist` in the Go binary. The bootstrap uses xterm.js to show backend logs and provides a retry control. The host launches `backend/main.py` using the project virtual environment in development and the frozen `main.exe` or `main` in a package. After backend readiness, it navigates to `http://127.0.0.1:18888/`. On exit, it shuts down the backend process tree. See the [process lifecycle](./inversion-of-control-and-process-lifecycle.md).
+- [`desktop/main.go`](../desktop/main.go) injects WebView scripts to open external links in the system browser and route log viewer requests to a native child window. On macOS, the scripts expose a default audio output in WKWebView and handle `setSinkId` for that default.
+- The build uses `CGO_ENABLED=0` on Windows and `CGO_ENABLED=1` on Linux and macOS. Linux uses GTK4 and WebKitGTK 6.0, while macOS uses Cocoa and WebKit. See the [build prerequisites](../README_dev.md#prerequisites).
+
 ## Executive Summary
 
 VCClient Forge has made the architectural decision to **migrate its desktop application wrapper from Tauri v2 (Rust) to Wails v3 (Go)**.

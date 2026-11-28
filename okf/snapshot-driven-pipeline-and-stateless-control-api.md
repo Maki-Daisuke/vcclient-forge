@@ -55,7 +55,7 @@ Prior to the Domain API refactoring, inspection of the legacy codebase revealed 
 ### 2.3 Incomplete Server-Side Active Guards
 
 - `ConfigurationManager.set_voice_changer_configuration()` checks `LocalVoiceChangerInterface` activity for `voice_changer_input_mode`, implicitly restarts native audio (`stop()` -> `sleep()` -> `setup()` -> `start()`) for audio device changes, and performs **no** backend active check for `current_slot_index`, `gpu_device_id_int`, or `extra_frame_sec`.
-- `PUT /api/slot-manager/slots/{index}` similarly lacks active-pipeline guards (unlike `POST /api/slot-manager/operation/organize` in [`vcserver_rest_api_slot_manager.py`](../backend/vcclient/server/vcserver_rest_api_slot_manager.py), which enforces `lifecycle_lock` and returns HTTP `409`).
+- `PUT /api/slot-manager/slots/{index}` similarly lacks active-pipeline guards (unlike `POST /api/slot-manager/operation/organize` in `vcserver_rest_api_slot_manager.py`, which enforces `lifecycle_lock` and returns HTTP `409`).
 - Client Mode lacks an explicit server-side start/stop lifecycle (the WebSocket `/api/ws/audio` handler lazily calls `vc.start_convert_chunk_bulk()`), so the backend cannot reject Client Mode topology mutations consistently (`frontend/src/lib/api.ts` relies on client-side `readNativeActive()` guards).
 
 ### 2.4 Non-Thread-Safe Runtime Mutation
@@ -95,7 +95,7 @@ Any control-plane redesign—and any new domain API routes replacing the legacy 
 
 ---
 
-## 4. Target Architecture: Three Orthogonal Subsystems
+## 4. Current Architecture: Three Orthogonal Subsystems
 
 ```mermaid
 flowchart TD
@@ -125,7 +125,7 @@ flowchart TD
    - There is intentionally **no separate `update(snapshot)` operation** (and no `PATCH /api/session`):
      - Because HTTP `PUT` already means idempotent create-or-replace of the active session state, using `PUT /api/session` avoids the ambiguity of calling an operation named `start` while already running.
      - While **stopped**: the client only updates its local draft and/or calls the pure storage API; it does not call `PUT /api/session` until conversion should begin.
-     - Calling `PUT /api/session` while **stopped** validates and accepts the snapshot, transitions to `starting`, and returns `202 Accepted` with the `SessionState` payload. The engine then builds the pipeline once, warms it up, and transitions to `running`. On failure, it releases partially created resources, returns to `stopped`, and exposes the failure through `GET /api/session`.
+     - Calling `PUT /api/session` while **stopped** validates and accepts the snapshot, transitions to `starting`, and returns `202 Accepted` with the `SessionState` payload. The engine reuses the loaded pipeline when the model and pipeline cache key match, resetting its buffers before restart. Otherwise it builds and warms up a pipeline. It transitions to `running` when the mode's audio startup completes. On failure, it releases partially created resources, returns to `stopped`, and exposes the failure through `GET /api/session`.
      - While **starting**, `DELETE /api/session`, conflicting session changes, and renaming or deleting the model referenced by the starting session are rejected with `409 Conflict`. The UI waits for startup to finish before offering stop or another start; if the start request times out, it checks `GET /api/session` instead of assuming startup failed. A reloaded UI can similarly show startup progress or the failure.
      - Calling `PUT /api/session` while **running** diffs the snapshot against the active configuration: live-safe changes apply immediately via an immutable snapshot swap returning `200 OK`, whereas rebuild-required changes return **`409 Conflict`** without disrupting the running pipeline.
      - Clients may still coalesce high-frequency UI gestures (such as slider drags) or defer stop calls for smoother UX, **but backend correctness does not rely on caller serialization**. The coordinator lock and session state machine serialize or reject concurrent calls deterministically: overlapping `PUT /api/session` requests resolve cleanly in lock acquisition order without tearing down or mixing worker snapshots (and optional `ETag` / `If-Match` preconditions prevent stale overwrites, returning `409 Conflict` with `code: "etag_mismatch"` on mismatch), while `DELETE /api/session` waits on the coordinator lock if `running` or returns `409 Conflict` while `starting`.
@@ -154,7 +154,7 @@ sequenceDiagram
     Client->>Coordinator: PUT /api/session (snapshot v1)
     Coordinator->>Coordinator: Validate and set state to starting
     Coordinator-->>Client: 202 Accepted (starting)
-    Coordinator->>Coordinator: Build pipeline once (+ warmup)
+    Coordinator->>Coordinator: Reuse pipeline or build and warm up
     Coordinator->>Workers: run(v1): Launch with immutable snapshot v1
     Client->>Coordinator: GET /api/session
     Coordinator-->>Client: 200 OK (running, snapshot v1)
@@ -186,7 +186,7 @@ sequenceDiagram
 
 ### 4.3 Explicit Compute-Device Auto-Selection API
 
-- Promote device probing (`_select_initial_compute_device()`) to **`POST /api/devices/compute/auto-select`**, which runs hardware/pipeline verification and **returns recommended device assignments only without modifying `/api/settings` (`settings/vc_conf.json`)**; applying or persisting the recommendation remains the caller's choice.
+- **`POST /api/devices/compute/auto-select`** runs hardware/pipeline verification and **returns recommended device assignments only without modifying `/api/settings` (`settings/vc_conf.json`)**; applying or persisting the recommendation remains the caller's choice.
 - Enforces the same stopped-only `409 Conflict` guard if audio conversion is `starting` or `running`.
 - Preserves first-launch out-of-box usability (either invoked during startup bootstrap when no saved preference exists, or via initial client setup) while allowing users to re-run auto-selection after GPU upgrades, driver updates, or hardware changes.
 - Provides the clean abstraction boundary for **future per-stage accelerator selection**—where pitch estimation, feature extraction, and vocoder synthesis may target distinct devices (such as CPU/NPU preparation paired with CUDA synthesis).
@@ -288,7 +288,7 @@ Wire schemas organize settings around domain concepts rather than legacy class a
 
 - [HTTP & WebSocket API Reference](./api-reference.md) (currently implemented endpoints and schemas)
 - [Server-First Audio Architecture & Pipeline Roadmap](./server-first-architecture-and-static-pipeline-roadmap.md) (Section 3.7 audio adapter/routing contracts and Section 4 concurrent hybrid pipelining)
-- [Consolidated Implementation Roadmap](./implementation-roadmap.md) (Item 2 control refactoring and Item 9 inference optimization)
+- [Consolidated Implementation Roadmap](./implementation-roadmap.md) (remaining audio and inference work)
 - [Architectural & Design Rationales](./rationales.md)
 - [Inversion of Control](./inversion-of-control-and-process-lifecycle.md)
 - [DeviceConfig & Catalog Index Architecture](./device-config-and-unified-hardware-descriptor.md)

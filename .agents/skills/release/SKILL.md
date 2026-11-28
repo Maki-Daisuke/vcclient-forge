@@ -20,7 +20,7 @@ Follow this runbook sequentially when preparing or publishing a VCClient Forge r
    ```
 2. Verify user-facing docs and launcher files match changes since `<prev-tag>`:
    - Bundled package docs: `docs/README.txt`, `docs/README_ja.txt`, `README.md`, `LICENSE`
-   - Online/troubleshooting & developer docs: `docs/en/troubleshooting.md`, `README_dev.md`, `frontend/README.md`, `desktop/README.md`, `okf/implementation-roadmap.md`
+   - Online/troubleshooting & developer docs: `docs/en/troubleshooting.md`, `README_dev.md`
    - Entry-point launchers copied by `scripts/build_package.py`: `start.bat`, `start.sh`, `MacStart.command`
 3. Note any environment/requirement changes (CUDA driver minimums, OS dependencies, UI defaults) that belong in release notes.
 
@@ -58,7 +58,7 @@ npm run test:frontend
 
 - `npm run build:frontend` ensures `frontend/dist` embeds the new `__APP_VERSION__`.
 - `npm run test:frontend` uses Playwright (`PLAYWRIGHT_CHANNEL=msedge` or `chrome` if Chromium is not installed).
-- *(Optional local package check)*: Run `npm run build -- --edition <standard|cuda>` and `npm run package -- --edition <standard|cuda> --output-dir <new_dir>` to verify the `< 2 GiB` archive cap (`scripts/build_package.py`) and `main(.exe) --help` without reusing an existing output directory.
+- _(Optional local package check)_: Run `npm run build -- --edition <standard|cuda>` and `npm run package -- --edition <standard|cuda> --output-dir <new_dir>` to verify the `< 2 GiB` archive cap (`scripts/build_package.py`) and `main(.exe) --help` without reusing an existing output directory.
 
 ## 4. Commit, Push & Confirm CI
 
@@ -69,7 +69,7 @@ npm run test:frontend
    ```
    (`.githooks/pre-commit` enforces `npm run format:check` and `gofmt -l desktop`.)
 2. After user approval to push the branch (`git push origin forge`), verify `.github/workflows/ci.yml` passes across `ubuntu-24.04`, `ubuntu-26.04`, `windows-latest`, `macos-latest`, and `self-hosted-linux-arm64`.
-3. *(Optional pre-tag dry run)*: Trigger `.github/workflows/release.yml` via `workflow_dispatch` on the branch (`gh workflow run release.yml --ref forge -R Maki-Daisuke/vcclient-forge`) to validate all 7 builds without publishing a GitHub Release. Always pass `-R Maki-Daisuke/vcclient-forge` to `gh` commands because the default repository context can point to upstream `w-okada/voice-changer`.
+3. _(Optional pre-tag dry run)_: Trigger `.github/workflows/release.yml` via `workflow_dispatch` on the branch (`gh workflow run release.yml --ref forge -R Maki-Daisuke/vcclient-forge`) to validate all 7 builds without publishing a GitHub Release. Always pass `-R Maki-Daisuke/vcclient-forge` to `gh` commands because the default repository context can point to upstream `w-okada/voice-changer`.
 
 ## 5. Tag, Trigger Release Build & Draft Release Notes
 

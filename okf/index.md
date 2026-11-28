@@ -51,7 +51,7 @@ For recommended implementation order, dependencies, and conditional experiments,
    How Forge makes development and distribution reproducible with pinned Python environments, `uv` dependency locking, and unified npm tasks. Covers the ONNX Runtime hardware backends, automatic CUDA library discovery, and automated standalone packaging.
 
 5. **[Next-Gen Frontend Architecture and Roadmap](./frontend-architecture-and-roadmap.md)**
-   Why the legacy UI needed a redesign and why Forge selects Svelte 5 + Vite and Wails v3. The Svelte 5 UI (`frontend/`) now serves both Server Mode and native WebSocket Client Mode (`/api/ws/audio`, `/api/ws/status`) in production, replacing `web_front/` while preserving all 13 community translation dictionaries.
+   Why the legacy UI needed a redesign and why Forge selects Svelte 5 + Vite and Wails v3. The Svelte 5 UI (`frontend/`) now serves both Server Mode and native WebSocket Client Mode (`/api/ws/audio`, `/api/ws/status`) in production, replacing `web_front/` while preserving the 13 community translation dictionaries.
 
 6. **[Pitch Estimation: RMVPE Default and FCPE Alternative](./streamlined-pitch-estimation-and-torch-free-pipeline.md)**
    Why Forge chooses the RVC ecosystem's widely used RMVPE as its default and retains FCPE as an alternative. Consolidating pitch estimation reduces maintenance and user decision friction, with both estimators running through ONNX Runtime and NumPy.
@@ -75,16 +75,16 @@ For recommended implementation order, dependencies, and conditional experiments,
     Why Forge migrates its desktop wrapper from Tauri v2 (Rust) to Wails v3 (Go). In a system where heavy lifting is handled by Python/ONNX and UI is rendered by WebView2, Rust's runtime advantages are negligible compared to the high cost of build times, permission ceremony, and boilerplate. Wails v3 provides fast builds, concise process control, pure Go Windows builds without CGO, and declarative script injection (`WebviewWindowOptions.JS`) that eliminates native event hooking while reusing all existing bootstrap assets.
 
 13. **[Hybrid CPU-GPU Pipelining vs. Monolithic Graph Fusion](./hybrid-cpu-gpu-pipeline-architecture.md)**
-    Empirical latency benchmarks and architectural analysis demonstrating that PCIe transfer latency is negligible (18–38 μs), RMVPE runs 2.3× faster on CPU than RTX 4090, and overlapping CPU preparation with GPU vocoder synthesis via double-buffering reduces effective inference latency without the complexity of monolithic graph fusion.
+    Component benchmarks on Ryzen 9 7950X and RTX 4090 motivate an experiment with overlapping CPU preparation and GPU synthesis. See the roadmap for the end-to-end comparison still to be done.
 
 14. **[Remote Backend TCP Proxy & Localhost Secure Context](./remote-backend-tcp-proxy-architecture.md)**
     How Forge replaces upstream's self-signed HTTPS certificate generation and browser certificate warnings. By embedding a Layer-4 TCP proxy (`--remote`) in the desktop host, the browser connects to `127.0.0.1`, satisfying WebAudio's Secure Context requirement without self-signed certificates.
 
 15. **[Modern Client Hardware Acceleration: AVX-512, NPUs, Execution Providers, and Universal Distribution](./npu-cpu-hardware-acceleration-and-universal-distribution.md)**
-    Re-evaluates the assumption that real-time voice conversion strictly requires discrete GPUs. Features empirical telemetry from Zen 4 (RMVPE 7.35 ms), Intel Lunar Lake (RMVPE 5.09 ms on NPU, FCPE 1.19 ms on Arc GPU), and Apple Silicon M2 (CoreML on ANE/Metal GPU). Details NPU static shape resolution (`reshape_input`), in-memory 4D graph surgery enabling OpenVINO GPU RVC synthesis, the CoreML 16,384-sample convolution memory barrier and Two-Tier Static Shape architecture, and the implemented two-tier distribution strategy (Standard vs. CUDA) governed by Python wheel coexistence boundaries.
+    Re-evaluates the assumption that real-time voice conversion strictly requires discrete GPUs. Features empirical telemetry from Zen 4 (RMVPE 7.35 ms), Intel Lunar Lake (RMVPE 5.09 ms on NPU, FCPE 1.19 ms on Arc GPU), and Apple Silicon M2 (CoreML on ANE/Metal GPU). Details NPU static shape resolution (`reshape_input`), in-memory 4D graph surgery enabling OpenVINO GPU RVC synthesis, the CoreML 16,384-sample convolution memory barrier and Two-Tier Static Shape architecture, and the edition matrix, including experimental Linux WebGPU.
 
 16. **[DeviceConfig & Catalog Index Architecture](./device-config-and-unified-hardware-descriptor.md)**
-    Specifies the transition from overloaded integer sentinels (`-1`, `0`, `1000`, even/odd parity) to a sequential hardware catalog index (`list[DeviceConfig]`). With host CPU assigned to index `0` and accelerators numbered sequentially (`1..N`), device resolution operates as an $O(1)$ array lookup. Preserves `gpu_device_id_int` storage compatibility in `settings/vc_conf.json`, exposes `/api/devices/compute*`, and provides the catalog foundation for planned two-stage concurrent hybrid pipelining (NPU/CPU front-end + GPU back-end).
+    Describes catalog indices, per-provider adapter selection, and automatic compute-device recommendation. Covers compatibility with the legacy settings field and the current `/api/devices/compute*` API.
 
 17. **[Automatic Crossfade & Buffer-Boundary Stitching](./automatic-crossfade-and-boundary-stitching.md)**
     Analyzes why manual crossfade duration configuration (`crossfade_sec`) is eliminated in favor of a fixed pipeline target (`CROSSFADE_SEC = 0.05`). Discusses SOLA phase alignment and how adaptive clamping prevents array broadcast exceptions on short output chunks.

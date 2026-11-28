@@ -1,6 +1,6 @@
 # VCClient Forge
 
-> **A modernized, high-performance RVC fork of w-okada/voice-changer optimized for pure ONNX Runtime and modern CUDA environments.**
+> **An RVC-focused fork of [w-okada/voice-changer](https://github.com/w-okada/voice-changer) for real-time communication.**
 
 <img width="741" height="640" alt="image" src="https://github.com/user-attachments/assets/50d1d022-25ed-4b03-ac0f-b4439f33cdc6" />
 
@@ -17,68 +17,55 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 
 Download the standalone package matching your operating system and hardware from **[GitHub Releases](https://github.com/Maki-Daisuke/vcclient-forge/releases)**:
 
-| OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                           |
-| :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :---------------------------------------------- |
-| **Windows** | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 13.x / cuDNN 9                      |
-|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / DirectML / CPU                 |
-|             | ARM64                    | Any                               | _Not Supported_                          | —                                               |
-| **Linux**   | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 13.x / cuDNN 9                      |
-|             |                          | AMD / Intel / CPU                 | **`vcclient-linux-x64-standard-*.7z`**   | Intel OpenVINO / AVX-512 CPU                    |
-|             | ARM64                    | **NVIDIA GPU** (DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     | NVIDIA CUDA 13.x                                |
-|             |                          | Non-NVIDIA / CPU                  | **`vcclient-linux-arm64-standard-*.7z`** | ARM NEON / SVE CPU                              |
-| **macOS**   | Apple Silicon (M-series) | Apple Neural Engine / Metal GPU   | **`vcclient-mac-arm64-standard-*.7z`**   | CoreML (NeuralNetwork format on ANE & GPU)      |
-|             | Intel x86_64             | Any                               | _Not Supported_                          | —                                               |
+| OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                    |
+| :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :--------------------------------------- |
+| **Windows** | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 13.x / cuDNN 9               |
+|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / DirectML / CPU          |
+|             | ARM64                    | Any                               | _Not Supported_                          | —                                        |
+| **Linux**   | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 13.x / cuDNN 9               |
+|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-linux-x64-standard-*.7z`**   | Intel OpenVINO / WebGPU (Vulkan) / CPU   |
+|             | ARM64                    | **NVIDIA GPU** (DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     | NVIDIA CUDA 13.x                         |
+|             |                          | Non-NVIDIA / CPU                  | **`vcclient-linux-arm64-standard-*.7z`** | WebGPU (Vulkan) / CPU                    |
+| **macOS**   | Apple Silicon (M-series) | Apple Neural Engine / Metal GPU   | **`vcclient-mac-arm64-standard-*.7z`**   | CoreML (MLProgram / NeuralNetwork) / CPU |
+|             | Intel x86_64             | Any                               | _Not Supported_                          | —                                        |
 
 > [!TIP]
 >
-> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and newer, and GTX 16 series). Please update your NVIDIA driver to the latest version (CUDA 13-compatible, R580 or newer); CUDA Toolkit and cuDNN are bundled and not required. Real-time performance depends on the GPU and model.
-> - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices; real-time performance depends on the device and model.
-> - **Intel Arc / AMD Radeon / Mac users**: Select the universal `standard` package for your platform. Hardware acceleration (OpenVINO, DirectML, CoreML) is configured automatically out of the box!
+> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and GTX 16 series) and a CUDA 13-compatible NVIDIA driver (R580 or newer). The required CUDA libraries and cuDNN are bundled, so you can skip installing the CUDA Toolkit separately.
+> - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices.
+> - **Intel Arc / AMD Radeon / Apple Silicon Mac**: Download the `standard` package for your platform. Use OpenVINO for Intel Arc on Windows or x64 Linux, DirectML for AMD Radeon on Windows, or CoreML on Apple Silicon.
+> - **WebGPU on Linux**: Experimental acceleration for AMD Radeon and other compatible GPUs requires a working Vulkan driver and loader (`libvulkan.so.1`). Select a `[WebGPU]` device in Settings while conversion is stopped.
+> - **CPU inference**: Supported without a discrete GPU. ONNX Runtime can use AVX-512 on compatible x64 CPUs and Arm NEON or SVE kernels when supported by the hardware and runtime build. [ONNX Runtime CPU kernels](https://github.com/microsoft/onnxruntime/tree/main/onnxruntime/core/mlas)
+
+Forge tries available compute devices during initial setup once a model is available. You can rerun automatic device selection in Settings while conversion is stopped. Real-time performance depends on the device and model.
 
 ### 2. Extract, Launch & Migrate
 
-Extract the downloaded `.7z` archive to any folder (on Ubuntu/Debian, install `7zip` if needed: `sudo apt-get update && sudo apt-get install -y 7zip`).
+> [!IMPORTANT]
+> Starting with Forge `v2.0.78-forge.0.4.0`, startup migrates numeric model folders to a NanoID catalog. Older Forge versions and w-okada VC `v2.0.78` cannot read the migrated layout. Keep a backup of `settings` and `model_dir` and copy them into a freshly extracted folder before starting Forge.
 
-For **launch steps** (Windows / macOS / Ubuntu Linux, Desktop App or Web Browser Mode), **Linux dependencies**, **first-launch model downloads**, and **migrating `settings` and `model_dir` from w-okada VC (`v2.0.78`)**, see the bundled Quick Start guide:
+Extract the downloaded `.7z` archive to any folder (on Ubuntu/Debian, install `7zip` if needed: `sudo apt-get update && sudo apt-get install -y 7zip`). The standalone package includes Python.
+
+For **launch steps** (Windows / macOS / Ubuntu Linux, Desktop App or Web Browser Mode), **Linux dependencies**, **initial model downloads**, and **migration from earlier releases**, see the bundled Quick Start guide:
 
 - **English**: **[`docs/README.txt`](docs/README.txt)** (`README.txt` inside the extracted folder)
 - **日本語**: **[`docs/README_ja.txt`](docs/README_ja.txt)** (`README_ja.txt` inside the extracted folder)
 
 ---
 
-## Project Goals (Still on Our Way)
+## Project Goals
 
-- **Spiritual Successor to the Golden Standard (v2.0.78)**:
-  Designed as a community-driven spiritual successor to the most widely adopted and beloved version (`v2.0.78`), honoring the original vision while breathing new life into the established ecosystem.
-- **Windows-First Portable Experience**:
-  Prioritizing the standalone Windows ZIP distribution as our first-class citizen. Our primary mission is ensuring seamless, zero-config local execution on Windows gaming and streaming rigs.
-- **Seamless Usability & Compatibility (Zero-Config Transition)**:
-  Preserving the familiar UI workflows, model slots, and configuration compatibility of v2.0.78. Creators and streamers can transition immediately without re-learning or re-configuring their setups.
-- **Laser-Focused on Real-Time Performance**:
-  Dedicated strictly to real-time voice conversion—maximizing latency efficiency and audio stability under demanding gaming and streaming workloads.
-- **Dedicated RVC Client**:
-  Exclusively specialized for RVC to deliver a clean, efficient, and intuitive real-time voice conversion experience.
-- **Future-Proof Maintainability**:
-  Engineered to smoothly track modern Python (3.14+) and newer GPU driver architectures, ensuring long-term reliability without bit-rot.
+- **Build on w-okada VC v2.0.78.** Carry its RVC workflows and model ecosystem forward as a community project.
+- **Make portable Windows releases the primary experience.** Make Forge easy to launch locally on gaming and streaming PCs from a standalone `.7z` package.
+- **Keep familiar workflows.** Help existing users bring over their RVC models and settings and continue with familiar controls. See the migration steps above when upgrading.
+- **Focus on real-time RVC communication.** Prioritize low latency and stable audio during gaming, streaming, and voice chat.
+- **Keep the project maintainable.** Track supported Python and accelerator runtimes and use upstream packages where possible.
 
----
+### Platform Support
 
-## Technical Strategy (How We Achieve It)
-
-- **Decoupling PyTorch toward a "Pure-ONNX" Runtime**:
-  Aiming to streamline the entire inference pipeline exclusively into ONNX. By intentionally shedding heavy PyTorch dependencies, we dramatically minimize dependency conflicts and shrink standalone distributions to a fraction of their original size.
-- **Deterministic Package Management ([uv](https://docs.astral.sh/uv/))**:
-  Employing `pyproject.toml` and a locked dependency manifest (`uv.lock`) for lightning-fast, 100% reproducible environments.
-- **Platform Scope & Support Boundaries**:
-  - **Windows**: Primary target. Officially supported and validated for portable ZIP distributions and source execution.
-  - **Linux & macOS**: Best-effort basis. Startup scripts and hardware extras are maintained, but formal validation is not guaranteed.
-  - **Docker & Google Colab**: Explicitly out of scope. Containerized and cloud-hosted environments are not officially supported; users requiring these setups may adapt the source independently (though doing so should be significantly easier and cleaner than before thanks to `uv` and deterministic dependency locks).
-- **Pragmatic Two-Tier Distribution (`standard` & `cuda`)**:
-  Instead of fragmented per-device packages, Forge consolidates releases into two streamlined tiers: a universal `standard` edition (supporting OpenVINO on Intel Arc GPU/iGPU, DirectML on AMD/Windows, CoreML on Apple Silicon, and AVX-512 CPU) and a high-performance `cuda` edition for NVIDIA hardware, both fitting well within the 2.00 GiB GitHub Release limit.
-- **Streamlined Pure-ONNX Pitch Estimation (RMVPE & FCPE Only)**:
-  Consolidating pitch estimation exclusively to the gold standard (RMVPE) and a newer, ultra-fast alternative (FCPE) running torch-free via ONNX Runtime and NumPy. See [OKF Documentation](okf/streamlined-pitch-estimation-and-torch-free-pipeline.md) for details.
-- **Standalone Portable Packaging**:
-  Automated bundling of isolated Python runtimes and Web UI assets into portable zip packages (`scripts/build_package.py`).
+- **Windows** is the primary target for standalone releases and running from source.
+- **Linux and macOS** receive standalone packages and best-effort support.
+- **Docker and Google Colab** are outside the project's support scope.
 
 ---
 
@@ -86,11 +73,13 @@ For **launch steps** (Windows / macOS / Ubuntu Linux, Desktop App or Web Browser
 
 For source code development, running automated test suites, code formatting/linting, and building standalone packages, please refer to the dedicated [Developer & Build Guide (README_dev.md)](README_dev.md).
 
+See the [architectural and design rationales](okf/rationales.md) for Forge's technical choices. Integrations written for the old REST API or Socket.IO need to migrate to the current [HTTP and WebSocket API](okf/api-reference.md).
+
 ---
 
-## Terms of Use for Bundled Voice Models
+## Terms of Use for Sample Voice Models
 
-The bundled initial voice models are provided courtesy of their respective original creators. The **official Japanese terms of service take precedence**; please review the official links before using converted voices:
+The voice models downloaded during initial setup are provided courtesy of their respective original creators. The **official Japanese terms of service take precedence**; please review the official links before using converted voices:
 
 ### 1. Tsukuyomi-chan (つくよみちゃん)
 
@@ -130,3 +119,9 @@ The bundled initial voice models are provided courtesy of their respective origi
 ## Disclaimer
 
 The author and contributors assume no liability for any direct, indirect, incidental, consequential, or special damages arising out of the use of or inability to use this software.
+
+---
+
+## License
+
+VCClient Forge is licensed under the MIT License. See [LICENSE](LICENSE) for the full text and copyright notices.
