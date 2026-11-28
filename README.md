@@ -38,7 +38,7 @@ Windows ARM64 and Intel Mac do not have standalone packages.
 > - **Intel Arc / AMD Radeon / Apple Silicon Mac**: Download the `standard` package for your platform. Use OpenVINO for Intel Arc on Windows or x64 Linux, DirectML for AMD Radeon on Windows, or CoreML on Apple Silicon.
 > - **CoreML on Apple Silicon**: Can use the Apple Neural Engine or Metal GPU. Forge uses MLProgram or NeuralNetwork depending on the model and inference shape.
 > - **WebGPU on Linux**: Experimental acceleration for AMD Radeon and other compatible GPUs requires a working Vulkan driver and loader (`libvulkan.so.1`). Select a `[WebGPU]` device in Settings while conversion is stopped.
-> - **CPU inference**: Available in every package. ONNX Runtime can use AVX-512 on compatible x64 CPUs and Arm NEON or SVE kernels when supported by the hardware and runtime build. [ONNX Runtime CPU kernels](https://github.com/microsoft/onnxruntime/tree/main/onnxruntime/core/mlas)
+> - **CPU inference**: Available in every package. ONNX Runtime provides optimized CPU kernels for instruction sets such as AVX2 and AVX-512 on x64 and NEON and SVE on ARM64. Kernel selection depends on the CPU, runtime build, and operation. [ONNX Runtime CPU kernels](https://github.com/microsoft/onnxruntime/tree/main/onnxruntime/core/mlas)
 
 Forge tries available compute devices during initial setup once a model is available. You can rerun automatic device selection in Settings while conversion is stopped. Real-time performance depends on the device and model.
 
