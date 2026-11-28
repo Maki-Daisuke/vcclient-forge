@@ -17,25 +17,28 @@ This project is a modernized **spiritual successor** to [`w-okada/voice-changer`
 
 Download the standalone package matching your operating system and hardware from **[GitHub Releases](https://github.com/Maki-Daisuke/vcclient-forge/releases)**:
 
-| OS          | Architecture             | Hardware / GPU                    | Download Package                         | Hardware Acceleration                    |
-| :---------- | :----------------------- | :-------------------------------- | :--------------------------------------- | :--------------------------------------- |
-| **Windows** | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-win-x64-cuda-*.7z`**         | NVIDIA CUDA 13.x / cuDNN 9               |
-|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-win-x64-standard-*.7z`**     | Intel OpenVINO / DirectML / CPU          |
-|             | ARM64                    | Any                               | _Not Supported_                          | —                                        |
-| **Linux**   | x86_64                   | **NVIDIA GPU** (Turing or newer)  | **`vcclient-linux-x64-cuda-*.7z`**       | NVIDIA CUDA 13.x / cuDNN 9               |
-|             |                          | AMD / Intel / NVIDIA / CPU        | **`vcclient-linux-x64-standard-*.7z`**   | Intel OpenVINO / WebGPU (Vulkan) / CPU   |
-|             | ARM64                    | **NVIDIA GPU** (DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     | NVIDIA CUDA 13.x                         |
-|             |                          | Non-NVIDIA / CPU                  | **`vcclient-linux-arm64-standard-*.7z`** | WebGPU (Vulkan) / CPU                    |
-| **macOS**   | Apple Silicon (M-series) | Apple Neural Engine / Metal GPU   | **`vcclient-mac-arm64-standard-*.7z`**   | CoreML (MLProgram / NeuralNetwork) / CPU |
-|             | Intel x86_64             | Any                               | _Not Supported_                          | —                                        |
+| Platform        | Your Hardware                  | Download Package                         | CUDA | OpenVINO | DirectML | WebGPU\* | CoreML |
+| :-------------- | :----------------------------- | :--------------------------------------- | :--: | :------: | :------: | :------: | :----: |
+| **Windows x64** | NVIDIA (Turing or newer)       | **`vcclient-win-x64-cuda-*.7z`**         |  ✓   |    ✓     |          |          |        |
+|                 | AMD / Intel / NVIDIA / CPU     | **`vcclient-win-x64-standard-*.7z`**     |      |    ✓     |    ✓     |          |        |
+| **Linux x64**   | NVIDIA (Turing or newer)       | **`vcclient-linux-x64-cuda-*.7z`**       |  ✓   |    ✓     |          |    ✓     |        |
+|                 | AMD / Intel / NVIDIA / CPU     | **`vcclient-linux-x64-standard-*.7z`**   |      |    ✓     |          |    ✓     |        |
+| **Linux ARM64** | NVIDIA (e.g. DGX Spark / GB10) | **`vcclient-linux-arm64-cuda-*.7z`**     |  ✓   |          |          |    ✓     |        |
+|                 | Non-NVIDIA / CPU               | **`vcclient-linux-arm64-standard-*.7z`** |      |          |          |    ✓     |        |
+| **macOS ARM64** | Apple Silicon (M-series)       | **`vcclient-mac-arm64-standard-*.7z`**   |      |          |          |          |   ✓    |
+
+✓ indicates that the package supports the execution provider. Availability depends on compatible hardware and drivers. \* WebGPU support is experimental.
+
+Windows ARM64 and Intel Mac do not have standalone packages.
 
 > [!TIP]
 >
-> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and GTX 16 series) and a CUDA 13-compatible NVIDIA driver (R580 or newer). The required CUDA libraries and cuDNN are bundled, so you can skip installing the CUDA Toolkit separately.
+> - **CUDA edition**: Requires a Turing-generation or newer NVIDIA GPU (including GeForce RTX 20 series and GTX 16 series) and a CUDA 13-compatible NVIDIA driver (R580 or newer). The required CUDA 13.x libraries and cuDNN 9 are bundled, so you can skip installing the CUDA Toolkit separately.
 > - **Older NVIDIA GPUs on Windows**: The `win-x64-standard` edition can use DirectML on compatible devices.
 > - **Intel Arc / AMD Radeon / Apple Silicon Mac**: Download the `standard` package for your platform. Use OpenVINO for Intel Arc on Windows or x64 Linux, DirectML for AMD Radeon on Windows, or CoreML on Apple Silicon.
+> - **CoreML on Apple Silicon**: Can use the Apple Neural Engine or Metal GPU. Forge uses MLProgram or NeuralNetwork depending on the model and inference shape.
 > - **WebGPU on Linux**: Experimental acceleration for AMD Radeon and other compatible GPUs requires a working Vulkan driver and loader (`libvulkan.so.1`). Select a `[WebGPU]` device in Settings while conversion is stopped.
-> - **CPU inference**: Supported without a discrete GPU. ONNX Runtime can use AVX-512 on compatible x64 CPUs and Arm NEON or SVE kernels when supported by the hardware and runtime build. [ONNX Runtime CPU kernels](https://github.com/microsoft/onnxruntime/tree/main/onnxruntime/core/mlas)
+> - **CPU inference**: Available in every package. ONNX Runtime can use AVX-512 on compatible x64 CPUs and Arm NEON or SVE kernels when supported by the hardware and runtime build. [ONNX Runtime CPU kernels](https://github.com/microsoft/onnxruntime/tree/main/onnxruntime/core/mlas)
 
 Forge tries available compute devices during initial setup once a model is available. You can rerun automatic device selection in Settings while conversion is stopped. Real-time performance depends on the device and model.
 
